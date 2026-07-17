@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
+import { useConfirm } from "@/lib/confirm";
 import { AddressInput } from "@/components/AddressInput";
 import type { Delivery, NamedLocation, Settings } from "@/lib/types";
 
@@ -93,6 +94,7 @@ function LocationTable({
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState<NamedLocation>({ name: "", address: "" });
   const [adding, setAdding] = useState(false);
+  const confirmAction = useConfirm();
 
   // How many orders reference each entry — so deleting isn't a blind act.
   const usage = useMemo(() => {
@@ -108,11 +110,11 @@ function LocationTable({
   const startEdit = (i: number) => { setDraft({ ...items[i] }); setAdding(false); setEditing(i); };
   const cancel = () => { setEditing(null); setAdding(false); };
 
-  const commit = () => {
+  const commit = async () => {
     const name = draft.name.trim();
     if (!name) return;
     const clash = items.some((x, i) => x.name.toLowerCase() === name.toLowerCase() && i !== editing);
-    if (clash) { alert(t(`"${name}" already exists.`, `"${name}" ya existe.`)); return; }
+    if (clash) { await confirmAction(t(`"${name}" already exists.`, `"${name}" ya existe.`), { alertOnly: true }); return; }
     const next = [...items];
     if (adding) next.push({ name, address: draft.address.trim() });
     else if (editing != null) next[editing] = { name, address: draft.address.trim() };
@@ -120,7 +122,7 @@ function LocationTable({
     cancel();
   };
 
-  const remove = (i: number) => {
+  const remove = async (i: number) => {
     const it = items[i];
     const used = usage.get(it.name) ?? 0;
     const msg = used
@@ -129,7 +131,7 @@ function LocationTable({
           `"${it.name}" se usa en ${used} orden(es). Esas órdenes conservan la dirección ya guardada, pero no se ofrecerá en órdenes nuevas. ¿Eliminar?`,
         )
       : t(`Delete "${it.name}"?`, `¿Eliminar "${it.name}"?`);
-    if (!confirm(msg)) return;
+    if (!(await confirmAction(msg, { danger: true, confirmLabel: t("Delete", "Eliminar") }))) return;
     onChange(items.filter((_, x) => x !== i));
   };
 
@@ -207,6 +209,7 @@ function TagTable({
   t: (en: string, es: string) => string;
 }) {
   const [val, setVal] = useState("");
+  const confirmAction = useConfirm();
 
   const usage = useMemo(() => {
     const m = new Map<string, number>();
@@ -223,12 +226,12 @@ function TagTable({
     setVal("");
   };
 
-  const remove = (x: string) => {
+  const remove = async (x: string) => {
     const used = usage.get(x) ?? 0;
-    if (used && !confirm(t(
+    if (used && !(await confirmAction(t(
       `"${x}" is used by ${used} order(s). They keep their type, but it won't be offered on new orders. Delete it?`,
       `"${x}" se usa en ${used} orden(es). Conservan su tipo, pero no se ofrecerá en órdenes nuevas. ¿Eliminar?`,
-    ))) return;
+    ), { danger: true, confirmLabel: t("Delete", "Eliminar") }))) return;
     onChange(items.filter((i) => i !== x));
   };
 

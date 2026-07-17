@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DataProvider } from "@/lib/data-provider";
+import { ConfirmProvider } from "@/lib/confirm";
 import { LocalApp } from "@/components/LocalApp";
 import { TopBar } from "@/components/TopBar";
 import { VersionFooter } from "@/components/VersionFooter";
@@ -11,7 +12,7 @@ const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // Local demo mode: no Supabase, everything runs in the browser.
-  if (LOCAL_MODE) return <LocalApp>{children}</LocalApp>;
+  if (LOCAL_MODE) return <ConfirmProvider><LocalApp>{children}</LocalApp></ConfirmProvider>;
 
   const supabase = createClient();
   const {
@@ -28,10 +29,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const me: Profile = profile ?? { id: user.id, full_name: user.email ?? "Me", role: "sales" };
 
   return (
-    <DataProvider me={me}>
-      <TopBar me={me} />
-      <div className="wrap"><ErrorBoundary>{children}</ErrorBoundary></div>
-      <VersionFooter />
-    </DataProvider>
+    <ConfirmProvider>
+      <DataProvider me={me}>
+        <TopBar me={me} />
+        <div className="wrap"><ErrorBoundary>{children}</ErrorBoundary></div>
+        <VersionFooter />
+      </DataProvider>
+    </ConfirmProvider>
   );
 }

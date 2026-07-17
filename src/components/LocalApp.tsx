@@ -7,6 +7,7 @@ import { VersionFooter } from "@/components/VersionFooter";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ROLE_ORDER, roleLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
+import { useConfirm } from "@/lib/confirm";
 import type { Profile, UserRole } from "@/lib/types";
 
 const ME_KEY = "rtg_deliveries_local_me";
@@ -16,6 +17,7 @@ const ME_KEY = "rtg_deliveries_local_me";
  * data provider. No Supabase, no login server. */
 export function LocalApp({ children }: { children: React.ReactNode }) {
   const { lang, t } = usePrefs();
+  const confirmAction = useConfirm();
   const [me, setMe] = useState<Profile>({ id: "u-admin", full_name: "You (Admin)", role: "admin" });
   const [loaded, setLoaded] = useState(false);
 
@@ -56,7 +58,12 @@ export function LocalApp({ children }: { children: React.ReactNode }) {
         >
           {ROLE_ORDER.map((r) => <option key={r} value={r}>{roleLabel(r, lang)}</option>)}
         </select>
-        <button className="btn btn-sm btn-ghost" onClick={() => { if (confirm(t("Reset all demo data back to the starting sample?", "¿Restablecer los datos demo a la muestra inicial?"))) resetLocalData(); }}>
+        <button className="btn btn-sm btn-ghost" onClick={async () => {
+          if (await confirmAction(
+            t("Reset all demo data back to the starting sample?", "¿Restablecer los datos demo a la muestra inicial?"),
+            { danger: true, confirmLabel: t("Reset", "Restablecer") },
+          )) resetLocalData();
+        }}>
           {t("Reset data", "Restablecer")}
         </button>
       </div>

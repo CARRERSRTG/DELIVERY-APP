@@ -60,7 +60,9 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   { id: "data",      label: "🗂 Data",      label_es: "🗂 Datos",      href: "/data", roles: ["admin"], cap: "settings" },
   { id: "settings",  label: "⚙️ Settings",  label_es: "⚙️ Ajustes",    href: "/settings", roles: ["admin"], cap: "settings" },
   { id: "users",     label: "🛡 Users",     label_es: "🛡 Usuarios",   href: "/users", roles: ["admin"], cap: "users" },
-  // Available to every role — each user's own profile, stats and preferences.
+  // Available to every role — each user's own work: numbers and recent orders.
+  { id: "summary",   label: "📈 Summary",   label_es: "📈 Resumen",    href: "/summary" },
+  // Available to every role — each user's own profile and preferences.
   { id: "account",   label: "👤 Account",   label_es: "👤 Cuenta",     href: "/account" },
 ];
 
@@ -102,6 +104,7 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, { en: string; es: string }[]>
     { en: "Override any status", es: "Cambiar cualquier estado" },
   ],
   manager: [
+    { en: "Create orders", es: "Crear órdenes" },
     { en: "Approve orders", es: "Aprobar órdenes" },
     { en: "Reject with a reason", es: "Rechazar con motivo" },
     { en: "See every order", es: "Ver todas las órdenes" },
@@ -161,7 +164,7 @@ export const CAPABILITIES: { key: Capability; en: string; es: string; desc_en: s
 /** The capabilities each role gets automatically. */
 export const ROLE_CAPS: Record<UserRole, Capability[]> = {
   admin:     ["create", "approve", "fulfill", "deliver", "dashboard", "users", "settings"],
-  manager:   ["approve", "dashboard"],
+  manager:   ["create", "approve", "dashboard"],
   sales:     ["create"],
   warehouse: ["fulfill", "deliver"],
   driver:    ["create", "deliver"],

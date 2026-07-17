@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
+import { useConfirm } from "@/lib/confirm";
 import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, driverNames, stageInfo, stageLabel } from "@/lib/constants";
 import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, nowMilitary, palletDuration, telClean, todayISO } from "@/lib/utils";
 import { printDeliverySlip } from "@/lib/slip";
@@ -53,6 +54,7 @@ export function OrderModal({
   const { settings, users, deliveries, addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote, saveSettings, notify } =
     useData();
   const { lang, t } = usePrefs();
+  const confirmAction = useConfirm();
   const isNew = !existing;
   const stage: Stage = existing?.stage ?? "draft";
   const editable = isNew || (startEditing && canEditFields(me.role, stage));
@@ -101,21 +103,21 @@ export function OrderModal({
 
   /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
    * what's missing / conflicting and chooses whether to continue. */
-  const passesChecks = (draft: Draft): boolean => {
+  const passesChecks = async (draft: Draft): Promise<boolean> => {
     // 1. Required fields — list them and let the rep decide.
     const miss = missingFields(draft);
     if (miss.length) {
       const list = miss.map((m) => `• ${t(m.en, m.es)}`).join("\n");
-      if (!confirm(t(
+      if (!(await confirmAction(t(
         `These required fields are still empty:\n\n${list}\n\nContinue anyway?`,
         `Estos campos obligatorios están vacíos:\n\n${list}\n\n¿Continuar de todos modos?`,
-      ))) return false;
+      )))) return false;
     }
     const dup = duplicateOf(draft);
-    if (dup && !confirm(t(
+    if (dup && !(await confirmAction(t(
       `Order #${dup.order_no} already has the same account, delivery date and PO. Create anyway?`,
       `La orden #${dup.order_no} ya tiene la misma cuenta, fecha y PO. ¿Crear de todos modos?`,
-    ))) return false;
+    )))) return false;
 
     // Scheduling capacity rules — warn, but let the rep request it anyway.
     const warns = checkSchedule(
@@ -124,7 +126,7 @@ export function OrderModal({
     );
     if (warns.length) {
       const list = warns.map((w) => `• ${t(w.en, w.es)}`).join("\n");
-      if (!confirm(t(`⚠ Scheduling conflict:\n\n${list}\n\nRequest anyway?`, `⚠ Conflicto de programación:\n\n${list}\n\n¿Solicitar de todos modos?`))) return false;
+      if (!(await confirmAction(t(`⚠ Scheduling conflict:\n\n${list}\n\nRequest anyway?`, `⚠ Conflicto de programación:\n\n${list}\n\n¿Solicitar de todos modos?`)))) return false;
     }
     return true;
   };
@@ -180,7 +182,7 @@ export function OrderModal({
   const save = async () => {
     const payload = withDurations(d);
     // Enforce required fields once an order is past the draft stage.
-    if ((payload.stage ?? "draft") !== "draft" && !passesChecks(payload)) return;
+    if ((payload.stage ?? "draft") !== "draft" && !(await passesChecks(payload))) return;
     setBusy(true);
     if (isNew) {
       const row = await addDelivery(payload);
@@ -315,7 +317,10 @@ export function OrderModal({
 
   const remove = async () => {
     if (!existing) return;
-    if (!confirm(t(`Delete order #${existing.order_no}? This cannot be undone.`, `¿Eliminar la orden #${existing.order_no}? No se puede deshacer.`))) return;
+    if (!(await confirmAction(
+      t(`Delete order #${existing.order_no}? This cannot be undone.`, `¿Eliminar la orden #${existing.order_no}? No se puede deshacer.`),
+      { danger: true, confirmLabel: t("Delete", "Eliminar") },
+    ))) return;
     await deleteDelivery(existing.id);
     notify(t("Order deleted", "Orden eliminada"));
     onClose();
@@ -400,11 +405,11 @@ export function OrderModal({
   // The form must never vanish mid-typing. Any edit makes it "dirty", and the
   // backdrop / ✕ then ask before discarding.
   const dirty = editing && JSON.stringify(d) !== JSON.stringify(existing ?? EMPTY);
-  const requestClose = () => {
-    if (dirty && !confirm(t(
+  const requestClose = async () => {
+    if (dirty && !(await confirmAction(t(
       "You have unsaved changes to this order. Discard them?",
       "Tiene cambios sin guardar en esta orden. ¿Descartarlos?",
-    ))) return;
+    ), { danger: true, confirmLabel: t("Discard", "Descartar") }))) return;
     onClose();
   };
 
@@ -838,12 +843,12 @@ export function OrderModal({
               )}
               {isNew ? (
                 <>
-                  <button className="btn btn-danger" onClick={() => { if (confirm(t("Discard this order? Nothing will be saved.", "¿Descartar esta orden? No se guardará nada."))) onClose(); }} disabled={busy}>{t("Discard", "Descartar")}</button>
+                  <button className="btn btn-danger" onClick={async () => { if (await confirmAction(t("Discard this order? Nothing will be saved.", "¿Descartar esta orden? No se guardará nada."), { danger: true, confirmLabel: t("Discard", "Descartar") })) onClose(); }} disabled={busy}>{t("Discard", "Descartar")}</button>
                   {canCreate(me) && <button className="btn btn-ghost" onClick={save} disabled={busy}>{t("Save draft", "Guardar borrador")}</button>}
                   {canCreate(me) && (
                     <button className="btn btn-primary" disabled={busy} onClick={async () => {
                       const payload = withDurations({ ...d, stage: "pending" });
-                      if (!passesChecks(payload)) return;
+                      if (!(await passesChecks(payload))) return;
                       setBusy(true);
                       const row = await addDelivery(payload);
                       setBusy(false);
@@ -898,8 +903,8 @@ function StageActions({
     btns.push(<button key="edit" className="btn btn-ghost" onClick={onEdit} disabled={busy}>{t("Edit", "Editar")}</button>);
   }
 
-  // Sales & drivers (both log orders and shepherd their own drafts).
-  if (me.role === "sales" || me.role === "driver" || me.role === "admin") {
+  // Anyone who can create orders also shepherds their own drafts through submit/resubmit/cancel.
+  if (canCreate(me)) {
     if (stage === "draft") btns.push(<button key="submit" className="btn btn-primary" onClick={() => onMove("pending")} disabled={busy}>{t("Submit for approval", "Enviar a aprobación")}</button>);
     if (stage === "rejected") btns.push(<button key="resub" className="btn btn-primary" onClick={() => onMove("pending")} disabled={busy}>{t("Resubmit", "Reenviar")}</button>);
     if (stage === "draft" || stage === "rejected") {

@@ -124,5 +124,15 @@ update public.profiles set role = 'admin'
 where id = (select id from public.profiles order by created_at asc limit 1)
   and not exists (select 1 from public.profiles where role = 'admin');
 
--- Realtime for live role updates in the Users tab.
-alter publication supabase_realtime add table public.profiles;
+-- Realtime for live role updates in the Users tab. Guarded so this file can
+-- be re-run safely (e.g. after a later migration) without erroring on an
+-- already-added table.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'profiles'
+  ) then
+    alter publication supabase_realtime add table public.profiles;
+  end if;
+end $$;

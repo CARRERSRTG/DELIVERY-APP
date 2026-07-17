@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
+import { useConfirm } from "@/lib/confirm";
 import { canCreate, driverNames, STAGES, stageLabel } from "@/lib/constants";
 import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/OrdersTable";
 import { OrdersBoard } from "@/components/OrdersBoard";
@@ -20,6 +21,7 @@ const COLS_KEY = "rtg_order_columns";
 export default function OrdersPage() {
   const { me, users, deliveries, settings, ready, updateDelivery, setStage, notify } = useData();
   const { lang, t } = usePrefs();
+  const confirmAction = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [filter, setFilter] = useState<string>("all");
@@ -140,10 +142,10 @@ export default function OrdersPage() {
     if (!to || !chosen.length) return;
     const label = stageLabel(to, lang);
     const list = chosen.slice(0, 8).map((d) => `#${d.order_no}`).join(", ") + (chosen.length > 8 ? "…" : "");
-    const ok = confirm(t(
+    const ok = await confirmAction(t(
       `Override ${chosen.length} order(s) to "${label}"?\n\n${list}\n\nThis skips the normal workflow steps. Each order's history will record the override.`,
       `¿Forzar ${chosen.length} orden(es) a "${label}"?\n\n${list}\n\nEsto omite los pasos normales del flujo. El historial de cada orden registrará el cambio.`,
-    ));
+    ), { danger: true, confirmLabel: t("Override", "Forzar") });
     if (!ok) return;
     setBulkBusy(true);
     let done = 0;

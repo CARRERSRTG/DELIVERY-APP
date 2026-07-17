@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
+import { useConfirm } from "@/lib/confirm";
 import { CAPABILITIES, ROLE_CAPS, ROLE_INFO, ROLE_ORDER, extraCaps, roleLabel } from "@/lib/constants";
 import { avatarColor, initials } from "@/lib/utils";
 import type { UserRole } from "@/lib/types";
@@ -12,6 +13,7 @@ const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 export default function UsersPage() {
   const { me, users, settings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser } = useData();
   const { lang, t } = usePrefs();
+  const confirmAction = useConfirm();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<UserRole>("sales");
@@ -92,7 +94,10 @@ export default function UsersPage() {
               </button>
               {u.id !== me.id && (
                 <button className="btn btn-danger btn-sm" onClick={async () => {
-                  if (confirm(t(`Remove ${u.full_name}? This deletes their login.`, `¿Eliminar a ${u.full_name}? Esto borra su acceso.`))) await deleteUser(u.id);
+                  if (await confirmAction(
+                    t(`Remove ${u.full_name}? This deletes their login.`, `¿Eliminar a ${u.full_name}? Esto borra su acceso.`),
+                    { danger: true, confirmLabel: t("Remove", "Eliminar") },
+                  )) await deleteUser(u.id);
                 }}>{t("Remove", "Eliminar")}</button>
               )}
             </div>
