@@ -1,0 +1,116 @@
+"use client";
+
+import { useRef, useState } from "react";
+
+// ============================================================
+// Photos of the material, taken by the driver.
+//
+// On a phone this opens the camera directly (capture="environment"); on a
+// desktop it's a normal file picker. Images are downscaled and re-encoded to
+// JPEG in the browser before being stored — a raw phone photo is several MB,
+// which would blow past the localStorage quota in demo mode and bloat rows in
+// Supabase. ~1280px wide at q0.7 is plenty to prove what was delivered.
+// ============================================================
+
+const MAX_DIM = 1280;
+const QUALITY = 0.7;
+
+/** Downscale + compress an image file to a JPEG data: URL. */
+function compress(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("decode failed"));
+      img.onload = () => {
+        const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("no canvas"));
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", QUALITY));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+export function PhotoUpload({
+  photos,
+  onChange,
+  disabled,
+  max = 6,
+  t,
+}: {
+  photos: string[];
+  onChange: (next: string[]) => void;
+  disabled?: boolean;
+  max?: number;
+  t: (en: string, es: string) => string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const add = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const room = Math.max(0, max - photos.length);
+      const picked = [...files].slice(0, room);
+      const encoded: string[] = [];
+      for (const f of picked) {
+        if (!f.type.startsWith("image/")) continue;
+        try { encoded.push(await compress(f)); } catch { /* skip unreadable file */ }
+      }
+      if (!encoded.length) setErr(t("Couldn't read those files.", "No se pudieron leer esos archivos."));
+      else onChange([...photos, ...encoded]);
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const remove = (i: number) => onChange(photos.filter((_, x) => x !== i));
+  const full = photos.length >= max;
+
+  return (
+    <div>
+      <div className="photo-grid">
+        {photos.map((src, i) => (
+          <div className="photo-item" key={i}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt={`photo ${i + 1}`} onClick={() => window.open(src, "_blank")} />
+            {!disabled && <button className="photo-del" onClick={() => remove(i)} title={t("Remove", "Quitar")}>✕</button>}
+          </div>
+        ))}
+        {!disabled && !full && (
+          <button className="photo-add" onClick={() => inputRef.current?.click()} disabled={busy}>
+            {busy ? "…" : <>📷<span>{t("Add photo", "Agregar foto")}</span></>}
+          </button>
+        )}
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple
+        hidden
+        onChange={(e) => add(e.target.files)}
+      />
+
+      {err && <div className="hint" style={{ color: "var(--red)" }}>{err}</div>}
+      {full && <div className="hint">{t(`Maximum ${max} photos.`, `Máximo ${max} fotos.`)}</div>}
+      {photos.length === 0 && disabled && <div className="hint">{t("No photos.", "Sin fotos.")}</div>}
+    </div>
+  );
+}
