@@ -7,13 +7,20 @@ import { canCreate, canDeliver } from "@/lib/constants";
 import { routeOrder } from "@/lib/dispatch";
 import { OrdersTable } from "@/components/OrdersTable";
 import { OrderModal } from "@/components/OrderModal";
+import { yesterdayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
+// Full workflow visible to drivers now, in order: an order is approved but
+// warehouse hasn't started it yet (Pending Preparation) → warehouse is
+// working on it (Started) → staged and ready for the driver to grab (Staged
+// — deliberately not "Ready", so it's never confused with "fulfilled") →
+// the driver has it (Picked Up) → done (Delivered).
 const TABS = [
-  { key: "ready", label: "To pick up", label_es: "Por recoger" },
+  { key: "approved", label: "Pending Preparation", label_es: "Preparación Pendiente" },
+  { key: "fulfilling", label: "Started", label_es: "Iniciado" },
+  { key: "ready", label: "Staged", label_es: "Preparado" },
   { key: "picked_up", label: "Out for delivery", label_es: "En reparto" },
   { key: "delivered", label: "Delivered", label_es: "Entregadas" },
-  { key: "fulfilling", label: "Being prepared", label_es: "En preparación" },
   { key: "all", label: "All", label_es: "Todas" },
 ] as const;
 
@@ -23,15 +30,23 @@ export default function DriverPage() {
   const [open, setOpen] = useState<Delivery | null>(null);
   const [creating, setCreating] = useState(false);
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("ready");
+  const [q, setQ] = useState("");
   // Shows every location by default; narrow to a single store when needed.
   const [storeFilter, setStoreFilter] = useState<string>("");
 
   // Orders for the chosen store, plus anything assigned to this driver by name.
   const scoped = useMemo(() => {
     if (!me) return [];
-    if (!storeFilter) return deliveries;
-    return deliveries.filter((d) => d.store === storeFilter || d.assigned_driver === me.full_name);
-  }, [deliveries, me, storeFilter]);
+    const needle = q.trim().toLowerCase();
+    return deliveries.filter((d) => {
+      if (storeFilter && d.store !== storeFilter && d.assigned_driver !== me.full_name) return false;
+      // Searching matches by invoice # specifically and bypasses the date
+      // window below — that's the one way to reach older history here.
+      if (needle) return (d.invoice_num || "").toLowerCase().includes(needle);
+      if (d.delivery_date && d.delivery_date < yesterdayISO() && d.assigned_driver !== me.full_name) return false;
+      return true;
+    });
+  }, [deliveries, me, storeFilter, q]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -48,7 +63,7 @@ export default function DriverPage() {
   }, [scoped, tab, routed]);
 
   if (!me) return null;
-  if (!canDeliver(me)) {
+  if (!canDeliver(me) || me.role === "warehouse") {
     return <div className="empty">{t("You don’t have access to the driver view.", "No tienes acceso a la vista de chofer.")}</div>;
   }
 
@@ -71,6 +86,12 @@ export default function DriverPage() {
       </div>
 
       <div className="filters">
+        <input
+          style={{ maxWidth: 260 }}
+          placeholder={t("Search invoice #…", "Buscar factura #…")}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
         {TABS.map((tb) => (
           <button key={tb.key} className={"chip " + (tab === tb.key ? "on" : "")} onClick={() => setTab(tb.key)}>
             {lang === "es" ? tb.label_es : tb.label} <span className="cnt">{tb.key === "all" ? scoped.length : (counts[tb.key] ?? 0)}</span>

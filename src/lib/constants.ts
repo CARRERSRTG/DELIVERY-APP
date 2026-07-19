@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "0.2.0";
 
 // ---- Workflow stages (source of truth for labels, colors, order) ----------
 export interface StageInfo {
@@ -51,17 +51,22 @@ export function stageLabel(key: string, lang: Lang): string {
 // `roles` = who sees the tab by default. `cap` = the capability that also
 // unlocks it, so an admin can grant one person access without changing role.
 export const TABS: { id: string; label: string; label_es: string; href: string; roles?: UserRole[]; cap?: Capability }[] = [
-  { id: "board",     label: "📋 Orders",    label_es: "📋 Órdenes",   href: "/" },
+  // Warehouse works entirely inside its own queue — it doesn't get the
+  // general Orders board, dashboard, accounts, or the driver view.
+  // Driver doesn't get the Orders board either — they work entirely from
+  // their own Driver view, which has its own "+ New order" button.
+  { id: "board",     label: "📋 Orders",    label_es: "📋 Órdenes",   href: "/", roles: ["admin", "manager", "sales"] },
   { id: "dashboard", label: "📊 Dashboard", label_es: "📊 Panel",     href: "/dashboard", roles: ["manager", "admin"], cap: "dashboard" },
-  { id: "accounts",  label: "🏢 Accounts",  label_es: "🏢 Cuentas",    href: "/accounts" },
-  { id: "approvals", label: "✅ Approvals", label_es: "✅ Aprobaciones", href: "/approvals", roles: ["manager", "admin"], cap: "approve" },
+  { id: "accounts",  label: "🏢 Accounts",  label_es: "🏢 Cuentas",    href: "/accounts", roles: ["admin", "manager"] },
+  { id: "map",       label: "🗺 Map",       label_es: "🗺 Mapa",       href: "/map", roles: ["admin", "manager", "sales"] },
   { id: "warehouse", label: "🏭 Warehouse", label_es: "🏭 Almacén",    href: "/warehouse", roles: ["warehouse", "admin"], cap: "fulfill" },
   { id: "driver",    label: "🚚 Driver",    label_es: "🚚 Chofer",     href: "/driver", roles: ["driver", "admin"], cap: "deliver" },
   { id: "data",      label: "🗂 Data",      label_es: "🗂 Datos",      href: "/data", roles: ["admin"], cap: "settings" },
   { id: "settings",  label: "⚙️ Settings",  label_es: "⚙️ Ajustes",    href: "/settings", roles: ["admin"], cap: "settings" },
   { id: "users",     label: "🛡 Users",     label_es: "🛡 Usuarios",   href: "/users", roles: ["admin"], cap: "users" },
-  // Available to every role — each user's own work: numbers and recent orders.
-  { id: "summary",   label: "📈 Summary",   label_es: "📈 Resumen",    href: "/summary" },
+  // Personal work summary — not shown to sales/manager (redundant with their
+  // Orders default view) or warehouse (outside its restricted nav).
+  { id: "summary",   label: "📈 Summary",   label_es: "📈 Resumen",    href: "/summary", roles: ["admin", "driver"] },
   // Available to every role — each user's own profile and preferences.
   { id: "account",   label: "👤 Account",   label_es: "👤 Cuenta",     href: "/account" },
 ];
@@ -80,6 +85,26 @@ export function roleLabel(role: UserRole, lang: Lang): string {
 }
 
 export const ROLE_ORDER: UserRole[] = ["admin", "manager", "sales", "warehouse", "driver"];
+
+// ---- Delivery time window presets ------------------------------------------
+// Same "HHMM-HHMM" string format the rest of the app already parses
+// (scheduling conflicts, driver routing) — only the picker is a fixed list
+// now instead of free text.
+export interface WindowPreset { key: string; en: string; es: string; value: string }
+export const DELIVERY_WINDOW_PRESETS: WindowPreset[] = [
+  { key: "early_morning", en: "Early Morning (6-9)", es: "Madrugada (6-9)", value: "0600-0900" },
+  { key: "morning",       en: "Morning (9-12)",       es: "Mañana (9-12)",   value: "0900-1200" },
+  { key: "afternoon",     en: "Afternoon (12-5)",      es: "Tarde (12-5)",    value: "1200-1700" },
+  { key: "all_day",       en: "All Day (8-3)",         es: "Todo el día (8-3)", value: "0800-1500" },
+];
+
+// ---- Per-role default Orders-table columns ---------------------------------
+// Falls back to OrdersTable's own DEFAULT_COLUMNS for any role not listed
+// here. Sales sees invoice # instead of the internal SO #, and no driver
+// column on the main view (still available via the Columns picker).
+export const ROLE_DEFAULT_COLUMNS: Partial<Record<UserRole, string[]>> = {
+  sales: ["type", "store", "invoice", "date", "windows", "account"],
+};
 
 /** Drivers come from the Users list — anyone with the "driver" role. They're
  * people, so they're managed in Users (one source of truth), not Settings. */
@@ -215,7 +240,11 @@ export function canTransition(from: Stage, to: Stage): boolean {
 /** Can this role edit the order's data fields while it sits in `stage`? */
 export function canEditFields(r: UserRole, stage: Stage): boolean {
   if (r === "admin") return true;
-  if (r === "sales") return stage === "draft" || stage === "pending" || stage === "rejected";
+  // Sales can only edit while an order is Pending Approval or Rejected —
+  // NOT Draft. A brand-new order is still editable (isNew bypasses this
+  // check entirely in OrderModal), but once a draft is saved, a sales rep
+  // must submit it for approval before touching it again.
+  if (r === "sales") return stage === "pending" || stage === "rejected";
   if (r === "warehouse") return ["approved", "fulfilling", "ready", "picked_up", "delivered"].includes(stage);
   if (r === "driver") return stage === "draft" || stage === "pending" || stage === "rejected";
   if (r === "manager") return true;

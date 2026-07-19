@@ -4,13 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
-import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, driverNames, stageInfo, stageLabel } from "@/lib/constants";
+import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, DELIVERY_WINDOW_PRESETS, driverNames, stageInfo, stageLabel } from "@/lib/constants";
 import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, nowMilitary, palletDuration, telClean, todayISO } from "@/lib/utils";
 import { printDeliverySlip } from "@/lib/slip";
 import { AddressInput } from "@/components/AddressInput";
 import { LocationCombo } from "@/components/LocationCombo";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { SignaturePad } from "@/components/SignaturePad";
+import { LeafletMap } from "@/components/LeafletMap";
 import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
 import { missingFields, missingKeys } from "@/lib/required";
@@ -75,6 +76,9 @@ export function OrderModal({
   const [noteText, setNoteText] = useState("");
   const [notingBusy, setNotingBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [showPinPicker, setShowPinPicker] = useState(false);
+  const [pinDraft, setPinDraft] = useState<[number, number] | null>(null);
+  const [pinLookupBusy, setPinLookupBusy] = useState(false);
   // After a successful delivery we keep the modal open on a success screen so the
   // driver can print the slip; holds the fully-updated (delivered) order.
   const [justDelivered, setJustDelivered] = useState<Delivery | null>(null);
@@ -101,6 +105,18 @@ export function OrderModal({
       !!(draft.po2 || "").trim(),
     );
 
+  // ---- Duplicate-invoice warning: same customer invoice # already logged on
+  // another (non-canceled) order. Invoice numbers are supposed to be unique
+  // per delivery, so this is almost always a typo or a re-entry mistake. ----
+  const duplicateInvoiceOf = (draft: Draft): Delivery | undefined =>
+    deliveries.find((x) =>
+      x.id !== existing?.id &&
+      x.stage !== "canceled" &&
+      !!(draft.invoice_num || "").trim() &&
+      (x.invoice_num || "").trim().toLowerCase() === (draft.invoice_num || "").trim().toLowerCase(),
+    );
+  const invoiceDup = duplicateInvoiceOf(d);
+
   /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
    * what's missing / conflicting and chooses whether to continue. */
   const passesChecks = async (draft: Draft): Promise<boolean> => {
@@ -117,6 +133,12 @@ export function OrderModal({
     if (dup && !(await confirmAction(t(
       `Order #${dup.order_no} already has the same account, delivery date and PO. Create anyway?`,
       `La orden #${dup.order_no} ya tiene la misma cuenta, fecha y PO. ¿Crear de todos modos?`,
+    )))) return false;
+
+    const dupInv = duplicateInvoiceOf(draft);
+    if (dupInv && !(await confirmAction(t(
+      `⚠ Duplicate invoice: order #${dupInv.order_no} already uses invoice #${dupInv.invoice_num}. Create anyway?`,
+      `⚠ Factura duplicada: la orden #${dupInv.order_no} ya usa la factura #${dupInv.invoice_num}. ¿Crear de todos modos?`,
     )))) return false;
 
     // Scheduling capacity rules — warn, but let the rep request it anyway.
@@ -247,6 +269,27 @@ export function OrderModal({
 
   const calcRoute = () =>
     runRoute(routeOrigin, (d.delivery_address || "").trim(), true);
+
+  // Dropping a manual pin also fills in Delivery Address from a reverse
+  // geocode of that point, so the field isn't left blank — the rep can
+  // still edit it by hand afterward (e.g. to add gate code instructions).
+  const savePin = async (lat: number, lng: number) => {
+    set("delivery_lat", lat); set("delivery_lng", lng); set("delivery_pin_source", "manual");
+    setShowPinPicker(false);
+    setPinLookupBusy(true);
+    try {
+      const res = await fetch("/api/reverse-geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lng }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (body.address) set("delivery_address", body.address);
+      }
+    } catch { /* best-effort — the pin itself is already saved either way */ }
+    setPinLookupBusy(false);
+  };
 
   // Auto-calculate the route as soon as both ends of the trip are known.
   // Debounced so we route once the user stops typing, and skipped if this
@@ -448,8 +491,9 @@ export function OrderModal({
   }
 
   return (
-    // Backdrop clicks are guarded — an in-progress form never closes by accident.
-    <div className="overlay" onClick={(e) => e.target === e.currentTarget && requestClose()}>
+    // Backdrop clicks do nothing — the only way out is the explicit buttons
+    // at the bottom of the form (or the header ✕, which still confirms if dirty).
+    <div className="overlay">
       <div className="modal">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>
@@ -517,8 +561,8 @@ export function OrderModal({
                 t={t}
               />
             )}
-            {/* ---------- Material photos (driver captures, everyone sees) ---------- */}
-            {(canDeliver(me) || (existing.photos?.length ?? 0) > 0) && (
+            {/* ---------- Material photos (driver captures; sales reps don't see these) ---------- */}
+            {me.role !== "sales" && (canDeliver(me) || (existing.photos?.length ?? 0) > 0) && (
               <>
                 <div className="section-label">
                   📷 {t("Material photos", "Fotos del material")}
@@ -574,16 +618,6 @@ export function OrderModal({
         {/* ---------- EDIT MODE ---------- */}
         {editing && (
           <>
-            {missing.length > 0 && (
-              <div className="card" style={{ marginTop: 4, marginBottom: 0, background: "#fdeaea", borderColor: "var(--red)" }}>
-                <b style={{ color: "var(--red)" }}>{t("Still missing", "Faltan")} ({missing.length})</b>
-                <ul style={{ margin: "6px 0 0 18px", fontSize: 12.5, lineHeight: 1.5 }}>
-                  {missing.map((m) => <li key={m.key}>{t(m.en, m.es)}</li>)}
-                </ul>
-                <div className="hint" style={{ marginTop: 4 }}>{t("Marked in red below. You can still submit — you'll be asked to confirm.", "Marcados en rojo abajo. Aún puede enviar — se le pedirá confirmar.")}</div>
-              </div>
-            )}
-
             <div className="section-label">{t("Order", "Orden")}</div>
             <div className="grid g2">
               <Sel label={t("Order Type", "Tipo de Orden")} val={d.order_type} opts={settings.order_types} on={(v) => set("order_type", v)} disabled={!salesFields} placeholder={t("Select order type", "Seleccione tipo de orden")} invalid={missingSet.has("order_type")} />
@@ -601,9 +635,17 @@ export function OrderModal({
             <div className="grid g4">
               <Txt label="PO #2" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
               <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
-              <Txt label={t("Customer Invoice #", "Factura del Cliente #")} val={d.invoice_num} on={(v) => set("invoice_num", v)} disabled={!salesFields} invalid={missingSet.has("invoice_num")} />
+              <Txt label={t("Customer Invoice #", "Factura del Cliente #")} val={d.invoice_num} on={(v) => set("invoice_num", v)} disabled={!salesFields} invalid={missingSet.has("invoice_num") || !!invoiceDup} />
               <Txt label={t("Est. Pallets (sales)", "Tarimas Est. (ventas)")} type="number" val={d.est_pallets ?? ""} on={(v) => set("est_pallets", v === "" ? null : Number(v))} disabled={!salesFields} invalid={missingSet.has("est_pallets")} />
             </div>
+            {invoiceDup && (
+              <div className="hint" style={{ color: "var(--red)", fontWeight: 600, marginTop: -6, marginBottom: 10 }}>
+                ⚠ {t(
+                  `Duplicate invoice — order #${invoiceDup.order_no} already uses invoice #${invoiceDup.invoice_num}.`,
+                  `Factura duplicada — la orden #${invoiceDup.order_no} ya usa la factura #${invoiceDup.invoice_num}.`,
+                )}
+              </div>
+            )}
             <div className="grid g2">
               <Txt label={t("Delivery Fee charged ($)", "Costo de Entrega cobrado ($)")} type="number" val={d.delivery_fee ?? ""} on={(v) => set("delivery_fee", v === "" ? null : Number(v))} disabled={!salesFields} placeholder="0.00" />
             </div>
@@ -611,7 +653,7 @@ export function OrderModal({
             <div className="section-label">{t("Schedule", "Programación")}</div>
             <div className="grid g2">
               <Txt label={t("Delivery Date", "Fecha de Entrega")} type="date" val={d.delivery_date} on={(v) => set("delivery_date", v)} disabled={!salesFields} invalid={missingSet.has("delivery_date")} />
-              <Txt label={t("Delivery Time Windows", "Ventanas de Entrega")} placeholder="0830-1730" val={d.delivery_windows} on={(v) => set("delivery_windows", v)} disabled={!salesFields} invalid={missingSet.has("delivery_windows")} />
+              <WindowSel val={d.delivery_windows} on={(v) => set("delivery_windows", v)} disabled={!salesFields} invalid={missingSet.has("delivery_windows")} t={t} />
             </div>
             {scheduleWarnings.length > 0 && (
               <div className="card" style={{ marginTop: 10, background: "#fff7ec", borderColor: "var(--amber)" }}>
@@ -683,6 +725,53 @@ export function OrderModal({
                 />
               </div>
             )}
+
+            {/* ---------- Exact pin (for sites with no real address yet, e.g. a construction site) ---------- */}
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: showPinPicker ? 8 : 0 }}>
+              <button className="btn btn-ghost btn-sm" disabled={!salesFields} onClick={() => {
+                setPinDraft(d.delivery_lat != null && d.delivery_lng != null ? [d.delivery_lat, d.delivery_lng] : null);
+                setShowPinPicker((s) => !s);
+              }}>
+                📍 {t("Set exact location on map", "Marcar ubicación exacta en el mapa")}
+              </button>
+              {pinLookupBusy ? (
+                <span className="hint">{t("Looking up the address…", "Buscando la dirección…")}</span>
+              ) : d.delivery_lat != null && d.delivery_lng != null && (
+                <span className="hint">
+                  {d.delivery_pin_source === "manual"
+                    ? t("Exact pin set — the driver will navigate straight to it.", "Pin exacto marcado — el chofer navegará directo a él.")
+                    : t("Location found from the address above.", "Ubicación encontrada a partir de la dirección de arriba.")}
+                </span>
+              )}
+            </div>
+            {showPinPicker && (
+              <div className="card" style={{ marginBottom: 12 }}>
+                <div className="hint" style={{ marginBottom: 8 }}>
+                  {t("Click the map to drop a pin — useful when there's no formal address yet (a construction site, a lot).", "Haga clic en el mapa para marcar un punto — útil cuando aún no hay una dirección formal (un sitio de construcción, un lote).")}
+                </div>
+                <LeafletMap
+                  pickable
+                  pickedPoint={pinDraft}
+                  center={pinDraft ?? (d.delivery_lat != null && d.delivery_lng != null ? [d.delivery_lat, d.delivery_lng] : undefined)}
+                  onPick={(lat, lng) => setPinDraft([lat, lng])}
+                  height={280}
+                />
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button className="btn btn-primary btn-sm" disabled={!pinDraft} onClick={() => {
+                    if (!pinDraft) return;
+                    savePin(pinDraft[0], pinDraft[1]);
+                  }}>{t("Save pin", "Guardar pin")}</button>
+                  {(d.delivery_lat != null || pinDraft) && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => {
+                      set("delivery_lat", null); set("delivery_lng", null); set("delivery_pin_source", null);
+                      setPinDraft(null); setShowPinPicker(false);
+                    }}>{t("Clear pin", "Quitar pin")}</button>
+                  )}
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowPinPicker(false)}>{t("Cancel", "Cancelar")}</button>
+                </div>
+              </div>
+            )}
+
             <div className="grid g3">
               <Txt label={t("Account", "Cuenta")} val={d.account} on={(v) => set("account", v)} disabled={!salesFields} />
               <Txt label={t("Contact name", "Nombre de Contacto")} val={d.contact} on={(v) => set("contact", v)} disabled={!salesFields} invalid={missingSet.has("contact")} />
@@ -693,14 +782,23 @@ export function OrderModal({
               <textarea rows={2} value={d.delivery_notes ?? ""} disabled={!salesFields} onChange={(e) => set("delivery_notes", e.target.value)} />
             </div>
 
-            <div className="section-label">{t("Route (auto)", "Ruta (auto)")}</div>
+            <div className="section-label">{t("Route", "Ruta")}</div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               <button className="btn btn-ghost" onClick={calcRoute} disabled={routing}>
-                {routing ? t("Calculating…", "Calculando…") : t("🚚 Recalculate distance & ETA", "🚚 Recalcular distancia y tiempo")}
+                {routing ? t("Calculating…", "Calculando…") : t("🚚 Auto-calculate distance & ETA", "🚚 Calcular distancia y tiempo")}
               </button>
-              {d.route_miles != null && (
+              <div style={{ width: 110 }}>
+                <Txt
+                  label={t("Miles (editable)", "Millas (editable)")}
+                  type="number"
+                  val={d.route_miles ?? ""}
+                  on={(v) => set("route_miles", v === "" ? null : Number(v))}
+                  disabled={!salesFields}
+                  placeholder="0"
+                />
+              </div>
+              {d.route_duration && (
                 <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-                  <span><b style={{ fontFamily: "Archivo", fontSize: 18 }}>{d.route_miles}</b> {t("mi", "mi")}</span>
                   <span><b style={{ fontFamily: "Archivo", fontSize: 18 }}>{d.route_duration}</b> {t("drive", "manejo")}</span>
                   <span className="sema" style={{ background: d.route_traffic ? "var(--green)" : "var(--gray)", color: "#fff" }}>
                     {d.route_traffic ? t("live traffic", "tráfico en vivo") : t("typical", "típico")} · {d.route_provider}
@@ -708,11 +806,11 @@ export function OrderModal({
                 </div>
               )}
             </div>
+            <div className="hint">{t("Auto-calculate fills this in from a live routing service; you can also type the miles directly.", "El cálculo automático llena esto con un servicio de ruteo en vivo; también puede escribir las millas directamente.")}</div>
             {routeErr && <div className="hint" style={{ color: "var(--red)" }}>{routeErr}</div>}
             {!routing && !routeErr && (d.delivery_address || "").trim() && d.route_miles == null && (
               <div className="hint" style={{ color: "var(--amber)" }}>⚠ {t("Delivery address not verified yet — recalculate to confirm it maps to a real location.", "Dirección de entrega no verificada — recalcule para confirmar que corresponde a una ubicación real.")}</div>
             )}
-            <div className="hint">{t(`Auto-calculates ${d.pickup_address ? "pickup address" : "store"} → delivery address as you type. Uses a live web service; needs internet.`, `Se calcula automáticamente ${d.pickup_address ? "dirección de recolección" : "tienda"} → dirección de entrega mientras escribe. Usa un servicio web en vivo; requiere internet.`)}</div>
 
             {showWarehouse && (
               <>
@@ -824,6 +922,17 @@ export function OrderModal({
               <div className="hint">{t("Log a repeat of this delivery (warehouse error, damage…) as a new linked order.", "Registra una repetición de esta entrega (error de almacén, daño…) como una nueva orden vinculada.")}</div>
             </div>
           )
+        )}
+
+        {/* ---------- STILL MISSING (moved to the bottom, right above the buttons) ---------- */}
+        {editing && missing.length > 0 && (
+          <div className="card" style={{ marginTop: 14, marginBottom: 0, background: "#fdeaea", borderColor: "var(--red)" }}>
+            <b style={{ color: "var(--red)" }}>{t("Still missing", "Faltan")} ({missing.length})</b>
+            <ul style={{ margin: "6px 0 0 18px", fontSize: 12.5, lineHeight: 1.5 }}>
+              {missing.map((m) => <li key={m.key}>{t(m.en, m.es)}</li>)}
+            </ul>
+            <div className="hint" style={{ marginTop: 4 }}>{t("Marked in red above. You can still submit — you'll be asked to confirm.", "Marcados en rojo arriba. Aún puede enviar — se le pedirá confirmar.")}</div>
+          </div>
         )}
 
         {/* ---------- ACTIONS ---------- */}
@@ -1062,8 +1171,14 @@ function DriverDeliveryScreen({
   const hasPhone = phone.replace(/\D/g, "").length >= 7;
   const dest = (order.delivery_address || "").trim();
   const origin = (order.pickup_address || settings.stores.find((s) => s.name === order.store)?.address || order.store || "").trim();
-  const gmaps = "https://www.google.com/maps/dir/?api=1" + (origin ? `&origin=${encodeURIComponent(origin)}` : "") + `&destination=${encodeURIComponent(dest)}&travelmode=driving`;
-  const waze = `https://www.waze.com/ul?q=${encodeURIComponent(dest)}&navigate=yes`;
+  // An exact pin (manual or auto-geocoded) is more precise than the address
+  // text — used for navigation whenever it's available.
+  const hasPin = order.delivery_lat != null && order.delivery_lng != null;
+  const destParam = hasPin ? `${order.delivery_lat},${order.delivery_lng}` : dest;
+  const gmaps = "https://www.google.com/maps/dir/?api=1" + (origin ? `&origin=${encodeURIComponent(origin)}` : "") + `&destination=${encodeURIComponent(destParam)}&travelmode=driving`;
+  const waze = hasPin
+    ? `https://www.waze.com/ul?ll=${order.delivery_lat},${order.delivery_lng}&navigate=yes`
+    : `https://www.waze.com/ul?q=${encodeURIComponent(dest)}&navigate=yes`;
 
   // Where the driver collects the load — the pickup point's own name if it has
   // one, otherwise the store it's sold from.
@@ -1105,6 +1220,11 @@ function DriverDeliveryScreen({
             {[order.delivery_name && order.delivery_name !== order.account ? order.delivery_name : null, dest]
               .filter(Boolean).join(" · ") || "—"}
           </div>
+          {order.delivery_pin_source === "manual" && (
+            <div className="drv-banner-sub" style={{ color: "var(--accent)", fontWeight: 700 }}>
+              📍 {t("No formal address — an exact pin was dropped for this site. Navigate uses the pin.", "Sin dirección formal — se marcó un pin exacto para este sitio. Navegar usa el pin.")}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1313,6 +1433,27 @@ function Txt({ label, val, on, type = "text", disabled, placeholder, invalid }: 
       <label>{label}{invalid && <span className="req-star"> *</span>}</label>
       <input className={invalid ? "invalid" : ""} type={type} value={(val as string) ?? ""} disabled={disabled} placeholder={placeholder}
         onChange={(e) => on(e.target.value)} />
+    </div>
+  );
+}
+
+/** Delivery Time Windows — a fixed preset list (Early Morning / Morning /
+ * Afternoon / All Day) instead of free text. Falls back to showing the raw
+ * value as a "Custom" option so existing orders with a non-preset window
+ * (e.g. from before this changed) still display correctly. */
+function WindowSel({ val, on, disabled, invalid, t }: {
+  val: unknown; on: (v: string) => void; disabled?: boolean; invalid?: boolean; t: (en: string, es: string) => string;
+}) {
+  const current = (val as string) ?? "";
+  const isCustom = current && !DELIVERY_WINDOW_PRESETS.some((p) => p.value === current);
+  return (
+    <div className="field">
+      <label>{t("Delivery Time Window", "Ventana de Entrega")}{invalid && <span className="req-star"> *</span>}</label>
+      <select className={invalid ? "invalid" : ""} value={current} disabled={disabled} onChange={(e) => on(e.target.value)}>
+        <option value="">{t("Select a window…", "Seleccione una ventana…")}</option>
+        {DELIVERY_WINDOW_PRESETS.map((p) => <option key={p.key} value={p.value}>{t(p.en, p.es)}</option>)}
+        {isCustom && <option value={current}>{t("Custom", "Personalizada")}: {current}</option>}
+      </select>
     </div>
   );
 }

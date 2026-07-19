@@ -160,8 +160,8 @@ describe("required-field rules across real orders", () => {
     expect(missingFields(intra)).toEqual([]);
   });
 
-  it("accepts Pickup / Transfer with no customer invoice", () => {
-    for (const t of ["Pickup", "Transfer"]) {
+  it("accepts Customer / Transfer with no customer invoice", () => {
+    for (const t of ["Customer", "Transfer"]) {
       const o = orders.find((x) => x.order_type === t)!;
       expect(o.invoice_num).toBeNull();
       expect(missingFields(o), `${t} should not need paperwork`).toEqual([]);

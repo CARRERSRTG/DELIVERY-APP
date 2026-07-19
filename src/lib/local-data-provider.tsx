@@ -16,7 +16,7 @@ import { DEMO_USERS, demoDeliveries, demoNotifications, demoSettings, uid } from
 
 // Bump this suffix whenever the seed shape changes so existing browsers
 // auto-reseed with the richer sample data on next load.
-const LS_KEY = "rtg_deliveries_local_v10";
+const LS_KEY = "rtg_deliveries_local_v11";
 
 interface Store {
   settings: Settings;
@@ -193,6 +193,14 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     persist({ ...s, notifications: s.notifications.map((n) => (n.user_id === me.id ? { ...n, read: true } : n)) });
   }, [me, persist]);
 
+  const pushNotifs = useCallback<DataState["pushNotifs"]>(async (seeds) => {
+    if (!seeds.length) return;
+    const s = storeRef.current;
+    const now = new Date().toISOString();
+    const fresh = seeds.map((seed) => ({ ...seed, id: uid(), read: false, created_at: now }));
+    persist({ ...s, notifications: [...fresh, ...s.notifications] });
+  }, [persist]);
+
   const saveSettings = useCallback<DataState["saveSettings"]>(async (patch) => {
     const s = storeRef.current;
     persist({ ...s, settings: { ...s.settings, ...patch } });
@@ -241,10 +249,10 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
   const value: DataState = useMemo(() => ({
     ready, me, settings: store.settings, users: store.users, deliveries: store.deliveries, events: store.events,
     notifications: store.notifications.filter((n) => n.user_id === me.id),
-    toast, notify, markNotifRead, markAllNotifsRead,
+    toast, notify, markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
-  }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser]);
+  }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, pushNotifs, addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser]);
 
   return (
     <Ctx.Provider value={value}>
@@ -270,6 +278,7 @@ function seedRow(n: number): Delivery {
     pod_received_by: null, pod_signature: null, pod_delivered_at: null, photos: null,
     pickup_lat: null, pickup_lng: null, pickup_gps_at: null,
     pod_lat: null, pod_lng: null, pod_accuracy: null,
+    delivery_lat: null, delivery_lng: null, delivery_pin_source: null,
     created_by: null, approved_by: null, approved_at: null, created_at: now, updated_at: now,
   };
 }

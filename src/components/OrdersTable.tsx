@@ -1,9 +1,13 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
 import { fmtDate, fmtMilitary, fmtMoney, isOverdue } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
+
+type Ctx = { lang: "en" | "es"; t: (en: string, es: string) => string };
+type CellValue = string | number | null;
 
 // ---- Column registry (#13 column customization) ---------------------------
 // "ID" is always shown; everything else can be toggled by the user.
@@ -11,21 +15,32 @@ export interface OrderColumn {
   key: string;
   en: string;
   es: string;
-  cell: (d: Delivery, ctx: { lang: "en" | "es"; t: (en: string, es: string) => string }) => React.ReactNode;
+  cell: (d: Delivery, ctx: Ctx) => React.ReactNode;
+  /** Raw comparable value used for sorting + the Excel-style filter checklist.
+   * Numbers sort numerically; everything else sorts as text. */
+  value: (d: Delivery, ctx: Ctx) => CellValue;
+  /** Optional override for how a raw value is labeled in the filter checklist
+   * (e.g. a date column keeps its ISO value as the sort/filter key but shows
+   * the formatted date to the user). Defaults to String(value). */
+  filterLabel?: (v: CellValue) => string;
 }
 
 export const ORDER_COLUMNS: OrderColumn[] = [
-  { key: "stage", en: "Stage", es: "Etapa", cell: (d, { lang }) => {
+  { key: "stage", en: "Stage", es: "Etapa", value: (d, { lang }) => stageLabel(d.stage, lang), cell: (d, { lang }) => {
       const s = stageInfo(d.stage);
       return <span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>;
     } },
-  { key: "type", en: "Type", es: "Tipo", cell: (d) => d.order_type || "—" },
-  { key: "store", en: "Store", es: "Tienda", cell: (d) => d.store || "—" },
-  { key: "account", en: "Account", es: "Cuenta", cell: (d) => d.account || "—" },
-  { key: "so", en: "SO #", es: "SO #", cell: (d) => d.so_num || "—" },
-  { key: "po", en: "PO #2", es: "PO #2", cell: (d) => d.po2 || "—" },
-  { key: "invoice", en: "Invoice #", es: "Factura #", cell: (d) => d.invoice_num || "—" },
-  { key: "date", en: "Delivery Date", es: "Fecha entrega", cell: (d, { t }) => {
+  { key: "type", en: "Type", es: "Tipo", value: (d) => d.order_type, cell: (d) => d.order_type || "—" },
+  { key: "store", en: "Store", es: "Tienda", value: (d) => d.store, cell: (d) => d.store || "—" },
+  { key: "account", en: "Account", es: "Cuenta", value: (d) => d.account, cell: (d) => d.account || "—" },
+  { key: "so", en: "SO #", es: "SO #", value: (d) => d.so_num, cell: (d) => d.so_num || "—" },
+  { key: "po", en: "PO #2", es: "PO #2", value: (d) => d.po2, cell: (d) => d.po2 || "—" },
+  { key: "invoice", en: "Invoice #", es: "Factura #", value: (d) => d.invoice_num, cell: (d) => d.invoice_num || "—" },
+  {
+    key: "date", en: "Delivery Date", es: "Fecha entrega",
+    value: (d) => d.delivery_date,
+    filterLabel: (v) => fmtDate(v as string | null),
+    cell: (d, { t }) => {
       const late = isOverdue(d);
       return (
         <span style={late ? { color: "var(--red)", fontWeight: 700 } : undefined}>
@@ -33,19 +48,107 @@ export const ORDER_COLUMNS: OrderColumn[] = [
           {late && <span className="sema" style={{ background: "var(--red)", color: "#fff", marginLeft: 6 }}>{t("Late", "Tarde")}</span>}
         </span>
       );
-    } },
-  { key: "windows", en: "Windows", es: "Ventanas", cell: (d) => d.delivery_windows || "—" },
-  { key: "pallets", en: "Pallets", es: "Tarimas", cell: (d) => d.actual_pallets ?? d.est_pallets ?? "—" },
-  { key: "fee", en: "Fee", es: "Costo", cell: (d) => (d.delivery_fee == null ? "—" : fmtMoney(d.delivery_fee)) },
-  { key: "driver", en: "Driver", es: "Chofer", cell: (d) => d.assigned_driver || "—" },
-  { key: "contact", en: "Contact", es: "Contacto", cell: (d) => d.contact || "—" },
-  { key: "address", en: "Delivery Address", es: "Dirección", cell: (d) => d.delivery_address || "—" },
+    },
+  },
+  { key: "windows", en: "Windows", es: "Ventanas", value: (d) => d.delivery_windows, cell: (d) => d.delivery_windows || "—" },
+  { key: "pallets", en: "Pallets", es: "Tarimas", value: (d) => d.actual_pallets ?? d.est_pallets ?? null, cell: (d) => d.actual_pallets ?? d.est_pallets ?? "—" },
+  {
+    key: "fee", en: "Fee", es: "Costo",
+    value: (d) => d.delivery_fee,
+    filterLabel: (v) => (v == null ? "—" : fmtMoney(Number(v))),
+    cell: (d) => (d.delivery_fee == null ? "—" : fmtMoney(d.delivery_fee)),
+  },
+  { key: "driver", en: "Driver", es: "Chofer", value: (d) => d.assigned_driver, cell: (d) => d.assigned_driver || "—" },
+  { key: "contact", en: "Contact", es: "Contacto", value: (d) => d.contact, cell: (d) => d.contact || "—" },
+  { key: "address", en: "Delivery Address", es: "Dirección", value: (d) => d.delivery_address, cell: (d) => d.delivery_address || "—" },
 ];
 
 export const DEFAULT_COLUMNS = ["stage", "type", "store", "account", "so", "date", "windows", "pallets", "driver"];
 
+// Pseudo-column for the always-visible ID, so it gets the same sort/filter UI.
+const ID_COLUMN: OrderColumn = {
+  key: "__id",
+  en: "ID",
+  es: "ID",
+  value: (d) => d.order_no,
+  cell: (d) => <>#{d.order_no}</>,
+};
+
+const NO_VALUE = " —"; // internal key for null/blank, kept out of user-typed territory
+
+function filterKey(v: CellValue): string {
+  return v == null || v === "" ? NO_VALUE : String(v);
+}
+
+/** Excel-style checklist filter for one column header: search box, select-all,
+ * one checkbox per distinct value present in the (other-filters-applied) rows. */
+function ColumnFilterMenu({
+  col, options, active, onApply, onClear, onClose, lang, t,
+}: {
+  col: OrderColumn;
+  options: { key: string; label: string }[];
+  active: Set<string> | undefined;
+  onApply: (next: Set<string>) => void;
+  onClear: () => void;
+  onClose: () => void;
+  lang: "en" | "es";
+  t: (en: string, es: string) => string;
+}) {
+  const [search, setSearch] = useState("");
+  const [draft, setDraft] = useState<Set<string>>(() => new Set(active ?? options.map((o) => o.key)));
+
+  const visible = options.filter((o) => o.label.toLowerCase().includes(search.trim().toLowerCase()));
+  const allVisibleChecked = visible.length > 0 && visible.every((o) => draft.has(o.key));
+
+  const toggle = (key: string) =>
+    setDraft((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+
+  const toggleAllVisible = () =>
+    setDraft((prev) => {
+      const n = new Set(prev);
+      if (allVisibleChecked) visible.forEach((o) => n.delete(o.key));
+      else visible.forEach((o) => n.add(o.key));
+      return n;
+    });
+
+  return (
+    <div className="col-menu" onClick={(e) => e.stopPropagation()}>
+      <div className="col-menu-head">
+        <b>{lang === "es" ? col.es : col.en}</b>
+        <button className="notif-clear" onClick={onClose}>✕</button>
+      </div>
+      <input
+        className="col-menu-search"
+        placeholder={t("Search values…", "Buscar valores…")}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        autoFocus
+      />
+      <label className="col-opt">
+        <input type="checkbox" checked={allVisibleChecked} onChange={toggleAllVisible} />
+        <b>{t("Select all", "Seleccionar todo")}</b>
+      </label>
+      <div style={{ maxHeight: 220, overflowY: "auto" }}>
+        {visible.map((o) => (
+          <label key={o.key} className="col-opt">
+            <input type="checkbox" checked={draft.has(o.key)} onChange={() => toggle(o.key)} />
+            {o.label}
+          </label>
+        ))}
+        {visible.length === 0 && <div className="hint" style={{ padding: "6px 8px" }}>{t("No matches.", "Sin coincidencias.")}</div>}
+      </div>
+      <div className="col-menu-actions">
+        <button className="btn btn-ghost btn-sm" onClick={() => { onClear(); }}>{t("Clear", "Limpiar")}</button>
+        <button className="btn btn-primary btn-sm" onClick={() => onApply(draft)}>{t("Apply", "Aplicar")}</button>
+      </div>
+    </div>
+  );
+}
+
 /** Compact, horizontally-scrollable table of orders. Click a row to open it.
- * Optionally supports row selection (bulk actions) and custom columns. */
+ * Every column supports click-to-sort and an Excel-style value checklist
+ * filter; optionally supports row selection (bulk actions) and custom
+ * columns. */
 export function OrdersTable({
   rows,
   onOpen,
@@ -55,6 +158,7 @@ export function OrdersTable({
   selected,
   onToggle,
   onToggleAll,
+  isUrgent,
 }: {
   rows: Delivery[];
   onOpen: (d: Delivery) => void;
@@ -64,11 +168,76 @@ export function OrdersTable({
   selected?: Set<string>;
   onToggle?: (id: string) => void;
   onToggleAll?: () => void;
+  /** Rows this returns true for get a red "needs immediate action" highlight
+   * (e.g. still pending approval past today's cutoff). */
+  isUrgent?: (d: Delivery) => boolean;
 }) {
   const { lang, t } = usePrefs();
+  const ctx: Ctx = { lang, t };
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);
+  const [filters, setFilters] = useState<Record<string, Set<string>>>({});
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+
+  const cols = useMemo(() => [ID_COLUMN, ...ORDER_COLUMNS.filter((c) => visible.includes(c.key))], [visible]);
+
+  // Rows matching every active column filter, optionally ignoring one column's
+  // own filter — used so that column's own checklist still offers every value
+  // that would remain visible if you cleared just that filter (Excel-style
+  // cascading options), while other columns' choices still narrow it down.
+  const applyFilters = (data: Delivery[], skipKey?: string) =>
+    data.filter((d) =>
+      cols.every((c) => {
+        if (c.key === skipKey) return true;
+        const active = filters[c.key];
+        if (!active || active.size === 0) return true;
+        return active.has(filterKey(c.value(d, ctx)));
+      }),
+    );
+
+  const filteredRows = useMemo(() => applyFilters(rows), [rows, filters, cols, lang]);
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey || !sortDir) return filteredRows;
+    const col = cols.find((c) => c.key === sortKey);
+    if (!col) return filteredRows;
+    const copy = [...filteredRows];
+    copy.sort((a, b) => {
+      const va = col.value(a, ctx);
+      const vb = col.value(b, ctx);
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      const cmp = typeof va === "number" && typeof vb === "number"
+        ? va - vb
+        : String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return copy;
+  }, [filteredRows, sortKey, sortDir, cols, lang]);
+
   if (!rows.length) return <div className="empty">{empty}</div>;
 
-  const cols = ORDER_COLUMNS.filter((c) => visible.includes(c.key));
+  const toggleSort = (key: string) => {
+    if (sortKey !== key) { setSortKey(key); setSortDir("asc"); }
+    else if (sortDir === "asc") setSortDir("desc");
+    else { setSortKey(null); setSortDir(null); }
+  };
+
+  const optionsFor = (col: OrderColumn) => {
+    const base = applyFilters(rows, col.key);
+    const map = new Map<string, string>();
+    for (const d of base) {
+      const raw = col.value(d, ctx);
+      const key = filterKey(raw);
+      if (map.has(key)) continue;
+      map.set(key, key === NO_VALUE ? "—" : col.filterLabel ? col.filterLabel(raw) : key);
+    }
+    return [...map.entries()]
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+  };
+
   const allChecked = !!selected && rows.length > 0 && rows.every((r) => selected.has(r.id));
 
   return (
@@ -81,20 +250,62 @@ export function OrdersTable({
                 <input type="checkbox" checked={allChecked} onChange={onToggleAll} style={{ width: 15, height: 15 }} />
               </th>
             )}
-            <th>ID</th>
-            {cols.map((c) => <th key={c.key}>{lang === "es" ? c.es : c.en}</th>)}
+            {cols.map((c) => {
+              const activeCount = filters[c.key]?.size;
+              const hasFilter = activeCount != null && activeCount > 0;
+              return (
+                <th key={c.key}>
+                  <div className="th-cell">
+                    <button className="th-sort" onClick={() => toggleSort(c.key)} title={t("Sort", "Ordenar")}>
+                      {lang === "es" ? c.es : c.en}
+                      {sortKey === c.key && (sortDir === "asc" ? " ▲" : " ▼")}
+                    </button>
+                    <div style={{ position: "relative" }}>
+                      <button
+                        className={"th-filter-btn " + (hasFilter ? "on" : "")}
+                        onClick={(e) => { e.stopPropagation(); setOpenFilter(openFilter === c.key ? null : c.key); }}
+                        title={t("Filter", "Filtrar")}
+                      >
+                        ▾
+                      </button>
+                      {openFilter === c.key && (
+                        <ColumnFilterMenu
+                          col={c}
+                          options={optionsFor(c)}
+                          active={filters[c.key]}
+                          lang={lang}
+                          t={t}
+                          onApply={(next) => {
+                            setFilters((f) => ({ ...f, [c.key]: next }));
+                            setOpenFilter(null);
+                          }}
+                          onClear={() => {
+                            setFilters((f) => { const n = { ...f }; delete n[c.key]; return n; });
+                            setOpenFilter(null);
+                          }}
+                          onClose={() => setOpenFilter(null)}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
-          {rows.map((d) => (
-            <tr key={d.id} className="clickable" onClick={() => onOpen(d)}>
+          {sortedRows.length === 0 ? (
+            <tr><td colSpan={cols.length + (selectable ? 1 : 0)} className="empty">{t("No rows match the current filters.", "Ninguna fila coincide con los filtros actuales.")}</td></tr>
+          ) : sortedRows.map((d) => (
+            <tr key={d.id} className={"clickable" + (isUrgent?.(d) ? " row-urgent" : "")} onClick={() => onOpen(d)}>
               {selectable && (
                 <td onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={!!selected?.has(d.id)} onChange={() => onToggle?.(d.id)} style={{ width: 15, height: 15 }} />
                 </td>
               )}
-              <td className="ordno">#{d.order_no}</td>
-              {cols.map((c) => <td key={c.key}>{c.cell(d, { lang, t })}</td>)}
+              {cols.map((c) => (
+                <td key={c.key} className={c.key === "__id" ? "ordno" : undefined}>{c.cell(d, ctx)}</td>
+              ))}
             </tr>
           ))}
         </tbody>

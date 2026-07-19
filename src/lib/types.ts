@@ -94,6 +94,15 @@ export interface Delivery {
   pod_lng: number | null;
   pod_accuracy: number | null;      // metres of uncertainty reported by the device
 
+  // Planned delivery location, for the dispatch map + driver navigation.
+  // Auto-geocoded from delivery_address and cached here the first time the
+  // map needs it — OR set manually (a dropped pin) when there's no real
+  // address yet, e.g. a construction site. "manual" pins are never
+  // overwritten by re-geocoding.
+  delivery_lat: number | null;
+  delivery_lng: number | null;
+  delivery_pin_source: "geocoded" | "manual" | null;
+
   created_by: string | null;
   approved_by: string | null;
   approved_at: string | null;
@@ -145,4 +154,15 @@ export interface Settings {
   /** Admin-editable "What I can do" list per role, shown on each Account page.
    * Absent / empty for a role = fall back to the built-in bilingual defaults. */
   role_permissions?: Partial<Record<UserRole, string[]>>;
+
+  // ---- End-of-day pending-approval deadline (configurable) ----
+  // Once it's this time of day and an order is still "pending", its row
+  // turns red and an escalation notification fires: managers first, then
+  // (a bit later) the sales rep who submitted it. Both "HH:MM", 24h.
+  manager_pending_cutoff?: string;
+  sales_pending_cutoff?: string;
+
+  /** Named driver colors for the delivery map (assigned by a manager/admin in
+   * Settings). Driver full name → any CSS color string. */
+  driver_colors?: Record<string, string>;
 }

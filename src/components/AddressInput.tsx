@@ -7,6 +7,11 @@ import { useEffect, useRef, useState } from "react";
 // it queries /api/geocode (debounced) and shows a dropdown of suggestions.
 // Picking one sets the value — which the order form uses to recompute mileage.
 // Free-typing still works; suggestions are best-effort and need internet.
+//
+// The suggestions dropdown only opens in response to the user actually
+// typing here. Any other way the value changes — picking a suggestion,
+// picking a saved site, an auto-filled map pin, a parent-level reset —
+// must never reopen it; that field already holds a "system ready" address.
 // ============================================================
 
 export function AddressInput({
@@ -29,17 +34,19 @@ export function AddressInput({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
-  // Ignore the fetch that a programmatic pick would otherwise trigger.
-  const justPicked = useRef(false);
+  // Set synchronously by the input's own onChange, right before the value
+  // prop changes — the one signal that this change was the user typing.
+  const userEdited = useRef(false);
 
   const text = value ?? "";
 
-  // Debounced lookup whenever the text changes (unless it was just picked).
+  // Debounced lookup — but only for changes the user actually typed.
   useEffect(() => {
     if (disabled) return;
-    if (justPicked.current) { justPicked.current = false; return; }
+    if (!userEdited.current) { setSuggestions([]); setOpen(false); return; }
+    userEdited.current = false;
     const q = text.trim();
-    if (q.length < 3) { setSuggestions([]); return; }
+    if (q.length < 3) { setSuggestions([]); setOpen(false); return; }
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
@@ -71,7 +78,6 @@ export function AddressInput({
   }, []);
 
   const pick = (s: string) => {
-    justPicked.current = true;
     onChange(s);
     setSuggestions([]);
     setOpen(false);
@@ -87,8 +93,7 @@ export function AddressInput({
         disabled={disabled}
         placeholder={placeholder}
         autoComplete="off"
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={() => suggestions.length && setOpen(true)}
+        onChange={(e) => { userEdited.current = true; onChange(e.target.value); }}
       />
       {loading && <span className="addr-spin" />}
       {open && suggestions.length > 0 && (

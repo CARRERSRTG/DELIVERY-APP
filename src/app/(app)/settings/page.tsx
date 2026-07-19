@@ -107,6 +107,28 @@ export default function SettingsPage() {
       </div>
 
       <div className="card">
+        <h2>⏰ {t("Pending-approval deadline alert", "Alerta de vencimiento de aprobación")}</h2>
+        <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+          {t(
+            "Once it's this time of day and an order is still Pending Approval, its row turns red and an escalation notification fires — managers first, then (a bit later) the sales rep who submitted it.",
+            "Una vez llegada esta hora del día, si una orden sigue Pendiente de Aprobación, su fila se pone roja y se envía una notificación — primero a los gerentes y, un poco después, al vendedor que la envió.",
+          )}
+        </p>
+        <div className="grid g2" style={{ maxWidth: 460 }}>
+          <TimeInput
+            label={t("Manager cutoff", "Límite del gerente")}
+            value={settings.manager_pending_cutoff ?? "16:00"}
+            onSave={(v) => { saveSettings({ manager_pending_cutoff: v }); notify(t("Saved", "Guardado")); }}
+          />
+          <TimeInput
+            label={t("Sales rep cutoff (escalation)", "Límite del vendedor (escalamiento)")}
+            value={settings.sales_pending_cutoff ?? "16:15"}
+            onSave={(v) => { saveSettings({ sales_pending_cutoff: v }); notify(t("Saved", "Guardado")); }}
+          />
+        </div>
+      </div>
+
+      <div className="card">
         <h2>🔑 {t("Role capabilities", "Capacidades por rol")}</h2>
         <p className="hint" style={{ marginTop: 0, marginBottom: 14 }}>
           {t(
@@ -256,6 +278,21 @@ function Toggle({
         <button className={"toggle-btn " + (!on ? "on" : "")} onClick={() => onChange(false)}>{t("Off", "Apagado")}</button>
         <button className={"toggle-btn " + (on ? "on" : "")} onClick={() => onChange(true)}>{t("On", "Encendido")}</button>
       </div>
+    </div>
+  );
+}
+
+function TimeInput({ label, value, onSave }: { label: string; value: string; onSave: (v: string) => void }) {
+  const [v, setV] = useState(value);
+  const commit = () => { if (v && v !== value) onSave(v); else setV(value); };
+  return (
+    <div className="field">
+      <label>{label}</label>
+      <input
+        type="time" value={v}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={commit}
+      />
     </div>
   );
 }

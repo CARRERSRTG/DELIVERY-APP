@@ -144,3 +144,31 @@ export function inDateRange(deliveries: Delivery[], from: string, to: string): D
     return day >= from && day <= to;
   });
 }
+
+export interface SalesRepStat { rep: string; deliveries: number; chargedTotal: number; avgPerDelivery: number; }
+
+/** Per sales-rep stats for the current calendar month (by when they logged
+ * the order, i.e. created_at) — deliveries count, total delivery fees
+ * charged, and the average fee per delivery. */
+export function salesRepStatsThisMonth(deliveries: Delivery[], users: Profile[]): SalesRepStat[] {
+  const now = new Date();
+  const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const nameById = new Map(users.map((u) => [u.id, u.full_name]));
+  const map = new Map<string, { deliveries: number; chargedTotal: number }>();
+  for (const d of deliveries) {
+    if (!d.created_by || !d.created_at.startsWith(monthPrefix)) continue;
+    const rep = nameById.get(d.created_by) ?? "—";
+    const s = map.get(rep) ?? { deliveries: 0, chargedTotal: 0 };
+    s.deliveries++;
+    s.chargedTotal += Number(d.delivery_fee ?? 0);
+    map.set(rep, s);
+  }
+  return [...map.entries()]
+    .map(([rep, s]) => ({
+      rep,
+      deliveries: s.deliveries,
+      chargedTotal: Math.round(s.chargedTotal * 100) / 100,
+      avgPerDelivery: s.deliveries ? Math.round((s.chargedTotal / s.deliveries) * 100) / 100 : 0,
+    }))
+    .sort((a, b) => b.chargedTotal - a.chargedTotal);
+}

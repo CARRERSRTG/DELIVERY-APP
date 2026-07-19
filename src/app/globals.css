@@ -99,6 +99,11 @@ table.orders th, table.orders td { padding: 10px 12px; text-align: left; border-
 table.orders th { background: var(--paper); font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-soft); position: sticky; top: 0; }
 table.orders tr:last-child td { border-bottom: none; }
 table.orders tr.clickable:hover td { background: var(--card-hover); cursor: pointer; }
+/* Still pending approval past today's cutoff — needs immediate action. */
+table.orders tr.row-urgent td { background: #fdeaea; }
+table.orders tr.row-urgent:hover td { background: #fbd8d8; }
+:root[data-theme="dark"] table.orders tr.row-urgent td { background: #3a1f21; }
+:root[data-theme="dark"] table.orders tr.row-urgent:hover td { background: #4a2529; }
 .ordno { font-weight: 800; font-family: 'Archivo'; }
 
 .empty { text-align: center; color: var(--gray); padding: 40px 10px; font-size: 13px; }
@@ -200,6 +205,24 @@ input.invalid, select.invalid, textarea.invalid {
 .col-opt { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0; cursor: pointer; border-radius: 6px; }
 .col-opt:hover { background: var(--card-hover); }
 .col-opt input { width: 14px; height: 14px; }
+.col-menu-search { width: 100%; margin: 2px 0 4px; padding: 6px 8px; font-size: 12.5px; box-sizing: border-box; }
+.col-menu-actions { display: flex; gap: 6px; padding: 6px 4px 2px; border-top: 1px solid var(--line); margin-top: 4px; }
+.col-menu-actions .btn { flex: 1; }
+
+/* ---------- Table header: click-to-sort + Excel-style value filter ---------- */
+table.orders th { text-align: left; }
+.th-cell { display: flex; align-items: center; gap: 2px; }
+.th-sort {
+  background: none; border: none; padding: 0; margin: 0; font: inherit;
+  text-transform: inherit; letter-spacing: inherit; color: inherit; cursor: pointer;
+}
+.th-sort:hover { text-decoration: underline; }
+.th-filter-btn {
+  background: none; border: none; padding: 2px 5px; margin: 0; font-size: 16px;
+  color: var(--gray); cursor: pointer; border-radius: 4px; line-height: 1; font-weight: 800;
+}
+.th-filter-btn:hover { background: var(--card-hover); color: var(--text); }
+.th-filter-btn.on { color: var(--accent); font-weight: 800; }
 
 /* ---------- Driver delivery screen ---------- */
 .drv-screen { display: flex; flex-direction: column; gap: 12px; }
@@ -304,6 +327,13 @@ input.invalid, select.invalid, textarea.invalid {
 /* ---------- Notification bell ---------- */
 .notif-wrap { position: relative; display: inline-flex; }
 .notif-btn { position: relative; font-size: 15px; line-height: 1; }
+/* Leaflet's own internals (map panes, zoom controls) use z-index values up
+   to 1000, which otherwise climb straight past page-level dropdowns/modals
+   (z-index ~50-60) since nothing contains them. Isolating the map's own
+   stacking context keeps all of that inside its box, regardless of its
+   internal z-index values. */
+.leaflet-container { isolation: isolate; }
+
 .notif-badge {
   position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px;
   padding: 0 4px; border-radius: 999px; background: var(--red); color: #fff;

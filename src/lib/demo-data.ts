@@ -45,7 +45,8 @@ export function demoSettings(): Settings {
       { name: "Mission", address: "1100 E Expressway 83, Mission TX" },
       { name: "Edinburg", address: "2500 W University Dr, Edinburg TX" },
     ],
-    order_types: ["Delivery", "Pickup", "Intra-Tienda", "Transfer", "Will Call"],
+    // "Pickup" removed; "Will Call" renamed "Customer" (customer picks up themselves).
+    order_types: ["Delivery", "Transfer", "Intra-Tienda", "Customer"],
     pickup_locations: [
       { name: "Rio Supply Yard", address: "800 S Main St, McAllen TX" },
     ],
@@ -57,6 +58,14 @@ export function demoSettings(): Settings {
     // RingCentral calling / auto-SMS start switched OFF — an admin opts in.
     rc_calls_enabled: false,
     rc_auto_sms_enabled: false,
+    manager_pending_cutoff: "16:00",
+    sales_pending_cutoff: "16:15",
+    driver_colors: {
+      "Diego Driver": "#2456c9",
+      "Carlos R.": "#0f8a8a",
+      "Miguel A.": "#d1782e",
+      "Fleet Truck 3": "#7c4dbc",
+    },
   };
 }
 
@@ -120,6 +129,9 @@ export function demoDeliveries(settings: Settings): Delivery[] {
     pod_lat: null,
     pod_lng: null,
     pod_accuracy: null,
+    delivery_lat: null,
+    delivery_lng: null,
+    delivery_pin_source: null,
     created_by: "u-sales",
     approved_by: null,
     approved_at: null,
@@ -252,7 +264,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
       delivery_date: iso(-1), approved_by: "u-mgr", approved_at: stamp(2000) }),
 
     // ---- Pickup / Will Call / Transfer — no customer invoice required ----
-    mk(1022, 2, null, { stage: "ready", store: "McAllen", order_type: "Pickup", account: "Walk-in Customer",
+    mk(1022, 2, null, { stage: "ready", store: "McAllen", order_type: "Customer", account: "Walk-in Customer",
       delivery_address: "2400 N 23rd St, McAllen TX", delivery_windows: "1000-1200", delivery_fee: 0,
       approved_by: "u-mgr", approved_at: stamp(800) }),
     // Not yet assigned — Fleet Truck 3 is already booked 0900-1100 today (#1010),

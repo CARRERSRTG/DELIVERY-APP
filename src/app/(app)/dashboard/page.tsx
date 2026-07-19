@@ -7,7 +7,7 @@ import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel, STAGES } from "@/lib/constants";
 import {
   approvalTurnaroundMs, computeKpis, countByStage, driverStats,
-  groupVolume, inDateRange, overdueOrders,
+  groupVolume, inDateRange, overdueOrders, salesRepStatsThisMonth,
 } from "@/lib/analytics";
 import { downloadCSV, fmtDate, fmtDuration, fmtMoney, toCSV, todayISO, deliveryColumns } from "@/lib/utils";
 import type { Stage } from "@/lib/types";
@@ -20,7 +20,7 @@ function daysAgoISO(n: number): string {
 }
 
 export default function DashboardPage() {
-  const { me, deliveries, events, ready } = useData();
+  const { me, users, deliveries, events, ready } = useData();
   const { lang, t } = usePrefs();
   const router = useRouter();
   const [from, setFrom] = useState(daysAgoISO(30));
@@ -36,6 +36,9 @@ export default function DashboardPage() {
   const accounts = useMemo(() => groupVolume(scoped, "account").slice(0, 8), [scoped]);
   const turnaround = useMemo(() => approvalTurnaroundMs(scoped, events), [scoped, events]);
   const overdue = useMemo(() => overdueOrders(scoped), [scoped]);
+  // Not scoped to the from/to range picker above — this is always "this
+  // calendar month", regardless of what range is selected elsewhere on the page.
+  const repStats = useMemo(() => salesRepStatsThisMonth(deliveries, users), [deliveries, users]);
 
   if (!me) return null;
 
@@ -155,6 +158,37 @@ export default function DashboardPage() {
                         <td>{d.active}</td>
                         <td>{d.pallets}</td>
                         <td>{d.miles}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* ---------- Sales rep performance, this month ---------- */}
+          <div className="card">
+            <h2>🧑‍💼 {t("Sales reps — this month", "Vendedores — este mes")}</h2>
+            {repStats.length === 0 ? (
+              <div className="empty">{t("No orders logged this month.", "Sin órdenes registradas este mes.")}</div>
+            ) : (
+              <div className="tbl-scroll" style={{ border: "none" }}>
+                <table className="orders" style={{ minWidth: 480 }}>
+                  <thead>
+                    <tr>
+                      <th>{t("Sales rep", "Vendedor")}</th>
+                      <th>{t("Deliveries", "Entregas")}</th>
+                      <th>{t("Charged total", "Total cobrado")}</th>
+                      <th>{t("Avg $/delivery", "Prom. $/entrega")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {repStats.map((r) => (
+                      <tr key={r.rep}>
+                        <td style={{ fontWeight: 700 }}>{r.rep}</td>
+                        <td>{r.deliveries}</td>
+                        <td>{fmtMoney(r.chargedTotal)}</td>
+                        <td>{fmtMoney(r.avgPerDelivery)}</td>
                       </tr>
                     ))}
                   </tbody>

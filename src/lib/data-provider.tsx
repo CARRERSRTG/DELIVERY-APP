@@ -25,11 +25,13 @@ const DEFAULT_SETTINGS: Settings = {
     { name: "Mission", address: "" },
     { name: "Edinburg", address: "" },
   ],
-  order_types: ["Delivery", "Pickup", "Intra-Tienda", "Transfer", "Will Call"],
+  order_types: ["Delivery", "Transfer", "Intra-Tienda", "Customer"],
   pickup_min_per_pallet: 4,
   delivery_min_per_pallet: 5,
   rc_calls_enabled: false,
   rc_auto_sms_enabled: false,
+  manager_pending_cutoff: "16:00",
+  sales_pending_cutoff: "16:15",
 };
 
 export interface DataState {
@@ -46,6 +48,9 @@ export interface DataState {
   // in-app notifications (role-targeted workflow alerts)
   markNotifRead: (id: string) => Promise<void>;
   markAllNotifsRead: () => Promise<void>;
+  /** Insert arbitrary notifications directly (e.g. the pending-approval
+   * deadline escalation) — bypasses the stage-transition fan-out. */
+  pushNotifs: (seeds: import("@/lib/notifications").NotifSeed[]) => Promise<void>;
 
   // delivery CRUD
   addDelivery: (d: Partial<Delivery>) => Promise<Delivery | null>;
@@ -154,6 +159,15 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       if (error) console.error("notification insert failed:", error.message);
     },
     [supabase, me, users],
+  );
+
+  const pushNotifs = useCallback<DataState["pushNotifs"]>(
+    async (seeds) => {
+      if (!seeds.length) return;
+      const { error } = await supabase.from("notifications").insert(seeds);
+      if (error) console.error("notification insert failed:", error.message);
+    },
+    [supabase],
   );
 
   // ---------------- Delivery CRUD ----------------
@@ -345,7 +359,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
 
   const value: DataState = {
     ready, me: me ?? null, settings, users, deliveries, events, notifications, toast, notify,
-    markNotifRead, markAllNotifsRead,
+    markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
   };

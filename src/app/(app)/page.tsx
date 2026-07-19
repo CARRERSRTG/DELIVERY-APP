@@ -5,18 +5,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
-import { canCreate, driverNames, STAGES, stageLabel } from "@/lib/constants";
+import { canCreate, driverNames, ROLE_DEFAULT_COLUMNS, STAGES, stageLabel } from "@/lib/constants";
 import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/OrdersTable";
 import { OrdersBoard } from "@/components/OrdersBoard";
 import { OrderModal } from "@/components/OrderModal";
-import { deliveryColumns, downloadCSV, isOverdue, isToday, toCSV, todayISO } from "@/lib/utils";
+import { deliveryColumns, downloadCSV, isOverdue, isPendingUrgent, isToday, toCSV, todayISO, yesterdayISO } from "@/lib/utils";
 import { exportExcelByEmployee, exportPDFByEmployee } from "@/lib/export";
-import type { Delivery, Stage } from "@/lib/types";
+import type { Delivery, Stage, UserRole } from "@/lib/types";
 
 // Quick saved views — one-tap presets layered on top of the stage chip.
 type Preset = "all" | "today" | "overdue" | "unassigned" | "mine";
 
-const COLS_KEY = "rtg_order_columns";
+// Column choices are remembered per role — so switching "View as" in local
+// demo mode (or just different people on different roles) doesn't clobber
+// each other's picks, and each role starts from its own sensible default.
+const colsKey = (role: UserRole) => `rtg_order_columns_${role}`;
+const defaultColsFor = (role: UserRole) => ROLE_DEFAULT_COLUMNS[role] ?? DEFAULT_COLUMNS;
 
 export default function OrdersPage() {
   const { me, users, deliveries, settings, ready, updateDelivery, setStage, notify } = useData();
@@ -37,16 +41,34 @@ export default function OrdersPage() {
   const [showCols, setShowCols] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
 
+  // Managers land on Pending Approval instead of All — that's the queue they
+  // actually need to act on. Only applied once per role, on first load, so
+  // manually picking a different chip afterward isn't fought.
+  const defaultFilterApplied = useRef<UserRole | null>(null);
   useEffect(() => {
+    if (!me || defaultFilterApplied.current === me.role) return;
+    defaultFilterApplied.current = me.role;
+    if (me.role === "manager") setFilter("pending");
+  }, [me?.role]);
+
+  // Reloads whenever the role changes too (e.g. the local-demo "View as"
+  // switcher), so each role shows its own saved columns, defaulting to
+  // ROLE_DEFAULT_COLUMNS the first time that role is seen in this browser.
+  useEffect(() => {
+    if (!me) return;
     try {
-      const raw = localStorage.getItem(COLS_KEY);
-      if (raw) setCols(JSON.parse(raw));
-    } catch { /* ignore */ }
-  }, []);
+      const raw = localStorage.getItem(colsKey(me.role));
+      setCols(raw ? JSON.parse(raw) : defaultColsFor(me.role));
+    } catch {
+      setCols(defaultColsFor(me.role));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.role]);
 
   const saveCols = (next: string[]) => {
     setCols(next);
-    try { localStorage.setItem(COLS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    if (!me) return;
+    try { localStorage.setItem(colsKey(me.role), JSON.stringify(next)); } catch { /* ignore */ }
   };
 
   // Keyboard shortcuts (#12): "n" new order, "/" focus search, "Esc" clear.
@@ -87,17 +109,26 @@ export default function OrdersPage() {
     // The board shows every stage as its own column, so ignore the stage chip there.
     const activeFilter = view === "board" ? "all" : filter;
     return deliveries.filter((d) => {
+      // Sales only ever sees their own orders — a hard boundary, not
+      // relaxed by search, unlike the date-window restriction below.
+      if (me?.role === "sales" && d.created_by !== me.id) return false;
       if (activeFilter !== "all" && d.stage !== activeFilter) return false;
       if (preset === "today" && !isToday(d.delivery_date)) return false;
       if (preset === "overdue" && !isOverdue(d)) return false;
       if (preset === "unassigned" && d.assigned_driver) return false;
       if (preset === "mine" && d.created_by !== me?.id) return false;
-      if (!needle) return true;
+      if (!needle) {
+        // Sales' default view is scoped to yesterday/today/future — older
+        // history is still there, just reached by searching (e.g. an invoice #)
+        // rather than scrolled to, so the list stays focused on active work.
+        if (me?.role === "sales" && d.delivery_date && d.delivery_date < yesterdayISO()) return false;
+        return true;
+      }
       const hay = [d.order_no, d.account, d.so_num, d.po2, d.invoice_num, d.store, d.delivery_address, d.contact, d.assigned_driver, d.delivery_phone]
         .map((x) => String(x ?? "").toLowerCase()).join(" ");
       return hay.includes(needle);
     });
-  }, [deliveries, filter, preset, q, view, me?.id]);
+  }, [deliveries, filter, preset, q, view, me?.id, me?.role]);
 
   const presets: { id: Preset; en: string; es: string }[] = [
     { id: "all", en: "All", es: "Todas" },
@@ -108,6 +139,7 @@ export default function OrdersPage() {
   ];
 
   if (!me) return null;
+  if (me.role === "warehouse") return <div className="empty">{t("Not available for your role — use the Warehouse or Driver view.", "No disponible para su rol — use la vista de Almacén o Chofer.")}</div>;
 
   // ---- Bulk actions (#1) ----
   const toggle = (id: string) =>
@@ -194,7 +226,7 @@ export default function OrdersPage() {
                 <div className="col-menu">
                   <div className="col-menu-head">
                     <b>{t("Show columns", "Mostrar columnas")}</b>
-                    <button className="notif-clear" onClick={() => saveCols(DEFAULT_COLUMNS)}>{t("Reset", "Restablecer")}</button>
+                    <button className="notif-clear" onClick={() => saveCols(defaultColsFor(me.role))}>{t("Reset", "Restablecer")}</button>
                   </div>
                   {ORDER_COLUMNS.map((c) => (
                     <label key={c.key} className="col-opt">
@@ -294,6 +326,12 @@ export default function OrdersPage() {
             selected={selected}
             onToggle={toggle}
             onToggleAll={toggleAll}
+            isUrgent={(d) => {
+              const cutoff = me.role === "manager" ? settings.manager_pending_cutoff
+                : me.role === "sales" ? settings.sales_pending_cutoff
+                : null;
+              return isPendingUrgent(d, cutoff);
+            }}
           />
         )
       ) : (

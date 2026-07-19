@@ -11,7 +11,8 @@ import type { Delivery } from "@/lib/types";
 // ============================================================
 // Customer accounts — every order grouped by the customer it belongs to.
 // Pick an account to see its whole delivery history, totals and open work.
-// Visible to every role (read-only view over the orders they can already see).
+// Read-only view over the orders they can already see. Not shown to sales or
+// drivers — they work order-by-order, not account-by-account.
 // ============================================================
 
 interface AccountRow {
@@ -65,6 +66,7 @@ export default function AccountsPage() {
   const current = picked ? accounts.find((a) => a.name === picked) ?? null : null;
 
   if (!me) return null;
+  if (me.role === "sales" || me.role === "driver" || me.role === "warehouse") return <div className="empty">{t("Not available for your role.", "No disponible para su rol.")}</div>;
 
   const exportAccount = (a: AccountRow) => {
     const headers = deliveryColumns(a.orders[0]).map(([h]) => h).concat("Stage");

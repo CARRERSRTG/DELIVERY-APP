@@ -14,8 +14,8 @@ import type { Delivery } from "@/lib/types";
 //
 // Document reference — depends on the order type:
 //   • Intra-Tienda  → ANY ONE of PO #2 / SO # / Invoice #
-//   • Pickup (PU) / Transfer → optional (nothing required)
-//   • Everything else (Delivery, Will Call…) → Customer Invoice # required
+//   • Transfer / Customer (picked up by the customer themselves) → optional (nothing required)
+//   • Everything else (Delivery…) → Customer Invoice # required
 //
 // Nothing here hard-blocks: the rep is shown exactly what's missing and asked
 // whether to continue anyway.
@@ -31,9 +31,9 @@ export interface MissingField {
 /** Store-to-store transfer between branches ("Intra-Tienda"). */
 export const isIntraStore = (orderType: string | null | undefined) => /intra|tienda/i.test(orderType || "");
 
-/** Pickups and transfers don't need customer paperwork. */
+/** Transfers and customer self-pickups don't need customer paperwork. */
 export const isPickupOrTransfer = (orderType: string | null | undefined) =>
-  /pick\s*-?\s*up|will\s*call|transfer|^\s*pu\s*$/i.test(orderType || "");
+  /pick\s*-?\s*up|will\s*call|customer|transfer|^\s*pu\s*$/i.test(orderType || "");
 
 const filled = (v: unknown) => !!String(v ?? "").trim();
 

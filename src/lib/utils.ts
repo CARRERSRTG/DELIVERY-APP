@@ -11,6 +11,28 @@ export function localISO(d: Date): string {
 
 export const todayISO = () => localISO(new Date());
 
+/** Yesterday as local YYYY-MM-DD — the floor of what a salesperson sees by
+ * default on the Orders table (yesterday / today / future only). */
+export const yesterdayISO = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return localISO(d);
+};
+
+/** Current local time as "HH:MM", for comparing against a configured cutoff. */
+export const nowHHMM = () => {
+  const n = new Date();
+  return `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
+};
+
+/** An order still sitting in "pending" past today's end-of-day cutoff (e.g.
+ * 4pm for managers, a bit later for the sales rep who submitted it) — flagged
+ * red and escalated, since it's blocking a delivery that may be due soon. */
+export function isPendingUrgent(d: Delivery, cutoffHHMM: string | null | undefined): boolean {
+  if (!cutoffHHMM || d.stage !== "pending") return false;
+  return nowHHMM() >= cutoffHHMM;
+}
+
 /** Current local time as a 4-digit military string, e.g. "1430". */
 export const nowMilitary = () => {
   const n = new Date();
