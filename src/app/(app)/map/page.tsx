@@ -6,7 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { driverNames } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
 import { LeafletMap, type MapPoint } from "@/components/LeafletMap";
-import { todayISO } from "@/lib/utils";
+import { shiftDateISO, todayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 const UNASSIGNED_COLOR = "#6b7686";
@@ -106,7 +106,14 @@ export default function MapPage() {
       <div className="page-head">
         <h2>{t("Delivery Map", "Mapa de Entregas")} <span className="count-tag">{points.length}</span></h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "auto" }} />
+          <div className="viewtoggle">
+            <button className="vt" onClick={() => setDate((d) => shiftDateISO(d, -1))} title={t("Previous day", "Día anterior")}>◀</button>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "auto" }} />
+            <button className="vt" onClick={() => setDate((d) => shiftDateISO(d, 1))} title={t("Next day", "Día siguiente")}>▶</button>
+          </div>
+          {date !== todayISO() && (
+            <button className="btn btn-ghost btn-sm" onClick={() => setDate(todayISO())}>{t("Today", "Hoy")}</button>
+          )}
           {geocoding > 0 && <span className="hint">{t("Locating addresses…", "Ubicando direcciones…")}</span>}
         </div>
       </div>

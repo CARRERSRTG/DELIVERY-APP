@@ -19,6 +19,15 @@ export const yesterdayISO = () => {
   return localISO(d);
 };
 
+/** A YYYY-MM-DD shifted by N days (negative goes back) — e.g. stepping the
+ * date picker on the delivery map with prev/next-day arrows. */
+export function shiftDateISO(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  dt.setDate(dt.getDate() + days);
+  return localISO(dt);
+}
+
 /** Current local time as "HH:MM", for comparing against a configured cutoff. */
 export const nowHHMM = () => {
   const n = new Date();
