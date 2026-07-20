@@ -432,6 +432,18 @@ export function OrderModal({
 
   const deliveryOptions = settings.delivery_locations ?? [];
 
+  // Account options: every distinct account name already used on a past
+  // order — grows on its own as new accounts get typed in, no separate
+  // saved list to manage (same source the Accounts page groups by).
+  const accountOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const x of deliveries) {
+      const a = (x.account || "").trim();
+      if (a) seen.add(a);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [deliveries]);
+
   const savePickupLocation = (loc: NamedLocation) => {
     saveSettings({ pickup_locations: [...(settings.pickup_locations ?? []), loc] });
     notify(t(`Saved "${loc.name}" as a pickup point`, `"${loc.name}" guardado como punto de recolección`));
@@ -773,7 +785,7 @@ export function OrderModal({
             )}
 
             <div className="grid g3">
-              <Txt label={t("Account", "Cuenta")} val={d.account} on={(v) => set("account", v)} disabled={!salesFields} />
+              <AccountCombo val={d.account} on={(v) => set("account", v)} options={accountOptions} disabled={!salesFields} placeholder={t("Select account…", "Seleccione cuenta…")} t={t} />
               <Txt label={t("Contact name", "Nombre de Contacto")} val={d.contact} on={(v) => set("contact", v)} disabled={!salesFields} invalid={missingSet.has("contact")} />
               <Txt label={t("Delivery Phone Number", "Teléfono de Entrega")} val={d.delivery_phone} on={(v) => set("delivery_phone", v)} disabled={!salesFields} invalid={missingSet.has("delivery_phone")} />
             </div>
@@ -1433,6 +1445,49 @@ function Txt({ label, val, on, type = "text", disabled, placeholder, invalid }: 
       <label>{label}{invalid && <span className="req-star"> *</span>}</label>
       <input className={invalid ? "invalid" : ""} type={type} value={(val as string) ?? ""} disabled={disabled} placeholder={placeholder}
         onChange={(e) => on(e.target.value)} />
+    </div>
+  );
+}
+
+const NEW_ACCOUNT = "__new__";
+
+/** Account — same "pick a saved one, or type a new one" pattern as the
+ * Dropoff field. Options are every distinct account name already used on a
+ * past order, so the list grows on its own as new accounts get typed. */
+function AccountCombo({ val, on, options, disabled, placeholder, t }: {
+  val: unknown; on: (v: string) => void; options: string[]; disabled?: boolean; placeholder?: string;
+  t: (en: string, es: string) => string;
+}) {
+  const current = (val as string) ?? "";
+  const known = options.includes(current);
+  const [manual, setManual] = useState(!!current && !known);
+
+  return (
+    <div className="field">
+      <label>{t("Account", "Cuenta")}</label>
+      {manual ? (
+        <div style={{ display: "flex", gap: 8 }}>
+          <input value={current} disabled={disabled} placeholder={placeholder} onChange={(e) => on(e.target.value)} />
+          {options.length > 0 && (
+            <button className="btn btn-ghost btn-sm" disabled={disabled} onClick={() => { setManual(false); on(""); }}>
+              {t("Pick saved", "Elegir guardado")}
+            </button>
+          )}
+        </div>
+      ) : (
+        <select
+          value={known ? current : ""}
+          disabled={disabled}
+          onChange={(e) => {
+            if (e.target.value === NEW_ACCOUNT) { setManual(true); on(""); return; }
+            on(e.target.value);
+          }}
+        >
+          <option value="">{placeholder ?? t("Select…", "Seleccione…")}</option>
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
+          <option value={NEW_ACCOUNT}>➕ {t("Type a new one…", "Escribir uno nuevo…")}</option>
+        </select>
+      )}
     </div>
   );
 }
