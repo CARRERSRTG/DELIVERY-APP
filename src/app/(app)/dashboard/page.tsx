@@ -94,18 +94,17 @@ export default function DashboardPage() {
       <div className="page-head">
         <h2>{t("Dashboard", "Panel")}</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <div className="viewtoggle">
-            <button className="vt" onClick={() => step(-1)} title={t("Previous period", "Período anterior")}>◀</button>
-            <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, padding: "0 4px" }}>
-              {t("From", "Desde")}
-              <input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setRangeMode("custom"); }} style={{ width: 150, marginTop: 2 }} />
-            </label>
-            <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, padding: "0 4px" }}>
-              {t("To", "Hasta")}
-              <input type="date" value={to} min={from} max={todayISO()} onChange={(e) => { setTo(e.target.value); setRangeMode("custom"); }} style={{ width: 150, marginTop: 2 }} />
-            </label>
-            <button className="vt" onClick={() => step(1)} title={t("Next period", "Período siguiente")}>▶</button>
-          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => step(-1)} title={t("Previous period", "Período anterior")}>◀</button>
+          <label style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
+            {t("From", "Desde")}
+            <input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setRangeMode("custom"); }} style={{ width: 150, marginTop: 2 }} />
+          </label>
+          <label style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
+            {t("To", "Hasta")}
+            <input type="date" value={to} min={from} max={todayISO()} onChange={(e) => { setTo(e.target.value); setRangeMode("custom"); }} style={{ width: 150, marginTop: 2 }} />
+          </label>
+          <button className="btn btn-ghost btn-sm" onClick={() => step(1)} title={t("Next period", "Período siguiente")}>▶</button>
+          <span style={{ width: 1, height: 24, background: "var(--line)", margin: "0 2px" }} />
           <button className={"btn btn-sm " + (rangeMode === "week" && from === startOfWeekISO() ? "btn-primary" : "btn-ghost")} onClick={thisWeek}>{t("This week", "Esta semana")}</button>
           <button className={"btn btn-sm " + (rangeMode === "month" && from === startOfMonthISO() ? "btn-primary" : "btn-ghost")} onClick={thisMonth}>{t("This month", "Este mes")}</button>
           <button className="btn btn-ghost btn-sm" onClick={lastMonth}>{t("Last month", "Mes pasado")}</button>
