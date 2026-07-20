@@ -98,25 +98,16 @@ export default function OrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderParam, ready, deliveries]);
 
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { all: deliveries.length };
-    for (const d of deliveries) c[d.stage] = (c[d.stage] ?? 0) + 1;
-    return c;
-  }, [deliveries]);
-
-  const rows = useMemo(() => {
+  // Everything this person can see, before the stage chip / preset narrow it
+  // further — the "All" count and every stage chip's count come from this,
+  // not the full company-wide `deliveries`, so the numbers on the chips
+  // always match what actually shows up in the table below them.
+  const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    // The board shows every stage as its own column, so ignore the stage chip there.
-    const activeFilter = view === "board" ? "all" : filter;
     return deliveries.filter((d) => {
       // Sales only ever sees their own orders — a hard boundary, not
       // relaxed by search, unlike the date-window restriction below.
       if (me?.role === "sales" && d.created_by !== me.id) return false;
-      if (activeFilter !== "all" && d.stage !== activeFilter) return false;
-      if (preset === "today" && !isToday(d.delivery_date)) return false;
-      if (preset === "overdue" && !isOverdue(d)) return false;
-      if (preset === "unassigned" && d.assigned_driver) return false;
-      if (preset === "mine" && d.created_by !== me?.id) return false;
       if (!needle) {
         // Sales' default view is scoped to yesterday/today/future — older
         // history is still there, just reached by searching (e.g. an invoice #)
@@ -128,7 +119,26 @@ export default function OrdersPage() {
         .map((x) => String(x ?? "").toLowerCase()).join(" ");
       return hay.includes(needle);
     });
-  }, [deliveries, filter, preset, q, view, me?.id, me?.role]);
+  }, [deliveries, q, me?.id, me?.role]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: visible.length };
+    for (const d of visible) c[d.stage] = (c[d.stage] ?? 0) + 1;
+    return c;
+  }, [visible]);
+
+  const rows = useMemo(() => {
+    // The board shows every stage as its own column, so ignore the stage chip there.
+    const activeFilter = view === "board" ? "all" : filter;
+    return visible.filter((d) => {
+      if (activeFilter !== "all" && d.stage !== activeFilter) return false;
+      if (preset === "today" && !isToday(d.delivery_date)) return false;
+      if (preset === "overdue" && !isOverdue(d)) return false;
+      if (preset === "unassigned" && d.assigned_driver) return false;
+      if (preset === "mine" && d.created_by !== me?.id) return false;
+      return true;
+    });
+  }, [visible, filter, preset, view, me?.id]);
 
   const presets: { id: Preset; en: string; es: string }[] = [
     { id: "all", en: "All", es: "Todas" },
