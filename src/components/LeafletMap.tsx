@@ -44,6 +44,7 @@ export function LeafletMap({
   const mapRef = useRef<LeafletMapInstance | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const pickMarkerRef = useRef<Marker | null>(null);
+  const hoverMarkerRef = useRef<Marker | null>(null);
   const onPickRef = useRef(onPick);
   onPickRef.current = onPick;
   const onClickRef = useRef(onPointClick);
@@ -64,9 +65,31 @@ export function LeafletMap({
         maxZoom: 19,
       }).addTo(map);
       mapRef.current = map;
-      map.on("click", (e: { latlng: { lat: number; lng: number } }) => {
-        onPickRef.current?.(e.latlng.lat, e.latlng.lng);
-      });
+
+      if (pickable) {
+        // Hover shows a light preview of where the pin would land; a
+        // right-click commits it. Two-handed but far less error-prone than
+        // a plain left-click, which fires on every accidental click while
+        // panning around to find the right spot.
+        const previewIcon = L.divIcon({
+          className: "",
+          html: `<div style="font-size:28px;line-height:1;opacity:.45;transform:translate(-50%,-90%)">📍</div>`,
+          iconSize: [0, 0],
+        });
+        map.on("mousemove", (e: { latlng: { lat: number; lng: number } }) => {
+          if (hoverMarkerRef.current) hoverMarkerRef.current.setLatLng(e.latlng);
+          else if (mapRef.current) hoverMarkerRef.current = L.marker(e.latlng, { icon: previewIcon, interactive: false }).addTo(mapRef.current);
+        });
+        map.on("mouseout", () => {
+          hoverMarkerRef.current?.remove();
+          hoverMarkerRef.current = null;
+        });
+        map.on("contextmenu", (e: { latlng: { lat: number; lng: number }; originalEvent?: MouseEvent }) => {
+          e.originalEvent?.preventDefault?.();
+          onPickRef.current?.(e.latlng.lat, e.latlng.lng);
+        });
+      }
+
       // Force a resize pass — Leaflet miscalculates tile bounds when its
       // container was hidden/zero-size at construction time (e.g. inside a
       // modal that just opened).
@@ -74,6 +97,8 @@ export function LeafletMap({
     })();
     return () => {
       cancelled = true;
+      hoverMarkerRef.current?.remove();
+      hoverMarkerRef.current = null;
       map?.remove();
       mapRef.current = null;
     };

@@ -747,7 +747,7 @@ export function OrderModal({
             {showPinPicker && (
               <div className="card" style={{ marginBottom: 12 }}>
                 <div className="hint" style={{ marginBottom: 8 }}>
-                  {t("Click the map to drop a pin — useful when there's no formal address yet (a construction site, a lot).", "Haga clic en el mapa para marcar un punto — útil cuando aún no hay una dirección formal (un sitio de construcción, un lote).")}
+                  {t("Move the mouse to preview the spot, then right-click to drop the pin — useful when there's no formal address yet (a construction site, a lot).", "Mueva el mouse para previsualizar el punto y haga clic derecho para marcarlo — útil cuando aún no hay una dirección formal (un sitio de construcción, un lote).")}
                 </div>
                 <LeafletMap
                   pickable
