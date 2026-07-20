@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useData } from "@/lib/data-provider";
 import { stageInfo } from "@/lib/constants";
@@ -22,7 +23,9 @@ export function NotificationBell() {
   const { notifications, markNotifRead, markAllNotifsRead } = useData();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Mark read and jump to the order the notification is about.
   const onPick = (id: string, read: boolean, deliveryId: string | null) => {
@@ -33,30 +36,63 @@ export function NotificationBell() {
 
   const unread = notifications.filter((n) => !n.read).length;
 
-  // Close when clicking outside the panel.
+  const toggle = () => {
+    if (!open && btnRef.current) setAnchor(btnRef.current.getBoundingClientRect());
+    setOpen((v) => !v);
+  };
+
+  // The panel renders in a portal (see below) — a topbar with many admin
+  // tabs wraps onto multiple lines, so the bell isn't reliably near the
+  // right edge, and a plain right:0 popover could land mostly off-screen.
+  // Reposition on scroll/resize while open, and close on an outside click
+  // (checking both the button and the portaled panel, since they're no
+  // longer DOM descendants of each other).
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    const reposition = () => {
+      if (btnRef.current) setAnchor(btnRef.current.getBoundingClientRect());
     };
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+      document.removeEventListener("mousedown", onDown);
+    };
   }, [open]);
 
+  const PANEL_WIDTH = 320;
+
   return (
-    <div className="notif-wrap" ref={ref}>
+    <div className="notif-wrap">
       <button
+        ref={btnRef}
         className="tab notif-btn"
         style={{ background: "rgba(255,255,255,.1)" }}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         title="Notifications"
       >
         🔔
         {unread > 0 && <span className="notif-badge">{unread > 9 ? "9+" : unread}</span>}
       </button>
 
-      {open && (
-        <div className="notif-panel">
+      {open && anchor && typeof document !== "undefined" && createPortal(
+        <div
+          ref={panelRef}
+          className="notif-panel"
+          style={{
+            position: "fixed",
+            right: "auto",
+            top: anchor.bottom + 8,
+            left: Math.max(8, Math.min(anchor.right - PANEL_WIDTH, window.innerWidth - PANEL_WIDTH - 8)),
+          }}
+        >
           <div className="notif-head">
             <b>Notifications</b>
             {unread > 0 && (
@@ -88,7 +124,8 @@ export function NotificationBell() {
               })}
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
