@@ -125,6 +125,14 @@ export interface NamedLocation {
   address: string;
 }
 
+/** A saved customer/site account — picking it on an order auto-fills who to
+ * contact there, the same way picking a saved pickup/dropoff fills its address. */
+export interface AccountRecord {
+  name: string;
+  contact: string;
+  phone: string;
+}
+
 export interface Settings {
   id: number;
   app_name: string;
@@ -135,6 +143,9 @@ export interface Settings {
   pickup_locations?: NamedLocation[];
   /** Saved dropoff points (recurring customer sites, job sites). */
   delivery_locations?: NamedLocation[];
+  /** Saved accounts — picking one on an order auto-fills its contact name
+   * + phone. A new account typed on an order can be saved back here. */
+  accounts?: AccountRecord[];
   // NOTE: drivers are NOT stored here — they're users with the "driver" role.
   // Use driverNames(users) from lib/constants. Keeping them in one place stops
   // the Settings list and the Users list drifting apart.

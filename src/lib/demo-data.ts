@@ -53,6 +53,28 @@ export function demoSettings(): Settings {
     delivery_locations: [
       { name: "Sharyland Job Site", address: "3300 Shary Rd, Mission TX" },
     ],
+    // Test data — every account already used in the demo deliveries below,
+    // with a contact + phone attached, so picking one on an order shows the
+    // auto-fill right away instead of the fields staying blank.
+    accounts: [
+      { name: "Rio Tile Co.", contact: "Ana Garza", phone: "9561234567" },
+      { name: "Casa Bella", contact: "Rosa Martinez", phone: "9565550103" },
+      { name: "Delta Construction", contact: "Luis Treviño", phone: "9565550188" },
+      { name: "Palm Grove Homes", contact: "Hector Ruiz", phone: "9565550104" },
+      { name: "Mid-Valley Supply", contact: "Elena Ramos", phone: "9565550105" },
+      { name: "Hidalgo Interiors", contact: "Marco Silva", phone: "9565550142" },
+      { name: "Sunrise Flooring", contact: "Diana Cantu", phone: "9565550151" },
+      { name: "Vista Kitchens", contact: "Hector Ruiz", phone: "9565550110" },
+      { name: "Valley Builders", contact: "Jorge Peña", phone: "9565550162" },
+      { name: "Coastal Homes", contact: "Karla Salinas", phone: "9565550173" },
+      { name: "Mission Remodel", contact: "Ana Garza", phone: "9565550184" },
+      { name: "Walk-in Customer", contact: "Front desk", phone: "9565550100" },
+      { name: "Sharyland Job Site", contact: "Site foreman", phone: "9565550195" },
+      { name: "Edinburg branch", contact: "Store manager", phone: "9565550120" },
+      { name: "Brownsville branch", contact: "Store manager", phone: "9565550130" },
+      { name: "New Lead LLC", contact: "Sam Peterson", phone: "9565550140" },
+      { name: "QA Test Account", contact: "QA Tester", phone: "9565550199" },
+    ],
     pickup_min_per_pallet: 4,
     delivery_min_per_pallet: 5,
     // RingCentral calling / auto-SMS start switched OFF — an admin opts in.

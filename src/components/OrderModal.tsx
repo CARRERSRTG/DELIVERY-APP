@@ -16,7 +16,7 @@ import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
 import { missingFields, missingKeys } from "@/lib/required";
 import { captureLocation, geoAvailable, mapLink } from "@/lib/geo";
-import type { Delivery, NamedLocation, Profile, Settings, Stage } from "@/lib/types";
+import type { AccountRecord, Delivery, NamedLocation, Profile, Settings, Stage } from "@/lib/types";
 
 type Draft = Partial<Delivery>;
 
@@ -432,17 +432,27 @@ export function OrderModal({
 
   const deliveryOptions = settings.delivery_locations ?? [];
 
-  // Account options: every distinct account name already used on a past
-  // order — grows on its own as new accounts get typed in, no separate
-  // saved list to manage (same source the Accounts page groups by).
+  // Account options: saved accounts (with a contact + phone attached) plus
+  // every distinct account name already used on a past order that hasn't
+  // been saved with contact info yet — so the list is never missing one,
+  // but only saved accounts auto-fill Contact / Delivery Phone Number.
+  const savedAccounts = settings.accounts ?? [];
   const accountOptions = useMemo(() => {
     const seen = new Set<string>();
+    for (const a of savedAccounts) if (a.name.trim()) seen.add(a.name.trim());
     for (const x of deliveries) {
       const a = (x.account || "").trim();
       if (a) seen.add(a);
     }
     return [...seen].sort((a, b) => a.localeCompare(b));
-  }, [deliveries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveries, settings.accounts]);
+
+  const saveAccount = (rec: AccountRecord) => {
+    const next = [...savedAccounts.filter((a) => a.name.toLowerCase() !== rec.name.toLowerCase()), rec];
+    saveSettings({ accounts: next });
+    notify(t(`Saved "${rec.name}" as an account`, `"${rec.name}" guardado como cuenta`));
+  };
 
   const savePickupLocation = (loc: NamedLocation) => {
     saveSettings({ pickup_locations: [...(settings.pickup_locations ?? []), loc] });
@@ -785,10 +795,32 @@ export function OrderModal({
             )}
 
             <div className="grid g3">
-              <AccountCombo val={d.account} on={(v) => set("account", v)} options={accountOptions} disabled={!salesFields} placeholder={t("Select account…", "Seleccione cuenta…")} t={t} />
+              <AccountCombo
+                val={d.account}
+                on={(v) => {
+                  // Picking a saved account also fills who to contact there —
+                  // still editable after, for a one-off override.
+                  const rec = savedAccounts.find((a) => a.name.toLowerCase() === v.toLowerCase());
+                  setD((p) => ({ ...p, account: v, contact: rec ? rec.contact : p.contact, delivery_phone: rec ? rec.phone : p.delivery_phone }));
+                }}
+                options={accountOptions}
+                disabled={!salesFields}
+                placeholder={t("Select account…", "Seleccione cuenta…")}
+                t={t}
+              />
               <Txt label={t("Contact name", "Nombre de Contacto")} val={d.contact} on={(v) => set("contact", v)} disabled={!salesFields} invalid={missingSet.has("contact")} />
               <Txt label={t("Delivery Phone Number", "Teléfono de Entrega")} val={d.delivery_phone} on={(v) => set("delivery_phone", v)} disabled={!salesFields} invalid={missingSet.has("delivery_phone")} />
             </div>
+            {salesFields && !!d.account?.trim() && !!d.contact?.trim() && !!d.delivery_phone?.trim() &&
+              !savedAccounts.some((a) => a.name.toLowerCase() === d.account!.trim().toLowerCase() && a.contact === d.contact && a.phone === d.delivery_phone) && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ marginTop: -6, marginBottom: 10 }}
+                  onClick={() => saveAccount({ name: d.account!.trim(), contact: d.contact!.trim(), phone: d.delivery_phone!.trim() })}
+                >
+                  💾 {t("Save this contact for the account", "Guardar este contacto para la cuenta")}
+                </button>
+            )}
             <div className="field">
               <label>{t("Delivery Notes", "Notas de Entrega")}</label>
               <textarea rows={2} value={d.delivery_notes ?? ""} disabled={!salesFields} onChange={(e) => set("delivery_notes", e.target.value)} />
@@ -1452,10 +1484,13 @@ function Txt({ label, val, on, type = "text", disabled, placeholder, invalid }: 
 const NEW_ACCOUNT = "__new__";
 
 /** Account — same "pick a saved one, or type a new one" pattern as the
- * Dropoff field. Options are every distinct account name already used on a
- * past order, so the list grows on its own as new accounts get typed. */
+ * Dropoff field. Options are every account name already seen; the parent's
+ * `on` callback looks up a saved contact/phone for the picked name and
+ * fills those fields too, the same way a saved pickup/dropoff fills its
+ * address. */
 function AccountCombo({ val, on, options, disabled, placeholder, t }: {
-  val: unknown; on: (v: string) => void; options: string[]; disabled?: boolean; placeholder?: string;
+  val: unknown; on: (v: string) => void;
+  options: string[]; disabled?: boolean; placeholder?: string;
   t: (en: string, es: string) => string;
 }) {
   const current = (val as string) ?? "";
