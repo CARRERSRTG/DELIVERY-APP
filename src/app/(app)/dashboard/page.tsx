@@ -99,7 +99,7 @@ export default function DashboardPage() {
             {t("From", "Desde")}
             <input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setRangeMode("custom"); }} style={{ width: 150, marginTop: 2 }} />
           </label>
-          <label style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
+          <label style={{ margin: "0 0 0 10px", textTransform: "none", letterSpacing: 0 }}>
             {t("To", "Hasta")}
             <input type="date" value={to} min={from} max={todayISO()} onChange={(e) => { setTo(e.target.value); setRangeMode("custom"); }} style={{ width: 150, marginTop: 2 }} />
           </label>
