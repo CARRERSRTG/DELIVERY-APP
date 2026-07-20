@@ -28,6 +28,43 @@ export function shiftDateISO(iso: string, days: number): string {
   return localISO(dt);
 }
 
+/** A YYYY-MM-DD shifted by N calendar months (negative goes back), clamped to
+ * the last day of the target month if the original day doesn't exist there
+ * (e.g. Jan 31 - 1 month lands on Feb 28, not Mar 3). */
+export function shiftMonthISO(iso: string, months: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, (m || 1) - 1 + months, 1);
+  const lastDay = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+  dt.setDate(Math.min(d || 1, lastDay));
+  return localISO(dt);
+}
+
+/** Monday of the week containing this date (or today). */
+export function startOfWeekISO(d: Date = new Date()): string {
+  const day = d.getDay(); // 0=Sun..6=Sat
+  const diff = (day === 0 ? -6 : 1) - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  return localISO(monday);
+}
+
+/** Sunday of the week containing this date (or today). */
+export function endOfWeekISO(d: Date = new Date()): string {
+  const monday = new Date(startOfWeekISO(d) + "T12:00:00");
+  monday.setDate(monday.getDate() + 6);
+  return localISO(monday);
+}
+
+/** First day of the month containing this date (or today). */
+export function startOfMonthISO(d: Date = new Date()): string {
+  return localISO(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
+/** Last day of the month containing this date (or today). */
+export function endOfMonthISO(d: Date = new Date()): string {
+  return localISO(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+}
+
 /** Current local time as "HH:MM", for comparing against a configured cutoff. */
 export const nowHHMM = () => {
   const n = new Date();

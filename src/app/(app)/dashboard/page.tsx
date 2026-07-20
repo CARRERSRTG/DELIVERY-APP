@@ -9,7 +9,10 @@ import {
   approvalTurnaroundMs, computeKpis, countByStage, driverStats,
   groupVolume, inDateRange, overdueOrders, salesRepStatsThisMonth,
 } from "@/lib/analytics";
-import { downloadCSV, fmtDate, fmtDuration, fmtMoney, toCSV, todayISO, deliveryColumns } from "@/lib/utils";
+import {
+  daysBetween, downloadCSV, endOfMonthISO, endOfWeekISO, fmtDate, fmtDuration, fmtMoney,
+  shiftDateISO, shiftMonthISO, startOfMonthISO, startOfWeekISO, toCSV, todayISO, deliveryColumns,
+} from "@/lib/utils";
 import type { Stage } from "@/lib/types";
 
 // Default the date-range to the last 30 days.
@@ -19,12 +22,44 @@ function daysAgoISO(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Which quick-range is active — governs how the ◀ / ▶ arrows step the range:
+// a week steps by 7 days, a month steps by a calendar month (so it lands on
+// real month boundaries instead of drifting), a custom range steps by its
+// own exact length.
+type RangeMode = "week" | "month" | "custom";
+
 export default function DashboardPage() {
   const { me, users, deliveries, events, ready } = useData();
   const { lang, t } = usePrefs();
   const router = useRouter();
   const [from, setFrom] = useState(daysAgoISO(30));
   const [to, setTo] = useState(todayISO());
+  const [rangeMode, setRangeMode] = useState<RangeMode>("custom");
+
+  const setRange = (f: string, tt: string, mode: RangeMode) => {
+    setFrom(f);
+    setTo(tt > todayISO() ? todayISO() : tt);
+    setRangeMode(mode);
+  };
+
+  const thisWeek = () => setRange(startOfWeekISO(), endOfWeekISO(), "week");
+  const thisMonth = () => setRange(startOfMonthISO(), endOfMonthISO(), "month");
+  const lastMonth = () => {
+    const anchor = shiftMonthISO(startOfMonthISO(), -1);
+    setRange(startOfMonthISO(new Date(anchor + "T12:00:00")), endOfMonthISO(new Date(anchor + "T12:00:00")), "month");
+  };
+
+  const step = (dir: 1 | -1) => {
+    if (rangeMode === "month") {
+      const nextFrom = shiftMonthISO(from, dir);
+      setRange(startOfMonthISO(new Date(nextFrom + "T12:00:00")), endOfMonthISO(new Date(nextFrom + "T12:00:00")), "month");
+    } else if (rangeMode === "week") {
+      setRange(shiftDateISO(from, dir * 7), shiftDateISO(to, dir * 7), "week");
+    } else {
+      const span = daysBetween(to, from) + 1; // inclusive day count
+      setRange(shiftDateISO(from, dir * span), shiftDateISO(to, dir * span), "custom");
+    }
+  };
 
   // Everything below is scoped to the selected delivery-date range.
   const scoped = useMemo(() => inDateRange(deliveries, from, to), [deliveries, from, to]);
@@ -59,14 +94,21 @@ export default function DashboardPage() {
       <div className="page-head">
         <h2>{t("Dashboard", "Panel")}</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
-            {t("From", "Desde")}
-            <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} style={{ width: 150, marginTop: 2 }} />
-          </label>
-          <label style={{ margin: 0, textTransform: "none", letterSpacing: 0 }}>
-            {t("To", "Hasta")}
-            <input type="date" value={to} min={from} max={todayISO()} onChange={(e) => setTo(e.target.value)} style={{ width: 150, marginTop: 2 }} />
-          </label>
+          <div className="viewtoggle">
+            <button className="vt" onClick={() => step(-1)} title={t("Previous period", "Período anterior")}>◀</button>
+            <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, padding: "0 4px" }}>
+              {t("From", "Desde")}
+              <input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setRangeMode("custom"); }} style={{ width: 150, marginTop: 2 }} />
+            </label>
+            <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, padding: "0 4px" }}>
+              {t("To", "Hasta")}
+              <input type="date" value={to} min={from} max={todayISO()} onChange={(e) => { setTo(e.target.value); setRangeMode("custom"); }} style={{ width: 150, marginTop: 2 }} />
+            </label>
+            <button className="vt" onClick={() => step(1)} title={t("Next period", "Período siguiente")}>▶</button>
+          </div>
+          <button className={"btn btn-sm " + (rangeMode === "week" && from === startOfWeekISO() ? "btn-primary" : "btn-ghost")} onClick={thisWeek}>{t("This week", "Esta semana")}</button>
+          <button className={"btn btn-sm " + (rangeMode === "month" && from === startOfMonthISO() ? "btn-primary" : "btn-ghost")} onClick={thisMonth}>{t("This month", "Este mes")}</button>
+          <button className="btn btn-ghost btn-sm" onClick={lastMonth}>{t("Last month", "Mes pasado")}</button>
           <button className="btn btn-ghost" onClick={exportRange} disabled={!scoped.length}>⬇ {t("Export range", "Exportar rango")}</button>
         </div>
       </div>
