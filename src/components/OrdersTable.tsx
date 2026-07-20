@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
 import { fmtDate, fmtMilitary, fmtMoney, isOverdue } from "@/lib/utils";
@@ -83,7 +84,7 @@ function filterKey(v: CellValue): string {
 /** Excel-style checklist filter for one column header: search box, select-all,
  * one checkbox per distinct value present in the (other-filters-applied) rows. */
 function ColumnFilterMenu({
-  col, options, active, onApply, onClear, onClose, lang, t,
+  col, options, active, onApply, onClear, onClose, lang, t, style, menuRef,
 }: {
   col: OrderColumn;
   options: { key: string; label: string }[];
@@ -93,6 +94,10 @@ function ColumnFilterMenu({
   onClose: () => void;
   lang: "en" | "es";
   t: (en: string, es: string) => string;
+  /** Screen position — this renders in a portal, so it can't rely on a
+   * positioned ancestor the way the Columns picker menu does. */
+  style?: React.CSSProperties;
+  menuRef?: React.Ref<HTMLDivElement>;
 }) {
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<Set<string>>(() => new Set(active ?? options.map((o) => o.key)));
@@ -112,7 +117,7 @@ function ColumnFilterMenu({
     });
 
   return (
-    <div className="col-menu" onClick={(e) => e.stopPropagation()}>
+    <div ref={menuRef} className="col-menu" style={style} onClick={(e) => e.stopPropagation()}>
       <div className="col-menu-head">
         <b>{lang === "es" ? col.es : col.en}</b>
         <button className="notif-clear" onClick={onClose}>✕</button>
@@ -178,8 +183,44 @@ export function OrdersTable({
   const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+  // The filter menu renders in a portal (see below) so a short table with
+  // few rows can't clip it — .tbl-scroll's horizontal scrollbar makes it
+  // clip vertical overflow too, which used to hide the menu almost
+  // entirely. Portaling needs the trigger button's on-screen position.
+  const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null);
+  const filterBtnRefs = useRef(new Map<string, HTMLButtonElement>());
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const cols = useMemo(() => [ID_COLUMN, ...ORDER_COLUMNS.filter((c) => visible.includes(c.key))], [visible]);
+
+  const openFilterMenu = (key: string) => {
+    if (openFilter === key) { setOpenFilter(null); return; }
+    const btn = filterBtnRefs.current.get(key);
+    if (btn) setMenuAnchor(btn.getBoundingClientRect());
+    setOpenFilter(key);
+  };
+
+  // Keep the menu pinned to its trigger button while scrolling/resizing, and
+  // close it on an outside click (it's portaled out of the header cell now,
+  // so the header's own click-catching no longer covers it).
+  useEffect(() => {
+    if (!openFilter) return;
+    const reposition = () => {
+      const btn = filterBtnRefs.current.get(openFilter);
+      if (btn) setMenuAnchor(btn.getBoundingClientRect());
+    };
+    const onOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenFilter(null);
+    };
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    document.addEventListener("mousedown", onOutside);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+      document.removeEventListener("mousedown", onOutside);
+    };
+  }, [openFilter]);
 
   // Rows matching every active column filter, optionally ignoring one column's
   // own filter — used so that column's own checklist still offers every value
@@ -241,6 +282,7 @@ export function OrdersTable({
   const allChecked = !!selected && rows.length > 0 && rows.every((r) => selected.has(r.id));
 
   return (
+    <>
     <div className="tbl-scroll">
       <table className="orders">
         <thead>
@@ -260,33 +302,14 @@ export function OrdersTable({
                       {lang === "es" ? c.es : c.en}
                       {sortKey === c.key && (sortDir === "asc" ? " ▲" : " ▼")}
                     </button>
-                    <div style={{ position: "relative" }}>
-                      <button
-                        className={"th-filter-btn " + (hasFilter ? "on" : "")}
-                        onClick={(e) => { e.stopPropagation(); setOpenFilter(openFilter === c.key ? null : c.key); }}
-                        title={t("Filter", "Filtrar")}
-                      >
-                        ▾
-                      </button>
-                      {openFilter === c.key && (
-                        <ColumnFilterMenu
-                          col={c}
-                          options={optionsFor(c)}
-                          active={filters[c.key]}
-                          lang={lang}
-                          t={t}
-                          onApply={(next) => {
-                            setFilters((f) => ({ ...f, [c.key]: next }));
-                            setOpenFilter(null);
-                          }}
-                          onClear={() => {
-                            setFilters((f) => { const n = { ...f }; delete n[c.key]; return n; });
-                            setOpenFilter(null);
-                          }}
-                          onClose={() => setOpenFilter(null)}
-                        />
-                      )}
-                    </div>
+                    <button
+                      ref={(el) => { if (el) filterBtnRefs.current.set(c.key, el); else filterBtnRefs.current.delete(c.key); }}
+                      className={"th-filter-btn " + (hasFilter ? "on" : "")}
+                      onClick={(e) => { e.stopPropagation(); openFilterMenu(c.key); }}
+                      title={t("Filter", "Filtrar")}
+                    >
+                      ▾
+                    </button>
                   </div>
                 </th>
               );
@@ -311,6 +334,44 @@ export function OrdersTable({
         </tbody>
       </table>
     </div>
+    {openFilter && menuAnchor && createPortal(
+      (() => {
+        const MENU_WIDTH = 210;
+        const MENU_BUDGET = 400; // rough max height (search + list + actions)
+        const spaceBelow = window.innerHeight - menuAnchor.bottom;
+        const openUpward = spaceBelow < MENU_BUDGET && menuAnchor.top > spaceBelow;
+        const col = cols.find((c) => c.key === openFilter);
+        if (!col) return null;
+        return (
+          <ColumnFilterMenu
+            menuRef={menuRef}
+            col={col}
+            options={optionsFor(col)}
+            active={filters[openFilter]}
+            lang={lang}
+            t={t}
+            style={{
+              position: "fixed",
+              right: "auto",
+              left: Math.max(8, Math.min(menuAnchor.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8)),
+              top: openUpward ? undefined : menuAnchor.bottom + 6,
+              bottom: openUpward ? window.innerHeight - menuAnchor.top + 6 : undefined,
+            }}
+            onApply={(next) => {
+              setFilters((f) => ({ ...f, [openFilter]: next }));
+              setOpenFilter(null);
+            }}
+            onClear={() => {
+              setFilters((f) => { const n = { ...f }; delete n[openFilter]; return n; });
+              setOpenFilter(null);
+            }}
+            onClose={() => setOpenFilter(null)}
+          />
+        );
+      })(),
+      document.body,
+    )}
+    </>
   );
 }
 
