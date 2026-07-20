@@ -42,6 +42,7 @@ export default function DashboardPage() {
     setRangeMode(mode);
   };
 
+  const today = () => setRange(todayISO(), todayISO(), "custom");
   const thisWeek = () => setRange(startOfWeekISO(), endOfWeekISO(), "week");
   const thisMonth = () => setRange(startOfMonthISO(), endOfMonthISO(), "month");
   const lastMonth = () => {
@@ -105,6 +106,7 @@ export default function DashboardPage() {
           </label>
           <button className="btn btn-ghost btn-sm" onClick={() => step(1)} title={t("Next period", "Período siguiente")}>▶</button>
           <span style={{ width: 1, height: 24, background: "var(--line)", margin: "0 2px" }} />
+          <button className={"btn btn-sm " + (from === todayISO() && to === todayISO() ? "btn-primary" : "btn-ghost")} onClick={today}>{t("Today", "Hoy")}</button>
           <button className={"btn btn-sm " + (rangeMode === "week" && from === startOfWeekISO() ? "btn-primary" : "btn-ghost")} onClick={thisWeek}>{t("This week", "Esta semana")}</button>
           <button className={"btn btn-sm " + (rangeMode === "month" && from === startOfMonthISO() ? "btn-primary" : "btn-ghost")} onClick={thisMonth}>{t("This month", "Este mes")}</button>
           <button className="btn btn-ghost btn-sm" onClick={lastMonth}>{t("Last month", "Mes pasado")}</button>
