@@ -25,20 +25,26 @@ export default function MapPage() {
   const { t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   const [open, setOpen] = useState<Delivery | null>(null);
+  const [restricted, setRestricted] = useState(false);
   const [geocoding, setGeocoding] = useState(0);
   const geocodingInFlight = useRef(new Set<string>());
 
   const canManageColors = me?.role === "manager" || me?.role === "admin";
 
-  // Sales only ever sees their own orders — same boundary as the Orders page.
+  // Unlike the Orders page, sales sees every delivery's point on the map —
+  // full situational awareness of the day's dispatch activity. What happens
+  // on CLICK is what's restricted: opening a pin only shows the full order
+  // if it's theirs; for anyone else's it just confirms a delivery is there.
   const dayOrders = useMemo(() => {
-    return deliveries.filter((d) => {
-      if (d.delivery_date !== date) return false;
-      if (d.stage === "canceled") return false;
-      if (me?.role === "sales" && d.created_by !== me.id) return false;
-      return true;
-    });
-  }, [deliveries, date, me]);
+    return deliveries.filter((d) => d.delivery_date === date && d.stage !== "canceled");
+  }, [deliveries, date]);
+
+  const isMine = (d: Delivery) => me?.role !== "sales" || d.created_by === me.id;
+
+  const openPoint = (d: Delivery) => {
+    if (isMine(d)) setOpen(d);
+    else setRestricted(true);
+  };
 
   // Geocode (and cache) any order on this date that has an address but no
   // point yet. Sequential + slightly throttled — the free OSM fallback
@@ -89,10 +95,14 @@ export default function MapPage() {
           lat: d.delivery_lat!,
           lng: d.delivery_lng!,
           color: colorFor(d.assigned_driver),
-          label: `#${d.order_no} — ${d.account || t("(no account)", "(sin cuenta)")} — ${d.assigned_driver || t("Unassigned", "Sin asignar")}`,
+          // Not your order (sales only): the label reveals nothing beyond
+          // "there's a delivery here" — no account, no driver.
+          label: isMine(d)
+            ? `#${d.order_no} — ${d.account || t("(no account)", "(sin cuenta)")} — ${d.assigned_driver || t("Unassigned", "Sin asignar")}`
+            : t("Delivery", "Entrega"),
         })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dayOrders, settings.driver_colors],
+    [dayOrders, settings.driver_colors, me],
   );
 
   const drivers = driverNames(users);
@@ -119,7 +129,10 @@ export default function MapPage() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <LeafletMap points={points} onPointClick={(id) => setOpen(dayOrders.find((d) => d.id === id) ?? null)} />
+        <LeafletMap points={points} onPointClick={(id) => {
+          const d = dayOrders.find((x) => x.id === id);
+          if (d) openPoint(d);
+        }} />
       </div>
 
       {missingPoints > 0 && (
@@ -163,6 +176,16 @@ export default function MapPage() {
       {!ready && <div className="empty">{t("Loading…", "Cargando…")}</div>}
 
       {open && <OrderModal me={me} existing={open} startEditing={false} onClose={() => setOpen(null)} />}
+
+      {restricted && (
+        <div className="overlay" onClick={() => setRestricted(false)}>
+          <div className="modal" style={{ maxWidth: 320, textAlign: "center" }}>
+            <div style={{ fontSize: 36 }}>📦</div>
+            <p style={{ margin: "10px 0 16px" }}>{t("There's a delivery here.", "Hay una entrega aquí.")}</p>
+            <button className="btn btn-primary" onClick={() => setRestricted(false)}>{t("OK", "Aceptar")}</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
