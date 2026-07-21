@@ -6,7 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { driverNames, stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
 import { LeafletMap, type MapPoint } from "@/components/LeafletMap";
-import { cityFromAddress, fmtDate, shiftDateISO, todayISO } from "@/lib/utils";
+import { cityFromAddress, fmtDate, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 const UNASSIGNED_COLOR = "#6b7686";
@@ -39,7 +39,7 @@ export default function MapPage() {
     return deliveries.filter((d) => d.delivery_date === date && d.stage !== "canceled");
   }, [deliveries, date]);
 
-  const isMine = (d: Delivery) => me?.role !== "sales" || d.created_by === me.id;
+  const isMine = (d: Delivery) => me?.role !== "sales" || orderOwner(d) === me.id;
 
   const openPoint = (d: Delivery) => {
     if (me?.role !== "sales") setOpen(d);

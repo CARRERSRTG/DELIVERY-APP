@@ -99,14 +99,14 @@ export function OrderModal({
   // Live list of what's still missing, used to highlight the empty fields.
   const computeMissing = (draft: Draft): MissingField[] => {
     const base = missingFields(draft);
-    if (needsSalesRep && !draft.created_by) {
-      return [...base, { key: "created_by", en: "Sales Rep", es: "Vendedor" }];
+    if (needsSalesRep && !draft.assigned_sales_rep) {
+      return [...base, { key: "assigned_sales_rep", en: "Sales Rep", es: "Vendedor" }];
     }
     return base;
   };
   const missing = computeMissing(d);
   const missingSet = new Set(missingKeys(d));
-  if (needsSalesRep && !d.created_by) missingSet.add("created_by");
+  if (needsSalesRep && !d.assigned_sales_rep) missingSet.add("assigned_sales_rep");
 
   // ---- Duplicate-order warning (#34): same account + date + PO already logged ----
   const duplicateOf = (draft: Draft): Delivery | undefined =>
@@ -640,6 +640,9 @@ export function OrderModal({
               </button>
             </div>
             <div className="detail-row"><span className="dk">{t("Created by", "Creado por")}</span><span className="dv">{userName(existing.created_by)} · {fmtDateTime(existing.created_at)}</span></div>
+            {existing.assigned_sales_rep && (
+              <div className="detail-row"><span className="dk">{t("Assigned to", "Asignado a")}</span><span className="dv">{userName(existing.assigned_sales_rep)}</span></div>
+            )}
             {existing.approved_at && (
               <div className="detail-row"><span className="dk">{t("Approved by", "Aprobado por")}</span><span className="dv">{userName(existing.approved_by)} · {fmtDateTime(existing.approved_at)}</span></div>
             )}
@@ -661,11 +664,11 @@ export function OrderModal({
             {needsSalesRep && (
               <div className="grid g2">
                 <div className="field">
-                  <label>{t("Sales Rep", "Vendedor")}{missingSet.has("created_by") && <span className="req-star"> *</span>}</label>
+                  <label>{t("Sales Rep", "Vendedor")}{missingSet.has("assigned_sales_rep") && <span className="req-star"> *</span>}</label>
                   <select
-                    className={missingSet.has("created_by") ? "invalid" : ""}
-                    value={d.created_by ?? ""}
-                    onChange={(e) => set("created_by", e.target.value || null)}
+                    className={missingSet.has("assigned_sales_rep") ? "invalid" : ""}
+                    value={d.assigned_sales_rep ?? ""}
+                    onChange={(e) => set("assigned_sales_rep", e.target.value || null)}
                   >
                     <option value="">{t("Select sales rep…", "Seleccione vendedor…")}</option>
                     {salesReps.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}

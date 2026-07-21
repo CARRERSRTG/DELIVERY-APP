@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
-import { fmtDate, fmtMoney, isOverdue } from "@/lib/utils";
+import { fmtDate, fmtMoney, isOverdue, orderOwner } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 // ============================================================
@@ -19,12 +19,14 @@ export default function SummaryPage() {
   const { lang, t } = usePrefs();
   const [open, setOpen] = useState<Delivery | null>(null);
 
-  // A driver's work is what's assigned to them; everyone else's is what they logged.
+  // A driver's work is what's assigned to them; a sales rep's is what they
+  // own (theirs, plus anything an office/admin/driver assigned to them);
+  // everyone else's is what they personally logged.
   const mine = useMemo(() => {
     if (!me) return [];
-    return me.role === "driver"
-      ? deliveries.filter((d) => d.assigned_driver === me.full_name || d.created_by === me.id)
-      : deliveries.filter((d) => d.created_by === me.id);
+    if (me.role === "driver") return deliveries.filter((d) => d.assigned_driver === me.full_name || d.created_by === me.id);
+    if (me.role === "sales") return deliveries.filter((d) => orderOwner(d) === me.id);
+    return deliveries.filter((d) => d.created_by === me.id);
   }, [deliveries, me]);
 
   const stats = useMemo(() => {

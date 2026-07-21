@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Delivery, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
+import { orderOwner } from "@/lib/utils";
 
 const DEFAULT_SETTINGS: Settings = {
   id: 1,
@@ -173,9 +174,10 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // ---------------- Delivery CRUD ----------------
   const addDelivery = useCallback<DataState["addDelivery"]>(
     async (d) => {
-      // A non-sales creator can assign the order to a sales rep (see OrderModal's
-      // Sales Rep picker) — that pick wins; otherwise it's the actor's own order.
-      const payload = { ...d, created_by: d.created_by ?? me?.id ?? null };
+      // created_by is always the actual actor — a non-sales creator assigning
+      // the order to a rep (OrderModal's Sales Rep picker) sets assigned_sales_rep
+      // instead, which is what orderOwner() resolves for own-orders visibility.
+      const payload = { ...d, created_by: me?.id ?? null };
       const { data, error } = await supabase.from("deliveries").insert(payload).select().single();
       if (error) {
         notify("Error: " + error.message);
@@ -186,7 +188,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       await logEvent(row.id, "created");
       // An order created straight into "pending" (Submit for approval) alerts managers.
       if (row.stage && row.stage !== "draft") {
-        await emitStageNotifs({ stage: row.stage, order_no: row.order_no, delivery_id: row.id, creatorId: row.created_by });
+        await emitStageNotifs({ stage: row.stage, order_no: row.order_no, delivery_id: row.id, creatorId: orderOwner(row) });
       }
       return row;
     },
@@ -239,7 +241,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       setDeliveries((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
       await logEvent(id, stage, note);
       const order = deliveries.find((c) => c.id === id);
-      await emitStageNotifs({ stage, order_no: order?.order_no ?? null, delivery_id: id, creatorId: order?.created_by ?? null, reason: note });
+      await emitStageNotifs({ stage, order_no: order?.order_no ?? null, delivery_id: id, creatorId: order ? orderOwner(order) : null, reason: note });
       return true;
     },
     [supabase, me, notify, logEvent, deliveries, emitStageNotifs],

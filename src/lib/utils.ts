@@ -71,6 +71,15 @@ export const nowHHMM = () => {
   return `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
 };
 
+/** The sales rep this order belongs to, for anything that scopes by "whose
+ * order is this" — own-orders visibility, notifications, dashboard/export
+ * credit. An office/admin/driver creator can assign it to a rep (see
+ * OrderModal's Sales Rep picker); that pick wins over `created_by`, which
+ * always stays the person who actually logged the order. */
+export function orderOwner(d: Pick<Delivery, "created_by" | "assigned_sales_rep">): string | null {
+  return d.assigned_sales_rep ?? d.created_by;
+}
+
 /** An order still sitting in "pending" past today's end-of-day cutoff (e.g.
  * 4pm for managers, a bit later for the sales rep who submitted it) — flagged
  * red and escalated, since it's blocking a delivery that may be due soon. */

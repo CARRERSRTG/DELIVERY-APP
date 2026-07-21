@@ -104,6 +104,11 @@ export interface Delivery {
   delivery_pin_source: "geocoded" | "manual" | null;
 
   created_by: string | null;
+  /** Set when an office/admin/driver creates the order on behalf of a sales
+   * rep (see OrderModal's Sales Rep picker). `created_by` always stays the
+   * actual creator; this is who the order is FOR — see lib/utils.ts's
+   * orderOwner() for the one place that resolves "whose order is this". */
+  assigned_sales_rep: string | null;
   approved_by: string | null;
   approved_at: string | null;
   created_at: string;

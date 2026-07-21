@@ -5,7 +5,7 @@ import { Ctx, type DataState } from "@/lib/data-provider";
 import type { Delivery, OrderEvent, Profile, Settings, Stage } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
-import { todayISO } from "@/lib/utils";
+import { orderOwner, todayISO } from "@/lib/utils";
 import { DEMO_USERS, demoDeliveries, demoNotifications, demoSettings, uid } from "@/lib/demo-data";
 
 // ============================================================
@@ -123,15 +123,16 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
       ...d,
       id: uid(),
       order_no: nextNo,
-      // A non-sales creator can assign the order to a sales rep (see OrderModal's
-      // Sales Rep picker) — that pick wins; otherwise it's the actor's own order.
-      created_by: d.created_by ?? me.id,
+      // created_by is always the actual actor — a non-sales creator assigning
+      // the order to a rep (OrderModal's Sales Rep picker) sets assigned_sales_rep
+      // instead, which is what orderOwner() resolves for own-orders visibility.
+      created_by: me.id,
       created_at: now,
       updated_at: now,
     } as Delivery;
     let next: Store = { ...s, deliveries: [row, ...s.deliveries], events: addEvent(s, row.id, "created") };
     if (row.stage && row.stage !== "draft") {
-      next = { ...next, notifications: addNotifs(next, { stage: row.stage, order_no: row.order_no, delivery_id: row.id, creatorId: row.created_by }) };
+      next = { ...next, notifications: addNotifs(next, { stage: row.stage, order_no: row.order_no, delivery_id: row.id, creatorId: orderOwner(row) }) };
     }
     persist(next);
     return row;
@@ -171,7 +172,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     };
     persist({
       ...base,
-      notifications: addNotifs(base, { stage, order_no: cur?.order_no ?? null, delivery_id: id, creatorId: cur?.created_by ?? null, reason: note }),
+      notifications: addNotifs(base, { stage, order_no: cur?.order_no ?? null, delivery_id: id, creatorId: cur ? orderOwner(cur) : null, reason: note }),
     });
     return true;
   }, [me, persist, notify]);
@@ -281,6 +282,6 @@ function seedRow(n: number): Delivery {
     pickup_lat: null, pickup_lng: null, pickup_gps_at: null,
     pod_lat: null, pod_lng: null, pod_accuracy: null,
     delivery_lat: null, delivery_lng: null, delivery_pin_source: null,
-    created_by: null, approved_by: null, approved_at: null, created_at: now, updated_at: now,
+    created_by: null, assigned_sales_rep: null, approved_by: null, approved_at: null, created_at: now, updated_at: now,
   };
 }

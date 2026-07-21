@@ -1,5 +1,5 @@
 import type { Delivery, OrderEvent, Profile, Stage } from "@/lib/types";
-import { isOverdue } from "@/lib/utils";
+import { isOverdue, orderOwner } from "@/lib/utils";
 
 // ============================================================
 // Read-only analytics over the deliveries + event log. Pure functions,
@@ -156,8 +156,9 @@ export function salesRepStatsThisMonth(deliveries: Delivery[], users: Profile[])
   const nameById = new Map(users.map((u) => [u.id, u.full_name]));
   const map = new Map<string, { deliveries: number; chargedTotal: number }>();
   for (const d of deliveries) {
-    if (!d.created_by || !d.created_at.startsWith(monthPrefix)) continue;
-    const rep = nameById.get(d.created_by) ?? "—";
+    const owner = orderOwner(d);
+    if (!owner || !d.created_at.startsWith(monthPrefix)) continue;
+    const rep = nameById.get(owner) ?? "—";
     const s = map.get(rep) ?? { deliveries: 0, chargedTotal: 0 };
     s.deliveries++;
     s.chargedTotal += Number(d.delivery_fee ?? 0);

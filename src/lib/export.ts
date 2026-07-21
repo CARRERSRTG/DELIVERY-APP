@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import type { Delivery, Profile } from "@/lib/types";
 import { stageLabel } from "@/lib/constants";
-import { fmtDate } from "@/lib/utils";
+import { fmtDate, orderOwner } from "@/lib/utils";
 import type { Lang } from "@/lib/prefs";
 
 // ============================================================
@@ -32,13 +32,14 @@ function columns(lang: Lang): Col[] {
   ];
 }
 
-// Group orders by the employee (created_by) who logged them.
+// Group orders by the sales rep they belong to (assigned_sales_rep, falling
+// back to created_by for orders a rep logged themselves).
 function groupByEmployee(deliveries: Delivery[], users: Profile[], lang: Lang) {
   const nameOf = (id: string | null) =>
     users.find((u) => u.id === id)?.full_name ?? (lang === "es" ? "(sin asignar)" : "(unassigned)");
   const map = new Map<string, Delivery[]>();
   for (const d of deliveries) {
-    const key = nameOf(d.created_by);
+    const key = nameOf(orderOwner(d));
     (map.get(key) ?? map.set(key, []).get(key)!).push(d);
   }
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));

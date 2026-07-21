@@ -9,7 +9,7 @@ import { canCreate, driverNames, ROLE_DEFAULT_COLUMNS, STAGES, stageLabel } from
 import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/OrdersTable";
 import { OrdersBoard } from "@/components/OrdersBoard";
 import { OrderModal } from "@/components/OrderModal";
-import { deliveryColumns, downloadCSV, isOverdue, isPendingUrgent, isToday, toCSV, todayISO, yesterdayISO } from "@/lib/utils";
+import { deliveryColumns, downloadCSV, isOverdue, isPendingUrgent, isToday, orderOwner, toCSV, todayISO, yesterdayISO } from "@/lib/utils";
 import { exportExcelByEmployee, exportPDFByEmployee } from "@/lib/export";
 import type { Delivery, Stage, UserRole } from "@/lib/types";
 
@@ -114,7 +114,8 @@ export default function OrdersPage() {
     return deliveries.filter((d) => {
       // Sales only ever sees their own orders — a hard boundary, not
       // relaxed by search, unlike the date-window restriction below.
-      if (me?.role === "sales" && d.created_by !== me.id) return false;
+      // "Own" includes orders an office/admin/driver assigned to them.
+      if (me?.role === "sales" && orderOwner(d) !== me.id) return false;
       if (!needle) {
         // Sales' default view is scoped to yesterday/today/future — older
         // history is still there, just reached by searching (e.g. an invoice #)
@@ -142,7 +143,7 @@ export default function OrdersPage() {
       if (preset === "today" && !isToday(d.delivery_date)) return false;
       if (preset === "overdue" && !isOverdue(d)) return false;
       if (preset === "unassigned" && d.assigned_driver) return false;
-      if (preset === "mine" && d.created_by !== me?.id) return false;
+      if (preset === "mine" && orderOwner(d) !== me?.id) return false;
       return true;
     });
   }, [visible, filter, preset, view, me?.id]);

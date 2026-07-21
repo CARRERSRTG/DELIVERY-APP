@@ -155,6 +155,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
     delivery_lng: null,
     delivery_pin_source: null,
     created_by: "u-sales",
+    assigned_sales_rep: null,
     approved_by: null,
     approved_at: null,
     created_at: stamp(60 * 24),

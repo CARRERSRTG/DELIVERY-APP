@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useData } from "@/lib/data-provider";
-import { nowHHMM, todayISO } from "@/lib/utils";
+import { nowHHMM, orderOwner, todayISO } from "@/lib/utils";
 import type { NotifSeed } from "@/lib/notifications";
 
 const FIRED_KEY_PREFIX = "rtg_deadline_fired_";
@@ -64,12 +64,13 @@ export function PendingDeadlineWatcher() {
           }
         }
 
-        if (salesCutoff && now >= salesCutoff && d.created_by) {
+        const owner = orderOwner(d);
+        if (salesCutoff && now >= salesCutoff && owner) {
           const key = `${d.id}:sales:${salesCutoff}`;
           if (!alreadyFired(key)) {
             markFired(key);
             pushNotifs([{
-              user_id: d.created_by,
+              user_id: owner,
               delivery_id: d.id,
               order_no: d.order_no,
               kind: "pending_deadline_sales",
