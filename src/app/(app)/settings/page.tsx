@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import Link from "next/link";
-import { ROLE_INFO, ROLE_ORDER, defaultPermissions, driverNames, roleLabel } from "@/lib/constants";
+import { ROLE_DEFAULT_COLUMNS, ROLE_INFO, ROLE_ORDER, defaultPermissions, driverNames, roleLabel } from "@/lib/constants";
+import { DEFAULT_COLUMNS, ORDER_COLUMNS } from "@/components/OrdersTable";
 import type { Settings, UserRole } from "@/lib/types";
 
 export default function SettingsPage() {
@@ -153,6 +154,37 @@ export default function SettingsPage() {
             t={t}
           />
         ))}
+      </div>
+
+      <div className="card">
+        <h2>📋 {t("Sales orders columns", "Columnas de órdenes (Ventas)")}</h2>
+        <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+          {t(
+            "Sales reps don't get a Columns picker of their own — this is the one fixed list everyone with that role sees.",
+            "Los vendedores no tienen selector de columnas propio — esta es la lista fija que ven todos los que tienen ese rol.",
+          )}
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          {settings.sales_columns
+            ? <button className="notif-clear" onClick={() => { saveSettings({ sales_columns: null }); notify(t("Reset to defaults", "Restablecido")); }}>{t("Reset to defaults", "Restablecer")}</button>
+            : <span className="hint">{t("(defaults)", "(por defecto)")}</span>}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 2, maxWidth: 620 }}>
+          {ORDER_COLUMNS.map((c) => {
+            const active = settings.sales_columns ?? ROLE_DEFAULT_COLUMNS.sales ?? DEFAULT_COLUMNS;
+            const checked = active.includes(c.key);
+            return (
+              <label key={c.key} className="col-opt">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => saveSettings({ sales_columns: checked ? active.filter((k) => k !== c.key) : [...active, c.key] })}
+                />
+                {lang === "es" ? c.es : c.en}
+              </label>
+            );
+          })}
+        </div>
       </div>
 
       <div className="card">

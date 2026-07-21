@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.2.16";
+export const APP_VERSION = "0.2.17";
 
 // ---- Workflow stages (source of truth for labels, colors, order) ----------
 export interface StageInfo {
@@ -92,10 +92,10 @@ export const ROLE_ORDER: UserRole[] = ["admin", "manager", "sales", "warehouse",
 // now instead of free text.
 export interface WindowPreset { key: string; en: string; es: string; value: string }
 export const DELIVERY_WINDOW_PRESETS: WindowPreset[] = [
-  { key: "early_morning", en: "Early Morning (6-9)", es: "Madrugada (6-9)", value: "0600-0900" },
-  { key: "morning",       en: "Morning (9-12)",       es: "Mañana (9-12)",   value: "0900-1200" },
-  { key: "afternoon",     en: "Afternoon (12-5)",      es: "Tarde (12-5)",    value: "1200-1700" },
-  { key: "all_day",       en: "All Day (8-3)",         es: "Todo el día (8-3)", value: "0800-1500" },
+  { key: "early_morning", en: "Early Morning (8:30-10)", es: "Madrugada (8:30-10)", value: "0830-1000" },
+  { key: "morning",       en: "Morning (8:30-12)",       es: "Mañana (8:30-12)",   value: "0830-1200" },
+  { key: "afternoon",     en: "Afternoon (12-5:30)",      es: "Tarde (12-5:30)",    value: "1200-1730" },
+  { key: "all_day",       en: "All Day (8:30-5:30)",         es: "Todo el día (8:30-5:30)", value: "0830-1730" },
 ];
 
 // ---- Per-role default Orders-table columns ---------------------------------

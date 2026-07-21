@@ -54,8 +54,15 @@ export default function OrdersPage() {
   // Reloads whenever the role changes too (e.g. the local-demo "View as"
   // switcher), so each role shows its own saved columns, defaulting to
   // ROLE_DEFAULT_COLUMNS the first time that role is seen in this browser.
+  // Sales is the exception: there's no self-customizing for that role — an
+  // admin sets the one fixed list for everyone in Settings, so it's read
+  // straight from there (and stays reactive if an admin changes it live).
   useEffect(() => {
     if (!me) return;
+    if (me.role === "sales") {
+      setCols(settings.sales_columns ?? defaultColsFor("sales"));
+      return;
+    }
     try {
       const raw = localStorage.getItem(colsKey(me.role));
       setCols(raw ? JSON.parse(raw) : defaultColsFor(me.role));
@@ -63,11 +70,11 @@ export default function OrdersPage() {
       setCols(defaultColsFor(me.role));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me?.role]);
+  }, [me?.role, settings.sales_columns]);
 
   const saveCols = (next: string[]) => {
     setCols(next);
-    if (!me) return;
+    if (!me || me.role === "sales") return;
     try { localStorage.setItem(colsKey(me.role), JSON.stringify(next)); } catch { /* ignore */ }
   };
 
@@ -229,7 +236,7 @@ export default function OrdersPage() {
           <button className="btn btn-ghost" onClick={() => exportExcelByEmployee(rows, users, lang)} disabled={!rows.length} title={t("Excel grouped by employee, collapsible", "Excel agrupado por empleado, colapsable")}>📊 {t("Excel", "Excel")}</button>
           <button className="btn btn-ghost" onClick={() => exportPDFByEmployee(rows, users, lang)} disabled={!rows.length}>🖨 {t("PDF", "PDF")}</button>
           <button className="btn btn-ghost" onClick={exportCSV} disabled={!rows.length}>⬇ {t("CSV", "CSV")}</button>
-          {view === "table" && (
+          {view === "table" && me.role !== "sales" && (
             <div style={{ position: "relative" }}>
               <button className="btn btn-ghost" onClick={() => setShowCols((s) => !s)}>⚙ {t("Columns", "Columnas")}</button>
               {showCols && (
