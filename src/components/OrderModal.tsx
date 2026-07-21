@@ -14,7 +14,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { LeafletMap } from "@/components/LeafletMap";
 import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
-import { isIntraStore as isIntraTienda, missingFields, missingKeys } from "@/lib/required";
+import { isIntraStore as isIntraTienda, missingFields, missingKeys, type MissingField } from "@/lib/required";
 import { captureLocation, geoAvailable, mapLink } from "@/lib/geo";
 import type { AccountRecord, Delivery, NamedLocation, Profile, Settings, Stage } from "@/lib/types";
 
@@ -89,10 +89,24 @@ export function OrderModal({
 
   const set = (k: keyof Delivery, v: unknown) => setD((p) => ({ ...p, [k]: v }));
 
+  // A non-sales creator (office, admin, driver) is placing the order on behalf
+  // of a sales rep, so it needs to be assigned to one — that's who the order
+  // shows up "owned by" everywhere else (own-orders filters, dashboard credit).
+  const needsSalesRep = isNew && (me.role === "manager" || me.role === "admin" || me.role === "driver");
+  const salesReps = useMemo(() => users.filter((u) => u.role === "sales"), [users]);
+
   // ---- Required fields (#31) — see lib/required.ts for the rules ----
   // Live list of what's still missing, used to highlight the empty fields.
-  const missing = missingFields(d);
-  const missingSet = missingKeys(d);
+  const computeMissing = (draft: Draft): MissingField[] => {
+    const base = missingFields(draft);
+    if (needsSalesRep && !draft.created_by) {
+      return [...base, { key: "created_by", en: "Sales Rep", es: "Vendedor" }];
+    }
+    return base;
+  };
+  const missing = computeMissing(d);
+  const missingSet = new Set(missingKeys(d));
+  if (needsSalesRep && !d.created_by) missingSet.add("created_by");
 
   // ---- Duplicate-order warning (#34): same account + date + PO already logged ----
   const duplicateOf = (draft: Draft): Delivery | undefined =>
@@ -121,7 +135,7 @@ export function OrderModal({
    * what's missing / conflicting and chooses whether to continue. */
   const passesChecks = async (draft: Draft): Promise<boolean> => {
     // 1. Required fields — list them and let the rep decide.
-    const miss = missingFields(draft);
+    const miss = computeMissing(draft);
     if (miss.length) {
       const list = miss.map((m) => `• ${t(m.en, m.es)}`).join("\n");
       if (!(await confirmAction(t(
@@ -644,6 +658,21 @@ export function OrderModal({
         {editing && (
           <>
             <div className="section-label">{t("Order", "Orden")}</div>
+            {needsSalesRep && (
+              <div className="grid g2">
+                <div className="field">
+                  <label>{t("Sales Rep", "Vendedor")}{missingSet.has("created_by") && <span className="req-star"> *</span>}</label>
+                  <select
+                    className={missingSet.has("created_by") ? "invalid" : ""}
+                    value={d.created_by ?? ""}
+                    onChange={(e) => set("created_by", e.target.value || null)}
+                  >
+                    <option value="">{t("Select sales rep…", "Seleccione vendedor…")}</option>
+                    {salesReps.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
             <div className="grid g2">
               <Sel label={t("Order Type", "Tipo de Orden")} val={d.order_type} opts={settings.order_types} on={(v) => set("order_type", v)} disabled={!salesFields} placeholder={t("Select order type", "Seleccione tipo de orden")} invalid={missingSet.has("order_type")} />
               <Sel label={t("Store (Sold From)", "Tienda (Vendido Desde)")} val={d.store} opts={settings.stores.map((s) => s.name)} on={(v) => {
@@ -1003,13 +1032,25 @@ export function OrderModal({
                   {canCreate(me) && <button className="btn btn-ghost" onClick={save} disabled={busy}>{t("Save draft", "Guardar borrador")}</button>}
                   {canCreate(me) && (
                     <button className="btn btn-primary" disabled={busy} onClick={async () => {
-                      const payload = withDurations({ ...d, stage: "pending" });
+                      // Office Managers approve their own orders on the spot —
+                      // no need to route it back to themselves (or a peer) for approval.
+                      const autoApprove = me.role === "manager";
+                      const payload = withDurations({
+                        ...d,
+                        stage: autoApprove ? "approved" : "pending",
+                        ...(autoApprove ? { approved_by: me.id, approved_at: new Date().toISOString() } : {}),
+                      });
                       if (!(await passesChecks(payload))) return;
                       setBusy(true);
                       const row = await addDelivery(payload);
                       setBusy(false);
-                      if (row) { notify(t(`Order #${row.order_no} submitted for approval`, `Orden #${row.order_no} enviada a aprobación`)); await autoSendTracking(row); onClose(); }
-                    }}>{t("Submit for approval", "Enviar a aprobación")}</button>
+                      if (row) {
+                        notify(autoApprove
+                          ? t(`Order #${row.order_no} created and approved`, `Orden #${row.order_no} creada y aprobada`)
+                          : t(`Order #${row.order_no} submitted for approval`, `Orden #${row.order_no} enviada a aprobación`));
+                        await autoSendTracking(row); onClose();
+                      }
+                    }}>{me.role === "manager" ? t("Create order (approved)", "Crear orden (aprobada)") : t("Submit for approval", "Enviar a aprobación")}</button>
                   )}
                 </>
               ) : (

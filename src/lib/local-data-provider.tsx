@@ -123,7 +123,9 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
       ...d,
       id: uid(),
       order_no: nextNo,
-      created_by: me.id,
+      // A non-sales creator can assign the order to a sales rep (see OrderModal's
+      // Sales Rep picker) — that pick wins; otherwise it's the actor's own order.
+      created_by: d.created_by ?? me.id,
       created_at: now,
       updated_at: now,
     } as Delivery;

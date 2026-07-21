@@ -173,7 +173,9 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // ---------------- Delivery CRUD ----------------
   const addDelivery = useCallback<DataState["addDelivery"]>(
     async (d) => {
-      const payload = { ...d, created_by: me?.id ?? null };
+      // A non-sales creator can assign the order to a sales rep (see OrderModal's
+      // Sales Rep picker) — that pick wins; otherwise it's the actor's own order.
+      const payload = { ...d, created_by: d.created_by ?? me?.id ?? null };
       const { data, error } = await supabase.from("deliveries").insert(payload).select().single();
       if (error) {
         notify("Error: " + error.message);
