@@ -110,6 +110,23 @@ export function fmtMilitary(t: string | null): string {
 
 export const telClean = (t: string | null) => (t || "").replace(/[^0-9+]/g, "");
 
+/** Best-effort city name pulled from a free-text address — matched against a
+ * list of known city names (the stores list) first since that's exact, then
+ * falls back to the address's second-to-last comma segment (where the city
+ * usually lands in both a typed "123 Main St, McAllen TX" address and a
+ * geocoded "…, McAllen, Hidalgo County, Texas, 78501, …" one). */
+export function cityFromAddress(address: string | null | undefined, knownCities: string[] = []): string {
+  const a = (address || "").trim();
+  if (!a) return "—";
+  const lower = a.toLowerCase();
+  for (const city of knownCities) {
+    if (city && lower.includes(city.toLowerCase())) return city;
+  }
+  const parts = a.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 2) return parts[parts.length - 2];
+  return parts[0] || a;
+}
+
 /** Auto-calculated duration from pallet count × minutes-per-pallet, e.g. "20 min".
  * Returns "" when there are no pallets so the field stays blank. */
 export function palletDuration(pallets: number | null | undefined, minPerPallet: number): string {

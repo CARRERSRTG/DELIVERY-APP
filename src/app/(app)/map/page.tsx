@@ -6,7 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { driverNames } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
 import { LeafletMap, type MapPoint } from "@/components/LeafletMap";
-import { shiftDateISO, todayISO } from "@/lib/utils";
+import { cityFromAddress, fmtDate, shiftDateISO, todayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 const UNASSIGNED_COLOR = "#6b7686";
@@ -108,6 +108,27 @@ export default function MapPage() {
   const drivers = driverNames(users);
   const missingPoints = dayOrders.length - points.length;
 
+  // From/To/pallets summary for this date — same "own orders only" boundary
+  // as everything else on this page for sales.
+  const cityNames = settings.stores.map((s) => s.name);
+  const summaryRows = useMemo(
+    () =>
+      dayOrders
+        .filter(isMine)
+        .map((d) => ({
+          id: d.id,
+          order_no: d.order_no,
+          from: d.store || "—",
+          to: cityFromAddress(d.delivery_address, cityNames),
+          pallets: d.actual_pallets ?? d.est_pallets ?? null,
+          windows: d.delivery_windows || "",
+        }))
+        .sort((a, b) => a.windows.localeCompare(b.windows) || a.order_no - b.order_no),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dayOrders, me],
+  );
+  const totalPallets = summaryRows.reduce((sum, r) => sum + (r.pallets ?? 0), 0);
+
   if (!me) return null;
   if (me.role === "warehouse" || me.role === "driver") return <div className="empty">{t("Not available for your role.", "No disponible para su rol.")}</div>;
 
@@ -143,6 +164,46 @@ export default function MapPage() {
           )}
         </div>
       )}
+
+      <div className="card">
+        <h2>📋 {t("Summary", "Resumen")} — {fmtDate(date)}</h2>
+        {summaryRows.length === 0 ? (
+          <div className="empty">{t("No orders on this date.", "Sin órdenes en esta fecha.")}</div>
+        ) : (
+          <div className="tbl-scroll" style={{ border: "none" }}>
+            <table className="orders" style={{ minWidth: 420 }}>
+              <thead>
+                <tr>
+                  <th>{t("ID", "ID")}</th>
+                  <th>{t("From", "Desde")}</th>
+                  <th>{t("To", "Hasta")}</th>
+                  <th>{t("Pallets", "Tarimas")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summaryRows.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="clickable"
+                    onClick={() => { const d = dayOrders.find((x) => x.id === r.id); if (d) openPoint(d); }}
+                  >
+                    <td className="ordno">#{r.order_no}</td>
+                    <td>{r.from}</td>
+                    <td>{r.to}</td>
+                    <td>{r.pallets ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={3} style={{ fontWeight: 700, textAlign: "right" }}>{t("Total pallets", "Total de tarimas")}</td>
+                  <td style={{ fontWeight: 700 }}>{totalPallets}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
 
       <div className="card">
         <h2>🎨 {t("Driver colors", "Colores de chofer")}</h2>
