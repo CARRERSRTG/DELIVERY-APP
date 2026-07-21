@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.2.17";
+export const APP_VERSION = "0.2.18";
 
 // ---- Workflow stages (source of truth for labels, colors, order) ----------
 export interface StageInfo {

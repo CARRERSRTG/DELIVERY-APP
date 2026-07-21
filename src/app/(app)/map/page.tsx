@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
-import { driverNames } from "@/lib/constants";
+import { driverNames, stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
 import { LeafletMap, type MapPoint } from "@/components/LeafletMap";
 import { cityFromAddress, fmtDate, shiftDateISO, todayISO } from "@/lib/utils";
@@ -22,10 +22,9 @@ function fallbackColor(name: string): string {
 
 export default function MapPage() {
   const { me, users, deliveries, settings, saveSettings, updateDelivery, ready } = useData();
-  const { t } = usePrefs();
+  const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   const [open, setOpen] = useState<Delivery | null>(null);
-  const [restricted, setRestricted] = useState(false);
   const [geocoding, setGeocoding] = useState(0);
   const geocodingInFlight = useRef(new Set<string>());
 
@@ -34,7 +33,8 @@ export default function MapPage() {
   // Unlike the Orders page, sales sees every delivery's point on the map —
   // full situational awareness of the day's dispatch activity. What happens
   // on CLICK is what's restricted: opening a pin only shows the full order
-  // if it's theirs; for anyone else's it just confirms a delivery is there.
+  // if it's theirs; anyone else's pin/row is inert on click — no popup, no
+  // hint of whose it is, nothing beyond the dot already on the map.
   const dayOrders = useMemo(() => {
     return deliveries.filter((d) => d.delivery_date === date && d.stage !== "canceled");
   }, [deliveries, date]);
@@ -43,7 +43,6 @@ export default function MapPage() {
 
   const openPoint = (d: Delivery) => {
     if (isMine(d)) setOpen(d);
-    else setRestricted(true);
   };
 
   // Geocode (and cache) any order on this date that has an address but no
@@ -122,6 +121,7 @@ export default function MapPage() {
           to: cityFromAddress(d.delivery_address, cityNames),
           pallets: d.actual_pallets ?? d.est_pallets ?? null,
           windows: d.delivery_windows || "",
+          stage: d.stage,
         }))
         .sort((a, b) => a.windows.localeCompare(b.windows) || a.order_no - b.order_no),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -177,26 +177,33 @@ export default function MapPage() {
                   <th>{t("ID", "ID")}</th>
                   <th>{t("From", "Desde")}</th>
                   <th>{t("To", "Hasta")}</th>
+                  <th>{t("Windows", "Ventanas")}</th>
+                  <th>{t("Status", "Estado")}</th>
                   <th>{t("Pallets", "Tarimas")}</th>
                 </tr>
               </thead>
               <tbody>
-                {summaryRows.map((r) => (
-                  <tr
-                    key={r.id}
-                    className="clickable"
-                    onClick={() => { const d = dayOrders.find((x) => x.id === r.id); if (d) openPoint(d); }}
-                  >
-                    <td className="ordno">#{r.order_no}</td>
-                    <td>{r.from}</td>
-                    <td>{r.to}</td>
-                    <td>{r.pallets ?? "—"}</td>
-                  </tr>
-                ))}
+                {summaryRows.map((r) => {
+                  const s = stageInfo(r.stage);
+                  return (
+                    <tr
+                      key={r.id}
+                      className="clickable"
+                      onClick={() => { const d = dayOrders.find((x) => x.id === r.id); if (d) openPoint(d); }}
+                    >
+                      <td className="ordno">#{r.order_no}</td>
+                      <td>{r.from}</td>
+                      <td>{r.to}</td>
+                      <td>{r.windows || "—"}</td>
+                      <td><span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(r.stage, lang)}</span></td>
+                      <td>{r.pallets ?? "—"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={3} style={{ fontWeight: 700, textAlign: "right" }}>{t("Total pallets", "Total de tarimas")}</td>
+                  <td colSpan={5} style={{ fontWeight: 700, textAlign: "right" }}>{t("Total pallets", "Total de tarimas")}</td>
                   <td style={{ fontWeight: 700 }}>{totalPallets}</td>
                 </tr>
               </tfoot>
@@ -237,16 +244,6 @@ export default function MapPage() {
       {!ready && <div className="empty">{t("Loading…", "Cargando…")}</div>}
 
       {open && <OrderModal me={me} existing={open} startEditing={false} onClose={() => setOpen(null)} />}
-
-      {restricted && (
-        <div className="overlay" onClick={() => setRestricted(false)}>
-          <div className="modal" style={{ maxWidth: 320, textAlign: "center" }}>
-            <div style={{ fontSize: 36 }}>📦</div>
-            <p style={{ margin: "10px 0 16px" }}>{t("There's a delivery here.", "Hay una entrega aquí.")}</p>
-            <button className="btn btn-primary" onClick={() => setRestricted(false)}>{t("OK", "Aceptar")}</button>
-          </div>
-        </div>
-      )}
     </>
   );
 }
