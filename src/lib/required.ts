@@ -6,7 +6,7 @@ import type { Delivery } from "@/lib/types";
 // Always required:
 //   • Order Type
 //   • Store (Sold From)
-//   • Contact name + Delivery phone
+//   • Contact name + Delivery phone (except Intra-Tienda — no external customer)
 //   • Pickup name + address
 //   • Dropoff (delivery) name + address
 //   • Delivery Date + Delivery Window
@@ -46,10 +46,13 @@ export function missingFields(d: Partial<Delivery>): MissingField[] {
   if (!filled(d.pickup_address)) out.push({ key: "pickup_address", en: "Pickup Address", es: "Dirección de Recolección" });
   if (!filled(d.delivery_name)) out.push({ key: "delivery_name", en: "Dropoff Name", es: "Nombre de Destino" });
   if (!filled(d.delivery_address)) out.push({ key: "delivery_address", en: "Delivery Address (dropoff)", es: "Dirección de Entrega (destino)" });
-  if (!filled(d.contact)) out.push({ key: "contact", en: "Contact name", es: "Nombre de Contacto" });
-  // A usable phone: at least 7 digits once punctuation is stripped.
-  if (String(d.delivery_phone ?? "").replace(/\D/g, "").length < 7) {
-    out.push({ key: "delivery_phone", en: "Delivery Phone Number", es: "Teléfono de Entrega" });
+  // Intra-Tienda is store-to-store — no external customer, so no contact/phone to collect.
+  if (!isIntraStore(d.order_type)) {
+    if (!filled(d.contact)) out.push({ key: "contact", en: "Contact name", es: "Nombre de Contacto" });
+    // A usable phone: at least 7 digits once punctuation is stripped.
+    if (String(d.delivery_phone ?? "").replace(/\D/g, "").length < 7) {
+      out.push({ key: "delivery_phone", en: "Delivery Phone Number", es: "Teléfono de Entrega" });
+    }
   }
   if (!filled(d.delivery_date)) out.push({ key: "delivery_date", en: "Delivery Date", es: "Fecha de Entrega" });
   if (!filled(d.delivery_windows)) out.push({ key: "delivery_windows", en: "Delivery Time Window", es: "Ventana de Entrega" });

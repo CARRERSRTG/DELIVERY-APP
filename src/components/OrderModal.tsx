@@ -14,7 +14,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { LeafletMap } from "@/components/LeafletMap";
 import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
-import { missingFields, missingKeys } from "@/lib/required";
+import { isIntraStore as isIntraTienda, missingFields, missingKeys } from "@/lib/required";
 import { captureLocation, geoAvailable, mapLink } from "@/lib/geo";
 import type { AccountRecord, Delivery, NamedLocation, Profile, Settings, Stage } from "@/lib/types";
 
@@ -259,6 +259,9 @@ export function OrderModal({
   // known store, chosen from the dropdown. Matches order types named like
   // "Transfer" or "Intra-Tienda" (admin-configurable, keyword-detected).
   const isIntraStore = /transfer|intra/i.test(d.order_type || "");
+  // Intra-Tienda specifically (not Transfer): no external customer is
+  // involved, so account/contact/phone don't apply and are locked.
+  const intraTienda = isIntraTienda(d.order_type);
   // Which store the current delivery address belongs to (for the dropdown value).
   const deliveryStore = settings.stores.find((s) => s.address && s.address === d.delivery_address)?.name || "";
 
@@ -804,14 +807,14 @@ export function OrderModal({
                   setD((p) => ({ ...p, account: v, contact: rec ? rec.contact : p.contact, delivery_phone: rec ? rec.phone : p.delivery_phone }));
                 }}
                 options={accountOptions}
-                disabled={!salesFields}
+                disabled={!salesFields || intraTienda}
                 placeholder={t("Select account…", "Seleccione cuenta…")}
                 t={t}
               />
-              <Txt label={t("Contact name", "Nombre de Contacto")} val={d.contact} on={(v) => set("contact", v)} disabled={!salesFields} invalid={missingSet.has("contact")} />
-              <Txt label={t("Delivery Phone Number", "Teléfono de Entrega")} val={d.delivery_phone} on={(v) => set("delivery_phone", v)} disabled={!salesFields} invalid={missingSet.has("delivery_phone")} />
+              <Txt label={t("Contact name", "Nombre de Contacto")} val={d.contact} on={(v) => set("contact", v)} disabled={!salesFields || intraTienda} invalid={missingSet.has("contact")} />
+              <Txt label={t("Delivery Phone Number", "Teléfono de Entrega")} val={d.delivery_phone} on={(v) => set("delivery_phone", v)} disabled={!salesFields || intraTienda} invalid={missingSet.has("delivery_phone")} />
             </div>
-            {salesFields && !!d.account?.trim() && !!d.contact?.trim() && !!d.delivery_phone?.trim() &&
+            {salesFields && !intraTienda && !!d.account?.trim() && !!d.contact?.trim() && !!d.delivery_phone?.trim() &&
               !savedAccounts.some((a) => a.name.toLowerCase() === d.account!.trim().toLowerCase() && a.contact === d.contact && a.phone === d.delivery_phone) && (
                 <button
                   className="btn btn-ghost btn-sm"
