@@ -31,10 +31,10 @@ export default function MapPage() {
   const canManageColors = me?.role === "manager" || me?.role === "admin";
 
   // Unlike the Orders page, sales sees every delivery's point on the map —
-  // full situational awareness of the day's dispatch activity. What happens
-  // on CLICK is what's restricted: opening a pin only shows the full order
-  // if it's theirs; anyone else's pin/row is inert on click — no popup, no
-  // hint of whose it is, nothing beyond the dot already on the map.
+  // full situational awareness of the day's dispatch activity. But the Map
+  // view never opens the order detail modal for sales, even for their own
+  // orders — clicking a pin or row is purely visual here; they still edit
+  // their orders from the Orders page as usual.
   const dayOrders = useMemo(() => {
     return deliveries.filter((d) => d.delivery_date === date && d.stage !== "canceled");
   }, [deliveries, date]);
@@ -42,7 +42,7 @@ export default function MapPage() {
   const isMine = (d: Delivery) => me?.role !== "sales" || d.created_by === me.id;
 
   const openPoint = (d: Delivery) => {
-    if (isMine(d)) setOpen(d);
+    if (me?.role !== "sales") setOpen(d);
   };
 
   // Geocode (and cache) any order on this date that has an address but no
@@ -188,7 +188,7 @@ export default function MapPage() {
                   return (
                     <tr
                       key={r.id}
-                      className="clickable"
+                      className={me.role === "sales" ? "" : "clickable"}
                       onClick={() => { const d = dayOrders.find((x) => x.id === r.id); if (d) openPoint(d); }}
                     >
                       <td className="ordno">#{r.order_no}</td>
