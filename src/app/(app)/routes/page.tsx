@@ -63,16 +63,56 @@ function serviceMin(d: Delivery): number {
   return m ? parseInt(m[0], 10) : 15;
 }
 
-// Truckload 1 keeps the driver's own color; later truckloads get clearly
-// DIFFERENT colors (not just lighter shades) so each loop stands out.
-const TRIP_PALETTE = ["#d64545", "#1f9d61", "#d1782e", "#7c4dbc", "#0f8a8a", "#e9a13b", "#2456c9", "#c026a8"];
+function hexToHsl(hex: string): [number, number, number] {
+  const c = hex.replace("#", "");
+  const r = parseInt(c.slice(0, 2), 16) / 255, g = parseInt(c.slice(2, 4), 16) / 255, b = parseInt(c.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return [h, s, l];
+}
 
-/** A distinct color per truckload, so each out-and-back-to-pickup loop reads
- * as its own color on the map and table. */
+function hslToHex(h: number, s: number, l: number): string {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let [r, g, b] = [0, 0, 0];
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  const hx = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+  return `#${hx(r)}${hx(g)}${hx(b)}`;
+}
+
+// Truckload 1 keeps the driver's own color; later truckloads rotate the HUE
+// far away (not a lighter shade), so each loop is an unmistakably different
+// color from the driver's and from each other.
+const HUE_OFFSETS = [150, 60, 240, 300, 120, 30, 210];
+
+/** A distinctly different color per truckload. */
 function tripColor(base: string, index: number): string {
   if (index === 0) return base;
-  const pool = TRIP_PALETTE.filter((c) => c.toLowerCase() !== base.toLowerCase());
-  return pool[(index - 1) % pool.length];
+  const [h, s] = hexToHsl(base);
+  return hslToHex(h + HUE_OFFSETS[(index - 1) % HUE_OFFSETS.length], Math.max(0.6, s), 0.45);
+}
+
+/** One truckload's traced path, split so the delivery run and the empty
+ * drive back to the pickup can be styled differently (solid vs dashed). */
+interface TripTrace {
+  delivery: [number, number][];
+  ret: [number, number][];
 }
 
 /** A fully-solved (but not yet saved) plan for one driver's day. */
@@ -80,7 +120,7 @@ interface RoutePlan {
   orderedIds: string[];
   miles: number;
   seconds: number;
-  traces: [number, number][][];
+  traces: TripTrace[];
   trips: number;
   /** Estimated arrival time per stop id, "HH:MM". */
   etas: Record<string, string>;
@@ -97,7 +137,7 @@ export default function RoutesPage() {
   const [tab, setTab] = useState<"routes" | "orders">("routes");
   const [busyDriver, setBusyDriver] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number }>>({});
-  const [routeLines, setRouteLines] = useState<Record<string, [number, number][][]>>({});
+  const [routeLines, setRouteLines] = useState<Record<string, TripTrace[]>>({});
   const [routeEtas, setRouteEtas] = useState<Record<string, Record<string, string>>>({});
   const [depotCoords, setDepotCoords] = useState<Record<string, [number, number]>>({});
   // A simulated "what if we add this order to this driver" plan, shown as a
@@ -283,7 +323,7 @@ export default function RoutesPage() {
     let miles = 0;
     let seconds = 0;
     const orderedIds: string[] = [];
-    const traces: [number, number][][] = [];
+    const traces: TripTrace[] = [];
     const etas: Record<string, string> = {};
     let clock = DAY_START_MIN; // arrival clock, continuous across truckloads
 
@@ -310,7 +350,23 @@ export default function RoutesPage() {
       orderedIds.push(...stopIds);
       miles += data.miles;
       seconds += data.duration_seconds;
-      traces.push((data.geometry as [number, number][]).map(([lng, lat]) => [lat, lng]));
+
+      // Split the loop geometry into the delivery run and the empty drive back
+      // to the pickup. The return leg starts at the last stop, so find where
+      // the path is closest to it (searching from the end) and cut there.
+      const geom = (data.geometry as [number, number][]).map(([lng, lat]) => [lat, lng] as [number, number]);
+      const lastStop = depot && stopIds.length ? byId.get(stopIds[stopIds.length - 1]) : undefined;
+      if (lastStop?.delivery_lat != null && lastStop.delivery_lng != null && geom.length > 2) {
+        let cut = geom.length - 1, best = Infinity;
+        for (let k = geom.length - 1; k >= 1; k--) {
+          const dLat = geom[k][0] - lastStop.delivery_lat, dLng = geom[k][1] - lastStop.delivery_lng;
+          const d2 = dLat * dLat + dLng * dLng;
+          if (d2 < best) { best = d2; cut = k; }
+        }
+        traces.push({ delivery: geom.slice(0, cut + 1), ret: geom.slice(cut) });
+      } else {
+        traces.push({ delivery: geom, ret: [] });
+      }
 
       // Walk the legs into per-stop arrival clocks. With a depot the trip is
       // [depot, s1, …, sN] so leg k drives INTO stop k; without one the first
@@ -487,20 +543,40 @@ export default function RoutesPage() {
   // Every optimized driver's routes are always drawn; a focus just dims the
   // others. Clicking a route focuses its driver (see onLineClick below).
   const lines: MapLine[] = useMemo(() => {
-    const out: MapLine[] = Object.entries(routeLines).flatMap(([driver, trips]) =>
-      trips.map((positions, i) => ({ id: `line:${driver}#${i}`, color: tripColor(colorFor(driver), i), positions, dimmed: isDim(driver) })),
-    );
+    const entries = Object.entries(routeLines);
+    // Fan the routes out with a small perpendicular offset each, so where two
+    // run along the same road they sit side by side rather than on top of
+    // each other. Centered so the spread stays close to the actual road.
+    const total = entries.reduce((n, [, trips]) => n + trips.length, 0);
+    const spacing = 5;
+    const center = (total - 1) / 2;
+    const out: MapLine[] = [];
+    let idx = 0;
+    for (const [driver, trips] of entries) {
+      trips.forEach((trace, i) => {
+        const color = tripColor(colorFor(driver), i);
+        const dimmed = isDim(driver);
+        const offset = (idx - center) * spacing;
+        // Delivery run: solid. Empty drive back to the pickup: dashed.
+        out.push({ id: `line:${driver}#${i}`, color, positions: trace.delivery, dimmed, offset });
+        if (trace.ret.length > 1) out.push({ id: `ret:${driver}#${i}`, color, positions: trace.ret, dimmed, dashed: true, offset });
+        idx++;
+      });
+    }
     if (preview) {
-      out.push(...preview.plan.traces.map((positions, i) => ({
-        id: `preview#${i}`, color: colorFor(preview.driver), positions, dashed: true,
-      })));
+      const color = colorFor(preview.driver);
+      preview.plan.traces.forEach((trace, i) => {
+        out.push({ id: `preview:${i}`, color, positions: trace.delivery, dashed: true });
+        if (trace.ret.length > 1) out.push({ id: `pret:${i}`, color, positions: trace.ret, dashed: true });
+      });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeLines, selected, preview, settings.driver_colors]);
 
   const onLineClick = (id: string) => {
-    if (id.startsWith("line:")) focusOnly(id.slice(5).split("#")[0]);
+    const m = id.match(/^(?:line|ret):(.+)#\d+$/);
+    if (m) focusOnly(m[1]);
   };
 
   // What the map frames: the selected drivers' stops + pickups when any are

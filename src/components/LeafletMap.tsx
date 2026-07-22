@@ -2,7 +2,28 @@
 
 import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
-import type { Map as LeafletMapInstance, Marker, Polyline } from "leaflet";
+import type { Map as LeafletMapInstance, Marker, Polyline, LatLng } from "leaflet";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type L = any;
+
+/** Shift a polyline sideways by `d` screen pixels (perpendicular to its
+ * direction) so parallel routes on the same road sit side by side. Computed
+ * in pixel space, so the gap stays constant as you zoom. */
+function offsetLatLngs(L: L, map: LeafletMapInstance, base: [number, number][], d: number): LatLng[] {
+  if (!d) return base.map((p) => L.latLng(p[0], p[1]));
+  const pts = base.map((p) => map.latLngToLayerPoint(L.latLng(p[0], p[1])));
+  const out: LatLng[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const prev = pts[i - 1], cur = pts[i], next = pts[i + 1];
+    let nx = 0, ny = 0;
+    if (prev) { const dx = cur.x - prev.x, dy = cur.y - prev.y; const len = Math.hypot(dx, dy) || 1; nx += -dy / len; ny += dx / len; }
+    if (next) { const dx = next.x - cur.x, dy = next.y - cur.y; const len = Math.hypot(dx, dy) || 1; nx += -dy / len; ny += dx / len; }
+    const nlen = Math.hypot(nx, ny) || 1;
+    out.push(map.layerPointToLatLng(L.point(cur.x + (nx / nlen) * d, cur.y + (ny / nlen) * d)));
+  }
+  return out;
+}
 
 // ============================================================
 // Thin wrapper around Leaflet (free OpenStreetMap tiles, no API key) — used
@@ -32,11 +53,13 @@ export interface MapLine {
   color: string;
   /** [lat, lng] pairs, in driving order, following actual roads. */
   positions: [number, number][];
-  /** Dashed rendering — used for simulated/preview routes that aren't
-   * committed yet, so they read as tentative next to the solid ones. */
+  /** Dashed rendering — used for the empty return-to-pickup leg and for
+   * simulated/preview routes, so they read as tentative next to solid runs. */
   dashed?: boolean;
   /** Faded + thinned, so the focused route stands out over the rest. */
   dimmed?: boolean;
+  /** Sideways pixel offset, so parallel routes on one road sit side by side. */
+  offset?: number;
 }
 
 export function LeafletMap({
@@ -73,6 +96,9 @@ export function LeafletMap({
   const mapRef = useRef<LeafletMapInstance | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const linesRef = useRef<Polyline[]>([]);
+  // Polylines that need their sideways offset recomputed whenever the map is
+  // zoomed/reset (the offset is in pixels, the stored path is in lat/lng).
+  const offsetLinesRef = useRef<{ poly: Polyline; hit: Polyline; base: [number, number][]; offset: number }[]>([]);
   const pickMarkerRef = useRef<Marker | null>(null);
   const hoverMarkerRef = useRef<Marker | null>(null);
   const fitSigRef = useRef<string>("");
@@ -123,6 +149,17 @@ export function LeafletMap({
         });
       }
 
+      // Re-apply each line's pixel offset after a zoom (pixel↔latlng scale
+      // changes), so parallel routes stay side by side at every zoom.
+      map.on("zoomend", () => {
+        if (!mapRef.current) return;
+        for (const it of offsetLinesRef.current) {
+          const ll = offsetLatLngs(L, mapRef.current, it.base, it.offset);
+          it.poly.setLatLngs(ll);
+          it.hit.setLatLngs(ll);
+        }
+      });
+
       // Force a resize pass — Leaflet miscalculates tile bounds when its
       // container was hidden/zero-size at construction time (e.g. inside a
       // modal that just opened).
@@ -148,34 +185,27 @@ export function LeafletMap({
       if (cancelled || !mapRef.current) return;
       linesRef.current.forEach((l) => l.remove());
       linesRef.current = [];
+      offsetLinesRef.current = [];
       const ordered = [...lines].sort((a, b) => Number(!!b.dimmed) - Number(!!a.dimmed));
-      // Committed routes are drawn as a dashed pattern with the phase flipped
-      // between consecutive ones, so where two routes share a road their
-      // dashes interleave and BOTH colors show on that stretch instead of the
-      // top one hiding the other. (Preview routes keep their own dotted look.)
-      let solidIdx = 0;
       for (const line of ordered) {
         if (line.positions.length < 2) continue;
+        const off = line.offset ?? 0;
+        const ll = offsetLatLngs(L, mapRef.current!, line.positions, off);
         // A fat invisible line under each makes routes easy to click even
         // where they're thin or overlapping.
-        const hit = L.polyline(line.positions, { color: line.color, weight: 20, opacity: 0 }).addTo(mapRef.current!);
-        const committed = !line.dashed;
-        const dashArray = line.dashed ? "4 10" : "13 13";
-        const dashOffset = committed ? String((solidIdx % 2) * 13) : undefined;
-        if (committed) solidIdx++;
-        const poly = L.polyline(line.positions, {
+        const hit = L.polyline(ll, { color: line.color, weight: 20, opacity: 0 }).addTo(mapRef.current!);
+        const poly = L.polyline(ll, {
           color: line.color,
           weight: line.dimmed ? 4 : 6,
           opacity: line.dimmed ? 0.3 : 0.95,
-          lineCap: "butt",
-          dashArray,
-          dashOffset,
+          dashArray: line.dashed ? "3 9" : undefined,
         }).addTo(mapRef.current!);
         const fire = () => onLineClickRef.current?.(line.id);
         hit.on("click", fire);
         poly.on("click", fire);
         if (onLineClickRef.current) { hit.getElement()?.setAttribute("style", "cursor:pointer"); }
         linesRef.current.push(hit, poly);
+        offsetLinesRef.current.push({ poly, hit, base: line.positions, offset: off });
       }
     })();
     return () => { cancelled = true; };
