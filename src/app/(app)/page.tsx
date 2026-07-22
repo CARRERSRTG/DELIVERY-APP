@@ -274,9 +274,6 @@ export default function OrdersPage() {
             </button>
           ))}
         </div>
-      </div>
-
-      <div className="filters">
         <input
           ref={searchRef}
           style={{ maxWidth: 260 }}
@@ -284,6 +281,9 @@ export default function OrdersPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+      </div>
+
+      <div className="filters">
         {view === "table" && (
           <>
             <button className={"chip " + (filter === "all" ? "on" : "")} onClick={() => setFilter("all")}>
