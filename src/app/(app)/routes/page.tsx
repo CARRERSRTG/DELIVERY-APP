@@ -63,24 +63,16 @@ function serviceMin(d: Delivery): number {
   return m ? parseInt(m[0], 10) : 15;
 }
 
-/** Mix a hex color toward white (amt>0) or black (amt<0), |amt| in 0..1. */
-function shade(hex: string, amt: number): string {
-  const c = hex.replace("#", "");
-  if (c.length !== 6) return hex;
-  const r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), b = parseInt(c.slice(4, 6), 16);
-  const target = amt > 0 ? 255 : 0;
-  const p = Math.min(1, Math.abs(amt));
-  const mix = (x: number) => Math.round(x + (target - x) * p);
-  const hx = (x: number) => mix(x).toString(16).padStart(2, "0");
-  return `#${hx(r)}${hx(g)}${hx(b)}`;
-}
+// Truckload 1 keeps the driver's own color; later truckloads get clearly
+// DIFFERENT colors (not just lighter shades) so each loop stands out.
+const TRIP_PALETTE = ["#d64545", "#1f9d61", "#d1782e", "#7c4dbc", "#0f8a8a", "#e9a13b", "#2456c9", "#c026a8"];
 
-/** A distinct shade of the driver's base color per truckload, so each
- * out-and-back-to-pickup loop reads as its own color on the map and table. */
-function tripColor(base: string, index: number, count: number): string {
-  if (count <= 1) return base;
-  const amt = -0.28 + (0.6 * index) / (count - 1); // darkest → lightest
-  return shade(base, amt);
+/** A distinct color per truckload, so each out-and-back-to-pickup loop reads
+ * as its own color on the map and table. */
+function tripColor(base: string, index: number): string {
+  if (index === 0) return base;
+  const pool = TRIP_PALETTE.filter((c) => c.toLowerCase() !== base.toLowerCase());
+  return pool[(index - 1) % pool.length];
 }
 
 /** A fully-solved (but not yet saved) plan for one driver's day. */
@@ -496,7 +488,7 @@ export default function RoutesPage() {
   // others. Clicking a route focuses its driver (see onLineClick below).
   const lines: MapLine[] = useMemo(() => {
     const out: MapLine[] = Object.entries(routeLines).flatMap(([driver, trips]) =>
-      trips.map((positions, i) => ({ id: `line:${driver}#${i}`, color: tripColor(colorFor(driver), i, trips.length), positions, dimmed: isDim(driver) })),
+      trips.map((positions, i) => ({ id: `line:${driver}#${i}`, color: tripColor(colorFor(driver), i), positions, dimmed: isDim(driver) })),
     );
     if (preview) {
       out.push(...preview.plan.traces.map((positions, i) => ({
@@ -835,7 +827,7 @@ export default function RoutesPage() {
                       const startIdx = trips.slice(0, ti).reduce((n, b) => n + b.length, 0);
                       const load = batch.reduce((n, d) => n + (d.actual_pallets ?? d.est_pallets ?? 0), 0);
                       const free = Math.max(0, capacity - load);
-                      const tColor = tripColor(colorFor(u.full_name), ti, trips.length);
+                      const tColor = tripColor(colorFor(u.full_name), ti);
                       return (
                         <Fragment key={ti}>
                           <tr>
