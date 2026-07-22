@@ -68,6 +68,17 @@ export default function RoutesPage() {
   const [preview, setPreview] = useState<{ orderId: string; orderNo: number; driver: string; plan: RoutePlan } | null>(null);
   const [previewBusy, setPreviewBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Which panels are collapsed — the unassigned pool ("__unassigned__") and
+  // each driver (by name), so a busy board can be folded down to just the
+  // one being worked on.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const isCollapsed = (id: string) => collapsed.has(id);
+  const toggleCollapse = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
 
   // A newly-viewed date invalidates any optimize summary/trace from before.
   useEffect(() => { setRouteInfo({}); setRouteLines({}); setPreview(null); setErr(null); }, [date]);
@@ -102,23 +113,47 @@ export default function RoutesPage() {
     saveSettings({ driver_capacity: { ...(settings.driver_capacity ?? {}), [driver]: capacity } });
   };
 
-  // The depot for a driver's round trips is their home store (Users page).
-  // Store addresses aren't pre-geocoded like order addresses, so resolve
-  // (and cache) it here the first time it's needed.
-  const getDepotCoords = async (storeName: string): Promise<[number, number] | null> => {
-    if (depotCoords[storeName]) return depotCoords[storeName];
-    const address = settings.stores.find((s) => s.name === storeName)?.address;
-    if (!address) return null;
+  // A driver's route is a loop from the PICKUP point (where they load the
+  // truck), out to the deliveries, and back to the pickup to reload for the
+  // next truckload. The pickup is taken from the orders themselves (their
+  // pickup_address / sold-from store), falling back to the driver's own
+  // home store — whichever we can resolve.
+  const pickupAddressFor = (driver: string): string | null => {
+    const stops = byDriver.get(driver) ?? [];
+    const counts = new Map<string, number>();
+    for (const d of stops) {
+      const a = (d.pickup_address || "").trim();
+      if (a) counts.set(a, (counts.get(a) ?? 0) + 1);
+    }
+    let best: string | null = null;
+    let bestN = 0;
+    for (const [a, n] of counts) if (n > bestN) { best = a; bestN = n; }
+    if (best) return best;
+    // No pickup address on the orders — fall back to a sold-from store's
+    // address, then the driver's assigned home store.
+    for (const d of stops) {
+      const addr = settings.stores.find((s) => s.name === d.store)?.address;
+      if (addr) return addr;
+    }
+    const profile = users.find((u) => u.full_name === driver);
+    return profile?.store ? (settings.stores.find((s) => s.name === profile.store)?.address ?? null) : null;
+  };
+
+  // Geocode (and cache, keyed by the address string) a pickup/depot address.
+  const getDepotCoords = async (address: string | null): Promise<[number, number] | null> => {
+    const key = (address ?? "").trim();
+    if (!key) return null;
+    if (depotCoords[key]) return depotCoords[key];
     try {
       const res = await fetch("/api/geocode-point", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
+        body: JSON.stringify({ address: key }),
       });
       if (!res.ok) return null;
       const point = await res.json();
       const coords: [number, number] = [point.lat, point.lng];
-      setDepotCoords((p) => ({ ...p, [storeName]: coords }));
+      setDepotCoords((p) => ({ ...p, [key]: coords }));
       return coords;
     } catch {
       return null;
@@ -170,10 +205,11 @@ export default function RoutesPage() {
   };
 
   /** Solve a driver's full day for the given stop list — capacity-split
-   * round trips from their home store — WITHOUT saving anything. Both the
-   * real "Optimize route" and the add-order simulation run through this. */
+   * round trips out from the pickup point and back — WITHOUT saving
+   * anything. Both the real "Optimize route" and the add-order simulation
+   * run through this. `extraStops` lets the simulation include an order
+   * that isn't assigned to the driver yet, so its pickup counts too. */
   const computeRoute = async (driver: string, stopList: Delivery[]): Promise<RoutePlan> => {
-    const profile = users.find((u) => u.full_name === driver);
     // Earliest delivery window first (OSRM only supports a fixed start for
     // the trip solver — see /api/optimize-route); everything after that is
     // freely reordered within its trip for the shortest drive.
@@ -181,9 +217,19 @@ export default function RoutesPage() {
       .filter((d) => d.delivery_lat != null && d.delivery_lng != null)
       .sort((a, b) => (parseWindow(a.delivery_windows)?.[0] ?? Infinity) - (parseWindow(b.delivery_windows)?.[0] ?? Infinity));
 
-    const depot = profile?.store ? await getDepotCoords(profile.store) : null;
-    // No known home store/address to round-trip from — fall back to one
-    // open (one-way) route across everything.
+    // The loop's anchor: pickup on the orders, else the driver's home store.
+    const pickupAddr = (() => {
+      const counts = new Map<string, number>();
+      for (const d of sorted) { const a = (d.pickup_address || "").trim(); if (a) counts.set(a, (counts.get(a) ?? 0) + 1); }
+      let best: string | null = null, bestN = 0;
+      for (const [a, n] of counts) if (n > bestN) { best = a; bestN = n; }
+      if (best) return best;
+      for (const d of sorted) { const addr = settings.stores.find((s) => s.name === d.store)?.address; if (addr) return addr; }
+      const profile = users.find((u) => u.full_name === driver);
+      return profile?.store ? (settings.stores.find((s) => s.name === profile.store)?.address ?? null) : null;
+    })();
+    const depot = await getDepotCoords(pickupAddr);
+    // No pickup we can geocode — fall back to one open (one-way) route.
     const batches = depot ? splitIntoTrips(sorted, capacityFor(driver)) : [sorted];
 
     let miles = 0;
@@ -290,6 +336,14 @@ export default function RoutesPage() {
     [dayOrders, selectedDriver],
   );
 
+  // Resolve the selected driver's pickup point up front, so the map can show
+  // it as the loop's start/end pin even before a route's been optimized.
+  useEffect(() => {
+    if (selectedDriver === "all") return;
+    getDepotCoords(pickupAddressFor(selectedDriver));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDriver, byDriver, settings.stores]);
+
   const points: MapPoint[] = useMemo(() => {
     const pts: MapPoint[] = [];
     for (const d of visibleOrders) {
@@ -310,9 +364,25 @@ export default function RoutesPage() {
         label: `#${d.order_no} — ${d.assigned_driver}${badge ? ` (${t("Stop", "Parada")} ${badge})` : ""}`,
       });
     }
+    // Pickup / base pin for the selected driver — where the loop starts and
+    // ends (marked "P").
+    if (selectedDriver !== "all") {
+      const addr = (pickupAddressFor(selectedDriver) ?? "").trim();
+      const coords = addr ? depotCoords[addr] : undefined;
+      if (coords) {
+        pts.push({
+          id: "__depot__",
+          lat: coords[0],
+          lng: coords[1],
+          color: colorFor(selectedDriver),
+          badge: "P",
+          label: `${t("Pickup / base", "Recolección / base")} — ${addr}`,
+        });
+      }
+    }
     return pts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleOrders, byDriver, settings.driver_colors]);
+  }, [visibleOrders, byDriver, settings.driver_colors, selectedDriver, depotCoords]);
 
   const lines: MapLine[] = useMemo(() => {
     const out: MapLine[] = Object.entries(routeLines)
@@ -388,8 +458,8 @@ export default function RoutesPage() {
       </div>
       <div className="hint" style={{ marginTop: 8, marginBottom: 14 }}>
         {t(
-          "Numbered pins show a driver's optimized stop order, traced along actual roads once optimized. Gray pins still need a driver. A dashed line is a simulation, not saved yet.",
-          "Los pines numerados muestran el orden optimizado de paradas, trazado sobre las calles reales una vez optimizada. Los pines grises aún necesitan chofer. Una línea punteada es una simulación, aún sin guardar.",
+          "Each route loops from the pickup point (P) out to the stops and back to reload. Numbered pins are the optimized order, traced along real roads. Gray pins still need a driver; a dashed line is an unsaved simulation.",
+          "Cada ruta hace un ciclo desde el punto de recolección (P) hacia las paradas y regresa para recargar. Los pines numerados son el orden optimizado, trazado sobre calles reales. Los pines grises aún necesitan chofer; una línea punteada es una simulación sin guardar.",
         )}
       </div>
 
@@ -425,11 +495,19 @@ export default function RoutesPage() {
         </div>
       )}
 
+      {/* ---------- Columns: unassigned pool + per-driver routes ---------- */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 14, alignItems: "start" }}>
+
       {/* ---------- Unassigned pool ---------- */}
-      <div className="card">
-        <h2>📦 {t("Unassigned orders", "Órdenes sin asignar")} — {fmtDate(date)}</h2>
+      <div className="card" style={{ margin: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => toggleCollapse("__unassigned__")}>
+          <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} title={t("Collapse", "Contraer")}>{isCollapsed("__unassigned__") ? "▸" : "▾"}</button>
+          <h2 style={{ margin: 0 }}>📦 {t("Unassigned orders", "Órdenes sin asignar")}</h2>
+          <span className="count-tag">{unassigned.length}</span>
+        </div>
+        {!isCollapsed("__unassigned__") && <>
         {selectedDriver !== "all" && unassigned.length > 0 && (
-          <p className="hint" style={{ marginTop: 0, marginBottom: 10 }}>
+          <p className="hint" style={{ marginTop: 8, marginBottom: 10 }}>
             {t(
               `Simulate adds a stop to ${selectedDriver}'s day and shows the resulting route before anything is saved.`,
               `Simular agrega una parada al día de ${selectedDriver} y muestra la ruta resultante antes de guardar nada.`,
@@ -488,6 +566,7 @@ export default function RoutesPage() {
             </table>
           </div>
         )}
+        </>}
       </div>
 
       {/* ---------- Per-driver routes ---------- */}
@@ -498,15 +577,18 @@ export default function RoutesPage() {
         const info = routeInfo[u.full_name];
         const capacity = capacityFor(u.full_name);
         const trips = splitIntoTrips(stops, capacity);
+        const isC = isCollapsed(u.full_name);
         return (
-          <div className="card" key={u.id}>
+          <div className="card" key={u.id} style={{ margin: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+              <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} onClick={() => toggleCollapse(u.full_name)} title={t("Collapse", "Contraer")}>{isC ? "▸" : "▾"}</button>
               <span style={{ width: 14, height: 14, borderRadius: "50%", background: colorFor(u.full_name), border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)", flex: "0 0 auto" }} />
               <h2 style={{ margin: 0 }}>{u.full_name}</h2>
               <span className="count-tag">{stops.length} {t("stops", "paradas")}</span>
               {stops.length > 0 && trips.length > 1 && (
                 <span className="sema" style={{ background: "var(--amber)", color: "#fff" }}>{trips.length} {t("truckloads", "viajes")}</span>
               )}
+              {info && <span className="hint" style={{ marginTop: 0 }}>· {info.miles} mi · {info.duration_text}</span>}
               <span style={{ flex: 1 }} />
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--gray)" }}>
                 🚚 {t("Truck capacity", "Capacidad del camión")}
@@ -521,10 +603,11 @@ export default function RoutesPage() {
                 {busyDriver === u.full_name ? "…" : `🧭 ${t("Optimize route", "Optimizar ruta")}`}
               </button>
             </div>
+            {!isC && <>
             {info && (
               <div className="hint" style={{ marginBottom: 8 }}>
-                {t("Total", "Total")}: <b>{info.miles} mi</b> · {info.duration_text}
-                {info.trips > 1 && ` · ${info.trips} ${t("round trips back to base to reload", "viajes de ida y vuelta a la tienda para recargar")}`}
+                {t("Total (loop from pickup and back)", "Total (ciclo desde recolección y regreso)")}: <b>{info.miles} mi</b> · {info.duration_text}
+                {info.trips > 1 && ` · ${info.trips} ${t("round trips back to pickup to reload", "viajes de ida y vuelta a recolección para recargar")}`}
               </div>
             )}
             {stops.length === 0 && (
@@ -608,9 +691,11 @@ export default function RoutesPage() {
                 </table>
               </div>
             )}
+            </>}
           </div>
         );
       })}
+      </div>
 
       {!ready && <div className="empty">{t("Loading…", "Cargando…")}</div>}
     </>
