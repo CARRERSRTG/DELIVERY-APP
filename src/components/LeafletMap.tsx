@@ -149,16 +149,27 @@ export function LeafletMap({
       linesRef.current.forEach((l) => l.remove());
       linesRef.current = [];
       const ordered = [...lines].sort((a, b) => Number(!!b.dimmed) - Number(!!a.dimmed));
+      // Committed routes are drawn as a dashed pattern with the phase flipped
+      // between consecutive ones, so where two routes share a road their
+      // dashes interleave and BOTH colors show on that stretch instead of the
+      // top one hiding the other. (Preview routes keep their own dotted look.)
+      let solidIdx = 0;
       for (const line of ordered) {
         if (line.positions.length < 2) continue;
         // A fat invisible line under each makes routes easy to click even
         // where they're thin or overlapping.
-        const hit = L.polyline(line.positions, { color: line.color, weight: 18, opacity: 0 }).addTo(mapRef.current!);
+        const hit = L.polyline(line.positions, { color: line.color, weight: 20, opacity: 0 }).addTo(mapRef.current!);
+        const committed = !line.dashed;
+        const dashArray = line.dashed ? "4 10" : "13 13";
+        const dashOffset = committed ? String((solidIdx % 2) * 13) : undefined;
+        if (committed) solidIdx++;
         const poly = L.polyline(line.positions, {
           color: line.color,
-          weight: line.dimmed ? 3 : 5,
-          opacity: line.dimmed ? 0.25 : 0.9,
-          dashArray: line.dashed ? "6 10" : undefined,
+          weight: line.dimmed ? 4 : 6,
+          opacity: line.dimmed ? 0.3 : 0.95,
+          lineCap: "butt",
+          dashArray,
+          dashOffset,
         }).addTo(mapRef.current!);
         const fire = () => onLineClickRef.current?.(line.id);
         hit.on("click", fire);
