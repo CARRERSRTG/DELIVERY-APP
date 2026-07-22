@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { canPlanRoutes, stageInfo, stageLabel } from "@/lib/constants";
 import { parseWindow } from "@/lib/dispatch";
-import { LeafletMap, type MapPoint } from "@/components/LeafletMap";
+import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap";
 import { fallbackDriverColor, fmtDate, isOverdue, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery } from "@/lib/types";
@@ -30,10 +30,11 @@ export default function RoutesPage() {
   const [date, setDate] = useState(todayISO());
   const [busyDriver, setBusyDriver] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string }>>({});
+  const [routeLines, setRouteLines] = useState<Record<string, [number, number][]>>({});
   const [err, setErr] = useState<string | null>(null);
 
-  // A newly-viewed date invalidates any optimize summary from before.
-  useEffect(() => { setRouteInfo({}); setErr(null); }, [date]);
+  // A newly-viewed date invalidates any optimize summary/trace from before.
+  useEffect(() => { setRouteInfo({}); setRouteLines({}); setErr(null); }, [date]);
 
   // Viewing today also carries forward anything overdue that never went out —
   // logistics needs to see it to actually dispatch it, not just what's newly
@@ -84,8 +85,21 @@ export default function RoutesPage() {
     return map;
   }, [dayOrders]);
 
-  const assignTo = (id: string, driver: string) => updateDelivery(id, { assigned_driver: driver || null, route_seq: null });
-  const unassign = (id: string) => updateDelivery(id, { assigned_driver: null, route_seq: null });
+  // A driver's stops changed, so any earlier optimize summary/trace for them
+  // is stale — drop it rather than show a route that no longer matches.
+  const clearRouteFor = (driver: string) => {
+    setRouteInfo((p) => { const { [driver]: _drop, ...rest } = p; return rest; });
+    setRouteLines((p) => { const { [driver]: _drop, ...rest } = p; return rest; });
+  };
+  const assignTo = (id: string, driver: string) => {
+    clearRouteFor(driver);
+    return updateDelivery(id, { assigned_driver: driver || null, route_seq: null });
+  };
+  const unassign = (id: string) => {
+    const d = dayOrders.find((x) => x.id === id);
+    if (d?.assigned_driver) clearRouteFor(d.assigned_driver);
+    return updateDelivery(id, { assigned_driver: null, route_seq: null });
+  };
 
   const optimize = async (driver: string) => {
     // The route starts at the earliest delivery window (OSRM only supports
@@ -107,6 +121,8 @@ export default function RoutesPage() {
       if (!res.ok) throw new Error(data.error || "Route optimization failed");
       await Promise.all((data.order as string[]).map((id, i) => updateDelivery(id, { route_seq: i })));
       setRouteInfo((p) => ({ ...p, [driver]: { miles: data.miles, duration_text: data.duration_text } }));
+      const trace: [number, number][] = (data.geometry as [number, number][]).map(([lng, lat]) => [lat, lng]);
+      setRouteLines((p) => ({ ...p, [driver]: trace }));
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -121,6 +137,9 @@ export default function RoutesPage() {
     const j = index + dir;
     if (j < 0 || j >= list.length) return;
     const a = list[index], b = list[j];
+    // The traced path/distance were computed for the old order — a manual
+    // nudge no longer matches them, so drop both rather than mislead.
+    clearRouteFor(driver);
     await Promise.all([
       updateDelivery(a.id, { route_seq: b.route_seq }),
       updateDelivery(b.id, { route_seq: a.route_seq }),
@@ -150,6 +169,17 @@ export default function RoutesPage() {
     return pts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayOrders, byDriver, settings.driver_colors]);
+
+  const lines: MapLine[] = useMemo(
+    () =>
+      Object.entries(routeLines).map(([driver, positions]) => ({
+        id: driver,
+        color: colorFor(driver),
+        positions,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [routeLines, settings.driver_colors],
+  );
 
   if (!me) return null;
   if (!canPlanRoutes(me)) {
@@ -185,12 +215,12 @@ export default function RoutesPage() {
       {err && <div className="hint" style={{ color: "var(--red)", marginBottom: 8 }}>⚠ {err}</div>}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <LeafletMap points={points} height={360} />
+        <LeafletMap points={points} lines={lines} height={360} />
       </div>
       <div className="hint" style={{ marginTop: 8, marginBottom: 14 }}>
         {t(
-          "Numbered pins show a driver's optimized stop order. Gray pins still need a driver.",
-          "Los pines numerados muestran el orden optimizado de paradas de un chofer. Los pines grises aún necesitan chofer.",
+          "Numbered pins show a driver's optimized stop order, traced along actual roads once optimized. Gray pins still need a driver.",
+          "Los pines numerados muestran el orden optimizado de paradas de un chofer, trazado sobre las calles reales una vez optimizada. Los pines grises aún necesitan chofer.",
         )}
       </div>
 

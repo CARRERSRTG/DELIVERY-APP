@@ -37,13 +37,13 @@ export async function POST(req: Request) {
     (s): s is Stop => typeof s?.id === "string" && Number.isFinite(s?.lat) && Number.isFinite(s?.lng),
   );
 
-  if (stops.length === 0) return NextResponse.json({ order: [], miles: 0, duration_text: "" });
-  if (stops.length === 1) return NextResponse.json({ order: [stops[0].id], miles: 0, duration_text: "" });
+  if (stops.length === 0) return NextResponse.json({ order: [], miles: 0, duration_text: "", geometry: [] });
+  if (stops.length === 1) return NextResponse.json({ order: [stops[0].id], miles: 0, duration_text: "", geometry: [] });
 
   const coords = stops.map((s) => `${s.lng},${s.lat}`).join(";");
   const url =
     `https://router.project-osrm.org/trip/v1/driving/${coords}` +
-    "?overview=false&roundtrip=false&source=first&destination=any";
+    "?overview=full&geometries=geojson&roundtrip=false&source=first&destination=any";
 
   try {
     const res = await fetch(url);
@@ -60,6 +60,10 @@ export async function POST(req: Request) {
       order,
       miles: Math.round((trip.distance / METERS_PER_MILE) * 10) / 10,
       duration_text: fmtDuration(trip.duration),
+      // The actual road-following path, as [lng, lat] pairs — traced on the
+      // Routes map so a driver's line matches real streets, not straight
+      // lines between stops.
+      geometry: (trip.geometry?.coordinates ?? []) as [number, number][],
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Route optimization failed";

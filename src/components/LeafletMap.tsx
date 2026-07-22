@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
-import type { Map as LeafletMapInstance, Marker } from "leaflet";
+import type { Map as LeafletMapInstance, Marker, Polyline } from "leaflet";
 
 // ============================================================
 // Thin wrapper around Leaflet (free OpenStreetMap tiles, no API key) — used
@@ -23,8 +23,17 @@ export interface MapPoint {
   badge?: string;
 }
 
+/** A traced route — e.g. one driver's optimized stop-to-stop path. */
+export interface MapLine {
+  id: string;
+  color: string;
+  /** [lat, lng] pairs, in driving order, following actual roads. */
+  positions: [number, number][];
+}
+
 export function LeafletMap({
   points = [],
+  lines = [],
   onPointClick,
   center,
   zoom = 11,
@@ -34,6 +43,8 @@ export function LeafletMap({
   height = 420,
 }: {
   points?: MapPoint[];
+  /** Route traces drawn under the pins (e.g. per-driver optimized paths). */
+  lines?: MapLine[];
   onPointClick?: (id: string) => void;
   center?: [number, number];
   zoom?: number;
@@ -47,6 +58,7 @@ export function LeafletMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMapInstance | null>(null);
   const markersRef = useRef<Marker[]>([]);
+  const linesRef = useRef<Polyline[]>([]);
   const pickMarkerRef = useRef<Marker | null>(null);
   const hoverMarkerRef = useRef<Marker | null>(null);
   const onPickRef = useRef(onPick);
@@ -108,6 +120,24 @@ export function LeafletMap({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep the traced routes in sync with `lines`. Drawn each time so they
+  // stay underneath the pins (markers are re-added after this runs).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancelled || !mapRef.current) return;
+      linesRef.current.forEach((l) => l.remove());
+      linesRef.current = [];
+      for (const line of lines) {
+        if (line.positions.length < 2) continue;
+        const poly = L.polyline(line.positions, { color: line.color, weight: 4, opacity: 0.7 }).addTo(mapRef.current!);
+        linesRef.current.push(poly);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [lines]);
 
   // Keep the colored fleet markers in sync with `points`.
   useEffect(() => {
