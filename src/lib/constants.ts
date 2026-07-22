@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.2.23";
+export const APP_VERSION = "0.2.24";
 
 // ---- Workflow stages (source of truth for labels, colors, order) ----------
 export interface StageInfo {
@@ -58,9 +58,12 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   { id: "board",     label: "📋 Orders",    label_es: "📋 Órdenes",   href: "/", roles: ["admin", "manager", "sales"] },
   { id: "dashboard", label: "📊 Dashboard", label_es: "📊 Panel",     href: "/dashboard", roles: ["manager", "admin"], cap: "dashboard" },
   { id: "accounts",  label: "🏢 Accounts",  label_es: "🏢 Cuentas",    href: "/accounts", roles: ["admin", "manager"] },
-  { id: "map",       label: "🗺 Map",       label_es: "🗺 Mapa",       href: "/map", roles: ["admin", "manager", "sales"] },
+  { id: "map",       label: "🗺 Map",       label_es: "🗺 Mapa",       href: "/map", roles: ["admin", "manager", "sales", "logistics"] },
   { id: "warehouse", label: "🏭 Warehouse", label_es: "🏭 Almacén",    href: "/warehouse", roles: ["warehouse", "admin"], cap: "fulfill" },
   { id: "driver",    label: "🚚 Driver",    label_es: "🚚 Chofer",     href: "/driver", roles: ["driver", "admin"], cap: "deliver" },
+  // Logistics works entirely inside its own route-planning queue, same as
+  // Warehouse/Driver — it doesn't get the general Orders board or dashboard.
+  { id: "routes",    label: "🧭 Routes",    label_es: "🧭 Rutas",      href: "/routes", roles: ["logistics", "admin"], cap: "route_plan" },
   { id: "data",      label: "🗂 Data",      label_es: "🗂 Datos",      href: "/data", roles: ["admin"], cap: "settings" },
   { id: "settings",  label: "⚙️ Settings",  label_es: "⚙️ Ajustes",    href: "/settings", roles: ["admin"], cap: "settings" },
   { id: "users",     label: "🛡 Users",     label_es: "🛡 Usuarios",   href: "/users", roles: ["admin"], cap: "users" },
@@ -78,13 +81,14 @@ export const ROLE_INFO: Record<UserRole, { label: string; label_es: string; colo
   sales:     { label: "Salesperson",    label_es: "Vendedor",          color: "var(--accent)", desc: "Creates orders and submits for approval",  desc_es: "Crea órdenes y las envía a aprobación" },
   warehouse: { label: "Warehouse",      label_es: "Almacén",           color: "var(--teal)",   desc: "Fulfills approved orders",                 desc_es: "Prepara las órdenes aprobadas" },
   driver:    { label: "Driver",         label_es: "Chofer",            color: "var(--amber)",  desc: "Delivers orders and can log new ones",     desc_es: "Entrega órdenes y puede registrar nuevas" },
+  logistics: { label: "Logistics Manager", label_es: "Gerente de Logística", color: "var(--green)", desc: "Assigns and optimizes driver routes",  desc_es: "Asigna y optimiza las rutas de los choferes" },
 };
 
 export function roleLabel(role: UserRole, lang: Lang): string {
   return lang === "es" ? ROLE_INFO[role].label_es : ROLE_INFO[role].label;
 }
 
-export const ROLE_ORDER: UserRole[] = ["admin", "manager", "sales", "warehouse", "driver"];
+export const ROLE_ORDER: UserRole[] = ["admin", "manager", "logistics", "sales", "warehouse", "driver"];
 
 // ---- Delivery time window presets ------------------------------------------
 // Same "HHMM-HHMM" string format the rest of the app already parses
@@ -153,6 +157,11 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, { en: string; es: string }[]>
     { en: "Navigate to stops", es: "Navegar a las paradas" },
     { en: "Log new orders", es: "Registrar órdenes" },
   ],
+  logistics: [
+    { en: "Assign orders to drivers", es: "Asignar órdenes a choferes" },
+    { en: "Optimize a driver's route", es: "Optimizar la ruta de un chofer" },
+    { en: "View the dispatch map", es: "Ver el mapa de despacho" },
+  ],
 };
 
 /** The default capability list for a role, in the given language. */
@@ -174,7 +183,7 @@ export function permissionsFor(
 // additionally grant capabilities to an INDIVIDUAL user (Profile.permissions),
 // e.g. a salesperson who is also allowed to approve. Grants only ever add —
 // they never take away what the role already allows.
-export type Capability = "create" | "approve" | "fulfill" | "deliver" | "dashboard" | "users" | "settings";
+export type Capability = "create" | "approve" | "fulfill" | "deliver" | "dashboard" | "users" | "settings" | "route_plan";
 
 export const CAPABILITIES: { key: Capability; en: string; es: string; desc_en: string; desc_es: string }[] = [
   { key: "create",    en: "Create orders",    es: "Crear órdenes",       desc_en: "Log new orders and submit them for approval", desc_es: "Registrar órdenes y enviarlas a aprobación" },
@@ -184,15 +193,17 @@ export const CAPABILITIES: { key: Capability; en: string; es: string; desc_en: s
   { key: "dashboard", en: "View dashboard",   es: "Ver panel",           desc_en: "See company-wide KPIs and reports",           desc_es: "Ver KPIs y reportes de la empresa" },
   { key: "users",     en: "Manage users",     es: "Gestionar usuarios",  desc_en: "Invite people and change their roles",        desc_es: "Invitar personas y cambiar sus roles" },
   { key: "settings",  en: "Change settings",  es: "Cambiar ajustes",     desc_en: "Edit workspace settings and pick-lists",      desc_es: "Editar ajustes y listas del espacio" },
+  { key: "route_plan", en: "Plan routes",     es: "Planificar rutas",    desc_en: "Assign orders to drivers and optimize their route", desc_es: "Asignar órdenes a choferes y optimizar su ruta" },
 ];
 
 /** The capabilities each role gets automatically. */
 export const ROLE_CAPS: Record<UserRole, Capability[]> = {
-  admin:     ["create", "approve", "fulfill", "deliver", "dashboard", "users", "settings"],
+  admin:     ["create", "approve", "fulfill", "deliver", "dashboard", "users", "settings", "route_plan"],
   manager:   ["create", "approve", "dashboard"],
   sales:     ["create"],
   warehouse: ["fulfill", "deliver"],
   driver:    ["create", "deliver"],
+  logistics: ["route_plan"],
 };
 
 /** Minimal shape needed to test a capability. */
@@ -216,6 +227,7 @@ export const canCreate = (u: CapUser) => hasCap(u, "create");
 export const canApprove = (u: CapUser) => hasCap(u, "approve");
 export const canFulfill = (u: CapUser) => hasCap(u, "fulfill");
 export const canDeliver = (u: CapUser) => hasCap(u, "deliver");
+export const canPlanRoutes = (u: CapUser) => hasCap(u, "route_plan");
 
 // ---- Workflow transition guard -------------------------------------------
 // The only legal stage moves. Enforced in BOTH data providers so an order can

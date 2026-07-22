@@ -50,9 +50,9 @@ export function LocalApp({ children }: { children: React.ReactNode }) {
             const role = e.target.value as UserRole;
             // Switch to the matching demo identity (id + name + store), so role-targeted
             // notifications and store-scoping behave correctly as you switch perspectives.
-            const preset = { admin: "You (Admin)", manager: "Maria Manager", sales: "Sam Sales", warehouse: "Wade Warehouse", driver: "Diego Driver" }[role];
-            const id = { admin: "u-admin", manager: "u-mgr", sales: "u-sales", warehouse: "u-wh", driver: "u-drv" }[role];
-            const store = { admin: null, manager: null, sales: null, warehouse: "McAllen", driver: "McAllen" }[role];
+            const preset = { admin: "You (Admin)", manager: "Maria Manager", logistics: "Laura Logistics", sales: "Sam Sales", warehouse: "Wade Warehouse", driver: "Diego Driver" }[role];
+            const id = { admin: "u-admin", manager: "u-mgr", logistics: "u-log", sales: "u-sales", warehouse: "u-wh", driver: "u-drv" }[role];
+            const store = { admin: null, manager: null, logistics: null, sales: null, warehouse: "McAllen", driver: "McAllen" }[role];
             update({ id, role, full_name: preset, store });
           }}
         >

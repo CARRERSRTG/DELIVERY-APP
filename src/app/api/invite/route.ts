@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const ROLES = ["admin", "manager", "sales", "warehouse"] as const;
+const ROLES = ["admin", "manager", "sales", "warehouse", "driver", "logistics"] as const;
 type Role = (typeof ROLES)[number];
 
 export async function POST(req: Request) {

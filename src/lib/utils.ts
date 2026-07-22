@@ -1,5 +1,15 @@
 import type { Delivery } from "./types";
 
+/** Deterministic fallback color for a driver with no assigned color yet, so
+ * map pins/route markers are still distinguishable before a manager sets
+ * real colors in Settings. Shared by the Map and Routes pages. */
+export function fallbackDriverColor(name: string): string {
+  const palette = ["#2456c9", "#0f8a8a", "#d1782e", "#7c4dbc", "#1f9d61", "#d64545", "#e9a13b"];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
+
 /** A date as local YYYY-MM-DD.
  * NOT toISOString() — that converts to UTC, so anywhere west of Greenwich the
  * date rolls forward late in the evening (7pm CDT is already tomorrow in UTC).

@@ -1,32 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { driverNames, stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
 import { LeafletMap, type MapPoint } from "@/components/LeafletMap";
-import { cityFromAddress, fmtDate, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
+import { cityFromAddress, fallbackDriverColor, fmtDate, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
+import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery } from "@/lib/types";
 
 const UNASSIGNED_COLOR = "#6b7686";
-
-/** Deterministic fallback color for a driver with no assigned color yet,
- * so pins are still distinguishable before a manager sets real colors. */
-function fallbackColor(name: string): string {
-  const palette = ["#2456c9", "#0f8a8a", "#d1782e", "#7c4dbc", "#1f9d61", "#d64545", "#e9a13b"];
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return palette[h % palette.length];
-}
 
 export default function MapPage() {
   const { me, users, deliveries, settings, saveSettings, updateDelivery, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   const [open, setOpen] = useState<Delivery | null>(null);
-  const [geocoding, setGeocoding] = useState(0);
-  const geocodingInFlight = useRef(new Set<string>());
 
   const canManageColors = me?.role === "manager" || me?.role === "admin";
 
@@ -46,43 +36,12 @@ export default function MapPage() {
   };
 
   // Geocode (and cache) any order on this date that has an address but no
-  // point yet. Sequential + slightly throttled — the free OSM fallback
-  // provider asks for at most ~1 request/second.
-  useEffect(() => {
-    let cancelled = false;
-    const todo = dayOrders.filter(
-      (d) => d.delivery_lat == null && (d.delivery_address || "").trim() && !geocodingInFlight.current.has(d.id),
-    );
-    if (!todo.length) return;
-
-    (async () => {
-      for (const d of todo) {
-        if (cancelled) return;
-        geocodingInFlight.current.add(d.id);
-        setGeocoding((n) => n + 1);
-        try {
-          const res = await fetch("/api/geocode-point", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ address: d.delivery_address }),
-          });
-          if (res.ok) {
-            const point = await res.json();
-            if (!cancelled) await updateDelivery(d.id, { delivery_lat: point.lat, delivery_lng: point.lng, delivery_pin_source: "geocoded" });
-          }
-        } catch { /* best-effort — a pin just won't appear for this one */ }
-        geocodingInFlight.current.delete(d.id);
-        setGeocoding((n) => n - 1);
-        await new Promise((r) => setTimeout(r, 350));
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayOrders]);
+  // point yet.
+  const geocoding = useAutoGeocode(dayOrders, updateDelivery);
 
   const colorFor = (driver: string | null) => {
     if (!driver) return UNASSIGNED_COLOR;
-    return settings.driver_colors?.[driver] || fallbackColor(driver);
+    return settings.driver_colors?.[driver] || fallbackDriverColor(driver);
   };
 
   const points: MapPoint[] = useMemo(
@@ -226,7 +185,7 @@ export default function MapPage() {
                 {canManageColors && (
                   <input
                     type="color"
-                    value={/^#[0-9a-f]{6}$/i.test(settings.driver_colors?.[name] || "") ? settings.driver_colors![name] : fallbackColor(name)}
+                    value={/^#[0-9a-f]{6}$/i.test(settings.driver_colors?.[name] || "") ? settings.driver_colors![name] : fallbackDriverColor(name)}
                     onChange={(e) => saveSettings({ driver_colors: { ...(settings.driver_colors ?? {}), [name]: e.target.value } })}
                     style={{ width: 28, height: 28, padding: 0, border: "none", background: "none", cursor: "pointer" }}
                   />

@@ -60,10 +60,14 @@ export function windowConflicts(order: WindowCheck, deliveries: Delivery[]): Del
   });
 }
 
-/** Order a driver's stops by delivery window start (then miles) — a simple,
- * dependency-free route sequence when no optimization API is configured. */
+/** Order a driver's stops for display. A Logistics Manager's optimized
+ * sequence (route_seq) wins when set; anything not yet sequenced falls back
+ * to delivery window start (then miles) — a simple, dependency-free guess. */
 export function routeOrder(deliveries: Delivery[]): Delivery[] {
   return [...deliveries].sort((a, b) => {
+    if (a.route_seq != null && b.route_seq != null) return a.route_seq - b.route_seq;
+    if (a.route_seq != null) return -1;
+    if (b.route_seq != null) return 1;
     const wa = parseWindow(a.delivery_windows);
     const wb = parseWindow(b.delivery_windows);
     const sa = wa ? wa[0] : Number.MAX_SAFE_INTEGER;

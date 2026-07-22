@@ -24,6 +24,7 @@ export const DEMO_USERS: Profile[] = [
   { id: "u-sales", full_name: "Sam Sales", role: "sales", store: null },
   { id: "u-sales2", full_name: "Sofia Ventas", role: "sales", store: null },
   { id: "u-mgr", full_name: "Maria Manager", role: "manager", store: null },
+  { id: "u-log", full_name: "Laura Logistics", role: "logistics", store: null },
   { id: "u-wh", full_name: "Wade Warehouse", role: "warehouse", store: "McAllen" },
   // Drivers are users like everyone else — the Assigned Driver list is built
   // from whoever holds the "driver" role.
@@ -154,6 +155,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
     delivery_lat: null,
     delivery_lng: null,
     delivery_pin_source: null,
+    route_seq: null,
     created_by: "u-sales",
     assigned_sales_rep: null,
     approved_by: null,

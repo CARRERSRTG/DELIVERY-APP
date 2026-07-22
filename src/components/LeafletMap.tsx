@@ -17,6 +17,10 @@ export interface MapPoint {
   lng: number;
   color: string;
   label: string;
+  /** Shown inside the marker itself (e.g. a route stop number), not just on
+   * hover — used by the route planner so a driver's stop order is visible
+   * at a glance. Omit for a plain dot (the default everywhere else). */
+  badge?: string;
 }
 
 export function LeafletMap({
@@ -114,11 +118,12 @@ export function LeafletMap({
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
       for (const p of points) {
+        const size = p.badge ? 22 : 18;
         const icon = L.divIcon({
           className: "",
-          html: `<div style="width:18px;height:18px;border-radius:50%;background:${p.color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>`,
-          iconSize: [18, 18],
-          iconAnchor: [9, 9],
+          html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${p.color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;font-family:sans-serif">${p.badge ?? ""}</div>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
         });
         const marker = L.marker([p.lat, p.lng], { icon }).addTo(mapRef.current!);
         marker.bindTooltip(p.label);

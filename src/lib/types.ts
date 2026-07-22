@@ -1,5 +1,5 @@
 // ---- Roles ----------------------------------------------------------------
-export type UserRole = "admin" | "manager" | "sales" | "warehouse" | "driver";
+export type UserRole = "admin" | "manager" | "sales" | "warehouse" | "driver" | "logistics";
 
 export interface Profile {
   id: string;
@@ -61,6 +61,10 @@ export interface Delivery {
   est_pallets: number | null;        // estimated by sales
   actual_pallets: number | null;      // revised/confirmed by warehouse
   assigned_driver: string | null;
+  /** This order's stop position (0-based) in its driver's route for the day,
+   * set by the Logistics Manager's route optimizer. null = not sequenced yet
+   * (newly assigned, or the driver's route hasn't been optimized/reordered). */
+  route_seq: number | null;
   delivery_duration: string | null;
   /** Named dropoff point (saved site name), paired with delivery_address. */
   delivery_name: string | null;

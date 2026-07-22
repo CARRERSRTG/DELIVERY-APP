@@ -273,7 +273,7 @@ describe("driver route + conflicts", () => {
 
 describe("permissions across the demo team", () => {
   it("gives every seeded user a usable role", () => {
-    for (const u of users) expect(["admin", "manager", "sales", "warehouse", "driver"]).toContain(u.role);
+    for (const u of users) expect(["admin", "manager", "sales", "warehouse", "driver", "logistics"]).toContain(u.role);
   });
 
   it("keeps the role matrix sane", () => {
