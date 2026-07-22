@@ -390,6 +390,45 @@ export function demoDeliveries(settings: Settings): Delivery[] {
     }),
   );
 
+  // ---- Bulk unassigned pool for testing Route Planning ----
+  // 30 more same-day orders, no driver yet, spread across every store — a
+  // big sandbox for assigning drivers and optimizing routes. Left unassigned
+  // (rather than pre-assigned) so they never trip the double-booking check.
+  const cityPoints: Record<string, [number, number]> = {
+    Brownsville: [25.9018, -97.4975],
+    Weslaco: [26.1595, -97.9903],
+    Pharr: [26.1948, -98.1836],
+    McAllen: [26.2034, -98.2300],
+    Mission: [26.2159, -98.3253],
+    Edinburg: [26.3017, -98.1633],
+  };
+  const cities = Object.keys(cityPoints);
+  const bulkAccounts = [
+    "Rio Tile Co.", "Casa Bella", "Delta Construction", "Palm Grove Homes", "Mid-Valley Supply",
+    "Hidalgo Interiors", "Sunrise Flooring", "Vista Kitchens", "Valley Builders", "Coastal Homes",
+  ];
+  const bulkStages: Delivery["stage"][] = ["approved", "fulfilling", "ready"];
+  const bulkWindows = ["0800-1000", "0900-1100", "1000-1200", "1100-1300", "1300-1500", "1400-1600"];
+  for (let i = 0; i < 30; i++) {
+    const n = 1040 + i;
+    const city = cities[i % cities.length];
+    const [lat, lng] = cityPoints[city];
+    rows.push(mk(n, 2 + (i % 8), null, {
+      stage: bulkStages[i % bulkStages.length],
+      store: city,
+      account: bulkAccounts[i % bulkAccounts.length],
+      invoice_num: `INV-3${100 + i}`,
+      delivery_fee: 40 + (i % 10) * 8,
+      delivery_address: `${100 + i * 7} Test Rd, ${city} TX`,
+      delivery_windows: bulkWindows[i % bulkWindows.length],
+      approved_by: "u-mgr",
+      approved_at: stamp(60 + i * 5),
+      delivery_lat: lat + ((i % 7) - 3) * 0.012,
+      delivery_lng: lng + ((i % 5) - 2) * 0.012,
+      delivery_pin_source: "geocoded",
+    }));
+  }
+
   return rows.sort((a, b) => b.order_no - a.order_no);
 }
 
