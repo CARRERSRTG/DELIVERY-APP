@@ -186,6 +186,12 @@ export interface Settings {
    * Settings). Driver full name → any CSS color string. */
   driver_colors?: Record<string, string>;
 
+  /** Each driver's truck capacity in pallets, set by Logistics/admin in the
+   * Routes tool. When a driver's assigned pallets exceed this, the route
+   * optimizer splits their day into multiple round trips back to their home
+   * store to reload. Driver full name → pallet count. */
+  driver_capacity?: Record<string, number>;
+
   /** Fixed Orders-table columns for the Sales role, set by an admin in Settings.
    * Sales reps get no "Columns" picker of their own — this is the one list
    * they see, company-wide. Falls back to ROLE_DEFAULT_COLUMNS.sales if unset. */

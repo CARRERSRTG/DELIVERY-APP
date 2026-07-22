@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseWindow, suggestDriver, windowConflicts, routeOrder } from "@/lib/dispatch";
+import { parseWindow, suggestDriver, windowConflicts, routeOrder, splitIntoTrips } from "@/lib/dispatch";
 import { mkDelivery } from "@/lib/__fixtures";
 
 describe("parseWindow", () => {
@@ -83,5 +83,55 @@ describe("routeOrder", () => {
     const a = mkDelivery({ order_no: 1, delivery_windows: null });
     const b = mkDelivery({ order_no: 2, delivery_windows: "0900-1000" });
     expect(routeOrder([a, b]).map((d) => d.order_no)).toEqual([2, 1]);
+  });
+
+  it("prefers a logistics-optimized route_seq over the window/miles guess", () => {
+    // Window order would put b (earlier window) before a, but a's route_seq
+    // says it comes first — the optimizer's answer wins.
+    const a = mkDelivery({ order_no: 1, delivery_windows: "1300-1500", route_seq: 0 });
+    const b = mkDelivery({ order_no: 2, delivery_windows: "0800-1000", route_seq: 1 });
+    expect(routeOrder([a, b]).map((d) => d.order_no)).toEqual([1, 2]);
+  });
+
+  it("puts un-sequenced stops after sequenced ones, then falls back to window order among them", () => {
+    const sequenced = mkDelivery({ order_no: 1, delivery_windows: "1300-1500", route_seq: 0 });
+    const unseqEarly = mkDelivery({ order_no: 2, delivery_windows: "0800-1000", route_seq: null });
+    const unseqLate = mkDelivery({ order_no: 3, delivery_windows: "1100-1200", route_seq: null });
+    expect(routeOrder([unseqLate, sequenced, unseqEarly]).map((d) => d.order_no)).toEqual([1, 2, 3]);
+  });
+});
+
+describe("splitIntoTrips", () => {
+  it("keeps everything in one trip when it fits under capacity", () => {
+    const stops = [
+      mkDelivery({ order_no: 1, est_pallets: 4 }),
+      mkDelivery({ order_no: 2, est_pallets: 3 }),
+    ];
+    expect(splitIntoTrips(stops, 10).map((trip) => trip.map((d) => d.order_no))).toEqual([[1, 2]]);
+  });
+
+  it("starts a new truckload once the next stop would exceed capacity", () => {
+    const stops = [
+      mkDelivery({ order_no: 1, est_pallets: 6 }),
+      mkDelivery({ order_no: 2, est_pallets: 5 }),
+      mkDelivery({ order_no: 3, est_pallets: 4 }),
+    ];
+    // 6 + 5 = 11 > 10, so #2 starts a new load; 5 + 4 = 9 fits with #3.
+    expect(splitIntoTrips(stops, 10).map((trip) => trip.map((d) => d.order_no))).toEqual([[1], [2, 3]]);
+  });
+
+  it("gives an over-capacity single stop its own truckload rather than dropping it", () => {
+    const stops = [mkDelivery({ order_no: 1, est_pallets: 20 })];
+    expect(splitIntoTrips(stops, 10).map((trip) => trip.map((d) => d.order_no))).toEqual([[1]]);
+  });
+
+  it("prefers actual_pallets (warehouse-confirmed) over est_pallets when both are set", () => {
+    const stops = [
+      mkDelivery({ order_no: 1, est_pallets: 2, actual_pallets: 9 }),
+      mkDelivery({ order_no: 2, est_pallets: 2, actual_pallets: 9 }),
+    ];
+    // By est_pallets (2+2=4) these'd fit in one 10-pallet load; by the
+    // warehouse-confirmed actual_pallets (9+9=18) they don't.
+    expect(splitIntoTrips(stops, 10).map((trip) => trip.map((d) => d.order_no))).toEqual([[1], [2]]);
   });
 });

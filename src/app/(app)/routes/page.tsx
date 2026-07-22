@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { canPlanRoutes, stageInfo, stageLabel } from "@/lib/constants";
-import { parseWindow } from "@/lib/dispatch";
+import { parseWindow, splitIntoTrips } from "@/lib/dispatch";
 import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap";
 import { fallbackDriverColor, fmtDate, isOverdue, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
@@ -18,19 +18,36 @@ import type { Delivery } from "@/lib/types";
 // Scope is deliberately just sequencing, not auto-assignment — a person
 // still decides which driver takes which order; the system only decides
 // the best order to run them in once that's settled.
+//
+// Each driver's truck has a pallet capacity. When their assigned stops add
+// up to more than it can carry in one load, the route is split into
+// several round trips — out to a batch of stops, back to the driver's home
+// store to reload, out again — rather than one trip that assumes an
+// infinitely large truck.
 // ============================================================
 
 const UNASSIGNED_COLOR = "#6b7686";
 // Orders that need dispatching: approved but not yet picked up.
 const ROUTE_STAGES: Delivery["stage"][] = ["approved", "fulfilling", "ready"];
+// Used whenever a driver has no capacity set yet in Settings.
+const DEFAULT_CAPACITY = 12;
+
+function fmtMinutes(min: number): string {
+  const m = Math.round(min);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem ? `${h} h ${rem} min` : `${h} h`;
+}
 
 export default function RoutesPage() {
-  const { me, users, deliveries, settings, updateDelivery, ready } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   const [busyDriver, setBusyDriver] = useState<string | null>(null);
-  const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string }>>({});
-  const [routeLines, setRouteLines] = useState<Record<string, [number, number][]>>({});
+  const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number }>>({});
+  const [routeLines, setRouteLines] = useState<Record<string, [number, number][][]>>({});
+  const [depotCoords, setDepotCoords] = useState<Record<string, [number, number]>>({});
   const [err, setErr] = useState<string | null>(null);
 
   // A newly-viewed date invalidates any optimize summary/trace from before.
@@ -58,6 +75,34 @@ export default function RoutesPage() {
 
   const drivers = useMemo(() => users.filter((u) => u.role === "driver"), [users]);
   const colorFor = (driver: string | null) => (driver ? settings.driver_colors?.[driver] || fallbackDriverColor(driver) : UNASSIGNED_COLOR);
+  const capacityFor = (driver: string) => settings.driver_capacity?.[driver] ?? DEFAULT_CAPACITY;
+  const setCapacity = (driver: string, capacity: number) => {
+    clearRouteFor(driver);
+    saveSettings({ driver_capacity: { ...(settings.driver_capacity ?? {}), [driver]: capacity } });
+  };
+
+  // The depot for a driver's round trips is their home store (Users page).
+  // Store addresses aren't pre-geocoded like order addresses, so resolve
+  // (and cache) it here the first time it's needed.
+  const getDepotCoords = async (storeName: string): Promise<[number, number] | null> => {
+    if (depotCoords[storeName]) return depotCoords[storeName];
+    const address = settings.stores.find((s) => s.name === storeName)?.address;
+    if (!address) return null;
+    try {
+      const res = await fetch("/api/geocode-point", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      if (!res.ok) return null;
+      const point = await res.json();
+      const coords: [number, number] = [point.lat, point.lng];
+      setDepotCoords((p) => ({ ...p, [storeName]: coords }));
+      return coords;
+    } catch {
+      return null;
+    }
+  };
 
   const unassigned = useMemo(
     () => dayOrders.filter((d) => !d.assigned_driver).sort((a, b) => a.order_no - b.order_no),
@@ -102,27 +147,59 @@ export default function RoutesPage() {
   };
 
   const optimize = async (driver: string) => {
-    // The route starts at the earliest delivery window (OSRM only supports
-    // a fixed start for the open trip solver — see /api/optimize-route);
-    // everything after that is freely reordered for the shortest drive.
-    const stops = (byDriver.get(driver) ?? [])
+    const profile = users.find((u) => u.full_name === driver);
+    // Earliest delivery window first (OSRM only supports a fixed start for
+    // the trip solver — see /api/optimize-route); everything after that is
+    // freely reordered within its trip for the shortest drive.
+    const sortedStops = (byDriver.get(driver) ?? [])
       .filter((d) => d.delivery_lat != null && d.delivery_lng != null)
       .sort((a, b) => (parseWindow(a.delivery_windows)?.[0] ?? Infinity) - (parseWindow(b.delivery_windows)?.[0] ?? Infinity));
-    if (stops.length < 2) return;
+    if (sortedStops.length < 1) return;
+
     setBusyDriver(driver);
     setErr(null);
     try {
-      const res = await fetch("/api/optimize-route", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stops: stops.map((d) => ({ id: d.id, lat: d.delivery_lat, lng: d.delivery_lng })) }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Route optimization failed");
-      await Promise.all((data.order as string[]).map((id, i) => updateDelivery(id, { route_seq: i })));
-      setRouteInfo((p) => ({ ...p, [driver]: { miles: data.miles, duration_text: data.duration_text } }));
-      const trace: [number, number][] = (data.geometry as [number, number][]).map(([lng, lat]) => [lat, lng]);
-      setRouteLines((p) => ({ ...p, [driver]: trace }));
+      const depot = profile?.store ? await getDepotCoords(profile.store) : null;
+      // No known home store/address to round-trip from — fall back to one
+      // open (one-way) route across everything, same as before this feature.
+      const batches = depot ? splitIntoTrips(sortedStops, capacityFor(driver)) : [sortedStops];
+
+      let totalMiles = 0;
+      let totalSeconds = 0;
+      let seq = 0;
+      const traces: [number, number][][] = [];
+      const seqUpdates: Promise<boolean>[] = [];
+
+      for (const batch of batches) {
+        if (batch.length < 2 && !depot) {
+          // A single leftover stop with no depot to round-trip from — just
+          // give it the next sequence number, nothing to optimize between.
+          seqUpdates.push(updateDelivery(batch[0].id, { route_seq: seq++ }));
+          continue;
+        }
+        const stopsForCall = depot
+          ? [{ id: "__depot__", lat: depot[0], lng: depot[1] }, ...batch.map((d) => ({ id: d.id, lat: d.delivery_lat!, lng: d.delivery_lng! }))]
+          : batch.map((d) => ({ id: d.id, lat: d.delivery_lat!, lng: d.delivery_lng! }));
+        const res = await fetch("/api/optimize-route", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stops: stopsForCall, roundtrip: !!depot }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Route optimization failed");
+        const order = (data.order as string[]).filter((id) => id !== "__depot__");
+        order.forEach((id) => seqUpdates.push(updateDelivery(id, { route_seq: seq++ })));
+        totalMiles += data.miles;
+        totalSeconds += data.duration_seconds;
+        traces.push((data.geometry as [number, number][]).map(([lng, lat]) => [lat, lng]));
+      }
+
+      await Promise.all(seqUpdates);
+      setRouteInfo((p) => ({
+        ...p,
+        [driver]: { miles: Math.round(totalMiles * 10) / 10, duration_text: fmtMinutes(totalSeconds / 60), trips: batches.length },
+      }));
+      setRouteLines((p) => ({ ...p, [driver]: traces }));
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -172,11 +249,9 @@ export default function RoutesPage() {
 
   const lines: MapLine[] = useMemo(
     () =>
-      Object.entries(routeLines).map(([driver, positions]) => ({
-        id: driver,
-        color: colorFor(driver),
-        positions,
-      })),
+      Object.entries(routeLines).flatMap(([driver, trips]) =>
+        trips.map((positions, i) => ({ id: `${driver}#${i}`, color: colorFor(driver), positions })),
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [routeLines, settings.driver_colors],
   );
@@ -273,13 +348,25 @@ export default function RoutesPage() {
         const sequenced = stops.length > 0 && stops.every((d) => d.route_seq != null);
         const missingPins = stops.filter((d) => d.delivery_lat == null).length;
         const info = routeInfo[u.full_name];
+        const capacity = capacityFor(u.full_name);
+        const trips = splitIntoTrips(stops, capacity);
         return (
           <div className="card" key={u.id}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
               <span style={{ width: 14, height: 14, borderRadius: "50%", background: colorFor(u.full_name), border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)", flex: "0 0 auto" }} />
               <h2 style={{ margin: 0 }}>{u.full_name}</h2>
               <span className="count-tag">{stops.length} {t("stops", "paradas")}</span>
+              {trips.length > 1 && <span className="sema" style={{ background: "var(--amber)", color: "#fff" }}>{trips.length} {t("truckloads", "viajes")}</span>}
               <span style={{ flex: 1 }} />
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--gray)" }}>
+                🚚 {t("Truck capacity", "Capacidad del camión")}
+                <input
+                  type="number" min={1} value={capacity}
+                  onChange={(e) => { const v = Number(e.target.value); if (v > 0) setCapacity(u.full_name, v); }}
+                  style={{ width: 60 }}
+                />
+                {t("plt", "trm")}
+              </label>
               <button className="btn btn-primary btn-sm" disabled={stops.length < 2 || busyDriver === u.full_name} onClick={() => optimize(u.full_name)}>
                 {busyDriver === u.full_name ? "…" : `🧭 ${t("Optimize route", "Optimizar ruta")}`}
               </button>
@@ -287,6 +374,15 @@ export default function RoutesPage() {
             {info && (
               <div className="hint" style={{ marginBottom: 8 }}>
                 {t("Total", "Total")}: <b>{info.miles} mi</b> · {info.duration_text}
+                {info.trips > 1 && ` · ${info.trips} ${t("round trips back to base to reload", "viajes de ida y vuelta a la tienda para recargar")}`}
+              </div>
+            )}
+            {!u.store && trips.length > 1 && (
+              <div className="hint" style={{ marginBottom: 8 }}>
+                {t(
+                  "This driver has no home store assigned (Users), so trips can't be anchored to a depot — optimizing will run one open route instead of round trips.",
+                  "Este chofer no tiene tienda asignada (Usuarios), así que los viajes no pueden anclarse a un depósito — al optimizar se hará una sola ruta abierta en vez de viajes de ida y vuelta.",
+                )}
               </div>
             )}
             {!sequenced && (
@@ -313,25 +409,43 @@ export default function RoutesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stops.map((d, i) => (
-                    <tr key={d.id}>
-                      <td>{d.route_seq != null ? i + 1 : "—"}</td>
-                      <td className="ordno">#{d.order_no}</td>
-                      <td>{d.account || "—"}</td>
-                      <td>{d.delivery_address || "—"}</td>
-                      <td><DateCell d={d} date={date} onChange={reschedule} t={t} /></td>
-                      <td>{d.delivery_windows || "—"}</td>
-                      <td style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                        {sequenced && (
-                          <>
-                            <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => move(u.full_name, i, -1)} title={t("Move up", "Subir")}>↑</button>
-                            <button className="btn btn-ghost btn-sm" disabled={i === stops.length - 1} onClick={() => move(u.full_name, i, 1)} title={t("Move down", "Bajar")}>↓</button>
-                          </>
+                  {trips.map((batch, ti) => {
+                    const startIdx = trips.slice(0, ti).reduce((n, b) => n + b.length, 0);
+                    const load = batch.reduce((n, d) => n + (d.actual_pallets ?? d.est_pallets ?? 0), 0);
+                    return (
+                      <Fragment key={ti}>
+                        {trips.length > 1 && (
+                          <tr>
+                            <td colSpan={7} style={{ background: "var(--card-hover)", fontWeight: 700, fontSize: 12 }}>
+                              🚚 {t("Truckload", "Viaje")} {ti + 1} — {load}/{capacity} {t("pallets", "tarimas")}
+                            </td>
+                          </tr>
                         )}
-                        <button className="btn btn-ghost btn-sm" onClick={() => unassign(d.id)} title={t("Unassign", "Quitar asignación")}>✕</button>
-                      </td>
-                    </tr>
-                  ))}
+                        {batch.map((d, bi) => {
+                          const i = startIdx + bi;
+                          return (
+                            <tr key={d.id}>
+                              <td>{d.route_seq != null ? i + 1 : "—"}</td>
+                              <td className="ordno">#{d.order_no}</td>
+                              <td>{d.account || "—"}</td>
+                              <td>{d.delivery_address || "—"}</td>
+                              <td><DateCell d={d} date={date} onChange={reschedule} t={t} /></td>
+                              <td>{d.delivery_windows || "—"}</td>
+                              <td style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                                {sequenced && (
+                                  <>
+                                    <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => move(u.full_name, i, -1)} title={t("Move up", "Subir")}>↑</button>
+                                    <button className="btn btn-ghost btn-sm" disabled={i === stops.length - 1} onClick={() => move(u.full_name, i, 1)} title={t("Move down", "Bajar")}>↓</button>
+                                  </>
+                                )}
+                                <button className="btn btn-ghost btn-sm" onClick={() => unassign(d.id)} title={t("Unassign", "Quitar asignación")}>✕</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -76,3 +76,27 @@ export function routeOrder(deliveries: Delivery[]): Delivery[] {
     return (a.route_miles ?? Number.MAX_SAFE_INTEGER) - (b.route_miles ?? Number.MAX_SAFE_INTEGER);
   });
 }
+
+/** Greedily bucket a driver's stops (in their given order) into
+ * capacity-respecting truckloads — each bucket's pallets never exceed
+ * capacity, so a load that's too big for one trip becomes several round
+ * trips instead. A single stop over capacity on its own still gets its own
+ * bucket; splitting one order across two truckloads isn't something this
+ * does. Used by the Routes tool's multi-trip planner. */
+export function splitIntoTrips(stops: Delivery[], capacity: number): Delivery[][] {
+  const trips: Delivery[][] = [];
+  let current: Delivery[] = [];
+  let load = 0;
+  for (const d of stops) {
+    const pallets = d.actual_pallets ?? d.est_pallets ?? 0;
+    if (current.length && load + pallets > capacity) {
+      trips.push(current);
+      current = [];
+      load = 0;
+    }
+    current.push(d);
+    load += pallets;
+  }
+  if (current.length) trips.push(current);
+  return trips;
+}
