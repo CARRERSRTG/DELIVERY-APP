@@ -530,9 +530,11 @@ export function OrderModal({
   }
 
   return (
-    // Backdrop clicks do nothing — the only way out is the explicit buttons
-    // at the bottom of the form (or the header ✕, which still confirms if dirty).
-    <div className="overlay">
+    // Viewing/editing an existing order: clicking the backdrop closes it
+    // (same dirty confirm as the ✕). Creating a brand-new order: a backdrop
+    // click does nothing — the only way out is an explicit button, so a
+    // stray click can't silently lose an order that was never saved at all.
+    <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget && !isNew) requestClose(); }}>
       <div className="modal">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>
