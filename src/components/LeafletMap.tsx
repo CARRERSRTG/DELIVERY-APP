@@ -21,6 +21,9 @@ export interface MapPoint {
    * hover — used by the route planner so a driver's stop order is visible
    * at a glance. Omit for a plain dot (the default everywhere else). */
   badge?: string;
+  /** Faded back (low opacity) — used to push everything that isn't the
+   * currently-focused driver into the background. */
+  dimmed?: boolean;
 }
 
 /** A traced route — e.g. one driver's optimized stop-to-stop path. */
@@ -32,12 +35,16 @@ export interface MapLine {
   /** Dashed rendering — used for simulated/preview routes that aren't
    * committed yet, so they read as tentative next to the solid ones. */
   dashed?: boolean;
+  /** Faded + thinned, so the focused route stands out over the rest. */
+  dimmed?: boolean;
 }
 
 export function LeafletMap({
   points = [],
   lines = [],
   onPointClick,
+  onLineClick,
+  fitTo,
   center,
   zoom = 11,
   pickable = false,
@@ -49,6 +56,10 @@ export function LeafletMap({
   /** Route traces drawn under the pins (e.g. per-driver optimized paths). */
   lines?: MapLine[];
   onPointClick?: (id: string) => void;
+  /** Click a traced route — used to focus that route's driver. */
+  onLineClick?: (id: string) => void;
+  /** Coordinates the map should frame; refits whenever this set changes. */
+  fitTo?: [number, number][];
   center?: [number, number];
   zoom?: number;
   /** Click-to-place-a-pin mode (used by the manual location picker). */
@@ -64,10 +75,13 @@ export function LeafletMap({
   const linesRef = useRef<Polyline[]>([]);
   const pickMarkerRef = useRef<Marker | null>(null);
   const hoverMarkerRef = useRef<Marker | null>(null);
+  const fitSigRef = useRef<string>("");
   const onPickRef = useRef(onPick);
   onPickRef.current = onPick;
   const onClickRef = useRef(onPointClick);
   onClickRef.current = onPointClick;
+  const onLineClickRef = useRef(onLineClick);
+  onLineClickRef.current = onLineClick;
 
   // Create the map once.
   useEffect(() => {
@@ -125,7 +139,8 @@ export function LeafletMap({
   }, []);
 
   // Keep the traced routes in sync with `lines`. Drawn each time so they
-  // stay underneath the pins (markers are re-added after this runs).
+  // stay underneath the pins (markers are re-added after this runs). Dimmed
+  // routes are drawn first so focused ones paint on top of them.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -133,14 +148,43 @@ export function LeafletMap({
       if (cancelled || !mapRef.current) return;
       linesRef.current.forEach((l) => l.remove());
       linesRef.current = [];
-      for (const line of lines) {
+      const ordered = [...lines].sort((a, b) => Number(!!b.dimmed) - Number(!!a.dimmed));
+      for (const line of ordered) {
         if (line.positions.length < 2) continue;
-        const poly = L.polyline(line.positions, { color: line.color, weight: 4, opacity: 0.7, dashArray: line.dashed ? "6 10" : undefined }).addTo(mapRef.current!);
-        linesRef.current.push(poly);
+        // A fat invisible line under each makes routes easy to click even
+        // where they're thin or overlapping.
+        const hit = L.polyline(line.positions, { color: line.color, weight: 18, opacity: 0 }).addTo(mapRef.current!);
+        const poly = L.polyline(line.positions, {
+          color: line.color,
+          weight: line.dimmed ? 3 : 5,
+          opacity: line.dimmed ? 0.25 : 0.9,
+          dashArray: line.dashed ? "6 10" : undefined,
+        }).addTo(mapRef.current!);
+        const fire = () => onLineClickRef.current?.(line.id);
+        hit.on("click", fire);
+        poly.on("click", fire);
+        if (onLineClickRef.current) { hit.getElement()?.setAttribute("style", "cursor:pointer"); }
+        linesRef.current.push(hit, poly);
       }
     })();
     return () => { cancelled = true; };
   }, [lines]);
+
+  // Reframe the map whenever the caller's focus set changes (e.g. selecting
+  // a driver zooms to just their stops).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancelled || !mapRef.current || !fitTo || fitTo.length === 0) return;
+      const sig = JSON.stringify(fitTo);
+      if (sig === fitSigRef.current) return;
+      fitSigRef.current = sig;
+      const bounds = L.latLngBounds(fitTo.map((c) => L.latLng(c[0], c[1])));
+      mapRef.current.fitBounds(bounds, { padding: [45, 45], maxZoom: 14, animate: true });
+    })();
+    return () => { cancelled = true; };
+  }, [fitTo]);
 
   // Keep the colored fleet markers in sync with `points`.
   useEffect(() => {
@@ -150,7 +194,9 @@ export function LeafletMap({
       if (cancelled || !mapRef.current) return;
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
-      for (const p of points) {
+      // Dimmed pins first, so focused ones sit above them.
+      const orderedPts = [...points].sort((a, b) => Number(!!b.dimmed) - Number(!!a.dimmed));
+      for (const p of orderedPts) {
         const size = p.badge ? 22 : 18;
         const icon = L.divIcon({
           className: "",
@@ -158,7 +204,7 @@ export function LeafletMap({
           iconSize: [size, size],
           iconAnchor: [size / 2, size / 2],
         });
-        const marker = L.marker([p.lat, p.lng], { icon }).addTo(mapRef.current!);
+        const marker = L.marker([p.lat, p.lng], { icon, opacity: p.dimmed ? 0.35 : 1, zIndexOffset: p.dimmed ? 0 : 500 }).addTo(mapRef.current!);
         marker.bindTooltip(p.label);
         marker.on("click", () => onClickRef.current?.(p.id));
         markersRef.current.push(marker);

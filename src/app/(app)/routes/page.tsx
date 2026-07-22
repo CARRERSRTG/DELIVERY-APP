@@ -67,6 +67,7 @@ export default function RoutesPage() {
   // dashed trace + totals until it's either confirmed (saved) or dismissed.
   const [preview, setPreview] = useState<{ orderId: string; orderNo: number; driver: string; plan: RoutePlan } | null>(null);
   const [previewBusy, setPreviewBusy] = useState<string | null>(null);
+  const [optimizingAll, setOptimizingAll] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // Which panels are collapsed — the unassigned pool ("__unassigned__") and
   // each driver (by name), so a busy board can be folded down to just the
@@ -286,6 +287,28 @@ export default function RoutesPage() {
     }
   };
 
+  // Solve every driver's route in one go so the whole board lights up at
+  // once. Sequential + gently throttled — the free OSRM server asks for no
+  // more than ~1 request/second.
+  const optimizeAll = async () => {
+    const withStops = drivers.filter((u) => (byDriver.get(u.full_name) ?? []).length > 0);
+    if (!withStops.length) return;
+    setOptimizingAll(true);
+    setPreview(null);
+    setErr(null);
+    for (const u of withStops) {
+      setBusyDriver(u.full_name);
+      try {
+        await applyPlan(u.full_name, await computeRoute(u.full_name, byDriver.get(u.full_name) ?? []));
+      } catch (e) {
+        setErr((e as Error).message);
+      }
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    setBusyDriver(null);
+    setOptimizingAll(false);
+  };
+
   /** Simulate adding an unassigned order to the selected driver's day —
    * shows the would-be route (dashed) and totals without saving anything. */
   const previewAdd = async (d: Delivery, driver: string) => {
@@ -329,27 +352,26 @@ export default function RoutesPage() {
     ]);
   };
 
-  // Only the selected driver's world (plus the unassigned pool, which is
-  // what they might still take on) — or everything when viewing "All".
-  const visibleOrders = useMemo(
-    () => (selectedDriver === "all" ? dayOrders : dayOrders.filter((d) => !d.assigned_driver || d.assigned_driver === selectedDriver)),
-    [dayOrders, selectedDriver],
-  );
+  const focused = selectedDriver !== "all";
+  const isDim = (driver: string | null) => focused && driver !== selectedDriver;
 
-  // Resolve the selected driver's pickup point up front, so the map can show
-  // it as the loop's start/end pin even before a route's been optimized.
+  // Resolve every driver's pickup point up front, so the map can show each
+  // as its loop's start/end pin even before a route's been optimized.
   useEffect(() => {
-    if (selectedDriver === "all") return;
-    getDepotCoords(pickupAddressFor(selectedDriver));
+    for (const u of drivers) {
+      if ((byDriver.get(u.full_name) ?? []).length) getDepotCoords(pickupAddressFor(u.full_name));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDriver, byDriver, settings.stores]);
+  }, [byDriver, settings.stores]);
 
+  // The whole day is always on the map — a driver focus dims the rest rather
+  // than hiding it, so the full picture stays visible.
   const points: MapPoint[] = useMemo(() => {
     const pts: MapPoint[] = [];
-    for (const d of visibleOrders) {
+    for (const d of dayOrders) {
       if (d.delivery_lat == null || d.delivery_lng == null) continue;
       if (!d.assigned_driver) {
-        pts.push({ id: d.id, lat: d.delivery_lat, lng: d.delivery_lng, color: UNASSIGNED_COLOR, label: `#${d.order_no} — ${t("Unassigned", "Sin asignar")}` });
+        pts.push({ id: d.id, lat: d.delivery_lat, lng: d.delivery_lng, color: UNASSIGNED_COLOR, label: `#${d.order_no} — ${t("Unassigned", "Sin asignar")}`, dimmed: focused });
         continue;
       }
       const list = byDriver.get(d.assigned_driver) ?? [];
@@ -362,34 +384,35 @@ export default function RoutesPage() {
         color: colorFor(d.assigned_driver),
         badge,
         label: `#${d.order_no} — ${d.assigned_driver}${badge ? ` (${t("Stop", "Parada")} ${badge})` : ""}`,
+        dimmed: isDim(d.assigned_driver),
       });
     }
-    // Pickup / base pin for the selected driver — where the loop starts and
-    // ends (marked "P").
-    if (selectedDriver !== "all") {
-      const addr = (pickupAddressFor(selectedDriver) ?? "").trim();
+    // Pickup / base pin ("P") for each driver that has one resolved.
+    for (const u of drivers) {
+      if (!(byDriver.get(u.full_name) ?? []).length) continue;
+      const addr = (pickupAddressFor(u.full_name) ?? "").trim();
       const coords = addr ? depotCoords[addr] : undefined;
-      if (coords) {
-        pts.push({
-          id: "__depot__",
-          lat: coords[0],
-          lng: coords[1],
-          color: colorFor(selectedDriver),
-          badge: "P",
-          label: `${t("Pickup / base", "Recolección / base")} — ${addr}`,
-        });
-      }
+      if (!coords) continue;
+      pts.push({
+        id: `__depot__${u.id}`,
+        lat: coords[0],
+        lng: coords[1],
+        color: colorFor(u.full_name),
+        badge: "P",
+        label: `${t("Pickup / base", "Recolección / base")} (${u.full_name}) — ${addr}`,
+        dimmed: isDim(u.full_name),
+      });
     }
     return pts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleOrders, byDriver, settings.driver_colors, selectedDriver, depotCoords]);
+  }, [dayOrders, byDriver, settings.driver_colors, selectedDriver, depotCoords, drivers]);
 
+  // Every optimized driver's routes are always drawn; a focus just dims the
+  // others. Clicking a route focuses its driver (see onLineClick below).
   const lines: MapLine[] = useMemo(() => {
-    const out: MapLine[] = Object.entries(routeLines)
-      .filter(([driver]) => selectedDriver === "all" || driver === selectedDriver)
-      .flatMap(([driver, trips]) =>
-        trips.map((positions, i) => ({ id: `${driver}#${i}`, color: colorFor(driver), positions })),
-      );
+    const out: MapLine[] = Object.entries(routeLines).flatMap(([driver, trips]) =>
+      trips.map((positions, i) => ({ id: `line:${driver}#${i}`, color: colorFor(driver), positions, dimmed: isDim(driver) })),
+    );
     if (preview) {
       out.push(...preview.plan.traces.map((positions, i) => ({
         id: `preview#${i}`, color: colorFor(preview.driver), positions, dashed: true,
@@ -398,6 +421,20 @@ export default function RoutesPage() {
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeLines, selectedDriver, preview, settings.driver_colors]);
+
+  const onLineClick = (id: string) => {
+    if (id.startsWith("line:")) setSelectedDriver(id.slice(5).split("#")[0]);
+  };
+
+  // What the map frames: the focused driver's stops + pickup when one's
+  // selected, otherwise the whole day.
+  const fitTo: [number, number][] = useMemo(() => {
+    const src = focused
+      ? points.filter((p) => (byDriver.get(selectedDriver) ?? []).some((d) => d.id === p.id) || p.id === `__depot__${users.find((u) => u.full_name === selectedDriver)?.id}`)
+      : points;
+    return src.map((p) => [p.lat, p.lng]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [points, selectedDriver]);
 
   if (!me) return null;
   if (!canPlanRoutes(me)) {
@@ -421,6 +458,13 @@ export default function RoutesPage() {
           {date !== todayISO() && (
             <button className="btn btn-ghost btn-sm" onClick={() => setDate(todayISO())}>{t("Today", "Hoy")}</button>
           )}
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={optimizingAll || busyDriver != null || drivers.every((u) => (byDriver.get(u.full_name) ?? []).length === 0)}
+            onClick={optimizeAll}
+          >
+            {optimizingAll ? `… ${t("Optimizing", "Optimizando")} ${busyDriver ?? ""}` : `🧭 ${t("Optimize all routes", "Optimizar todas las rutas")}`}
+          </button>
           {geocoding > 0 && <span className="hint">{t("Locating addresses…", "Ubicando direcciones…")}</span>}
         </div>
       </div>
@@ -454,12 +498,12 @@ export default function RoutesPage() {
       {err && <div className="hint" style={{ color: "var(--red)", marginBottom: 8 }}>⚠ {err}</div>}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <LeafletMap points={points} lines={lines} height={360} />
+        <LeafletMap points={points} lines={lines} onLineClick={onLineClick} fitTo={fitTo} height={420} />
       </div>
       <div className="hint" style={{ marginTop: 8, marginBottom: 14 }}>
         {t(
-          "Each route loops from the pickup point (P) out to the stops and back to reload. Numbered pins are the optimized order, traced along real roads. Gray pins still need a driver; a dashed line is an unsaved simulation.",
-          "Cada ruta hace un ciclo desde el punto de recolección (P) hacia las paradas y regresa para recargar. Los pines numerados son el orden optimizado, trazado sobre calles reales. Los pines grises aún necesitan chofer; una línea punteada es una simulación sin guardar.",
+          "All drivers' routes are on the map at once — click a route (or a driver chip) to highlight it and dim the rest; the map zooms to that driver. Each route loops from the pickup point (P) out to the stops and back to reload. A dashed line is an unsaved simulation.",
+          "Todas las rutas de los choferes están en el mapa a la vez — haz clic en una ruta (o en un chip de chofer) para resaltarla y atenuar el resto; el mapa hace zoom a ese chofer. Cada ruta hace un ciclo desde el punto de recolección (P) a las paradas y regresa para recargar. Una línea punteada es una simulación sin guardar.",
         )}
       </div>
 
