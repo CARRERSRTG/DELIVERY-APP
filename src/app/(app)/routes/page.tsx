@@ -6,7 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { canPlanRoutes, stageInfo, stageLabel } from "@/lib/constants";
 import { parseWindow } from "@/lib/dispatch";
 import { LeafletMap, type MapPoint } from "@/components/LeafletMap";
-import { fallbackDriverColor, fmtDate, shiftDateISO, todayISO } from "@/lib/utils";
+import { fallbackDriverColor, fmtDate, isOverdue, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery } from "@/lib/types";
 
@@ -35,10 +35,23 @@ export default function RoutesPage() {
   // A newly-viewed date invalidates any optimize summary from before.
   useEffect(() => { setRouteInfo({}); setErr(null); }, [date]);
 
+  // Viewing today also carries forward anything overdue that never went out —
+  // logistics needs to see it to actually dispatch it, not just what's newly
+  // due today. Browsing another date (planning ahead) shows only that date.
+  const viewingToday = date === todayISO();
   const dayOrders = useMemo(
-    () => deliveries.filter((d) => d.delivery_date === date && ROUTE_STAGES.includes(d.stage)),
-    [deliveries, date],
+    () =>
+      deliveries.filter((d) => {
+        if (!ROUTE_STAGES.includes(d.stage)) return false;
+        if (d.delivery_date === date) return true;
+        return viewingToday && isOverdue(d);
+      }),
+    [deliveries, date, viewingToday],
   );
+
+  // The one thing logistics can change on a carried-forward order: push its
+  // delivery date up to today, or leave it — either way it's on this list.
+  const reschedule = (id: string, delivery_date: string) => updateDelivery(id, { delivery_date });
 
   const geocoding = useAutoGeocode(dayOrders, updateDelivery);
 
@@ -160,6 +173,15 @@ export default function RoutesPage() {
         </div>
       </div>
 
+      {viewingToday && (
+        <div className="hint" style={{ marginBottom: 8 }}>
+          {t(
+            "Today's list also carries forward any earlier order that's still not delivered — reschedule it (or leave its date as-is) and dispatch it today.",
+            "La lista de hoy también arrastra cualquier orden anterior que aún no se ha entregado — reprograme su fecha (o déjela igual) y despáchela hoy.",
+          )}
+        </div>
+      )}
+
       {err && <div className="hint" style={{ color: "var(--red)", marginBottom: 8 }}>⚠ {err}</div>}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -184,6 +206,7 @@ export default function RoutesPage() {
                   <th>{t("ID", "ID")}</th>
                   <th>{t("Account", "Cuenta")}</th>
                   <th>{t("Store", "Tienda")}</th>
+                  <th>{t("Delivery Date", "Fecha de Entrega")}</th>
                   <th>{t("Windows", "Ventanas")}</th>
                   <th>{t("Status", "Estado")}</th>
                   <th>{t("Assign to", "Asignar a")}</th>
@@ -197,6 +220,7 @@ export default function RoutesPage() {
                       <td className="ordno">#{d.order_no}</td>
                       <td>{d.account || "—"}</td>
                       <td>{d.store || "—"}</td>
+                      <td><DateCell d={d} date={date} onChange={reschedule} t={t} /></td>
                       <td>{d.delivery_windows || "—"}</td>
                       <td><span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span></td>
                       <td>
@@ -253,6 +277,7 @@ export default function RoutesPage() {
                     <th>{t("ID", "ID")}</th>
                     <th>{t("Account", "Cuenta")}</th>
                     <th>{t("Address", "Dirección")}</th>
+                    <th>{t("Delivery Date", "Fecha de Entrega")}</th>
                     <th>{t("Windows", "Ventanas")}</th>
                     <th></th>
                   </tr>
@@ -264,6 +289,7 @@ export default function RoutesPage() {
                       <td className="ordno">#{d.order_no}</td>
                       <td>{d.account || "—"}</td>
                       <td>{d.delivery_address || "—"}</td>
+                      <td><DateCell d={d} date={date} onChange={reschedule} t={t} /></td>
                       <td>{d.delivery_windows || "—"}</td>
                       <td style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                         {sequenced && (
@@ -285,5 +311,31 @@ export default function RoutesPage() {
 
       {!ready && <div className="empty">{t("Loading…", "Cargando…")}</div>}
     </>
+  );
+}
+
+/** Delivery date cell: plain text for an order due on the day being viewed;
+ * an editable date input (with a "Late" flag) for one carried forward from
+ * a past date that was never delivered — the one field logistics can change
+ * here, and only here. Leaving it alone still dispatches it today. */
+function DateCell({
+  d, date, onChange, t,
+}: {
+  d: Delivery;
+  date: string;
+  onChange: (id: string, delivery_date: string) => void;
+  t: (en: string, es: string) => string;
+}) {
+  if (d.delivery_date === date) return <>{fmtDate(d.delivery_date)}</>;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <span className="sema" style={{ background: "var(--red)", color: "#fff" }}>{t("Late", "Atrasada")}</span>
+      <input
+        type="date"
+        value={d.delivery_date ?? ""}
+        onChange={(e) => e.target.value && onChange(d.id, e.target.value)}
+        style={{ width: "auto" }}
+      />
+    </div>
   );
 }
