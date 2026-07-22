@@ -197,13 +197,22 @@ export function LeafletMap({
       // Dimmed pins first, so focused ones sit above them.
       const orderedPts = [...points].sort((a, b) => Number(!!b.dimmed) - Number(!!a.dimmed));
       for (const p of orderedPts) {
-        const size = p.badge ? 22 : 18;
-        const icon = L.divIcon({
-          className: "",
-          html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${p.color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;font-family:sans-serif">${p.badge ?? ""}</div>`,
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size / 2],
-        });
+        // A badge (a stop number, or "P" for a pickup/base) → a proper
+        // teardrop map pin with the label inside. No badge → a plain dot
+        // (unassigned orders, and every other map in the app).
+        const icon = p.badge
+          ? L.divIcon({
+              className: "",
+              html: `<div style="width:30px;height:30px"><div style="width:26px;height:26px;transform:rotate(-45deg);background:${p.color};border:2px solid #fff;border-radius:50% 50% 50% 0;box-shadow:0 2px 5px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center"><span style="transform:rotate(45deg);color:#fff;font-weight:800;font-size:12px;font-family:sans-serif;line-height:1">${p.badge}</span></div></div>`,
+              iconSize: [30, 30],
+              iconAnchor: [13, 28],
+            })
+          : L.divIcon({
+              className: "",
+              html: `<div style="width:16px;height:16px;border-radius:50%;background:${p.color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>`,
+              iconSize: [16, 16],
+              iconAnchor: [8, 8],
+            });
         const marker = L.marker([p.lat, p.lng], { icon, opacity: p.dimmed ? 0.35 : 1, zIndexOffset: p.dimmed ? 0 : 500 }).addTo(mapRef.current!);
         marker.bindTooltip(p.label);
         marker.on("click", () => onClickRef.current?.(p.id));

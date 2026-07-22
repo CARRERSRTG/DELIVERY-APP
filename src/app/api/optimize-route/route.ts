@@ -69,6 +69,9 @@ export async function POST(req: Request) {
       // Raw seconds too — the caller sums these across multiple capacity-
       // limited trips, which a formatted string can't be added up from.
       duration_seconds: trip.duration,
+      // Per-leg drive seconds, in trip order (leg k = drive from waypoint k to
+      // k+1). The caller walks these to compute a stop-by-stop arrival ETA.
+      legs: ((trip.legs ?? []) as { duration: number }[]).map((l) => l.duration),
       // The actual road-following path, as [lng, lat] pairs — traced on the
       // Routes map so a driver's line matches real streets, not straight
       // lines between stops.

@@ -37,12 +37,50 @@ const ROUTE_STAGES: Delivery["stage"][] = ["approved", "fulfilling", "ready"];
 // Used whenever a driver has no capacity set yet in Settings.
 const DEFAULT_CAPACITY = 12;
 
+// The day's routes are timed from this clock, with a reload buffer added at
+// the pickup between truckloads. Service (unload) time per stop comes from
+// the order's own delivery_duration.
+const DAY_START_MIN = 8 * 60; // 08:00
+const RELOAD_MIN = 20;
+
 function fmtMinutes(min: number): string {
   const m = Math.round(min);
   if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);
   const rem = m % 60;
   return rem ? `${h} h ${rem} min` : `${h} h`;
+}
+
+function fmtClock(min: number): string {
+  const total = Math.round(min);
+  const h = Math.floor(total / 60) % 24;
+  const mm = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+function serviceMin(d: Delivery): number {
+  const m = String(d.delivery_duration ?? "").match(/\d+/);
+  return m ? parseInt(m[0], 10) : 15;
+}
+
+/** Mix a hex color toward white (amt>0) or black (amt<0), |amt| in 0..1. */
+function shade(hex: string, amt: number): string {
+  const c = hex.replace("#", "");
+  if (c.length !== 6) return hex;
+  const r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), b = parseInt(c.slice(4, 6), 16);
+  const target = amt > 0 ? 255 : 0;
+  const p = Math.min(1, Math.abs(amt));
+  const mix = (x: number) => Math.round(x + (target - x) * p);
+  const hx = (x: number) => mix(x).toString(16).padStart(2, "0");
+  return `#${hx(r)}${hx(g)}${hx(b)}`;
+}
+
+/** A distinct shade of the driver's base color per truckload, so each
+ * out-and-back-to-pickup loop reads as its own color on the map and table. */
+function tripColor(base: string, index: number, count: number): string {
+  if (count <= 1) return base;
+  const amt = -0.28 + (0.6 * index) / (count - 1); // darkest → lightest
+  return shade(base, amt);
 }
 
 /** A fully-solved (but not yet saved) plan for one driver's day. */
@@ -52,16 +90,23 @@ interface RoutePlan {
   seconds: number;
   traces: [number, number][][];
   trips: number;
+  /** Estimated arrival time per stop id, "HH:MM". */
+  etas: Record<string, string>;
 }
 
 export default function RoutesPage() {
   const { me, users, deliveries, settings, saveSettings, updateDelivery, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
-  const [selectedDriver, setSelectedDriver] = useState<string>("all");
+  // Which drivers are highlighted on the map / focused in the tables. Empty
+  // set = "no drivers selected" → everything shown at full strength (like
+  // OptimoRoute). Selecting some highlights them and dims the rest.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [tab, setTab] = useState<"routes" | "orders">("routes");
   const [busyDriver, setBusyDriver] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number }>>({});
   const [routeLines, setRouteLines] = useState<Record<string, [number, number][][]>>({});
+  const [routeEtas, setRouteEtas] = useState<Record<string, Record<string, string>>>({});
   const [depotCoords, setDepotCoords] = useState<Record<string, [number, number]>>({});
   // A simulated "what if we add this order to this driver" plan, shown as a
   // dashed trace + totals until it's either confirmed (saved) or dismissed.
@@ -82,9 +127,17 @@ export default function RoutesPage() {
     });
 
   // A newly-viewed date invalidates any optimize summary/trace from before.
-  useEffect(() => { setRouteInfo({}); setRouteLines({}); setPreview(null); setErr(null); }, [date]);
-  // Switching drivers drops any half-finished simulation.
-  useEffect(() => { setPreview(null); }, [selectedDriver]);
+  useEffect(() => { setRouteInfo({}); setRouteLines({}); setRouteEtas({}); setPreview(null); setErr(null); }, [date]);
+  // Changing the driver selection drops any half-finished simulation.
+  useEffect(() => { setPreview(null); }, [selected]);
+
+  const focusOnly = (name: string) => setSelected(new Set([name]));
+  const toggleDriver = (name: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
 
   // Viewing today also carries forward anything overdue that never went out —
   // logistics needs to see it to actually dispatch it, not just what's newly
@@ -193,6 +246,7 @@ export default function RoutesPage() {
   const clearRouteFor = (driver: string) => {
     setRouteInfo((p) => { const { [driver]: _drop, ...rest } = p; return rest; });
     setRouteLines((p) => { const { [driver]: _drop, ...rest } = p; return rest; });
+    setRouteEtas((p) => { const { [driver]: _drop, ...rest } = p; return rest; });
     setPreview(null);
   };
   const assignTo = (id: string, driver: string) => {
@@ -232,11 +286,14 @@ export default function RoutesPage() {
     const depot = await getDepotCoords(pickupAddr);
     // No pickup we can geocode — fall back to one open (one-way) route.
     const batches = depot ? splitIntoTrips(sorted, capacityFor(driver)) : [sorted];
+    const byId = new Map(sorted.map((d) => [d.id, d]));
 
     let miles = 0;
     let seconds = 0;
     const orderedIds: string[] = [];
     const traces: [number, number][][] = [];
+    const etas: Record<string, string> = {};
+    let clock = DAY_START_MIN; // arrival clock, continuous across truckloads
 
     for (const batch of batches) {
       if (!batch.length) continue;
@@ -256,13 +313,29 @@ export default function RoutesPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Route optimization failed");
-      orderedIds.push(...(data.order as string[]).filter((id) => id !== "__depot__"));
+      const stopIds = (data.order as string[]).filter((id) => id !== "__depot__");
+      const legs = (data.legs ?? []) as number[];
+      orderedIds.push(...stopIds);
       miles += data.miles;
       seconds += data.duration_seconds;
       traces.push((data.geometry as [number, number][]).map(([lng, lat]) => [lat, lng]));
+
+      // Walk the legs into per-stop arrival clocks. With a depot the trip is
+      // [depot, s1, …, sN] so leg k drives INTO stop k; without one the first
+      // stop is the start (no lead-in drive).
+      for (let j = 0; j < stopIds.length; j++) {
+        if (depot || j > 0) clock += (legs[depot ? j : j - 1] ?? 0) / 60;
+        etas[stopIds[j]] = fmtClock(clock);
+        const stop = byId.get(stopIds[j]);
+        if (stop) clock += serviceMin(stop);
+      }
+      if (depot) {
+        clock += (legs[stopIds.length] ?? 0) / 60; // drive back to pickup
+        clock += RELOAD_MIN;                        // reload for the next load
+      }
     }
 
-    return { orderedIds, miles: Math.round(miles * 10) / 10, seconds, traces, trips: batches.length };
+    return { orderedIds, miles: Math.round(miles * 10) / 10, seconds, traces, trips: batches.length, etas };
   };
 
   /** Save a solved plan as the driver's actual route. */
@@ -270,6 +343,7 @@ export default function RoutesPage() {
     await Promise.all(plan.orderedIds.map((id, i) => updateDelivery(id, { route_seq: i })));
     setRouteInfo((p) => ({ ...p, [driver]: { miles: plan.miles, duration_text: fmtMinutes(plan.seconds / 60), trips: plan.trips } }));
     setRouteLines((p) => ({ ...p, [driver]: plan.traces }));
+    setRouteEtas((p) => ({ ...p, [driver]: plan.etas }));
   };
 
   const optimize = async (driver: string) => {
@@ -352,8 +426,8 @@ export default function RoutesPage() {
     ]);
   };
 
-  const focused = selectedDriver !== "all";
-  const isDim = (driver: string | null) => focused && driver !== selectedDriver;
+  const focused = selected.size > 0;
+  const isDim = (driver: string | null) => focused && !!driver && !selected.has(driver);
 
   // Resolve every driver's pickup point up front, so the map can show each
   // as its loop's start/end pin even before a route's been optimized.
@@ -363,6 +437,17 @@ export default function RoutesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byDriver, settings.stores]);
+
+  // Selecting a driver auto-draws their route: if they have stops but no
+  // computed route yet, optimize it so the traced line + times appear right
+  // away. One at a time (re-runs as each finishes), gentle on the router.
+  useEffect(() => {
+    if (busyDriver != null || optimizingAll) return;
+    for (const name of selected) {
+      if ((byDriver.get(name)?.length ?? 0) >= 1 && !routeInfo[name]) { optimize(name); return; }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, routeInfo, busyDriver, optimizingAll]);
 
   // The whole day is always on the map — a driver focus dims the rest rather
   // than hiding it, so the full picture stays visible.
@@ -405,13 +490,13 @@ export default function RoutesPage() {
     }
     return pts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayOrders, byDriver, settings.driver_colors, selectedDriver, depotCoords, drivers]);
+  }, [dayOrders, byDriver, settings.driver_colors, selected, depotCoords, drivers]);
 
   // Every optimized driver's routes are always drawn; a focus just dims the
   // others. Clicking a route focuses its driver (see onLineClick below).
   const lines: MapLine[] = useMemo(() => {
     const out: MapLine[] = Object.entries(routeLines).flatMap(([driver, trips]) =>
-      trips.map((positions, i) => ({ id: `line:${driver}#${i}`, color: colorFor(driver), positions, dimmed: isDim(driver) })),
+      trips.map((positions, i) => ({ id: `line:${driver}#${i}`, color: tripColor(colorFor(driver), i, trips.length), positions, dimmed: isDim(driver) })),
     );
     if (preview) {
       out.push(...preview.plan.traces.map((positions, i) => ({
@@ -420,30 +505,36 @@ export default function RoutesPage() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeLines, selectedDriver, preview, settings.driver_colors]);
+  }, [routeLines, selected, preview, settings.driver_colors]);
 
   const onLineClick = (id: string) => {
-    if (id.startsWith("line:")) setSelectedDriver(id.slice(5).split("#")[0]);
+    if (id.startsWith("line:")) focusOnly(id.slice(5).split("#")[0]);
   };
 
-  // What the map frames: the focused driver's stops + pickup when one's
-  // selected, otherwise the whole day.
+  // What the map frames: the selected drivers' stops + pickups when any are
+  // focused, otherwise the whole day.
   const fitTo: [number, number][] = useMemo(() => {
-    const src = focused
-      ? points.filter((p) => (byDriver.get(selectedDriver) ?? []).some((d) => d.id === p.id) || p.id === `__depot__${users.find((u) => u.full_name === selectedDriver)?.id}`)
-      : points;
-    return src.map((p) => [p.lat, p.lng]);
+    if (!focused) return points.map((p) => [p.lat, p.lng] as [number, number]);
+    const ids = new Set<string>();
+    for (const name of selected) {
+      for (const d of byDriver.get(name) ?? []) ids.add(d.id);
+      const prof = users.find((u) => u.full_name === name);
+      if (prof) ids.add(`__depot__${prof.id}`);
+    }
+    return points.filter((p) => ids.has(p.id)).map((p) => [p.lat, p.lng] as [number, number]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, selectedDriver]);
+  }, [points, selected]);
 
   if (!me) return null;
   if (!canPlanRoutes(me)) {
     return <div className="empty">{t("You don’t have access to route planning.", "No tienes acceso a la planificación de rutas.")}</div>;
   }
 
-  const shownDrivers = selectedDriver === "all"
-    ? drivers.filter((u) => (byDriver.get(u.full_name) ?? []).length > 0)
-    : drivers.filter((u) => u.full_name === selectedDriver);
+  const withStops = drivers.filter((u) => (byDriver.get(u.full_name) ?? []).length > 0);
+  const shownDrivers = focused ? drivers.filter((u) => selected.has(u.full_name)) : withStops;
+  // Simulating an add targets a driver, so it needs exactly one selected.
+  const singleSel = selected.size === 1 ? [...selected][0] : null;
+  const scheduledCount = dayOrders.length - unassigned.length;
 
   return (
     <>
@@ -469,20 +560,18 @@ export default function RoutesPage() {
         </div>
       </div>
 
-      {/* ---------- Driver switcher ---------- */}
-      <div className="filters">
-        <button className={"chip " + (selectedDriver === "all" ? "on" : "")} onClick={() => setSelectedDriver("all")}>
-          {t("All drivers", "Todos los choferes")} <span className="cnt">{dayOrders.length - unassigned.length}</span>
-        </button>
-        {drivers.map((u) => (
-          <button
-            key={u.id}
-            className={"chip " + (selectedDriver === u.full_name ? "on" : "")}
-            onClick={() => setSelectedDriver(u.full_name)}
-          >
-            <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: colorFor(u.full_name), marginRight: 5, verticalAlign: "baseline" }} />
-            {u.full_name} <span className="cnt">{(byDriver.get(u.full_name) ?? []).length}</span>
-          </button>
+      {/* ---------- Stats strip ---------- */}
+      <div className="card" style={{ display: "flex", padding: 0, overflow: "hidden", marginBottom: 14 }}>
+        {[
+          { n: scheduledCount, label: t("Scheduled", "Programadas") },
+          { n: unassigned.length, label: t("Unscheduled", "Sin programar"), accent: true },
+          { n: dayOrders.length, label: t("Total", "Total") },
+          { n: withStops.length, label: t("Routes", "Rutas") },
+        ].map((s, i) => (
+          <div key={i} style={{ flex: 1, textAlign: "center", padding: "12px 8px", borderLeft: i ? "1px solid var(--line)" : undefined }}>
+            <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 22, fontWeight: 800, color: s.accent && s.n > 0 ? "var(--amber)" : "var(--text)" }}>{s.n}</div>
+            <div className="hint" style={{ marginTop: 0 }}>{s.label}</div>
+          </div>
         ))}
       </div>
 
@@ -497,13 +586,51 @@ export default function RoutesPage() {
 
       {err && <div className="hint" style={{ color: "var(--red)", marginBottom: 8 }}>⚠ {err}</div>}
 
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <LeafletMap points={points} lines={lines} onLineClick={onLineClick} fitTo={fitTo} height={420} />
+      {/* ---------- Driver panel + map ---------- */}
+      <div style={{ display: "flex", gap: 14, alignItems: "stretch", flexWrap: "wrap", marginBottom: 8 }}>
+        <div className="card" style={{ flex: "1 1 250px", maxWidth: 340, margin: 0, padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid var(--line)" }}>
+            <b style={{ flex: 1 }}>🚚 {t("Drivers", "Choferes")}</b>
+            {focused && <button className="notif-clear" onClick={() => setSelected(new Set())}>{t("Show all", "Mostrar todos")}</button>}
+          </div>
+          {drivers.length === 0 ? (
+            <div className="empty">{t("No one has the Driver role yet.", "Nadie tiene el rol de Chofer todavía.")}</div>
+          ) : (
+            <div style={{ maxHeight: 470, overflowY: "auto" }}>
+              {drivers.map((u) => {
+                const stops = byDriver.get(u.full_name) ?? [];
+                const info = routeInfo[u.full_name];
+                const on = selected.has(u.full_name);
+                return (
+                  <div
+                    key={u.id}
+                    onClick={() => focusOnly(u.full_name)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderTop: "1px solid var(--line)", cursor: "pointer", background: on ? "var(--accent-soft)" : undefined }}
+                  >
+                    <input type="checkbox" checked={on} onClick={(e) => e.stopPropagation()} onChange={() => toggleDriver(u.full_name)} style={{ width: 15, height: 15, flex: "0 0 auto" }} />
+                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: colorFor(u.full_name), flex: "0 0 auto", border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)" }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{u.full_name}</div>
+                      <div className="hint" style={{ marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <span>⏱ {info?.duration_text ?? "—"}</span>
+                        <span>📦 {stops.length}</span>
+                        <span>⇥ {info ? `${info.miles} mi` : "—"}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="card" style={{ flex: "3 1 460px", margin: 0, padding: 0, overflow: "hidden" }}>
+          <LeafletMap points={points} lines={lines} onLineClick={onLineClick} fitTo={fitTo} height={520} />
+        </div>
       </div>
-      <div className="hint" style={{ marginTop: 8, marginBottom: 14 }}>
+      <div className="hint" style={{ marginTop: 4, marginBottom: 14 }}>
         {t(
-          "All drivers' routes are on the map at once — click a route (or a driver chip) to highlight it and dim the rest; the map zooms to that driver. Each route loops from the pickup point (P) out to the stops and back to reload. A dashed line is an unsaved simulation.",
-          "Todas las rutas de los choferes están en el mapa a la vez — haz clic en una ruta (o en un chip de chofer) para resaltarla y atenuar el resto; el mapa hace zoom a ese chofer. Cada ruta hace un ciclo desde el punto de recolección (P) a las paradas y regresa para recargar. Una línea punteada es una simulación sin guardar.",
+          "Every route is on the map at once. Click a route or a driver to highlight it (the rest dim and the map zooms in); check drivers to compare several. Each route loops from the pickup point (P) out and back. A dashed line is an unsaved simulation.",
+          "Todas las rutas están en el mapa a la vez. Haz clic en una ruta o un chofer para resaltarla (el resto se atenúa y el mapa hace zoom); marca varios choferes para comparar. Cada ruta hace un ciclo desde el punto de recolección (P) y regresa. Una línea punteada es una simulación sin guardar.",
         )}
       </div>
 
@@ -539,10 +666,14 @@ export default function RoutesPage() {
         </div>
       )}
 
-      {/* ---------- Columns: unassigned pool + per-driver routes ---------- */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 14, alignItems: "start" }}>
+      {/* ---------- Tabs ---------- */}
+      <div className="viewtoggle" style={{ marginBottom: 12 }}>
+        <button className={"vt " + (tab === "routes" ? "on" : "")} onClick={() => setTab("routes")}>🧭 {t("Routes", "Rutas")} ({withStops.length})</button>
+        <button className={"vt " + (tab === "orders" ? "on" : "")} onClick={() => setTab("orders")}>📦 {t("Unassigned", "Sin asignar")} ({unassigned.length})</button>
+      </div>
 
       {/* ---------- Unassigned pool ---------- */}
+      {tab === "orders" && (
       <div className="card" style={{ margin: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => toggleCollapse("__unassigned__")}>
           <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} title={t("Collapse", "Contraer")}>{isCollapsed("__unassigned__") ? "▸" : "▾"}</button>
@@ -550,11 +681,11 @@ export default function RoutesPage() {
           <span className="count-tag">{unassigned.length}</span>
         </div>
         {!isCollapsed("__unassigned__") && <>
-        {selectedDriver !== "all" && unassigned.length > 0 && (
+        {singleSel && unassigned.length > 0 && (
           <p className="hint" style={{ marginTop: 8, marginBottom: 10 }}>
             {t(
-              `Simulate adds a stop to ${selectedDriver}'s day and shows the resulting route before anything is saved.`,
-              `Simular agrega una parada al día de ${selectedDriver} y muestra la ruta resultante antes de guardar nada.`,
+              `Simulate adds a stop to ${singleSel}'s day and shows the resulting route before anything is saved.`,
+              `Simular agrega una parada al día de ${singleSel} y muestra la ruta resultante antes de guardar nada.`,
             )}
           </p>
         )}
@@ -572,7 +703,7 @@ export default function RoutesPage() {
                   <th>{t("Delivery Date", "Fecha de Entrega")}</th>
                   <th>{t("Windows", "Ventanas")}</th>
                   <th>{t("Status", "Estado")}</th>
-                  <th>{selectedDriver === "all" ? t("Assign to", "Asignar a") : ""}</th>
+                  <th>{singleSel ? t("Add to", "Agregar a") : t("Assign to", "Asignar a")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -588,19 +719,19 @@ export default function RoutesPage() {
                       <td>{d.delivery_windows || "—"}</td>
                       <td><span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span></td>
                       <td>
-                        {selectedDriver === "all" ? (
+                        {singleSel ? (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            disabled={previewBusy === d.id || busyDriver != null}
+                            onClick={() => previewAdd(d, singleSel)}
+                          >
+                            {previewBusy === d.id ? "…" : `🔮 ${t("Simulate add", "Simular")}`}
+                          </button>
+                        ) : (
                           <select defaultValue="" onChange={(e) => { if (e.target.value) assignTo(d.id, e.target.value); }} style={{ width: "auto" }}>
                             <option value="">{t("Select driver…", "Seleccione chofer…")}</option>
                             {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                           </select>
-                        ) : (
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            disabled={previewBusy === d.id || busyDriver != null}
-                            onClick={() => previewAdd(d, selectedDriver)}
-                          >
-                            {previewBusy === d.id ? "…" : `🔮 ${t("Simulate add", "Simular")}`}
-                          </button>
                         )}
                       </td>
                     </tr>
@@ -612,8 +743,16 @@ export default function RoutesPage() {
         )}
         </>}
       </div>
+      )}
 
       {/* ---------- Per-driver routes ---------- */}
+      {tab === "routes" && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: 14, alignItems: "start" }}>
+      {shownDrivers.length === 0 && (
+        <div className="card" style={{ margin: 0 }}>
+          <div className="empty">{t("No routes yet — assign orders to drivers in the Unassigned tab, or select drivers on the left.", "Aún sin rutas — asigna órdenes a los choferes en la pestaña Sin asignar, o selecciona choferes a la izquierda.")}</div>
+        </div>
+      )}
       {shownDrivers.map((u) => {
         const stops = byDriver.get(u.full_name) ?? [];
         const sequenced = stops.length > 0 && stops.every((d) => d.route_seq != null);
@@ -686,7 +825,7 @@ export default function RoutesPage() {
                       <th>{t("ID", "ID")}</th>
                       <th>{t("Account", "Cuenta")}</th>
                       <th>{t("Address", "Dirección")}</th>
-                      <th>{t("Delivery Date", "Fecha de Entrega")}</th>
+                      <th>{t("ETA", "Llegada")}</th>
                       <th>{t("Windows", "Ventanas")}</th>
                       <th></th>
                     </tr>
@@ -696,25 +835,25 @@ export default function RoutesPage() {
                       const startIdx = trips.slice(0, ti).reduce((n, b) => n + b.length, 0);
                       const load = batch.reduce((n, d) => n + (d.actual_pallets ?? d.est_pallets ?? 0), 0);
                       const free = Math.max(0, capacity - load);
+                      const tColor = tripColor(colorFor(u.full_name), ti, trips.length);
                       return (
                         <Fragment key={ti}>
-                          {trips.length > 1 && (
-                            <tr>
-                              <td colSpan={7} style={{ background: "var(--card-hover)", fontWeight: 700, fontSize: 12 }}>
-                                🚚 {t("Truckload", "Viaje")} {ti + 1} — {load}/{capacity} {t("pallets", "tarimas")}
-                                {free > 0 && <span style={{ color: "var(--green)", marginLeft: 6 }}>({free} {t("free", "libres")})</span>}
-                              </td>
-                            </tr>
-                          )}
+                          <tr>
+                            <td colSpan={7} style={{ background: "var(--card-hover)", fontWeight: 700, fontSize: 12 }}>
+                              <span style={{ display: "inline-block", width: 11, height: 11, borderRadius: 3, background: tColor, marginRight: 7, verticalAlign: "-1px", boxShadow: "0 0 0 1px var(--line)" }} />
+                              🚚 {t("Truckload", "Viaje")} {ti + 1} — {load}/{capacity} {t("pallets", "tarimas")} · {t("loads at pickup ↺", "carga en recolección ↺")}
+                              {free > 0 && <span style={{ color: "var(--green)", marginLeft: 6 }}>({free} {t("free", "libres")})</span>}
+                            </td>
+                          </tr>
                           {batch.map((d, bi) => {
                             const i = startIdx + bi;
                             return (
                               <tr key={d.id}>
-                                <td>{d.route_seq != null ? i + 1 : "—"}</td>
+                                <td style={{ borderLeft: `4px solid ${tColor}` }}>{d.route_seq != null ? i + 1 : "—"}</td>
                                 <td className="ordno">#{d.order_no}</td>
                                 <td>{d.account || "—"}</td>
                                 <td>{d.delivery_address || "—"}</td>
-                                <td><DateCell d={d} date={date} onChange={reschedule} t={t} /></td>
+                                <td style={{ fontWeight: 600 }}>{routeEtas[u.full_name]?.[d.id] ?? "—"}</td>
                                 <td>{d.delivery_windows || "—"}</td>
                                 <td style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                                   {sequenced && (
@@ -740,6 +879,7 @@ export default function RoutesPage() {
         );
       })}
       </div>
+      )}
 
       {!ready && <div className="empty">{t("Loading…", "Cargando…")}</div>}
     </>
