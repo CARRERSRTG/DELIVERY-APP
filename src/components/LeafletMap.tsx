@@ -29,6 +29,9 @@ export interface MapLine {
   color: string;
   /** [lat, lng] pairs, in driving order, following actual roads. */
   positions: [number, number][];
+  /** Dashed rendering — used for simulated/preview routes that aren't
+   * committed yet, so they read as tentative next to the solid ones. */
+  dashed?: boolean;
 }
 
 export function LeafletMap({
@@ -132,7 +135,7 @@ export function LeafletMap({
       linesRef.current = [];
       for (const line of lines) {
         if (line.positions.length < 2) continue;
-        const poly = L.polyline(line.positions, { color: line.color, weight: 4, opacity: 0.7 }).addTo(mapRef.current!);
+        const poly = L.polyline(line.positions, { color: line.color, weight: 4, opacity: 0.7, dashArray: line.dashed ? "6 10" : undefined }).addTo(mapRef.current!);
         linesRef.current.push(poly);
       }
     })();
