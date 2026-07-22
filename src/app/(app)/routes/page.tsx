@@ -500,27 +500,20 @@ export default function RoutesPage() {
   // The whole day is always on the map — a driver focus dims the rest rather
   // than hiding it, so the full picture stays visible.
   const points: MapPoint[] = useMemo(() => {
-    const pts: MapPoint[] = [];
-    for (const d of dayOrders) {
-      if (d.delivery_lat == null || d.delivery_lng == null) continue;
-      if (!d.assigned_driver) {
-        pts.push({ id: d.id, lat: d.delivery_lat, lng: d.delivery_lng, color: UNASSIGNED_COLOR, label: `#${d.order_no} — ${t("Unassigned", "Sin asignar")}`, dimmed: focused });
-        continue;
-      }
-      const list = byDriver.get(d.assigned_driver) ?? [];
-      const idx = list.findIndex((x) => x.id === d.id);
-      const badge = d.route_seq != null ? String(idx + 1) : undefined;
-      pts.push({
-        id: d.id,
-        lat: d.delivery_lat,
-        lng: d.delivery_lng,
-        color: colorFor(d.assigned_driver),
-        badge,
-        label: `#${d.order_no} — ${d.assigned_driver}${badge ? ` (${t("Stop", "Parada")} ${badge})` : ""}`,
-        dimmed: isDim(d.assigned_driver),
+    // Color each assigned stop by its TRUCKLOAD (matching the route line),
+    // so the map groups stops into the same colors as their loop.
+    const stopColor = new Map<string, string>();
+    for (const u of drivers) {
+      const stops = byDriver.get(u.full_name) ?? [];
+      splitIntoTrips(stops, capacityFor(u.full_name)).forEach((batch, ti) => {
+        const c = tripColor(colorFor(u.full_name), ti);
+        for (const d of batch) stopColor.set(d.id, c);
       });
     }
-    // Pickup / base pin ("P") for each driver that has one resolved.
+
+    const pts: MapPoint[] = [];
+    // Pickup / base pins first, so a stop that sits right on the pickup still
+    // draws on top of the "P" instead of being hidden behind it.
     for (const u of drivers) {
       if (!(byDriver.get(u.full_name) ?? []).length) continue;
       const addr = (pickupAddressFor(u.full_name) ?? "").trim();
@@ -536,9 +529,28 @@ export default function RoutesPage() {
         dimmed: isDim(u.full_name),
       });
     }
+    for (const d of dayOrders) {
+      if (d.delivery_lat == null || d.delivery_lng == null) continue;
+      if (!d.assigned_driver) {
+        pts.push({ id: d.id, lat: d.delivery_lat, lng: d.delivery_lng, color: UNASSIGNED_COLOR, label: `#${d.order_no} — ${t("Unassigned", "Sin asignar")}`, dimmed: focused });
+        continue;
+      }
+      const list = byDriver.get(d.assigned_driver) ?? [];
+      const idx = list.findIndex((x) => x.id === d.id);
+      const badge = d.route_seq != null ? String(idx + 1) : undefined;
+      pts.push({
+        id: d.id,
+        lat: d.delivery_lat,
+        lng: d.delivery_lng,
+        color: stopColor.get(d.id) ?? colorFor(d.assigned_driver),
+        badge,
+        label: `#${d.order_no} — ${d.assigned_driver}${badge ? ` (${t("Stop", "Parada")} ${badge})` : ""}`,
+        dimmed: isDim(d.assigned_driver),
+      });
+    }
     return pts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayOrders, byDriver, settings.driver_colors, selected, depotCoords, drivers]);
+  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, depotCoords, drivers]);
 
   // Every optimized driver's routes are always drawn; a focus just dims the
   // others. Clicking a route focuses its driver (see onLineClick below).
@@ -557,9 +569,12 @@ export default function RoutesPage() {
         const color = tripColor(colorFor(driver), i);
         const dimmed = isDim(driver);
         const offset = (idx - center) * spacing;
-        // Delivery run: solid. Empty drive back to the pickup: dashed.
+        // Delivery run: solid. Empty drive back to the pickup: dashed, and
+        // pushed to its own parallel offset so that when it retraces the
+        // outbound road the dashes sit BESIDE the solid line (and stay
+        // visible) instead of landing on top of the same-color run.
         out.push({ id: `line:${driver}#${i}`, color, positions: trace.delivery, dimmed, offset });
-        if (trace.ret.length > 1) out.push({ id: `ret:${driver}#${i}`, color, positions: trace.ret, dimmed, dashed: true, offset });
+        if (trace.ret.length > 1) out.push({ id: `ret:${driver}#${i}`, color, positions: trace.ret, dimmed, dashed: true, offset: offset + 7 });
         idx++;
       });
     }
@@ -567,7 +582,7 @@ export default function RoutesPage() {
       const color = colorFor(preview.driver);
       preview.plan.traces.forEach((trace, i) => {
         out.push({ id: `preview:${i}`, color, positions: trace.delivery, dashed: true });
-        if (trace.ret.length > 1) out.push({ id: `pret:${i}`, color, positions: trace.ret, dashed: true });
+        if (trace.ret.length > 1) out.push({ id: `pret:${i}`, color, positions: trace.ret, dashed: true, offset: 7 });
       });
     }
     return out;
