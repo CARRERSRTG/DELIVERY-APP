@@ -50,7 +50,7 @@ create table if not exists public.settings (
   app_name     text not null default 'RDZ·DELIVERIES',
   -- stores & drivers are lists of {name, address} so the address is map-searchable.
   stores       jsonb not null default '[{"name":"Brownsville","address":""},{"name":"Weslaco","address":""},{"name":"Pharr","address":""},{"name":"McAllen","address":""},{"name":"Mission","address":""},{"name":"Edinburg","address":""}]'::jsonb,
-  order_types  text[] not null default array['Delivery','Pickup','Transfer','Will Call'],
+  order_types  text[] not null default array['Delivery','Transfer','Intratienda'],
   drivers      jsonb not null default '[]'::jsonb,
   -- Minutes added per pallet, used to auto-calculate durations. Admin-editable.
   pickup_min_per_pallet   numeric not null default 4,

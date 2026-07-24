@@ -153,15 +153,15 @@ describe("required-field rules across real orders", () => {
     }
   });
 
-  it("accepts the Intra-Tienda order on its SO # alone", () => {
-    const intra = orders.find((o) => o.order_type === "Intra-Tienda")!;
+  it("accepts the Intratienda order on its SO # alone", () => {
+    const intra = orders.find((o) => o.order_type === "Intratienda")!;
     expect(intra.invoice_num).toBeNull();
     expect(intra.so_num).toBeTruthy();
     expect(missingFields(intra)).toEqual([]);
   });
 
-  it("accepts Customer / Transfer with no customer invoice", () => {
-    for (const t of ["Customer", "Transfer"]) {
+  it("accepts Transfer with no customer invoice", () => {
+    for (const t of ["Transfer"]) {
       const o = orders.find((x) => x.order_type === t)!;
       expect(o.invoice_num).toBeNull();
       expect(missingFields(o), `${t} should not need paperwork`).toEqual([]);

@@ -26,7 +26,7 @@ const DEFAULT_SETTINGS: Settings = {
     { name: "Mission", address: "" },
     { name: "Edinburg", address: "" },
   ],
-  order_types: ["Delivery", "Transfer", "Intra-Tienda", "Customer"],
+  order_types: ["Delivery", "Transfer", "Intratienda"],
   pickup_min_per_pallet: 4,
   delivery_min_per_pallet: 5,
   rc_calls_enabled: false,

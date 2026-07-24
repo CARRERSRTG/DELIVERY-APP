@@ -47,7 +47,7 @@ export function demoSettings(): Settings {
       { name: "Edinburg", address: "2500 W University Dr, Edinburg TX" },
     ],
     // "Pickup" removed; "Will Call" renamed "Customer" (customer picks up themselves).
-    order_types: ["Delivery", "Transfer", "Intra-Tienda", "Customer"],
+    order_types: ["Delivery", "Transfer", "Intratienda"],
     pickup_locations: [
       { name: "Rio Supply Yard", address: "800 S Main St, McAllen TX" },
     ],
@@ -227,7 +227,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
       approved_by: "u-mgr", approved_at: stamp(120),
       delivery_lat: 26.2210, delivery_lng: -98.2280, delivery_pin_source: "geocoded" }),
     // Intra-Tienda transfer — only needs ONE of PO/SO/Invoice.
-    mk(1009, 10, 12.5, { stage: "approved", store: "McAllen", order_type: "Intra-Tienda", account: "Edinburg branch",
+    mk(1009, 10, 12.5, { stage: "approved", store: "McAllen", order_type: "Intratienda", account: "Edinburg branch",
       so_num: "TR-4401", delivery_name: "Edinburg", delivery_address: storeAddr("Edinburg"),
       delivery_windows: "1400-1600", approved_by: "u-mgr", approved_at: stamp(90), assigned_driver: "Diego Driver",
       delivery_lat: 26.3017, delivery_lng: -98.1633, delivery_pin_source: "geocoded" }),
@@ -297,7 +297,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
       delivery_date: iso(-1), approved_by: "u-mgr", approved_at: stamp(2000) }),
 
     // ---- Pickup / Will Call / Transfer — no customer invoice required ----
-    mk(1022, 2, null, { stage: "ready", store: "McAllen", order_type: "Customer", account: "Walk-in Customer",
+    mk(1022, 2, null, { stage: "ready", store: "McAllen", order_type: "Delivery", account: "Walk-in Customer",
       delivery_address: "2400 N 23rd St, McAllen TX", delivery_windows: "1000-1200", delivery_fee: 0,
       approved_by: "u-mgr", approved_at: stamp(800),
       delivery_lat: 26.2034, delivery_lng: -98.2300, delivery_pin_source: "geocoded" }),
