@@ -15,6 +15,7 @@ const complete = {
   delivery_windows: "0900-1100",
   est_pallets: 4,
   invoice_num: "INV-1",
+  delivery_fee: 75,
 };
 const keys = (d: object) => missingFields(d).map((m) => m.key).sort();
 

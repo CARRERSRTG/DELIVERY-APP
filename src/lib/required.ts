@@ -72,9 +72,14 @@ export function missingFields(d: Partial<Delivery>): MissingField[] {
       out.push({ key: "doc_ref", en: "PO #2, SO # or Invoice # (any one)", es: "PO #2, SO # o Factura # (cualquiera)" });
     }
   } else if (!isPickupOrTransfer(type)) {
-    // Regular customer delivery — the customer invoice is required.
+    // Regular customer delivery — the customer invoice is required, and the
+    // delivery fee charged to the customer is mandatory (0 is allowed for a
+    // free delivery; only a blank field counts as missing).
     if (!filled(d.invoice_num)) {
       out.push({ key: "invoice_num", en: "Customer Invoice #", es: "Factura del Cliente #" });
+    }
+    if (d.delivery_fee == null) {
+      out.push({ key: "delivery_fee", en: "Delivery Fee charged ($)", es: "Costo de Entrega cobrado ($)" });
     }
   }
 

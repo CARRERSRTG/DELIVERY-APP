@@ -14,7 +14,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { LeafletMap } from "@/components/LeafletMap";
 import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
-import { isIntraStore as isIntraTienda, missingFields, missingKeys, type MissingField } from "@/lib/required";
+import { isIntraStore as isIntraTienda, isPickupOrTransfer, missingFields, missingKeys, type MissingField } from "@/lib/required";
 import { captureLocation, geoAvailable, mapLink } from "@/lib/geo";
 import type { AccountRecord, Delivery, NamedLocation, Profile, Settings, Stage } from "@/lib/types";
 
@@ -115,7 +115,10 @@ export function OrderModal({
   // A non-sales creator (office, admin, driver) is placing the order on behalf
   // of a sales rep, so it needs to be assigned to one — that's who the order
   // shows up "owned by" everywhere else (own-orders filters, dashboard credit).
-  const needsSalesRep = isNew && (me.role === "manager" || me.role === "admin" || me.role === "driver");
+  // Intratienda and Transfer are store-to-store — no customer, so no sales rep
+  // to credit. Only customer Delivery orders placed on someone's behalf need one.
+  const needsSalesRep = isNew && (me.role === "manager" || me.role === "admin" || me.role === "driver")
+    && !isIntraTienda(d.order_type) && !isPickupOrTransfer(d.order_type);
   const salesReps = useMemo(() => users.filter((u) => u.role === "sales"), [users]);
 
   // ---- Required fields (#31) — see lib/required.ts for the rules ----
@@ -791,7 +794,7 @@ export function OrderModal({
               </div>
             )}
             <div className="grid g2">
-              <Txt label={t("Delivery Fee charged ($)", "Costo de Entrega cobrado ($)")} type="number" val={d.delivery_fee ?? ""} on={(v) => set("delivery_fee", v === "" ? null : Number(v))} disabled={!salesFields} placeholder="0.00" />
+              <Txt label={t("Delivery Fee charged ($)", "Costo de Entrega cobrado ($)")} type="number" val={d.delivery_fee ?? ""} on={(v) => set("delivery_fee", v === "" ? null : Number(v))} disabled={!salesFields} placeholder="0.00" invalid={missingSet.has("delivery_fee")} />
             </div>
 
             <div className="section-label">{t("Schedule", "Programación")}</div>
