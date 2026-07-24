@@ -215,12 +215,12 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     const name = input.full_name.trim() || input.email.split("@")[0];
     if (s.users.some((u) => u.full_name.toLowerCase() === name.toLowerCase())) {
       notify("A user with that name already exists.");
-      return false;
+      return { ok: false };
     }
     const user: Profile = { id: uid(), full_name: name, role: input.role };
     persist({ ...s, users: [...s.users, user] });
     notify(`User "${name}" created`);
-    return true;
+    return { ok: true };
   }, [persist, notify]);
 
   const updateUserRole = useCallback<DataState["updateUserRole"]>(async (userId, role) => {

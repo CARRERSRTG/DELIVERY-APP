@@ -69,7 +69,7 @@ export interface DataState {
   saveSettings: (patch: Partial<Settings>) => Promise<void>;
 
   // user management
-  addUser: (input: { email: string; full_name: string; role: UserRole }) => Promise<boolean>;
+  addUser: (input: { email: string; full_name: string; role: UserRole; password?: string }) => Promise<{ ok: boolean; email?: string; password?: string }>;
   updateUserRole: (userId: string, role: Profile["role"]) => Promise<void>;
   updateUserName: (userId: string, name: string) => Promise<void>;
   /** Assign the store a warehouse worker / driver is scoped to (null = none). */
@@ -331,10 +331,10 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         body: JSON.stringify(input),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) { notify(body.error || "Invite failed"); return false; }
-      notify(`Invite sent to ${input.email}`);
+      if (!res.ok) { notify(body.error || "Could not create user"); return { ok: false }; }
+      notify(`User ${input.email} created`);
       reloadAll();
-      return true;
+      return { ok: true, email: body.email, password: body.password };
     },
     [notify, reloadAll],
   );

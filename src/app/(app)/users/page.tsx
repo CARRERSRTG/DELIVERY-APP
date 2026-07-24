@@ -17,7 +17,9 @@ export default function UsersPage() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<UserRole>("sales");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   // Which user's permissions panel is expanded.
   const [perms, setPerms] = useState<string | null>(null);
 
@@ -26,9 +28,12 @@ export default function UsersPage() {
 
   const submit = async () => {
     setBusy(true);
-    const ok = await addUser({ email, full_name: name, role });
+    const res = await addUser({ email, full_name: name, role, password: password.trim() || undefined });
     setBusy(false);
-    if (ok) { setEmail(""); setName(""); setRole("sales"); }
+    if (res.ok) {
+      if (!LOCAL_MODE && res.email && res.password) setCreated({ email: res.email, password: res.password });
+      setEmail(""); setName(""); setRole("sales"); setPassword("");
+    }
   };
 
   const canSubmit = LOCAL_MODE ? !!name.trim() : !!email.trim();
@@ -38,8 +43,8 @@ export default function UsersPage() {
       <div className="page-head"><h2>{t("Users", "Usuarios")}</h2></div>
 
       <div className="card">
-        <h2>{LOCAL_MODE ? t("Create a user", "Crear un usuario") : t("Invite a user", "Invitar un usuario")}</h2>
-        <div className="grid g3">
+        <h2>{t("Create a user", "Crear un usuario")}</h2>
+        <div className="grid g4">
           <div className="field"><label>{t("Full name", "Nombre completo")}</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" /></div>
           <div className="field"><label>{t("Email", "Correo")}{LOCAL_MODE ? ` (${t("optional", "opcional")})` : ""}</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@company.com" /></div>
           <div className="field">
@@ -48,15 +53,36 @@ export default function UsersPage() {
               {ROLE_ORDER.map((r) => <option key={r} value={r}>{roleLabel(r, lang)}</option>)}
             </select>
           </div>
+          {!LOCAL_MODE && (
+            <div className="field">
+              <label>{t("Password", "Contraseña")}</label>
+              <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("auto-generate if blank", "auto si vacío")} />
+            </div>
+          )}
         </div>
         <button className="btn btn-primary" onClick={submit} disabled={busy || !canSubmit}>
-          {LOCAL_MODE ? t("Create user", "Crear usuario") : t("Send invite", "Enviar invitación")}
+          {t("Create user", "Crear usuario")}
         </button>
         <div className="hint">
           {LOCAL_MODE
             ? t("In local demo mode users are created instantly in this browser. Switch to any of them from the yellow “View as” bar at the top.", "En modo demo local los usuarios se crean al instante en este navegador. Cámbialos desde la barra amarilla “Ver como” arriba.")
-            : t("The user gets an email link to set their password. Requires SUPABASE_SERVICE_ROLE_KEY in the server env.", "El usuario recibe un enlace por correo para crear su contraseña. Requiere SUPABASE_SERVICE_ROLE_KEY en el servidor.")}
+            : t("The account is created active — no email confirmation needed. Give the person their email + password below and they can sign in right away.", "La cuenta se crea activa — sin confirmación por correo. Entrega a la persona su correo + contraseña de abajo y podrá iniciar sesión de inmediato.")}
         </div>
+
+        {created && (
+          <div className="card" style={{ marginTop: 14, marginBottom: 0, background: "var(--accent-soft)", borderColor: "var(--accent)" }}>
+            <b>{t("Account ready — share these credentials", "Cuenta lista — comparte estas credenciales")}</b>
+            <div className="detail-row"><span className="dk">{t("Email", "Correo")}</span><span className="dv">{created.email}</span></div>
+            <div className="detail-row"><span className="dk">{t("Password", "Contraseña")}</span><span className="dv" style={{ fontFamily: "monospace", fontSize: 15 }}>{created.password}</span></div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button className="btn btn-sm btn-ghost" onClick={() => navigator.clipboard?.writeText(`${created.email} / ${created.password}`)}>
+                📋 {t("Copy", "Copiar")}
+              </button>
+              <button className="btn btn-sm" onClick={() => setCreated(null)}>{t("Dismiss", "Cerrar")}</button>
+            </div>
+            <div className="hint">{t("This password is shown only once. The user can change it later.", "Esta contraseña se muestra solo una vez. El usuario puede cambiarla después.")}</div>
+          </div>
+        )}
       </div>
 
       <div className="card">
