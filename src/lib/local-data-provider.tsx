@@ -251,7 +251,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
   }, [persist, notify]);
 
   const value: DataState = useMemo(() => ({
-    ready, me, settings: store.settings, users: store.users, deliveries: store.deliveries, events: store.events,
+    ready, me, realRole: me.role, viewAs: null, setViewAs: () => {}, settings: store.settings, users: store.users, deliveries: store.deliveries, events: store.events,
     notifications: store.notifications.filter((n) => n.user_id === me.id),
     toast, notify, markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,

@@ -37,7 +37,15 @@ const DEFAULT_SETTINGS: Settings = {
 
 export interface DataState {
   ready: boolean;
+  /** The EFFECTIVE user — role is overridden while an admin is "viewing as"
+   * another role (the sandbox preview). Everything role-gated follows this. */
   me: Profile | null;
+  /** The signed-in user's real role, never overridden — use this to decide
+   * whether to show the admin-only "view as" control itself. */
+  realRole: UserRole | null;
+  /** Which role an admin is previewing as, or null when viewing as themselves. */
+  viewAs: UserRole | null;
+  setViewAs: (r: UserRole | null) => void;
   settings: Settings;
   users: Profile[];
   deliveries: Delivery[];
@@ -90,6 +98,27 @@ export function useData(): DataState {
 export function DataProvider({ children, me }: { children: React.ReactNode; me: Profile | null }) {
   const supabase = useMemo(() => createClient(), []);
   const [ready, setReady] = useState(false);
+
+  // ---- Admin "view as" sandbox: preview the app as any role, admin-only. ----
+  const realRole: UserRole | null = me?.role ?? null;
+  const [viewAs, setViewAsState] = useState<UserRole | null>(null);
+  useEffect(() => {
+    if (realRole !== "admin") { setViewAsState(null); return; }
+    try {
+      const raw = localStorage.getItem("rtg_view_as");
+      if (raw && raw !== "admin") setViewAsState(raw as UserRole);
+    } catch { /* ignore */ }
+  }, [realRole]);
+  const setViewAs = useCallback((r: UserRole | null) => {
+    setViewAsState(r);
+    try {
+      if (r) localStorage.setItem("rtg_view_as", r);
+      else localStorage.removeItem("rtg_view_as");
+    } catch { /* ignore */ }
+  }, []);
+  const effectiveMe: Profile | null =
+    me && realRole === "admin" && viewAs ? { ...me, role: viewAs } : me;
+
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [users, setUsers] = useState<Profile[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -392,7 +421,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   );
 
   const value: DataState = {
-    ready, me: me ?? null, settings, users, deliveries, events, notifications, toast, notify,
+    ready, me: effectiveMe, realRole, viewAs, setViewAs, settings, users, deliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,

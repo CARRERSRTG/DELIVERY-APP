@@ -2,19 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TABS, ROLE_INFO, extraCaps, roleLabel } from "@/lib/constants";
+import { TABS, ROLE_INFO, ROLE_ORDER, extraCaps, roleLabel } from "@/lib/constants";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { avatarColor, initials } from "@/lib/utils";
 import { NotificationBell } from "@/components/NotificationBell";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { PendingDeadlineWatcher } from "@/components/PendingDeadlineWatcher";
-import type { Profile } from "@/lib/types";
+import type { Profile, UserRole } from "@/lib/types";
 
-export function TopBar({ me }: { me: Profile }) {
+export function TopBar({ me: propMe }: { me: Profile }) {
   const pathname = usePathname();
-  const { settings } = useData();
+  const { settings, me: ctxMe, realRole, viewAs, setViewAs } = useData();
   const { lang, t } = usePrefs();
+  // `me` is the EFFECTIVE user — its role follows the admin "view as" preview.
+  const me = ctxMe ?? propMe;
   const role = ROLE_INFO[me.role];
 
   return (
@@ -46,6 +48,30 @@ export function TopBar({ me }: { me: Profile }) {
           })}
         </div>
         <NotificationBell />
+        {/* Admin sandbox: discreetly preview the app as any role. Only the real
+            admin ever sees this, and it never changes their account/role in the DB. */}
+        {realRole === "admin" && (
+          <label
+            title={t("Preview the app as another role (admin only)", "Previsualiza la app como otro rol (solo admin)")}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12,
+              background: viewAs ? "rgba(233,161,59,.25)" : "rgba(255,255,255,.1)",
+              padding: "5px 9px", borderRadius: 8 }}
+          >
+            <span aria-hidden>👁</span>
+            <select
+              value={viewAs ?? "admin"}
+              onChange={(e) => setViewAs(e.target.value === "admin" ? null : (e.target.value as UserRole))}
+              style={{ width: "auto", background: "transparent", color: "#fff", border: "none",
+                padding: 0, fontSize: 12, fontWeight: 600 }}
+            >
+              {ROLE_ORDER.map((r) => (
+                <option key={r} value={r} style={{ color: "#000" }}>
+                  {r === "admin" ? t("View as… (me)", "Ver como… (yo)") : roleLabel(r, lang)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <span style={{ fontSize: 12, opacity: 0.9, display: "inline-flex", alignItems: "center", gap: 6 }}>
           <span className="avatar sm" style={{ background: avatarColor(me.full_name || "?") }}>
             {initials(me.full_name || "?")}
@@ -53,7 +79,7 @@ export function TopBar({ me }: { me: Profile }) {
           {me.full_name}
           {role && (
             <span className="sema" style={{ marginLeft: 4, background: role.color, color: "#fff" }}>
-              {roleLabel(me.role, lang)}
+              {viewAs ? "👁 " : ""}{roleLabel(me.role, lang)}
             </span>
           )}
         </span>
