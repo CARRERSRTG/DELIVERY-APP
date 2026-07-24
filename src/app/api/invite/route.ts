@@ -50,7 +50,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const origin = new URL(req.url).origin;
+  // The emailed link must point at the real deployment, never localhost.
+  // Priority: explicit NEXT_PUBLIC_SITE_URL → the proxy-forwarded host
+  // (what the admin's browser actually hit) → the raw request URL.
+  const fwdHost = req.headers.get("x-forwarded-host");
+  const fwdProto = req.headers.get("x-forwarded-proto") ?? "https";
+  const origin =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    (fwdHost ? `${fwdProto}://${fwdHost}` : new URL(req.url).origin);
   try {
     const { error } = await admin.auth.admin.inviteUserByEmail(email, {
       data: { full_name: full_name || email.split("@")[0], role },

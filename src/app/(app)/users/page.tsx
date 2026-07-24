@@ -78,7 +78,7 @@ export default function UsersPage() {
               <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value as UserRole)} style={{ maxWidth: 170 }}>
                 {ROLE_ORDER.map((r) => <option key={r} value={r}>{roleLabel(r, lang)}</option>)}
               </select>
-              {(u.role === "warehouse" || u.role === "driver") && (
+              {(u.role === "warehouse" || u.role === "driver" || u.role === "sales") && (
                 <select value={u.store ?? ""} onChange={(e) => updateUserStore(u.id, e.target.value || null)} style={{ maxWidth: 150 }} title={t("Assigned store", "Tienda asignada")}>
                   <option value="">{t("All stores", "Todas las tiendas")}</option>
                   {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}

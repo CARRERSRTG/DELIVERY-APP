@@ -62,6 +62,14 @@ begin
       end if;
       raise exception 'Not allowed to log this re-delivery';
     end if;
+    -- A split load (the remainder of a partially-loaded order, e.g. #1001b)
+    -- is logged at pickup time and re-enters the flow staged and ready.
+    if NEW.order_suffix is not null then
+      if r in ('warehouse','manager','driver','logistics') and new_stage in ('ready','approved') then
+        return NEW;
+      end if;
+      raise exception 'Not allowed to log this split load';
+    end if;
     if r not in ('sales','driver') then
       raise exception 'Only sales or drivers can create orders';
     end if;

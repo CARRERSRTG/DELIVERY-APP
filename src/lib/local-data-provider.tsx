@@ -16,7 +16,7 @@ import { DEMO_USERS, demoDeliveries, demoNotifications, demoSettings, uid } from
 
 // Bump this suffix whenever the seed shape changes so existing browsers
 // auto-reseed with the richer sample data on next load.
-const LS_KEY = "rtg_deliveries_local_v11";
+const LS_KEY = "rtg_deliveries_local_v13";
 
 interface Store {
   settings: Settings;
@@ -122,7 +122,8 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
       ...seedRow(nextNo),
       ...d,
       id: uid(),
-      order_no: nextNo,
+      // Split loads (#1001b) pass in the original's order_no explicitly.
+      order_no: d.order_no ?? nextNo,
       // created_by is always the actual actor — a non-sales creator assigning
       // the order to a rep (OrderModal's Sales Rep picker) sets assigned_sales_rep
       // instead, which is what orderOwner() resolves for own-orders visibility.
@@ -269,7 +270,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
 function seedRow(n: number): Delivery {
   const now = new Date().toISOString();
   return {
-    id: "", order_no: n, stage: "draft", rejected_reason: null,
+    id: "", order_no: n, order_suffix: null, stage: "draft", rejected_reason: null,
     redelivery_of: null, redelivery_reason: null,
     prepared_status: null, status_temp: null, order_type: null, store: null,
     po2: null, so_num: null, invoice_num: null, input_date: todayISO(), input_time: null,

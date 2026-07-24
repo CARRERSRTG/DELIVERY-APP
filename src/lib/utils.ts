@@ -21,6 +21,10 @@ export function localISO(d: Date): string {
 
 export const todayISO = () => localISO(new Date());
 
+/** Human-facing order number incl. the split-load letter: "1001", "1001a". */
+export const orderLabel = (d: { order_no: number; order_suffix?: string | null }) =>
+  `${d.order_no}${d.order_suffix ?? ""}`;
+
 /** Yesterday as local YYYY-MM-DD — the floor of what a salesperson sees by
  * default on the Orders table (yesterday / today / future only). */
 export const yesterdayISO = () => {

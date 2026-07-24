@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
-import { canCreate, canDeliver } from "@/lib/constants";
+import { canCreate, canDeliver, ROLE_DEFAULT_COLUMNS } from "@/lib/constants";
 import { routeOrder } from "@/lib/dispatch";
 import { OrdersTable } from "@/components/OrdersTable";
 import { OrderModal } from "@/components/OrderModal";
@@ -34,11 +34,13 @@ export default function DriverPage() {
   // Shows every location by default; narrow to a single store when needed.
   const [storeFilter, setStoreFilter] = useState<string>("");
 
-  // Orders for the chosen store, plus anything assigned to this driver by name.
+  // Drivers see ONLY orders assigned to them (plus ones they logged
+  // themselves). Admin/logistics visiting this page still see everything.
   const scoped = useMemo(() => {
     if (!me) return [];
     const needle = q.trim().toLowerCase();
     return deliveries.filter((d) => {
+      if (me.role === "driver" && d.assigned_driver !== me.full_name && d.created_by !== me.id) return false;
       if (storeFilter && d.store !== storeFilter && d.assigned_driver !== me.full_name) return false;
       // Searching matches by invoice # specifically and bypasses the date
       // window below — that's the one way to reach older history here.
@@ -106,7 +108,7 @@ export default function DriverPage() {
       )}
 
       {ready ? (
-        <OrdersTable rows={rows} onOpen={setOpen} empty={t("Nothing here right now.", "Nada aquí por ahora.")} />
+        <OrdersTable rows={rows} onOpen={setOpen} visible={ROLE_DEFAULT_COLUMNS.driver} empty={t("Nothing here right now.", "Nada aquí por ahora.")} />
       ) : (
         <div className="empty">{t("Loading…", "Cargando…")}</div>
       )}

@@ -21,11 +21,11 @@ export const uid = () =>
 
 export const DEMO_USERS: Profile[] = [
   { id: "u-admin", full_name: "You (Admin)", role: "admin", store: null },
-  { id: "u-sales", full_name: "Sam Sales", role: "sales", store: null },
+  { id: "u-sales", full_name: "Sam Sales", role: "sales", store: "Edinburg" },
   { id: "u-sales2", full_name: "Sofia Ventas", role: "sales", store: null },
   { id: "u-mgr", full_name: "Maria Manager", role: "manager", store: null },
   { id: "u-log", full_name: "Laura Logistics", role: "logistics", store: null },
-  { id: "u-wh", full_name: "Wade Warehouse", role: "warehouse", store: "McAllen" },
+  { id: "u-wh", full_name: "Wade Warehouse", role: "warehouse", store: "Pharr" },
   // Drivers are users like everyone else — the Assigned Driver list is built
   // from whoever holds the "driver" role.
   { id: "u-drv", full_name: "Diego Driver", role: "driver", store: "McAllen" },
@@ -109,6 +109,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
   const base = (n: number, over: Partial<Delivery>): Delivery => ({
     id: uid(),
     order_no: n,
+    order_suffix: null,
     stage: "draft",
     rejected_reason: null,
     redelivery_of: null,
@@ -428,6 +429,56 @@ export function demoDeliveries(settings: Settings): Delivery[] {
       delivery_pin_source: "geocoded",
     }));
   }
+
+  // ---- Tomorrow's delivery run — 20 orders dated iso(1) across all stores,
+  // mixed stages (pending/approved/fulfilling/ready) so every queue has
+  // next-day work: managers see approvals due, warehouse sees prep, and
+  // Route Planning has an assignable next-day pool. ----
+  type TmrRow = [account: string, storeName: string, pallets: number, stage: Delivery["stage"], addr: string, windows: string, driver: string | null];
+  const TOMORROW_ROWS: TmrRow[] = [
+    ["Rio Tile Co.", "McAllen", 6, "pending", "801 N 10th St, McAllen TX", "0800-1200", null],
+    ["Casa Bella", "McAllen", 3, "pending", "4501 N 2nd St, McAllen TX", "0900-1300", null],
+    ["Valley Builders", "Pharr", 10, "approved", "612 S Cage Blvd, Pharr TX", "0800-1100", null],
+    ["Delta Construction", "Pharr", 2, "pending", "300 E Ferguson Ave, Pharr TX", "1300-1700", null],
+    ["Sunrise Flooring", "Mission", 8, "approved", "2201 E Griffin Pkwy, Mission TX", "0900-1200", null],
+    ["Palm Grove Homes", "Mission", 4, "fulfilling", "1500 N Shary Rd, Mission TX", "1000-1400", "Fleet Truck 3"],
+    ["Coastal Homes", "Brownsville", 12, "approved", "845 Paredes Line Rd, Brownsville TX", "0800-1200", null],
+    ["Hidalgo Interiors", "Brownsville", 5, "fulfilling", "3300 Boca Chica Blvd, Brownsville TX", "1430-1700", "Fleet Truck 3"],
+    ["Mid-Valley Supply", "Weslaco", 7, "pending", "600 S Texas Blvd, Weslaco TX", "0900-1200", null],
+    ["Vista Kitchens", "Weslaco", 3, "approved", "1900 W Pike Blvd, Weslaco TX", "1000-1500", null],
+    ["Valley Builders", "Edinburg", 9, "pending", "410 S Closner Blvd, Edinburg TX", "0800-1100", null],
+    ["Casa Bella", "Edinburg", 6, "approved", "3100 S Sugar Rd, Edinburg TX", "1300-1700", null],
+    ["Delta Construction", "McAllen", 4, "ready", "7000 N Ware Rd, McAllen TX", "0800-1000", "Carlos R."],
+    ["Rio Tile Co.", "Pharr", 11, "ready", "1100 E Hall Acres Rd, Pharr TX", "0900-1200", "Miguel A."],
+    ["Sunrise Flooring", "Mission", 2, "pending", "900 E 9th St, Mission TX", "1400-1700", null],
+    ["Coastal Homes", "Brownsville", 8, "pending", "2500 Ruben Torres Blvd, Brownsville TX", "0800-1200", null],
+    ["Palm Grove Homes", "Edinburg", 5, "fulfilling", "1800 E Richardson Rd, Edinburg TX", "1000-1300", "Carlos R."],
+    ["Mid-Valley Supply", "Weslaco", 6, "approved", "231 N International Blvd, Weslaco TX", "0900-1300", null],
+    ["Vista Kitchens", "Mission", 3, "ready", "4200 N Conway Ave, Mission TX", "1400-1700", "Miguel A."],
+    ["Hidalgo Interiors", "McAllen", 7, "approved", "5800 N 10th St, McAllen TX", "1300-1600", null],
+  ];
+  TOMORROW_ROWS.forEach(([account, storeName, pallets, stage, addr, windows, driver], i) => {
+    const [lat, lng] = cityPoints[storeName];
+    rows.push(mk(1070 + i, pallets, 3 + (i % 9), {
+      stage,
+      store: storeName,
+      account,
+      so_num: `SO-2${100 + i}`,
+      invoice_num: `INV-4${100 + i}`,
+      delivery_fee: 45 + (i % 10) * 9,
+      delivery_date: iso(1),
+      delivery_address: addr,
+      delivery_windows: windows,
+      assigned_driver: driver,
+      delivery_lat: lat + ((i % 7) - 3) * 0.011,
+      delivery_lng: lng + ((i % 5) - 2) * 0.011,
+      delivery_pin_source: "geocoded",
+      ...(stage === "fulfilling" || stage === "ready"
+        ? { prepared_status: stage === "ready" ? "Loaded" : "Staging", status_temp: "Ambient" }
+        : {}),
+      ...(stage !== "pending" ? { approved_by: "u-mgr", approved_at: stamp(30 + i * 4) } : {}),
+    }));
+  });
 
   return rows.sort((a, b) => b.order_no - a.order_no);
 }

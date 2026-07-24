@@ -108,6 +108,8 @@ export const DELIVERY_WINDOW_PRESETS: WindowPreset[] = [
 // column on the main view (still available via the Columns picker).
 export const ROLE_DEFAULT_COLUMNS: Partial<Record<UserRole, string[]>> = {
   sales: ["type", "store", "invoice", "date", "windows", "account"],
+  // Drivers work off the customer invoice, never the internal SO #.
+  driver: ["stage", "type", "store", "account", "invoice", "date", "windows", "pallets"],
 };
 
 /** Drivers come from the Users list — anyone with the "driver" role. They're

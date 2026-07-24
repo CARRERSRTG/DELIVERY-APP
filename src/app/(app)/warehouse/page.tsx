@@ -21,7 +21,8 @@ export default function WarehousePage() {
   const { me, deliveries, settings, ready } = useData();
   const { lang, t } = usePrefs();
   const [open, setOpen] = useState<Delivery | null>(null);
-  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("approved");
+  // Warehouse starts on All — the full day's board — and narrows as needed.
+  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("all");
   const [q, setQ] = useState("");
   // Admin can browse any store; a warehouse worker is locked to their own
   // (PU = pickup store). Falls back to "every store" only if unassigned.

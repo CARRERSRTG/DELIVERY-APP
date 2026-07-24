@@ -24,6 +24,10 @@ export default function LoginPage() {
     const saved = localStorage.getItem(REMEMBERED_EMAIL_KEY);
     if (saved) setEmail(saved);
     else setRemember(false);
+    // Kicked out because the account signed in on another device.
+    if (new URLSearchParams(window.location.search).get("reason") === "session") {
+      setMsg("You were signed out because this account signed in on another device. Only one device can be signed in at a time.");
+    }
   }, []);
 
   const forgot = async () => {

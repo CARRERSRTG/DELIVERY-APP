@@ -32,6 +32,10 @@ export type Stage =
 export interface Delivery {
   id: string;
   order_no: number;
+  /** Split-load letter. When a driver can only load part of an order, it
+   * splits: the loaded part becomes e.g. #1001a and the remainder is a new
+   * linked order #1001b (same order_no, next letter). Null = never split. */
+  order_suffix: string | null;
 
   stage: Stage;
   rejected_reason: string | null;

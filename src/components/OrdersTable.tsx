@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
-import { fmtDate, fmtMilitary, fmtMoney, isOverdue } from "@/lib/utils";
+import { fmtDate, fmtMilitary, fmtMoney, isOverdue, orderLabel } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 type Ctx = { lang: "en" | "es"; t: (en: string, es: string) => string };
@@ -71,8 +71,8 @@ const ID_COLUMN: OrderColumn = {
   key: "__id",
   en: "ID",
   es: "ID",
-  value: (d) => d.order_no,
-  cell: (d) => <>#{d.order_no}</>,
+  value: (d) => orderLabel(d),
+  cell: (d) => <>#{orderLabel(d)}</>,
 };
 
 const NO_VALUE = " —"; // internal key for null/blank, kept out of user-typed territory

@@ -183,6 +183,27 @@ warehouse (fulfilling/ready/delivered) without a manager approving it first.
 
 ## 10. Change log (most recent first)
 
+- **Split loads**: at pickup the driver confirms how many pallets actually fit; a short
+  load splits the order — loaded part keeps the order_no with suffix "a" (out for
+  delivery), remainder becomes a new linked order with the SAME order_no and suffix "b",
+  re-staged with no driver (`order_suffix` column, migration 012 + updated roles.sql
+  insert guard; `orderLabel()` in utils renders "#1001a").
+- **Warehouse pallet confirmation**: "Mark ready" now asks to confirm the pallet count
+  (prefilled from the original estimate) and stamps `actual_pallets` with the stage move.
+- **Single-device sessions** (Supabase mode): profile stores `active_session_id`
+  (migration 013); signing in on a new device signs the old one out via realtime,
+  landing it on /login?reason=session with an explanation.
+- **Role defaults**: warehouse queue defaults to All; sales (like managers) lands on
+  Pending; driver table shows Invoice # instead of SO (`ROLE_DEFAULT_COLUMNS.driver`).
+- **Driver visibility**: drivers see only orders assigned to them or created by them
+  (client filter + RLS migration 011).
+- **Store per rep**: Users tab can assign a store to sales reps too; new orders prefill
+  the creator's store. Demo: Sam Sales→Edinburg, Wade Warehouse→Pharr.
+- Order form defaults the delivery window to **All Day (8:30–5:30)**.
+- Invite emails: redirect origin now prefers NEXT_PUBLIC_SITE_URL, then the
+  proxy-forwarded host — never localhost when invited from the deployed app.
+- Demo seed: added 20 next-day orders (#1070–#1089, `delivery_date` = tomorrow) across
+  all six stores with mixed stages/drivers/fees/pins (`demo-data.ts`; LS_KEY v12).
 - Added `picked_up` stage: driver marks ready→picked_up→delivered (driver page has an
   "Out for delivery" tab). Removed the admin "Set status" selector.
 - Driver "Navigate" buttons in the order view (canDeliver roles): open Google Maps

@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
 import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, DELIVERY_WINDOW_PRESETS, driverNames, stageInfo, stageLabel } from "@/lib/constants";
-import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, nowMilitary, palletDuration, telClean, todayISO } from "@/lib/utils";
+import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, nowMilitary, orderLabel, palletDuration, telClean, todayISO } from "@/lib/utils";
 import { printDeliverySlip } from "@/lib/slip";
 import { AddressInput } from "@/components/AddressInput";
 import { LocationCombo } from "@/components/LocationCombo";
@@ -27,6 +27,8 @@ type Draft = Partial<Delivery>;
 const EMPTY: Draft = {
   stage: "draft",
   input_date: todayISO(),
+  // Most orders run all day; reps narrow the window only when the customer asks.
+  delivery_windows: "0830-1730",
 };
 
 // Standard cancellation reasons (#10) — a fixed pick-list keeps the data clean
@@ -60,7 +62,8 @@ export function OrderModal({
   const stage: Stage = existing?.stage ?? "draft";
   const editable = isNew || (startEditing && canEditFields(me.role, stage));
   const [editing, setEditing] = useState(editable);
-  const [d, setD] = useState<Draft>(existing ?? EMPTY);
+  // A rep assigned to a store starts new orders there (still changeable).
+  const [d, setD] = useState<Draft>(existing ?? { ...EMPTY, ...(me.store ? { store: me.store } : {}) });
   const [busy, setBusy] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
@@ -71,6 +74,13 @@ export function OrderModal({
   const [routing, setRouting] = useState(false);
   const [routeErr, setRouteErr] = useState("");
   const [showPod, setShowPod] = useState(false);
+  // Pallet confirmations: warehouse confirms the count on "Mark ready";
+  // the driver confirms what actually fit on the truck at pickup (a short
+  // load splits the order into #Na / #Nb).
+  const [showReadyConfirm, setShowReadyConfirm] = useState(false);
+  const [readyPallets, setReadyPallets] = useState("");
+  const [showPickupConfirm, setShowPickupConfirm] = useState(false);
+  const [pickupPallets, setPickupPallets] = useState("");
   const [podName, setPodName] = useState("");
   const [podSig, setPodSig] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
@@ -336,6 +346,68 @@ export function OrderModal({
     if (ok) { notify(t(`Moved to ${stageLabel(to, lang)}`, `Movido a ${stageLabel(to, lang)}`)); onClose(); }
   };
 
+  // Warehouse confirms the real pallet count as part of marking the order
+  // ready — actual_pallets is stamped in the same write as the stage move.
+  const confirmReady = async () => {
+    if (!existing) return;
+    const n = Number(readyPallets);
+    if (!Number.isFinite(n) || n <= 0) { notify(t("Enter the confirmed pallet count.", "Ingrese la cantidad confirmada de tarimas.")); return; }
+    setBusy(true);
+    const ok = await setStage(existing.id, "ready", t(`Pallets confirmed: ${n}`, `Tarimas confirmadas: ${n}`), { actual_pallets: n });
+    setBusy(false);
+    if (ok) { notify(t(`Ready — ${n} pallets confirmed`, `Listo — ${n} tarimas confirmadas`)); onClose(); }
+  };
+
+  // Driver confirms what actually fit on the truck. A short load splits the
+  // order: this one becomes #Na (loaded part, out for delivery) and the
+  // remainder is re-staged as a new linked order #Nb for another trip.
+  const confirmPickup = async () => {
+    if (!existing) return;
+    const total = existing.actual_pallets ?? existing.est_pallets ?? 0;
+    const n = Number(pickupPallets);
+    if (!Number.isFinite(n) || n <= 0) { notify(t("Enter the loaded pallet count.", "Ingrese la cantidad de tarimas cargadas.")); return; }
+    if (total > 0 && n > total) { notify(t(`Only ${total} pallets on this order.`, `Esta orden solo tiene ${total} tarimas.`)); return; }
+    setBusy(true);
+    const gps = await captureLocation();
+    const gpsExtra = gps ? { pickup_lat: gps.lat, pickup_lng: gps.lng, pickup_gps_at: gps.at } : {};
+    if (total > 0 && n < total) {
+      const mySuffix = existing.order_suffix ?? "a";
+      const nextSuffix = String.fromCharCode(mySuffix.charCodeAt(0) + 1);
+      const rest = total - n;
+      // Remainder: same order number with the next letter, re-staged for a
+      // new trip with no driver yet.
+      const { id: _id, created_at: _ca, updated_at: _ua, created_by: _cb, route_seq: _rs,
+        pickup_lat: _plat, pickup_lng: _plng, pickup_gps_at: _pgps, ...src } = existing;
+      const rowB = await addDelivery({
+        ...src,
+        order_no: existing.order_no,
+        order_suffix: nextSuffix,
+        est_pallets: rest,
+        actual_pallets: rest,
+        stage: "ready",
+        assigned_driver: null,
+        delivery_notes: [existing.delivery_notes, t(`Split of #${existing.order_no}${mySuffix} — ${rest} pallets left behind.`, `División de #${existing.order_no}${mySuffix} — quedaron ${rest} tarimas.`)].filter(Boolean).join("\n"),
+      });
+      if (!rowB) { setBusy(false); return; }
+      const ok = await setStage(
+        existing.id, "picked_up",
+        t(`Partial load: ${n} of ${total} pallets — remainder split to #${existing.order_no}${nextSuffix}`,
+          `Carga parcial: ${n} de ${total} tarimas — resto dividido a #${existing.order_no}${nextSuffix}`),
+        { ...gpsExtra, order_suffix: mySuffix, actual_pallets: n },
+      );
+      setBusy(false);
+      if (ok) {
+        notify(t(`Out for delivery as #${existing.order_no}${mySuffix} — #${existing.order_no}${nextSuffix} staged with ${rest} pallets`,
+          `En reparto como #${existing.order_no}${mySuffix} — #${existing.order_no}${nextSuffix} preparada con ${rest} tarimas`));
+        onClose();
+      }
+      return;
+    }
+    const ok = await setStage(existing.id, "picked_up", t(`Loaded: ${n} pallets`, `Cargadas: ${n} tarimas`), { ...gpsExtra, actual_pallets: n });
+    setBusy(false);
+    if (ok) { notify(t("Out for delivery", "En reparto")); onClose(); }
+  };
+
   // Proof of delivery: stamp the signer + signature, then move to delivered.
   const deliverWithPod = async () => {
     if (!existing) return;
@@ -539,7 +611,7 @@ export function OrderModal({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>
             <h3>
-              {isNew ? t("New delivery order", "Nueva orden de entrega") : `${t("Order", "Orden")} #${existing!.order_no}`}
+              {isNew ? t("New delivery order", "Nueva orden de entrega") : `${t("Order", "Orden")} #${orderLabel(existing!)}`}
               {dirty && <span className="sema" style={{ background: "var(--amber)", color: "#fff", marginLeft: 8 }}>● {t("Unsaved", "Sin guardar")}</span>}
             </h3>
             <div className="sub">
@@ -935,6 +1007,26 @@ export function OrderModal({
           </div>
         )}
 
+        {/* ---------- PALLET CONFIRMATIONS (ready / pickup) ---------- */}
+        {showReadyConfirm && existing && (
+          <div className="field" style={{ marginTop: 14 }}>
+            <label>{t("Confirm pallet count to mark ready", "Confirme la cantidad de tarimas para marcar listo")}</label>
+            <input type="number" min={1} value={readyPallets} onChange={(e) => setReadyPallets(e.target.value)}
+              placeholder={existing.est_pallets != null ? t(`est. ${existing.est_pallets}`, `est. ${existing.est_pallets}`) : ""} />
+            <div className="hint">{t("Original order amount:", "Cantidad original de la orden:")} {existing.est_pallets ?? "—"}</div>
+          </div>
+        )}
+        {showPickupConfirm && existing && (
+          <div className="field" style={{ marginTop: 14 }}>
+            <label>{t("How many pallets did you load?", "¿Cuántas tarimas cargó?")}</label>
+            <input type="number" min={1} value={pickupPallets} onChange={(e) => setPickupPallets(e.target.value)} />
+            <div className="hint">
+              {t(`Total on this order: ${existing.actual_pallets ?? existing.est_pallets ?? "—"}. Loading fewer splits the order into #${orderLabel({ ...existing, order_suffix: existing.order_suffix ?? "a" })} (this trip) and a new staged trip with the rest.`,
+                 `Total de la orden: ${existing.actual_pallets ?? existing.est_pallets ?? "—"}. Cargar menos divide la orden en #${orderLabel({ ...existing, order_suffix: existing.order_suffix ?? "a" })} (este viaje) y un nuevo viaje preparado con el resto.`)}
+            </div>
+          </div>
+        )}
+
         {/* ---------- PROOF OF DELIVERY ---------- */}
         {showPod && (
           <div className="field" style={{ marginTop: 14 }}>
@@ -1075,6 +1167,14 @@ export function OrderModal({
               onPrint={() => printDeliverySlip(existing!, settings, users, lang)}
               onRequestDeliver={() => setShowPod(true)}
               podOpen={showPod}
+              readyConfirmOpen={showReadyConfirm}
+              onRequestReady={() => { setReadyPallets(String(existing!.actual_pallets ?? existing!.est_pallets ?? "")); setShowReadyConfirm(true); }}
+              onConfirmReady={confirmReady}
+              onCancelReady={() => setShowReadyConfirm(false)}
+              pickupConfirmOpen={showPickupConfirm}
+              onRequestPickup={() => { setPickupPallets(String(existing!.actual_pallets ?? existing!.est_pallets ?? "")); setShowPickupConfirm(true); }}
+              onConfirmPickup={confirmPickup}
+              onCancelPickup={() => setShowPickupConfirm(false)}
             />
           ) : null}
         </div>
@@ -1087,6 +1187,8 @@ export function OrderModal({
 function StageActions({
   me, stage, busy, onEdit, onMove, showReject, setShowReject, rejectReason,
   showCancel, setShowCancel, cancelReason, onPrint, onRequestDeliver, podOpen,
+  readyConfirmOpen, onRequestReady, onConfirmReady, onCancelReady,
+  pickupConfirmOpen, onRequestPickup, onConfirmPickup, onCancelPickup,
 }: {
   me: Profile; stage: Stage; busy: boolean;
   onEdit: () => void;
@@ -1094,6 +1196,8 @@ function StageActions({
   showReject: boolean; setShowReject: (v: boolean) => void; rejectReason: string;
   showCancel: boolean; setShowCancel: (v: boolean) => void; cancelReason: string;
   onPrint: () => void; onRequestDeliver: () => void; podOpen: boolean;
+  readyConfirmOpen: boolean; onRequestReady: () => void; onConfirmReady: () => void; onCancelReady: () => void;
+  pickupConfirmOpen: boolean; onRequestPickup: () => void; onConfirmPickup: () => void; onCancelPickup: () => void;
 }) {
   const { t } = usePrefs();
   const btns: React.ReactNode[] = [];
@@ -1136,12 +1240,24 @@ function StageActions({
   // Warehouse
   if (canFulfill(me)) {
     if (stage === "approved") btns.push(<button key="start" className="btn btn-primary" onClick={() => onMove("fulfilling")} disabled={busy}>{t("Start fulfilling", "Comenzar preparación")}</button>);
-    if (stage === "fulfilling") btns.push(<button key="ready" className="btn btn-green" onClick={() => onMove("ready")} disabled={busy}>{t("Mark ready", "Marcar listo")}</button>);
+    if (stage === "fulfilling") {
+      if (!readyConfirmOpen) {
+        btns.push(<button key="ready" className="btn btn-green" onClick={onRequestReady} disabled={busy}>{t("Mark ready", "Marcar listo")}</button>);
+      } else {
+        btns.push(<button key="readyback" className="btn btn-ghost" onClick={onCancelReady} disabled={busy}>{t("Back", "Atrás")}</button>);
+        btns.push(<button key="doready" className="btn btn-green" onClick={onConfirmReady} disabled={busy}>{t("Confirm pallets & mark ready", "Confirmar tarimas y marcar listo")}</button>);
+      }
+    }
   }
 
   // Driver (and warehouse/admin): pick up a ready order, then mark it delivered.
   if (canDeliver(me) && stage === "ready") {
-    btns.push(<button key="pickup" className="btn btn-primary" onClick={() => onMove("picked_up")} disabled={busy}>🚚 {t("Pick up — out for delivery", "Recoger — en reparto")}</button>);
+    if (!pickupConfirmOpen) {
+      btns.push(<button key="pickup" className="btn btn-primary" onClick={onRequestPickup} disabled={busy}>🚚 {t("Pick up — out for delivery", "Recoger — en reparto")}</button>);
+    } else {
+      btns.push(<button key="pickupback" className="btn btn-ghost" onClick={onCancelPickup} disabled={busy}>{t("Back", "Atrás")}</button>);
+      btns.push(<button key="dopickup" className="btn btn-primary" onClick={onConfirmPickup} disabled={busy}>🚚 {t("Confirm load & go", "Confirmar carga y salir")}</button>);
+    }
   }
   if (canDeliver(me) && stage === "picked_up" && !podOpen) {
     btns.push(<button key="deliv" className="btn btn-green" onClick={onRequestDeliver} disabled={busy}>{t("Mark delivered", "Marcar entregado")}</button>);

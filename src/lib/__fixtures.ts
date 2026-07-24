@@ -6,6 +6,7 @@ export function mkDelivery(over: Partial<Delivery> = {}): Delivery {
   return {
     id: Math.random().toString(36).slice(2),
     order_no: 1000,
+    order_suffix: null,
     stage: "draft" as Stage,
     rejected_reason: null,
     redelivery_of: null,
