@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
-import { canCreate, driverNames, ROLE_DEFAULT_COLUMNS, STAGES, stageLabel } from "@/lib/constants";
+import { canCreate, driverNames, filterStagesFor, ROLE_DEFAULT_COLUMNS, STAGES, stageLabel } from "@/lib/constants";
 import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/OrdersTable";
 import { OrdersBoard } from "@/components/OrdersBoard";
 import { OrderModal } from "@/components/OrderModal";
@@ -119,6 +119,9 @@ export default function OrdersPage() {
       // relaxed by search, unlike the date-window restriction below.
       // "Own" includes orders an office/admin/driver assigned to them.
       if (me?.role === "sales" && orderOwner(d) !== me.id) return false;
+      // Warehouse only ever sees orders that have been approved — never
+      // draft / pending / rejected / canceled (pre-approval or dead orders).
+      if (me?.role === "warehouse" && !["approved", "fulfilling", "ready", "picked_up", "delivered"].includes(d.stage)) return false;
       if (!needle) {
         // Sales' default view is scoped to yesterday/today/future — older
         // history is still there, just reached by searching (e.g. an invoice #)
@@ -289,14 +292,14 @@ export default function OrdersPage() {
       <div className="filters">
         {view === "table" && (
           <>
+            {(me ? filterStagesFor(me.role) : STAGES.map((s) => s.key)).map((key) => (
+              <button key={key} className={"chip " + (filter === key ? "on" : "")} onClick={() => setFilter(key)}>
+                {stageLabel(key, lang)} <span className="cnt">{counts[key] ?? 0}</span>
+              </button>
+            ))}
             <button className={"chip " + (filter === "all" ? "on" : "")} onClick={() => setFilter("all")}>
               {t("All", "Todas")} <span className="cnt">{counts.all ?? 0}</span>
             </button>
-            {STAGES.map((s) => (
-              <button key={s.key} className={"chip " + (filter === s.key ? "on" : "")} onClick={() => setFilter(s.key)}>
-                {stageLabel(s.key, lang)} <span className="cnt">{counts[s.key] ?? 0}</span>
-              </button>
-            ))}
           </>
         )}
       </div>

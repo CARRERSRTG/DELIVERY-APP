@@ -29,6 +29,20 @@ export function stageInfo(key: string): StageInfo {
   return STAGES.find((s) => s.key === key) ?? STAGES[0];
 }
 
+// Which stage filter chips each role sees on the Orders page, in display order.
+// The "All" chip is appended after these by the page. Roles not listed here
+// (admin, logistics) get every stage in the canonical STAGES order.
+export const ROLE_FILTER_STAGES: Partial<Record<UserRole, Stage[]>> = {
+  warehouse: ["approved", "ready", "fulfilling", "delivered"],
+  sales:     ["pending", "draft", "rejected", "approved", "ready", "fulfilling", "picked_up", "delivered", "canceled"],
+  manager:   ["pending", "draft", "rejected", "approved", "ready", "fulfilling", "picked_up", "delivered", "canceled"],
+  driver:    ["ready", "picked_up", "delivered", "pending", "fulfilling"],
+};
+
+export function filterStagesFor(role: UserRole): Stage[] {
+  return ROLE_FILTER_STAGES[role] ?? STAGES.map((s) => s.key);
+}
+
 // Spanish stage labels + a language-aware lookup used across the UI.
 export const STAGE_ES: Record<Stage, string> = {
   draft: "Borrador",

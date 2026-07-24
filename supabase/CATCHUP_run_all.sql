@@ -153,14 +153,19 @@ create trigger deliveries_guard_stage before insert or update on public.deliveri
 -- ---------- 010: driver capacity ----------
 alter table public.settings add column if not exists driver_capacity jsonb default '{}'::jsonb;
 
--- ---------- 011: drivers read only their own assigned orders ----------
+-- ---------- 011 + 015: role-scoped read (drivers own-only, warehouse approved+) ----------
 drop policy if exists "auth read deliveries" on public.deliveries;
 create policy "auth read deliveries" on public.deliveries
   for select to authenticated
   using (
-    (select role from public.profiles where id = auth.uid()) <> 'driver'
-    or created_by = auth.uid()
-    or assigned_driver = (select full_name from public.profiles where id = auth.uid())
+    case (select role from public.profiles where id = auth.uid())
+      when 'driver' then
+        created_by = auth.uid()
+        or assigned_driver = (select full_name from public.profiles where id = auth.uid())
+      when 'warehouse' then
+        stage in ('approved','fulfilling','ready','picked_up','delivered')
+      else true
+    end
   );
 
 -- ---------- 012: split-load suffix ----------
