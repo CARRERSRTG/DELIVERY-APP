@@ -8,7 +8,7 @@ import type { Delivery } from "@/lib/types";
 //   • Store (Sold From)
 //   • Contact name + Delivery phone (except Intra-Tienda — no external customer)
 //   • Pickup name + address
-//   • Dropoff (delivery) name + address
+//   • Dropoff (delivery) address (dropoff name is optional)
 //   • Delivery Date + Delivery Window
 //   • Est. Pallets
 //
@@ -44,7 +44,7 @@ export function missingFields(d: Partial<Delivery>): MissingField[] {
   if (!filled(d.store)) out.push({ key: "store", en: "Store (Sold From)", es: "Tienda (Vendido Desde)" });
   if (!filled(d.pickup_name)) out.push({ key: "pickup_name", en: "Pickup Name", es: "Nombre de Recolección" });
   if (!filled(d.pickup_address)) out.push({ key: "pickup_address", en: "Pickup Address", es: "Dirección de Recolección" });
-  if (!filled(d.delivery_name)) out.push({ key: "delivery_name", en: "Dropoff Name", es: "Nombre de Destino" });
+  // Dropoff Name is optional — the address is what matters for the delivery.
   if (!filled(d.delivery_address)) out.push({ key: "delivery_address", en: "Delivery Address (dropoff)", es: "Dirección de Entrega (destino)" });
   // Intra-Tienda is store-to-store — no external customer, so no contact/phone to collect.
   if (!isIntraStore(d.order_type)) {

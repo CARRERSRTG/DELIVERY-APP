@@ -42,7 +42,7 @@ describe("missingFields — always-required", () => {
 
   it("flags every required field when the order is empty", () => {
     expect(keys({})).toEqual([
-      "contact", "delivery_address", "delivery_date", "delivery_name", "delivery_phone",
+      "contact", "delivery_address", "delivery_date", "delivery_phone",
       "delivery_windows", "est_pallets", "order_type", "pickup_address", "pickup_name", "store",
     ]);
   });
@@ -52,8 +52,8 @@ describe("missingFields — always-required", () => {
     expect(keys({ ...complete, pickup_address: "" })).toContain("pickup_address");
   });
 
-  it("flags a missing dropoff name or address", () => {
-    expect(keys({ ...complete, delivery_name: null })).toContain("delivery_name");
+  it("flags a missing dropoff address (name is optional)", () => {
+    expect(keys({ ...complete, delivery_name: null })).not.toContain("delivery_name");
     expect(keys({ ...complete, delivery_address: null })).toContain("delivery_address");
   });
 
@@ -119,7 +119,7 @@ describe("missingFields — document reference by order type", () => {
 
   it("still enforces the always-required fields on a Pickup", () => {
     expect(keys({ order_type: "Pickup" })).toEqual([
-      "contact", "delivery_address", "delivery_date", "delivery_name", "delivery_phone",
+      "contact", "delivery_address", "delivery_date", "delivery_phone",
       "delivery_windows", "est_pallets", "pickup_address", "pickup_name", "store",
     ]);
   });
