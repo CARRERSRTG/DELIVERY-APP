@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
-import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, DELIVERY_WINDOW_PRESETS, driverNames, stageInfo, stageLabel } from "@/lib/constants";
+import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, DELIVERY_WINDOW_PRESETS, driverNames, SATURDAY_WINDOW, stageInfo, stageLabel, WEEKDAY_ALL_DAY_WINDOW } from "@/lib/constants";
 import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, nowMilitary, orderLabel, palletDuration, telClean, todayISO } from "@/lib/utils";
 import { printDeliverySlip } from "@/lib/slip";
 import { AddressInput } from "@/components/AddressInput";
@@ -64,6 +64,19 @@ export function OrderModal({
   const [editing, setEditing] = useState(editable);
   // A rep assigned to a store starts new orders there (still changeable).
   const [d, setD] = useState<Draft>(existing ?? { ...EMPTY, ...(me.store ? { store: me.store } : {}) });
+
+  // Saturday deliveries run a shorter all-day window (8:30–3:30) in every
+  // location — auto-select it when the delivery date lands on a Saturday.
+  // Only overrides an empty field or the weekday all-day default, so a
+  // manually-chosen window is never fought.
+  useEffect(() => {
+    if (!editing || !d.delivery_date) return;
+    const isSat = new Date(d.delivery_date + "T12:00:00").getDay() === 6;
+    if (isSat && (!d.delivery_windows || d.delivery_windows === WEEKDAY_ALL_DAY_WINDOW)) {
+      setD((p) => (p.delivery_windows === SATURDAY_WINDOW ? p : { ...p, delivery_windows: SATURDAY_WINDOW }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d.delivery_date, editing]);
   const [busy, setBusy] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
@@ -761,7 +774,7 @@ export function OrderModal({
                   pickup_name: v || p.pickup_name,
                   pickup_address: st?.address ? st.address : p.pickup_address,
                 }));
-              }} disabled={!salesFields} placeholder={t("Select store", "Seleccione tienda")} invalid={missingSet.has("store")} />
+              }} disabled={!salesFields || (me.role === "sales" && !!me.store)} placeholder={t("Select store", "Seleccione tienda")} invalid={missingSet.has("store")} />
             </div>
             <div className="grid g4">
               <Txt label="PO #2" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
@@ -970,7 +983,7 @@ export function OrderModal({
                 <div className="section-label">{t("Warehouse / Fulfillment", "Almacén / Preparación")}</div>
                 <div className="grid g4">
                   <Txt label={t("Actual Pallets (warehouse)", "Tarimas Reales (almacén)")} type="number" val={d.actual_pallets ?? ""} on={(v) => set("actual_pallets", v === "" ? null : Number(v))} disabled={!whFields} placeholder={d.est_pallets != null ? t(`est. ${d.est_pallets}`, `est. ${d.est_pallets}`) : ""} />
-                  <Txt label={t("Prepared Status", "Estado de Preparación")} val={d.prepared_status} on={(v) => set("prepared_status", v)} disabled={!whFields} placeholder={t("e.g. Staged", "ej. Preparado")} />
+                  <Txt label={t("Prepared Status", "Estado de Preparación")} val={d.prepared_status} on={(v) => set("prepared_status", v)} disabled={!(editing && me.role === "admin")} placeholder={t("e.g. Staged", "ej. Preparado")} />
                   <Txt label={t("Status (Temp)", "Estado (Temp)")} val={d.status_temp} on={(v) => set("status_temp", v)} disabled={!adminFields} placeholder={t("e.g. Ambient", "ej. Ambiente")} />
                   <Sel label={t("Assigned Driver", "Chofer Asignado")} val={d.assigned_driver} opts={driverNames(users)} on={(v) => set("assigned_driver", v)} disabled={!adminFields} placeholder={t("Unassigned", "Sin asignar")} />
                 </div>

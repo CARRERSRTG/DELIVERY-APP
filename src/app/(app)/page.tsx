@@ -48,7 +48,10 @@ export default function OrdersPage() {
   useEffect(() => {
     if (!me || defaultFilterApplied.current === me.role) return;
     defaultFilterApplied.current = me.role;
+    // Each role lands on the queue it actually acts on first.
     if (me.role === "manager" || me.role === "sales") setFilter("pending");
+    else if (me.role === "warehouse") setFilter("approved");
+    else if (me.role === "driver") setFilter("ready");
   }, [me?.role]);
 
   // Reloads whenever the role changes too (e.g. the local-demo "View as"

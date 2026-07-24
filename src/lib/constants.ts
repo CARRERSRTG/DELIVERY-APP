@@ -100,7 +100,13 @@ export const DELIVERY_WINDOW_PRESETS: WindowPreset[] = [
   { key: "morning",       en: "Morning (8:30-12)",       es: "Mañana (8:30-12)",   value: "0830-1200" },
   { key: "afternoon",     en: "Afternoon (12-5:30)",      es: "Tarde (12-5:30)",    value: "1200-1730" },
   { key: "all_day",       en: "All Day (8:30-5:30)",         es: "Todo el día (8:30-5:30)", value: "0830-1730" },
+  { key: "saturday",      en: "Saturday all day (8:30-3:30)", es: "Sábado todo el día (8:30-3:30)", value: "0830-1530" },
 ];
+
+// Saturday's shorter all-day window (8:30–3:30), used in every location and
+// auto-selected when a delivery date lands on a Saturday.
+export const SATURDAY_WINDOW = "0830-1530";
+export const WEEKDAY_ALL_DAY_WINDOW = "0830-1730";
 
 // ---- Per-role default Orders-table columns ---------------------------------
 // Falls back to OrdersTable's own DEFAULT_COLUMNS for any role not listed
