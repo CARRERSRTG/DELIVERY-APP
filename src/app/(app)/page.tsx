@@ -23,7 +23,7 @@ const colsKey = (role: UserRole) => `rtg_order_columns_${role}`;
 const defaultColsFor = (role: UserRole) => ROLE_DEFAULT_COLUMNS[role] ?? DEFAULT_COLUMNS;
 
 export default function OrdersPage() {
-  const { me, users, deliveries, settings, ready, updateDelivery, setStage, notify } = useData();
+  const { me, users, deliveries, settings, ready, teaching, updateDelivery, setStage, notify } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
   const router = useRouter();
@@ -115,25 +115,29 @@ export default function OrdersPage() {
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return deliveries.filter((d) => {
-      // Sales only ever sees their own orders — a hard boundary, not
-      // relaxed by search, unlike the date-window restriction below.
-      // "Own" includes orders an office/admin/driver assigned to them.
-      if (me?.role === "sales" && orderOwner(d) !== me.id) return false;
-      // Warehouse only ever sees orders that have been approved — never
-      // draft / pending / rejected / canceled (pre-approval or dead orders).
-      if (me?.role === "warehouse" && !["approved", "fulfilling", "ready", "picked_up", "delivered"].includes(d.stage)) return false;
+      // Teaching mode is a fully open sandbox — every user sees every practice
+      // order, so none of the role-scoped restrictions below apply.
+      if (!teaching) {
+        // Sales only ever sees their own orders — a hard boundary, not
+        // relaxed by search, unlike the date-window restriction below.
+        // "Own" includes orders an office/admin/driver assigned to them.
+        if (me?.role === "sales" && orderOwner(d) !== me.id) return false;
+        // Warehouse only ever sees orders that have been approved — never
+        // draft / pending / rejected / canceled (pre-approval or dead orders).
+        if (me?.role === "warehouse" && !["approved", "fulfilling", "ready", "picked_up", "delivered"].includes(d.stage)) return false;
+      }
       if (!needle) {
         // Sales' default view is scoped to yesterday/today/future — older
         // history is still there, just reached by searching (e.g. an invoice #)
         // rather than scrolled to, so the list stays focused on active work.
-        if (me?.role === "sales" && d.delivery_date && d.delivery_date < yesterdayISO()) return false;
+        if (!teaching && me?.role === "sales" && d.delivery_date && d.delivery_date < yesterdayISO()) return false;
         return true;
       }
       const hay = [d.order_no, d.account, d.so_num, d.po2, d.invoice_num, d.store, d.delivery_address, d.contact, d.assigned_driver, d.delivery_phone]
         .map((x) => String(x ?? "").toLowerCase()).join(" ");
       return hay.includes(needle);
     });
-  }, [deliveries, q, me?.id, me?.role]);
+  }, [deliveries, q, me?.id, me?.role, teaching]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: visible.length };

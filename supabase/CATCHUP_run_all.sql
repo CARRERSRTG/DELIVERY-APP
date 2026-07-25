@@ -153,12 +153,17 @@ create trigger deliveries_guard_stage before insert or update on public.deliveri
 -- ---------- 010: driver capacity ----------
 alter table public.settings add column if not exists driver_capacity jsonb default '{}'::jsonb;
 
--- ---------- 011 + 015: role-scoped read (drivers own-only, warehouse approved+) ----------
+-- ---------- 016: teaching-mode flag (needed by the read policy below) ----------
+alter table public.deliveries add column if not exists is_training boolean not null default false;
+create index if not exists deliveries_is_training_idx on public.deliveries(is_training);
+
+-- ---------- 011 + 015 + 018: role-scoped read (open sandbox for training) ----------
 drop policy if exists "auth read deliveries" on public.deliveries;
 create policy "auth read deliveries" on public.deliveries
   for select to authenticated
   using (
-    case (select role from public.profiles where id = auth.uid())
+    is_training  -- open practice sandbox: everyone sees every training order
+    or case (select role from public.profiles where id = auth.uid())
       when 'driver' then
         created_by = auth.uid()
         or assigned_driver = (select full_name from public.profiles where id = auth.uid())
