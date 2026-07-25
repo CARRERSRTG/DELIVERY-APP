@@ -9,10 +9,20 @@ import { DEFAULT_COLUMNS, ORDER_COLUMNS } from "@/components/OrdersTable";
 import type { Settings, UserRole } from "@/lib/types";
 
 export default function SettingsPage() {
-  const { me, users, settings, saveSettings, notify } = useData();
+  const { me, users, settings, saveSettings, notify, teaching, setTeaching } = useData();
   const { lang, theme, setLang, setTheme, t } = usePrefs();
   if (!me) return null;
-  if (me.role !== "admin") return <div className="empty">{t("Admins only.", "Solo administradores.")}</div>;
+
+  // Non-admins get a slim Settings page: appearance + the shared Teaching mode.
+  if (me.role !== "admin") {
+    return (
+      <>
+        <div className="page-head"><h2>{t("Settings", "Ajustes")}</h2></div>
+        <AppearanceCard lang={lang} theme={theme} setLang={setLang} setTheme={setTheme} t={t} />
+        <TeachingCard teaching={teaching} setTeaching={setTeaching} t={t} />
+      </>
+    );
+  }
 
   // Drivers are derived from the Users list, not stored in settings.
   const drivers = driverNames(users);
@@ -21,26 +31,8 @@ export default function SettingsPage() {
     <>
       <div className="page-head"><h2>{t("Settings", "Ajustes")}</h2></div>
 
-      <div className="card">
-        <h2>🌐 {t("Language & appearance", "Idioma y apariencia")}</h2>
-        <div className="grid g2" style={{ maxWidth: 520 }}>
-          <div className="field">
-            <label>{t("Language", "Idioma")}</label>
-            <div className="toggle-group">
-              <button className={"toggle-btn " + (lang === "en" ? "on" : "")} onClick={() => setLang("en")}>🇬🇧 English</button>
-              <button className={"toggle-btn " + (lang === "es" ? "on" : "")} onClick={() => setLang("es")}>🇪🇸 Español</button>
-            </div>
-          </div>
-          <div className="field">
-            <label>{t("Theme", "Tema")}</label>
-            <div className="toggle-group">
-              <button className={"toggle-btn " + (theme === "light" ? "on" : "")} onClick={() => setTheme("light")}>☀️ {t("Light", "Claro")}</button>
-              <button className={"toggle-btn " + (theme === "dark" ? "on" : "")} onClick={() => setTheme("dark")}>🌙 {t("Dark", "Oscuro")}</button>
-            </div>
-          </div>
-        </div>
-        <div className="hint">{t("You can also switch these anytime from the buttons in the top bar.", "También puedes cambiarlos desde los botones en la barra superior.")}</div>
-      </div>
+      <AppearanceCard lang={lang} theme={theme} setLang={setLang} setTheme={setTheme} t={t} />
+      <TeachingCard teaching={teaching} setTeaching={setTeaching} t={t} />
 
       <div className="card">
         <h2>{t("Workspace name", "Nombre del espacio")}</h2>
@@ -349,3 +341,59 @@ function RateInput({ label, value, onSave }: { label: string; value: number; onS
   );
 }
 
+
+// ---- Shared cards, available to every role (not just admin) ----------------
+function AppearanceCard({ lang, theme, setLang, setTheme, t }: {
+  lang: string; theme: string;
+  setLang: (l: "en" | "es") => void; setTheme: (v: "light" | "dark") => void;
+  t: (en: string, es: string) => string;
+}) {
+  return (
+    <div className="card">
+      <h2>🌐 {t("Language & appearance", "Idioma y apariencia")}</h2>
+      <div className="grid g2" style={{ maxWidth: 520 }}>
+        <div className="field">
+          <label>{t("Language", "Idioma")}</label>
+          <div className="toggle-group">
+            <button className={"toggle-btn " + (lang === "en" ? "on" : "")} onClick={() => setLang("en")}>🇬🇧 English</button>
+            <button className={"toggle-btn " + (lang === "es" ? "on" : "")} onClick={() => setLang("es")}>🇪🇸 Español</button>
+          </div>
+        </div>
+        <div className="field">
+          <label>{t("Theme", "Tema")}</label>
+          <div className="toggle-group">
+            <button className={"toggle-btn " + (theme === "light" ? "on" : "")} onClick={() => setTheme("light")}>☀️ {t("Light", "Claro")}</button>
+            <button className={"toggle-btn " + (theme === "dark" ? "on" : "")} onClick={() => setTheme("dark")}>🌙 {t("Dark", "Oscuro")}</button>
+          </div>
+        </div>
+      </div>
+      <div className="hint">{t("You can also switch these anytime from the buttons in the top bar.", "También puedes cambiarlos desde los botones en la barra superior.")}</div>
+    </div>
+  );
+}
+
+function TeachingCard({ teaching, setTeaching, t }: {
+  teaching: boolean; setTeaching: (v: boolean) => void; t: (en: string, es: string) => string;
+}) {
+  return (
+    <div className="card">
+      <h2>🎓 {t("Teaching / practice mode", "Modo enseñanza / práctica")}</h2>
+      <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+        {t(
+          "A shared training sandbox. Orders created here are saved in the database and visible to EVERY user who turns teaching mode on, so the whole team can practice together. They never mix with real orders and are never deleted when you exit.",
+          "Un entorno de práctica compartido. Las órdenes creadas aquí se guardan en la base de datos y son visibles para TODOS los usuarios que activen el modo enseñanza, para que todo el equipo practique. Nunca se mezclan con las órdenes reales ni se borran al salir.",
+        )}
+      </p>
+      <div className="toggle-group">
+        <button className={"toggle-btn " + (!teaching ? "on" : "")} onClick={() => setTeaching(false)}>
+          {t("Live", "Real")}
+        </button>
+        <button className={"toggle-btn " + (teaching ? "on" : "")} onClick={() => setTeaching(true)}
+          style={teaching ? { background: "#7c3aed", borderColor: "#7c3aed" } : undefined}>
+          🎓 {t("Teaching", "Enseñanza")}
+        </button>
+      </div>
+      {teaching && <div className="hint" style={{ color: "#7c3aed", fontWeight: 700 }}>{t("Teaching mode is ON — you are working with practice orders.", "El modo enseñanza está ACTIVO — estás trabajando con órdenes de práctica.")}</div>}
+    </div>
+  );
+}

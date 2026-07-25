@@ -59,14 +59,6 @@ export function TopBar({ me: propMe }: { me: Profile }) {
           })}
         </div>
         <NotificationBell />
-        {/* Teaching mode: a persistent training sandbox in the same DB. Any role
-            can flip it on to practice; orders made here carry is_training and are
-            kept separate from real ones. */}
-        <button className="tab" onClick={() => setTeaching(!teaching)}
-          title={t("Teaching (training) mode", "Modo enseñanza (práctica)")}
-          style={{ background: teaching ? "rgba(124,58,237,.55)" : "rgba(255,255,255,.1)" }}>
-          🎓 {teaching ? t("Teaching", "Enseñanza") : t("Teach", "Enseñar")}
-        </button>
         {/* Admin sandbox: discreetly preview the app as any role. Only the real
             admin ever sees this, and it never changes their account/role in the DB. */}
         {realRole === "admin" && (

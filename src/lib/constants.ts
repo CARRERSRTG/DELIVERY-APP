@@ -79,7 +79,7 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   // Warehouse/Driver — it doesn't get the general Orders board or dashboard.
   { id: "routes",    label: "🧭 Routes",    label_es: "🧭 Rutas",      href: "/routes", roles: ["logistics", "admin"], cap: "route_plan" },
   { id: "data",      label: "🗂 Data",      label_es: "🗂 Datos",      href: "/data", roles: ["admin"], cap: "settings" },
-  { id: "settings",  label: "⚙️ Settings",  label_es: "⚙️ Ajustes",    href: "/settings", roles: ["admin"], cap: "settings" },
+  { id: "settings",  label: "⚙️ Settings",  label_es: "⚙️ Ajustes",    href: "/settings" },
   { id: "users",     label: "🛡 Users",     label_es: "🛡 Usuarios",   href: "/users", roles: ["admin"], cap: "users" },
   // Personal work summary — not shown to sales/manager (redundant with their
   // Orders default view) or warehouse (outside its restricted nav).
