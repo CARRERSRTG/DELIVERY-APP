@@ -9,7 +9,13 @@ import { DEFAULT_COLUMNS, ORDER_COLUMNS } from "@/components/OrdersTable";
 import type { Settings, UserRole } from "@/lib/types";
 
 export default function SettingsPage() {
-  const { me, users, settings, saveSettings, notify, teaching, setTeaching } = useData();
+  const { me, users, settings, saveSettings, notify, teaching, setTeaching, clearTrainingData } = useData();
+  const clearTraining = async () => {
+    if (confirm(t("Permanently delete ALL practice orders? This resets the shared training sandbox for everyone.",
+                  "¿Eliminar permanentemente TODAS las órdenes de práctica? Esto reinicia el entorno de práctica compartido para todos."))) {
+      await clearTrainingData();
+    }
+  };
   const { lang, theme, setLang, setTheme, t } = usePrefs();
   if (!me) return null;
 
@@ -32,7 +38,7 @@ export default function SettingsPage() {
       <div className="page-head"><h2>{t("Settings", "Ajustes")}</h2></div>
 
       <AppearanceCard lang={lang} theme={theme} setLang={setLang} setTheme={setTheme} t={t} />
-      <TeachingCard teaching={teaching} setTeaching={setTeaching} t={t} />
+      <TeachingCard teaching={teaching} setTeaching={setTeaching} t={t} isAdmin onClear={clearTraining} />
 
       <div className="card">
         <h2>{t("Workspace name", "Nombre del espacio")}</h2>
@@ -372,8 +378,9 @@ function AppearanceCard({ lang, theme, setLang, setTheme, t }: {
   );
 }
 
-function TeachingCard({ teaching, setTeaching, t }: {
+function TeachingCard({ teaching, setTeaching, t, isAdmin, onClear }: {
   teaching: boolean; setTeaching: (v: boolean) => void; t: (en: string, es: string) => string;
+  isAdmin?: boolean; onClear?: () => void;
 }) {
   return (
     <div className="card">
@@ -394,6 +401,12 @@ function TeachingCard({ teaching, setTeaching, t }: {
         </button>
       </div>
       {teaching && <div className="hint" style={{ color: "#7c3aed", fontWeight: 700 }}>{t("Teaching mode is ON — you are working with practice orders.", "El modo enseñanza está ACTIVO — estás trabajando con órdenes de práctica.")}</div>}
+      {isAdmin && onClear && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+          <button className="btn btn-danger btn-sm" onClick={onClear}>🗑 {t("Clear all training data", "Borrar todos los datos de práctica")}</button>
+          <div className="hint">{t("Deletes every practice order for the whole team. Real orders are never affected.", "Elimina todas las órdenes de práctica de todo el equipo. Las órdenes reales nunca se ven afectadas.")}</div>
+        </div>
+      )}
     </div>
   );
 }

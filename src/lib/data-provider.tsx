@@ -51,6 +51,9 @@ export interface DataState {
    * real orders. */
   teaching: boolean;
   setTeaching: (v: boolean) => void;
+  /** Permanently delete every training order (is_training) — resets the
+   * shared practice sandbox. Admin action. */
+  clearTrainingData: () => Promise<void>;
   settings: Settings;
   users: Profile[];
   deliveries: Delivery[];
@@ -165,6 +168,13 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (n.data) setNotifications(n.data as AppNotification[]);
     setReady(true);
   }, [supabase, me, teaching]);
+
+  const clearTrainingData = useCallback(async () => {
+    const { error } = await supabase.from("deliveries").delete().eq("is_training", true);
+    if (error) { notify("Error: " + error.message); return; }
+    await reloadAll();
+    notify("Training data cleared");
+  }, [supabase, notify, reloadAll]);
 
   // ---- Single-device sessions ----
   // On load, claim the account by stamping THIS session's id on the profile.
@@ -436,7 +446,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   );
 
   const value: DataState = {
-    ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, settings, users, deliveries, events, notifications, toast, notify,
+    ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, clearTrainingData, settings, users, deliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
