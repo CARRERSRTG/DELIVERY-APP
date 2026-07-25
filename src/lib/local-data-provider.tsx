@@ -251,7 +251,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
   }, [persist, notify]);
 
   const value: DataState = useMemo(() => ({
-    ready, me, realRole: me.role, viewAs: null, setViewAs: () => {}, settings: store.settings, users: store.users, deliveries: store.deliveries, events: store.events,
+    ready, me, realRole: me.role, viewAs: null, setViewAs: () => {}, teaching: false, setTeaching: () => {}, settings: store.settings, users: store.users, deliveries: store.deliveries, events: store.events,
     notifications: store.notifications.filter((n) => n.user_id === me.id),
     toast, notify, markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
@@ -271,7 +271,7 @@ function seedRow(n: number): Delivery {
   const now = new Date().toISOString();
   return {
     id: "", order_no: n, order_suffix: null, stage: "draft", rejected_reason: null,
-    redelivery_of: null, redelivery_reason: null,
+    is_training: false, redelivery_of: null, redelivery_reason: null,
     prepared_status: null, status_temp: null, order_type: null, store: null,
     po2: null, so_num: null, invoice_num: null, input_date: todayISO(), input_time: null,
     delivery_date: null, pickup_name: null, pickup_address: null, pickup_duration: null,

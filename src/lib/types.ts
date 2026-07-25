@@ -39,6 +39,9 @@ export interface Delivery {
 
   stage: Stage;
   rejected_reason: string | null;
+  /** True for orders created in Teaching (training) mode — kept in the same
+   * table but shown only while teaching mode is on. */
+  is_training: boolean;
 
   // Re-delivery tracking: when an order has to be delivered again (warehouse
   // error, damage, etc.) it's re-recorded as a NEW order linked to the original,

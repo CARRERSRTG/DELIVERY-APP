@@ -46,6 +46,11 @@ export interface DataState {
   /** Which role an admin is previewing as, or null when viewing as themselves. */
   viewAs: UserRole | null;
   setViewAs: (r: UserRole | null) => void;
+  /** Teaching (training) mode: when on, the app reads/writes only training
+   * orders (is_training = true). They persist in the DB and never mix with
+   * real orders. */
+  teaching: boolean;
+  setTeaching: (v: boolean) => void;
   settings: Settings;
   users: Profile[];
   deliveries: Delivery[];
@@ -119,6 +124,16 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const effectiveMe: Profile | null =
     me && realRole === "admin" && viewAs ? { ...me, role: viewAs } : me;
 
+  // ---- Teaching / training mode: scopes all data to is_training rows. ----
+  const [teaching, setTeachingState] = useState(false);
+  useEffect(() => {
+    try { setTeachingState(localStorage.getItem("rtg_teaching") === "1"); } catch { /* ignore */ }
+  }, []);
+  const setTeaching = useCallback((v: boolean) => {
+    setTeachingState(v);
+    try { if (v) localStorage.setItem("rtg_teaching", "1"); else localStorage.removeItem("rtg_teaching"); } catch { /* ignore */ }
+  }, []);
+
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [users, setUsers] = useState<Profile[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -137,7 +152,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     const [s, p, d, e, n] = await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("profiles").select("id, full_name, role, store, avatar_url").order("full_name"),
-      supabase.from("deliveries").select("*").order("order_no", { ascending: false }),
+      supabase.from("deliveries").select("*").eq("is_training", teaching).order("order_no", { ascending: false }),
       supabase.from("order_events").select("*").order("created_at", { ascending: false }),
       me
         ? supabase.from("notifications").select("*").eq("user_id", me.id).order("created_at", { ascending: false }).limit(50)
@@ -149,7 +164,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (e.data) setEvents(e.data as OrderEvent[]);
     if (n.data) setNotifications(n.data as AppNotification[]);
     setReady(true);
-  }, [supabase, me]);
+  }, [supabase, me, teaching]);
 
   // ---- Single-device sessions ----
   // On load, claim the account by stamping THIS session's id on the profile.
@@ -236,7 +251,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       // created_by is always the actual actor — a non-sales creator assigning
       // the order to a rep (OrderModal's Sales Rep picker) sets assigned_sales_rep
       // instead, which is what orderOwner() resolves for own-orders visibility.
-      const payload = { ...d, created_by: me?.id ?? null };
+      const payload = { ...d, created_by: me?.id ?? null, is_training: teaching };
       const { data, error } = await supabase.from("deliveries").insert(payload).select().single();
       if (error) {
         notify("Error: " + error.message);
@@ -251,7 +266,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       }
       return row;
     },
-    [supabase, me, notify, logEvent, emitStageNotifs],
+    [supabase, me, notify, logEvent, emitStageNotifs, teaching],
   );
 
   const updateDelivery = useCallback<DataState["updateDelivery"]>(
@@ -421,7 +436,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   );
 
   const value: DataState = {
-    ready, me: effectiveMe, realRole, viewAs, setViewAs, settings, users, deliveries, events, notifications, toast, notify,
+    ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, settings, users, deliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,

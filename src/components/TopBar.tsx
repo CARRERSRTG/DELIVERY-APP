@@ -13,7 +13,7 @@ import type { Profile, UserRole } from "@/lib/types";
 
 export function TopBar({ me: propMe }: { me: Profile }) {
   const pathname = usePathname();
-  const { settings, me: ctxMe, realRole, viewAs, setViewAs } = useData();
+  const { settings, me: ctxMe, realRole, viewAs, setViewAs, teaching, setTeaching } = useData();
   const { lang, t } = usePrefs();
   // `me` is the EFFECTIVE user — its role follows the admin "view as" preview.
   const me = ctxMe ?? propMe;
@@ -23,6 +23,17 @@ export function TopBar({ me: propMe }: { me: Profile }) {
     <>
     <PendingDeadlineWatcher />
     <OfflineBanner />
+    {teaching && (
+      <div style={{ background: "#7c3aed", color: "#fff", textAlign: "center", padding: "6px 12px",
+        fontSize: 12.5, fontWeight: 700, letterSpacing: ".03em" }}>
+        🎓 {t("TEACHING MODE — practice data only. Real orders are hidden and untouched.",
+             "MODO ENSEÑANZA — solo datos de práctica. Las órdenes reales están ocultas y no se tocan.")}
+        <button onClick={() => setTeaching(false)}
+          style={{ marginLeft: 12, background: "rgba(255,255,255,.25)", color: "#fff", padding: "2px 10px", borderRadius: 6, fontWeight: 700 }}>
+          {t("Exit", "Salir")}
+        </button>
+      </div>
+    )}
     <div className="topbar">
       <h1>{settings.app_name || "RDZ·DELIVERIES"}</h1>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -48,6 +59,14 @@ export function TopBar({ me: propMe }: { me: Profile }) {
           })}
         </div>
         <NotificationBell />
+        {/* Teaching mode: a persistent training sandbox in the same DB. Any role
+            can flip it on to practice; orders made here carry is_training and are
+            kept separate from real ones. */}
+        <button className="tab" onClick={() => setTeaching(!teaching)}
+          title={t("Teaching (training) mode", "Modo enseñanza (práctica)")}
+          style={{ background: teaching ? "rgba(124,58,237,.55)" : "rgba(255,255,255,.1)" }}>
+          🎓 {teaching ? t("Teaching", "Enseñanza") : t("Teach", "Enseñar")}
+        </button>
         {/* Admin sandbox: discreetly preview the app as any role. Only the real
             admin ever sees this, and it never changes their account/role in the DB. */}
         {realRole === "admin" && (

@@ -112,6 +112,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
     order_suffix: null,
     stage: "draft",
     rejected_reason: null,
+    is_training: false,
     redelivery_of: null,
     redelivery_reason: null,
     prepared_status: null,
