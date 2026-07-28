@@ -54,6 +54,14 @@ begin
   if r = 'admin' then return NEW; end if;
 
   if TG_OP = 'INSERT' then
+    -- A split load (the remainder of a partially-loaded order, e.g. #1001b)
+    -- is logged at pickup time and re-enters the flow staged and ready.
+    if NEW.order_suffix is not null then
+      if r in ('warehouse','driver','logistics','manager') and new_stage in ('ready','approved','fulfilling') then
+        return NEW;
+      end if;
+      raise exception 'Not allowed to create this split load';
+    end if;
     -- A re-delivery (repeat of a prior order) may be logged by the people who
     -- handle fulfillment, and re-enters the flow already approved.
     if NEW.redelivery_of is not null then
@@ -62,33 +70,29 @@ begin
       end if;
       raise exception 'Not allowed to log this re-delivery';
     end if;
-    -- A split load (the remainder of a partially-loaded order, e.g. #1001b)
-    -- is logged at pickup time and re-enters the flow staged and ready.
-    if NEW.order_suffix is not null then
-      if r in ('warehouse','manager','driver','logistics') and new_stage in ('ready','approved') then
-        return NEW;
-      end if;
-      raise exception 'Not allowed to log this split load';
+    -- Office Managers create and approve in one step; sales/drivers draft/pending only.
+    if r = 'manager' then
+      if new_stage in ('draft','pending','approved') then return NEW; end if;
+      raise exception 'New orders start as draft, pending or approved';
     end if;
-    if r not in ('sales','driver') then
-      raise exception 'Only sales or drivers can create orders';
-    end if;
-    if new_stage not in ('draft','pending') then
+    if r in ('sales','driver') then
+      if new_stage in ('draft','pending') then return NEW; end if;
       raise exception 'New orders start as draft or pending';
     end if;
-    return NEW;
+    raise exception 'Only sales, managers or drivers can create orders';
   end if;
 
   -- UPDATE: if the stage did not change, allow role-appropriate field edits.
   if new_stage is not distinct from old_stage then
     if r in ('sales','driver') and old_stage in ('draft','pending','rejected') then return NEW; end if;
     if r = 'manager' then return NEW; end if;
-    if r = 'warehouse' and old_stage in ('approved','fulfilling','ready','delivered') then return NEW; end if;
+    if r = 'warehouse' and old_stage in ('approved','fulfilling','ready','picked_up','delivered') then return NEW; end if;
+    if r = 'logistics' and old_stage in ('approved','fulfilling','ready') then return NEW; end if;
     raise exception 'You cannot edit an order in the % stage', old_stage;
   end if;
 
   -- Stage transitions.
-  if r in ('sales','driver') then
+  if r in ('sales','driver','manager') then
     if (old_stage = 'draft'    and new_stage = 'pending')
     or (old_stage = 'pending'  and new_stage = 'draft')
     or (old_stage = 'rejected' and new_stage = 'pending')
@@ -99,14 +103,12 @@ begin
     or (r = 'driver' and old_stage = 'picked_up' and new_stage = 'ready') then
       return NEW;
     end if;
-    raise exception '% cannot move an order from % to %', r, old_stage, new_stage;
-  elsif r = 'manager' then
-    if (old_stage = 'pending'  and new_stage = 'approved')
-    or (old_stage = 'pending'  and new_stage = 'rejected')
-    or (old_stage = 'approved' and new_stage = 'pending') then
-      return NEW;
+    if r = 'manager' then
+      if (old_stage = 'pending'  and new_stage = 'approved')
+      or (old_stage = 'pending'  and new_stage = 'rejected')
+      or (old_stage = 'approved' and new_stage = 'pending') then return NEW; end if;
     end if;
-    raise exception 'Manager cannot move an order from % to %', old_stage, new_stage;
+    raise exception '% cannot move an order from % to %', r, old_stage, new_stage;
   elsif r = 'warehouse' then
     if (old_stage = 'approved'   and new_stage = 'fulfilling')
     or (old_stage = 'fulfilling' and new_stage = 'ready')

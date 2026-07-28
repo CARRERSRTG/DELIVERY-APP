@@ -1,6 +1,6 @@
 -- ============================================================
 -- CATCH-UP SCRIPT — brings an existing database fully in sync with
--- the app code (migrations 001–014 in one idempotent script).
+-- the app code (migrations 001–019 in one idempotent script).
 --
 -- SAFE TO RUN as many times as you like: every statement either uses
 -- "if not exists" / "create or replace" / "drop ... if exists", or is
@@ -100,9 +100,16 @@ begin
       if r in ('warehouse','manager','driver') and new_stage in ('approved','pending') then return NEW; end if;
       raise exception 'Not allowed to log this re-delivery';
     end if;
-    if r not in ('sales','driver','manager') then raise exception 'Only sales, managers or drivers can create orders'; end if;
-    if new_stage not in ('draft','pending') then raise exception 'New orders start as draft or pending'; end if;
-    return NEW;
+    -- Office Managers create and approve in one step; sales/drivers draft/pending only.
+    if r = 'manager' then
+      if new_stage in ('draft','pending','approved') then return NEW; end if;
+      raise exception 'New orders start as draft, pending or approved';
+    end if;
+    if r in ('sales','driver') then
+      if new_stage in ('draft','pending') then return NEW; end if;
+      raise exception 'New orders start as draft or pending';
+    end if;
+    raise exception 'Only sales, managers or drivers can create orders';
   end if;
 
   -- UPDATE with no stage change: role-appropriate field edits.
