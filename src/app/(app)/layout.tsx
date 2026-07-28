@@ -5,6 +5,7 @@ import { ConfirmProvider } from "@/lib/confirm";
 import { LocalApp } from "@/components/LocalApp";
 import { TopBar } from "@/components/TopBar";
 import { VersionFooter } from "@/components/VersionFooter";
+import { HelpButton } from "@/components/HelpButton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import type { Profile } from "@/lib/types";
 
@@ -33,6 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <DataProvider me={me}>
         <TopBar me={me} />
         <div className="wrap"><ErrorBoundary>{children}</ErrorBoundary></div>
+        <HelpButton me={me} />
         <VersionFooter />
       </DataProvider>
     </ConfirmProvider>

@@ -451,3 +451,24 @@ table.orders th { text-align: left; }
 /* ---------- Admin status override (in order actions) ---------- */
 .admin-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--gray); }
 .admin-status select { width: auto; padding: 6px 8px; font-size: 13px; }
+
+/* ---------- Floating Help button (app-wide) ---------- */
+.help-fab {
+  position: fixed; right: 20px; bottom: 20px; z-index: 40;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 16px 11px 13px; border: none; border-radius: 999px;
+  background: var(--accent); color: #fff; font-weight: 800; font-size: 14px;
+  cursor: pointer; box-shadow: 0 6px 18px rgba(10,20,40,.28);
+  transition: transform .12s ease, background .12s ease;
+}
+.help-fab:hover { background: #1d47a8; transform: translateY(-1px); }
+.help-fab > span:first-child {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(255,255,255,.22); font-size: 13px; font-weight: 900;
+}
+.help-fab-label { line-height: 1; }
+@media (max-width: 640px) {
+  .help-fab { right: 14px; bottom: 14px; padding: 12px; }
+  .help-fab-label { display: none; }
+}

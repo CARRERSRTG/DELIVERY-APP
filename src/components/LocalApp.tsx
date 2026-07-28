@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { LocalDataProvider, resetLocalData } from "@/lib/local-data-provider";
 import { TopBar } from "@/components/TopBar";
 import { VersionFooter } from "@/components/VersionFooter";
+import { HelpButton } from "@/components/HelpButton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ROLE_ORDER, roleLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
@@ -69,6 +70,7 @@ export function LocalApp({ children }: { children: React.ReactNode }) {
       </div>
       <TopBar me={me} />
       <div className="wrap"><ErrorBoundary>{children}</ErrorBoundary></div>
+      <HelpButton me={me} />
       <VersionFooter />
     </LocalDataProvider>
   );

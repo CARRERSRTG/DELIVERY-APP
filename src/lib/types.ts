@@ -203,4 +203,9 @@ export interface Settings {
    * Sales reps get no "Columns" picker of their own — this is the one list
    * they see, company-wide. Falls back to ROLE_DEFAULT_COLUMNS.sales if unset. */
   sales_columns?: string[] | null;
+
+  /** Where the in-app Help button sends its emails. Any user can tap Help to
+   * email this address; an admin sets it in Settings. Falls back to
+   * DEFAULT_HELP_EMAIL when unset. */
+  help_email?: string;
 }

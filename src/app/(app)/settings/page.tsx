@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import Link from "next/link";
-import { ROLE_DEFAULT_COLUMNS, ROLE_INFO, ROLE_ORDER, defaultPermissions, driverNames, roleLabel } from "@/lib/constants";
+import { DEFAULT_HELP_EMAIL, ROLE_DEFAULT_COLUMNS, ROLE_INFO, ROLE_ORDER, defaultPermissions, driverNames, roleLabel } from "@/lib/constants";
 import { DEFAULT_COLUMNS, ORDER_COLUMNS } from "@/components/OrdersTable";
 import type { Settings, UserRole } from "@/lib/types";
 
@@ -43,6 +43,23 @@ export default function SettingsPage() {
       <div className="card">
         <h2>{t("Workspace name", "Nombre del espacio")}</h2>
         <AppName current={settings.app_name} saveLabel={t("Save", "Guardar")} onSave={(v) => { saveSettings({ app_name: v }); notify(t("Saved", "Guardado")); }} />
+      </div>
+
+      <div className="card">
+        <h2>❓ {t("Help & support", "Ayuda y soporte")}</h2>
+        <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+          {t(
+            "Where the in-app Help button (bottom-right on every screen) sends requests.",
+            "A dónde envía sus solicitudes el botón de Ayuda (abajo a la derecha en cada pantalla).",
+          )}
+        </p>
+        <HelpEmail
+          current={settings.help_email ?? ""}
+          placeholder={DEFAULT_HELP_EMAIL}
+          saveLabel={t("Save", "Guardar")}
+          invalidMsg={t("Enter a valid email address.", "Ingrese un correo válido.")}
+          onSave={(v) => { saveSettings({ help_email: v || null } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
+        />
       </div>
 
       <div className="card">
@@ -231,6 +248,38 @@ function AppName({ current, onSave, saveLabel }: { current: string; onSave: (v: 
     <div style={{ display: "flex", gap: 8, maxWidth: 460 }}>
       <input value={v} onChange={(e) => setV(e.target.value)} />
       <button className="btn btn-primary" onClick={() => onSave(v.trim() || current)}>{saveLabel}</button>
+    </div>
+  );
+}
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** Help-request recipient. Blank = fall back to DEFAULT_HELP_EMAIL (shown as the
+ * placeholder). Validates a real address before saving. */
+function HelpEmail({
+  current, placeholder, onSave, saveLabel, invalidMsg,
+}: { current: string; placeholder: string; onSave: (v: string) => void; saveLabel: string; invalidMsg: string }) {
+  const [v, setV] = useState(current);
+  const [err, setErr] = useState("");
+  const trimmed = v.trim();
+  const save = () => {
+    if (trimmed && !EMAIL_RE.test(trimmed)) { setErr(invalidMsg); return; }
+    setErr("");
+    onSave(trimmed);
+  };
+  return (
+    <div style={{ maxWidth: 460 }}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          type="email"
+          value={v}
+          placeholder={placeholder}
+          onChange={(e) => { setV(e.target.value); if (err) setErr(""); }}
+          onKeyDown={(e) => e.key === "Enter" && save()}
+        />
+        <button className="btn btn-primary" onClick={save}>{saveLabel}</button>
+      </div>
+      {err && <div className="hint" style={{ color: "var(--danger, #d64545)", marginTop: 6 }}>{err}</div>}
     </div>
   );
 }

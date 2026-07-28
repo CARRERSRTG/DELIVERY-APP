@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ringcentralConfigured, ringcentralSms } from "@/lib/ringcentral";
+import { emailConfigured, resendFrom } from "@/lib/email";
 
 // ============================================================
 // Outbound customer notifications (#21) — email / SMS at key delivery stages.
@@ -15,7 +16,9 @@ import { ringcentralConfigured, ringcentralSms } from "@/lib/ringcentral";
 //   RingCentral SMS: RINGCENTRAL_CLIENT_ID + RINGCENTRAL_CLIENT_SECRET
 //                    + RINGCENTRAL_JWT + RINGCENTRAL_FROM  (+ optional RINGCENTRAL_SERVER)
 //   Twilio SMS:      TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_FROM
-//   Email:           RESEND_API_KEY + NOTIFY_FROM_EMAIL
+//   Email:           RESEND_API_KEY + a sender — either RESEND_EMAIL_DOMAIN
+//                    (auto-set by the Vercel↔Resend integration) or an
+//                    explicit NOTIFY_FROM_EMAIL override. See lib/email.ts.
 // ============================================================
 
 interface NotifyBody {
@@ -30,7 +33,7 @@ interface NotifyBody {
 export async function GET() {
   const ringcentral = !!(process.env.RINGCENTRAL_CLIENT_ID && process.env.RINGCENTRAL_JWT && process.env.RINGCENTRAL_FROM);
   const twilio = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM);
-  const email = !!(process.env.RESEND_API_KEY && process.env.NOTIFY_FROM_EMAIL);
+  const email = emailConfigured();
   return NextResponse.json({
     sms: ringcentral ? "ringcentral" : twilio ? "twilio" : null,
     ringcentral, twilio, email,
@@ -52,7 +55,7 @@ export async function POST(req: Request) {
   try {
     if (body.channel === "email") {
       const key = process.env.RESEND_API_KEY;
-      const from = process.env.NOTIFY_FROM_EMAIL;
+      const from = resendFrom();
       if (!key || !from) return NextResponse.json({ ok: false, dryRun: true, reason: "email provider not configured" });
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",

@@ -2,7 +2,11 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.2.37";
+export const APP_VERSION = "0.2.39";
+
+// Default recipient for the in-app Help button, used when Settings.help_email
+// is unset. Admins can override it in Settings → app configuration.
+export const DEFAULT_HELP_EMAIL = "andresugarte000@gmail.com";
 
 // ---- Workflow stages (source of truth for labels, colors, order) ----------
 export interface StageInfo {

@@ -12,3 +12,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Agent tooling / skills (installed locally by marketplace integrations)
+.agents/
+.claude/
