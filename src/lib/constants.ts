@@ -2,11 +2,15 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.2.40";
+export const APP_VERSION = "0.2.41";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
-export const DEFAULT_HELP_EMAIL = "andresugarte000@gmail.com";
+// Set to careers@rdztilegroup.net because until the send.rdztilegroup.net
+// sending domain is DNS-verified, Resend only delivers to the account's own
+// address (careers@). Change this (and remove the NOTIFY_FROM_EMAIL override)
+// to andresugarte000@gmail.com once the domain is verified.
+export const DEFAULT_HELP_EMAIL = "careers@rdztilegroup.net";
 
 // ---- Workflow stages (source of truth for labels, colors, order) ----------
 export interface StageInfo {
