@@ -299,6 +299,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
 
     // ---- Pickup / Will Call / Transfer — no customer invoice required ----
     mk(1022, 2, null, { stage: "ready", store: "McAllen", order_type: "Delivery", account: "Walk-in Customer",
+      invoice_num: "INV-3034",
       delivery_address: "2400 N 23rd St, McAllen TX", delivery_windows: "1000-1200", delivery_fee: 0,
       approved_by: "u-mgr", approved_at: stamp(800),
       delivery_lat: 26.2034, delivery_lng: -98.2300, delivery_pin_source: "geocoded" }),
