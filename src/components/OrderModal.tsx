@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
-import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, DELIVERY_WINDOW_PRESETS, driverNames, SATURDAY_WINDOW, stageInfo, stageLabel, WEEKDAY_ALL_DAY_WINDOW } from "@/lib/constants";
+import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, DELIVERY_WINDOW_PRESETS, driverNames, ROLE_INFO, roleLabel, SATURDAY_WINDOW, stageInfo, stageLabel, WEEKDAY_ALL_DAY_WINDOW } from "@/lib/constants";
 import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, nowMilitary, orderLabel, palletDuration, telClean, todayISO } from "@/lib/utils";
 import { printDeliverySlip } from "@/lib/slip";
 import { AddressInput } from "@/components/AddressInput";
@@ -109,6 +109,17 @@ export function OrderModal({
   const events = existing ? eventsFor(existing.id) : [];
   const userName = (id: string | null | undefined) =>
     users.find((u) => u.id === id)?.full_name ?? "—";
+  // A small colored pill showing a person's role, shown beside their name in
+  // the order history (created / assigned / approved / event log).
+  const roleTag = (id: string | null | undefined) => {
+    const role = users.find((u) => u.id === id)?.role;
+    if (!role) return null;
+    return (
+      <span className="sema" style={{ background: ROLE_INFO[role].color, color: "#fff", marginLeft: 6 }}>
+        {roleLabel(role, lang)}
+      </span>
+    );
+  };
 
   const set = (k: keyof Delivery, v: unknown) => setD((p) => ({ ...p, [k]: v }));
 
@@ -729,17 +740,17 @@ export function OrderModal({
                 {t("Post", "Enviar")}
               </button>
             </div>
-            <div className="detail-row"><span className="dk">{t("Created by", "Creado por")}</span><span className="dv">{userName(existing.created_by)} · {fmtDateTime(existing.created_at)}</span></div>
+            <div className="detail-row"><span className="dk">{t("Created by", "Creado por")}</span><span className="dv">{userName(existing.created_by)}{roleTag(existing.created_by)} · {fmtDateTime(existing.created_at)}</span></div>
             {existing.assigned_sales_rep && (
-              <div className="detail-row"><span className="dk">{t("Assigned to", "Asignado a")}</span><span className="dv">{userName(existing.assigned_sales_rep)}</span></div>
+              <div className="detail-row"><span className="dk">{t("Assigned to", "Asignado a")}</span><span className="dv">{userName(existing.assigned_sales_rep)}{roleTag(existing.assigned_sales_rep)}</span></div>
             )}
             {existing.approved_at && (
-              <div className="detail-row"><span className="dk">{t("Approved by", "Aprobado por")}</span><span className="dv">{userName(existing.approved_by)} · {fmtDateTime(existing.approved_at)}</span></div>
+              <div className="detail-row"><span className="dk">{t("Approved by", "Aprobado por")}</span><span className="dv">{userName(existing.approved_by)}{roleTag(existing.approved_by)} · {fmtDateTime(existing.approved_at)}</span></div>
             )}
             {events.map((e) => (
               <div className="log-row" key={e.id}>
                 <span style={{ fontWeight: 700, minWidth: 90 }}>{eventLabel(e.kind, lang)}</span>
-                <span style={{ color: "var(--gray)" }}>{userName(e.created_by)}</span>
+                <span style={{ color: "var(--gray)" }}>{userName(e.created_by)}{roleTag(e.created_by)}</span>
                 <span style={{ color: "var(--gray)" }}>{fmtDateTime(e.created_at)}</span>
                 {e.note && <span>— {e.note}</span>}
               </div>
