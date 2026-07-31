@@ -747,9 +747,11 @@ export function OrderModal({
             {existing.approved_at && (
               <div className="detail-row"><span className="dk">{t("Approved by", "Aprobado por")}</span><span className="dv">{userName(existing.approved_by)}{roleTag(existing.approved_by)} · {fmtDateTime(existing.approved_at)}</span></div>
             )}
-            {/* The dedicated "Created by" row above already shows creation, so
-                drop the "created" event here to avoid showing it twice. */}
-            {events.filter((e) => e.kind !== "created").map((e) => (
+            {/* The dedicated "Created by" / "Approved by" rows above already show
+                those, so drop their events here to avoid showing them twice.
+                Only drop "approved" when the Approved-by row is actually shown
+                (approved_at set), so approval is never hidden entirely. */}
+            {events.filter((e) => e.kind !== "created" && !(e.kind === "approved" && existing.approved_at)).map((e) => (
               <div className="log-row" key={e.id}>
                 <span style={{ fontWeight: 700, minWidth: 90 }}>{eventLabel(e.kind, lang)}</span>
                 <span style={{ color: "var(--gray)" }}>{userName(e.created_by)}{roleTag(e.created_by)}</span>
