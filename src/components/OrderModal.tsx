@@ -747,7 +747,9 @@ export function OrderModal({
             {existing.approved_at && (
               <div className="detail-row"><span className="dk">{t("Approved by", "Aprobado por")}</span><span className="dv">{userName(existing.approved_by)}{roleTag(existing.approved_by)} · {fmtDateTime(existing.approved_at)}</span></div>
             )}
-            {events.map((e) => (
+            {/* The dedicated "Created by" row above already shows creation, so
+                drop the "created" event here to avoid showing it twice. */}
+            {events.filter((e) => e.kind !== "created").map((e) => (
               <div className="log-row" key={e.id}>
                 <span style={{ fontWeight: 700, minWidth: 90 }}>{eventLabel(e.kind, lang)}</span>
                 <span style={{ color: "var(--gray)" }}>{userName(e.created_by)}{roleTag(e.created_by)}</span>
