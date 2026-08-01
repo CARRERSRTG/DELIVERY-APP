@@ -1,4 +1,5 @@
 import type { Delivery } from "./types";
+import { parseWindow } from "./dispatch";
 
 /** Deterministic fallback color for a driver with no assigned color yet, so
  * map pins/route markers are still distinguishable before a manager sets
@@ -184,6 +185,29 @@ export function isOverdue(d: Delivery): boolean {
   if (d.stage === "delivered" || d.stage === "canceled") return false;
   const due = new Date(d.delivery_date.length === 10 ? d.delivery_date + "T23:59:59" : d.delivery_date);
   return due.getTime() < Date.now();
+}
+
+export type DeliveryRisk = "overdue" | "at_risk" | null;
+
+/** Minutes before a delivery window closes that an undelivered order becomes
+ * "at risk" of being late. */
+export const RISK_MINUTES = 60;
+
+/** Finer-grained SLA state than isOverdue: an order is "overdue" if its day has
+ * passed OR today's delivery window has already closed with no delivery; it is
+ * "at_risk" if today's window is closing within RISK_MINUTES. delivered/
+ * canceled/rejected orders carry no risk. */
+export function deliveryRisk(d: Delivery, now: Date = new Date()): DeliveryRisk {
+  if (d.stage === "delivered" || d.stage === "canceled" || d.stage === "rejected") return null;
+  if (!d.delivery_date) return null;
+  if (isOverdue(d)) return "overdue";                 // a past day, still open
+  if (!isToday(d.delivery_date)) return null;         // future day — not yet a concern
+  const win = parseWindow(d.delivery_windows);
+  if (!win) return null;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  if (nowMin > win[1]) return "overdue";              // today's window already closed
+  if (win[1] - nowMin <= RISK_MINUTES) return "at_risk";
+  return null;
 }
 
 /** Whole days between two ISO timestamps (a - b), floored. */

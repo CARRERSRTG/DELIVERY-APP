@@ -6,7 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { driverNames, stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
 import { LeafletMap, type MapPoint, type MapLine } from "@/components/LeafletMap";
-import { cityFromAddress, fallbackDriverColor, fmtDate, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
+import { cityFromAddress, deliveryRisk, fallbackDriverColor, fmtDate, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import { assignmentWarnings, recommendDriver, type AssignWarning } from "@/lib/dispatch";
 import type { Delivery } from "@/lib/types";
@@ -182,6 +182,16 @@ export default function MapPage() {
           `Sobre capacidad: ${w.used} + ${w.adding} > ${w.capacity} tarimas`,
         );
 
+  const riskChip = (risk: "overdue" | "at_risk" | null) => {
+    if (!risk) return null;
+    const over = risk === "overdue";
+    return (
+      <span className="sema" style={{ background: over ? "var(--red, #d64545)" : "var(--amber, #e9a13b)", color: "#fff", marginLeft: 6 }}>
+        {over ? t("Overdue", "Atrasada") : t("At risk", "En riesgo")}
+      </span>
+    );
+  };
+
   // From/To/pallets summary for this date — same "own orders only" boundary
   // as everything else on this page for sales.
   const cityNames = settings.stores.map((s) => s.name);
@@ -197,6 +207,7 @@ export default function MapPage() {
           pallets: d.actual_pallets ?? d.est_pallets ?? null,
           windows: d.delivery_windows || "",
           stage: d.stage,
+          risk: deliveryRisk(d),
         }))
         .sort((a, b) => a.windows.localeCompare(b.windows) || a.order_no - b.order_no),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -240,6 +251,7 @@ export default function MapPage() {
             <h2 style={{ margin: 0 }}>
               #{selected.order_no} — {selected.account || t("(no account)", "(sin cuenta)")}{" "}
               <span className="sema" style={{ background: stageInfo(selected.stage).color, color: "#fff" }}>{stageLabel(selected.stage, lang)}</span>
+              {riskChip(deliveryRisk(selected))}
             </h2>
             <button className="btn btn-ghost btn-sm" onClick={closePanel}>✕ {t("Close", "Cerrar")}</button>
           </div>
@@ -333,7 +345,7 @@ export default function MapPage() {
                       <td>{r.from}</td>
                       <td>{r.to}</td>
                       <td>{r.windows || "—"}</td>
-                      <td><span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(r.stage, lang)}</span></td>
+                      <td><span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(r.stage, lang)}</span>{riskChip(r.risk)}</td>
                       <td>{r.pallets ?? "—"}</td>
                     </tr>
                   );

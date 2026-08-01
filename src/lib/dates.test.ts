@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { localISO, todayISO, isToday, isOverdue } from "@/lib/utils";
+import { localISO, todayISO, isToday, isOverdue, deliveryRisk } from "@/lib/utils";
 import { mkDelivery } from "@/lib/__fixtures";
 
 // Regression cover for a real bug: dates were derived with toISOString(), which
@@ -56,5 +56,29 @@ describe("isToday / isOverdue agree with the local date late in the day", () => 
     vi.setSystemTime(new Date(2026, 6, 15, 19, 30, 0));
     expect(isOverdue(mkDelivery({ stage: "delivered", delivery_date: "2026-07-01" }))).toBe(false);
     expect(isOverdue(mkDelivery({ stage: "canceled", delivery_date: "2026-07-01" }))).toBe(false);
+  });
+});
+
+describe("deliveryRisk", () => {
+  it("carries no risk for a delivered order", () => {
+    expect(deliveryRisk(mkDelivery({ stage: "delivered", delivery_date: "2020-01-01" }))).toBeNull();
+  });
+  it("is overdue when a past day is still open", () => {
+    expect(deliveryRisk(mkDelivery({ stage: "ready", delivery_date: "2020-01-01" }))).toBe("overdue");
+  });
+  it("is overdue when today's window has already closed", () => {
+    const now = new Date(); now.setHours(15, 0, 0, 0);
+    const d = mkDelivery({ stage: "ready", delivery_date: todayISO(), delivery_windows: "1000-1200" });
+    expect(deliveryRisk(d, now)).toBe("overdue");
+  });
+  it("is at risk when today's window closes within the hour", () => {
+    const now = new Date(); now.setHours(11, 30, 0, 0);
+    const d = mkDelivery({ stage: "ready", delivery_date: todayISO(), delivery_windows: "1000-1200" });
+    expect(deliveryRisk(d, now)).toBe("at_risk");
+  });
+  it("is clear when today's window is comfortably ahead", () => {
+    const now = new Date(); now.setHours(8, 0, 0, 0);
+    const d = mkDelivery({ stage: "ready", delivery_date: todayISO(), delivery_windows: "1400-1600" });
+    expect(deliveryRisk(d, now)).toBeNull();
   });
 });
