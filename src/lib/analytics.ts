@@ -1,5 +1,6 @@
 import type { Delivery, OrderEvent, Profile, Stage } from "@/lib/types";
 import { isOverdue, orderOwner } from "@/lib/utils";
+import { parseWindow } from "@/lib/dispatch";
 
 // ============================================================
 // Read-only analytics over the deliveries + event log. Pure functions,
@@ -91,6 +92,89 @@ export function driverStats(deliveries: Delivery[]): DriverStat[] {
   return [...map.values()]
     .map((s) => ({ ...s, pallets: Math.round(s.pallets), miles: Math.round(s.miles * 10) / 10 }))
     .sort((a, b) => b.total - a.total);
+}
+
+// When an order was promised by (delivery_date + window end, or end of day). ms.
+function promisedDue(d: Delivery): number | null {
+  if (!d.delivery_date) return null;
+  const win = parseWindow(d.delivery_windows);
+  const endMin = win ? win[1] : 24 * 60 - 1;
+  return new Date(d.delivery_date + "T00:00:00").getTime() + endMin * 60_000;
+}
+// When it was actually delivered — the POD timestamp, else the last update. ms.
+function deliveredAtMs(d: Delivery): number | null {
+  const t = d.pod_delivered_at ?? (d.stage === "delivered" ? d.updated_at : null);
+  return t ? new Date(t).getTime() : null;
+}
+
+export interface DriverKpi {
+  driver: string;
+  orders: number;
+  delivered: number;
+  routes: number;            // distinct delivery days worked
+  avgStops: number;          // orders ÷ routes
+  miles: number;
+  avgRouteMiles: number;     // miles ÷ routes
+  revenue: number;           // delivery fees on their orders
+  revPerMile: number | null;
+  onTimePct: number | null;  // delivered on/before the promised time
+  avgDelayMin: number | null;// avg minutes past promised across delivered (0 if on time)
+  pallets: number;
+  utilizationPct: number | null; // avg pallets/day ÷ capacity
+}
+
+/** Rich per-driver KPIs (Epic D). Cancelled/rejected orders are excluded.
+ * capacityOf gives each driver's per-day pallet capacity. */
+export function driverKpis(deliveries: Delivery[], capacityOf: (driver: string) => number): DriverKpi[] {
+  interface Acc {
+    orders: number; delivered: number; days: Set<string>; miles: number; revenue: number;
+    onTimeElig: number; onTime: number; delaySum: number; delayCount: number; pallets: number;
+  }
+  const map = new Map<string, Acc>();
+  for (const d of deliveries) {
+    if (!d.assigned_driver) continue;
+    if (d.stage === "canceled" || d.stage === "rejected") continue;
+    const a = map.get(d.assigned_driver) ?? { orders: 0, delivered: 0, days: new Set<string>(), miles: 0, revenue: 0, onTimeElig: 0, onTime: 0, delaySum: 0, delayCount: 0, pallets: 0 };
+    a.orders++;
+    if (d.delivery_date) a.days.add(d.delivery_date);
+    a.miles += Number(d.route_miles ?? 0);
+    a.revenue += Number(d.delivery_fee ?? 0);
+    a.pallets += Number(d.actual_pallets ?? d.est_pallets ?? 0);
+    if (d.stage === "delivered") {
+      a.delivered++;
+      const due = promisedDue(d);
+      const done = deliveredAtMs(d);
+      if (due != null && done != null) {
+        a.onTimeElig++;
+        if (done <= due) a.onTime++;
+        a.delaySum += Math.max(0, done - due);
+        a.delayCount++;
+      }
+    }
+    map.set(d.assigned_driver, a);
+  }
+  return [...map.entries()]
+    .map(([driver, a]) => {
+      const routes = a.days.size || 1;
+      const cap = capacityOf(driver) || 0;
+      const avgPerDay = a.pallets / routes;
+      return {
+        driver,
+        orders: a.orders,
+        delivered: a.delivered,
+        routes: a.days.size,
+        avgStops: Math.round((a.orders / routes) * 10) / 10,
+        miles: Math.round(a.miles * 10) / 10,
+        avgRouteMiles: Math.round((a.miles / routes) * 10) / 10,
+        revenue: Math.round(a.revenue * 100) / 100,
+        revPerMile: a.miles > 0 ? Math.round((a.revenue / a.miles) * 100) / 100 : null,
+        onTimePct: a.onTimeElig ? Math.round((a.onTime / a.onTimeElig) * 100) : null,
+        avgDelayMin: a.delayCount ? Math.round(a.delaySum / a.delayCount / 60_000) : null,
+        pallets: Math.round(a.pallets),
+        utilizationPct: cap ? Math.round((avgPerDay / cap) * 100) : null,
+      };
+    })
+    .sort((x, y) => y.orders - x.orders);
 }
 
 export interface GroupStat { key: string; total: number; delivered: number; pallets: number; }

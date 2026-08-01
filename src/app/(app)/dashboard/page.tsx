@@ -6,9 +6,12 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel, STAGES } from "@/lib/constants";
 import {
-  approvalTurnaroundMs, computeKpis, countByStage, driverStats,
+  approvalTurnaroundMs, computeKpis, countByStage, driverKpis,
   groupVolume, inDateRange, overdueOrders, salesRepStatsThisMonth,
 } from "@/lib/analytics";
+
+// Matches the Routes Manager / Map default when a driver has no capacity set.
+const DEFAULT_CAPACITY = 12;
 import {
   daysBetween, downloadCSV, endOfMonthISO, endOfWeekISO, fmtDate, fmtDuration, fmtMoney,
   shiftDateISO, shiftMonthISO, startOfMonthISO, startOfWeekISO, toCSV, todayISO, deliveryColumns,
@@ -29,7 +32,7 @@ function daysAgoISO(n: number): string {
 type RangeMode = "week" | "month" | "custom";
 
 export default function DashboardPage() {
-  const { me, users, deliveries, events, ready } = useData();
+  const { me, users, deliveries, events, settings, ready } = useData();
   const { lang, t } = usePrefs();
   const router = useRouter();
   const [from, setFrom] = useState(daysAgoISO(30));
@@ -67,7 +70,23 @@ export default function DashboardPage() {
 
   const kpis = useMemo(() => computeKpis(scoped), [scoped]);
   const stageCounts = useMemo(() => countByStage(scoped, STAGES.map((s) => s.key) as Stage[]), [scoped]);
-  const drivers = useMemo(() => driverStats(scoped), [scoped]);
+  const drivers = useMemo(
+    () => driverKpis(scoped, (n) => settings.driver_capacity?.[n] ?? DEFAULT_CAPACITY),
+    [scoped, settings.driver_capacity],
+  );
+  // Fleet roll-up across the drivers in range.
+  const fleet = useMemo(() => {
+    const revenue = drivers.reduce((s, d) => s + d.revenue, 0);
+    const miles = drivers.reduce((s, d) => s + d.miles, 0);
+    const util = drivers.map((d) => d.utilizationPct).filter((v): v is number => v != null);
+    const ot = drivers.map((d) => d.onTimePct).filter((v): v is number => v != null);
+    return {
+      revenue: Math.round(revenue * 100) / 100,
+      revPerMile: miles > 0 ? Math.round((revenue / miles) * 100) / 100 : null,
+      avgUtil: util.length ? Math.round(util.reduce((s, v) => s + v, 0) / util.length) : null,
+      avgOnTime: ot.length ? Math.round(ot.reduce((s, v) => s + v, 0) / ot.length) : null,
+    };
+  }, [drivers]);
   const stores = useMemo(() => groupVolume(scoped, "store"), [scoped]);
   const accounts = useMemo(() => groupVolume(scoped, "account").slice(0, 8), [scoped]);
   const turnaround = useMemo(() => approvalTurnaroundMs(scoped, events), [scoped, events]);
@@ -174,38 +193,54 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ---------- Driver performance ---------- */}
+          {/* ---------- Driver & fleet KPIs ---------- */}
           <div className="card">
-            <h2>🚚 {t("Driver performance", "Rendimiento de choferes")}</h2>
+            <h2>🚚 {t("Driver & fleet KPIs", "KPIs de choferes y flota")}</h2>
             {drivers.length === 0 ? (
               <div className="empty">{t("No drivers assigned in this range.", "No hay choferes asignados en este rango.")}</div>
             ) : (
-              <div className="tbl-scroll" style={{ border: "none" }}>
-                <table className="orders" style={{ minWidth: 520 }}>
-                  <thead>
-                    <tr>
-                      <th>{t("Driver", "Chofer")}</th>
-                      <th>{t("Total", "Total")}</th>
-                      <th>{t("Delivered", "Entregadas")}</th>
-                      <th>{t("Active", "Activas")}</th>
-                      <th>{t("Pallets", "Tarimas")}</th>
-                      <th>{t("Miles", "Millas")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {drivers.map((d) => (
-                      <tr key={d.driver}>
-                        <td style={{ fontWeight: 700 }}>{d.driver}</td>
-                        <td>{d.total}</td>
-                        <td>{d.delivered}</td>
-                        <td>{d.active}</td>
-                        <td>{d.pallets}</td>
-                        <td>{d.miles}</td>
+              <>
+                <div className="kpi-grid" style={{ marginBottom: 16 }}>
+                  <Kpi n={fmtMoney(fleet.revenue)} label={t("Fleet revenue", "Ingresos de flota")} tone="green" small />
+                  <Kpi n={fleet.revPerMile == null ? "—" : fmtMoney(fleet.revPerMile)} label={t("Revenue / mile", "Ingreso / milla")} small />
+                  <Kpi n={fleet.avgOnTime == null ? "—" : `${fleet.avgOnTime}%`} label={t("Avg on-time", "A tiempo prom.")} tone={fleet.avgOnTime != null && fleet.avgOnTime < 80 ? "amber" : "green"} />
+                  <Kpi n={fleet.avgUtil == null ? "—" : `${fleet.avgUtil}%`} label={t("Avg utilization", "Utilización prom.")} tone={fleet.avgUtil != null && fleet.avgUtil > 100 ? "red" : "accent"} />
+                </div>
+                <div className="tbl-scroll" style={{ border: "none" }}>
+                  <table className="orders" style={{ minWidth: 760, fontVariantNumeric: "tabular-nums" }}>
+                    <thead>
+                      <tr>
+                        <th>{t("Driver", "Chofer")}</th>
+                        <th>{t("Orders", "Órdenes")}</th>
+                        <th>{t("Delivered", "Entregadas")}</th>
+                        <th>{t("On-time", "A tiempo")}</th>
+                        <th>{t("Avg delay", "Retraso prom.")}</th>
+                        <th>{t("Stops/route", "Paradas/ruta")}</th>
+                        <th>{t("Miles", "Millas")}</th>
+                        <th>{t("Revenue", "Ingresos")}</th>
+                        <th>{t("$/mi", "$/mi")}</th>
+                        <th>{t("Util.", "Util.")}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {drivers.map((d) => (
+                        <tr key={d.driver}>
+                          <td style={{ fontWeight: 700 }}>{d.driver}</td>
+                          <td>{d.orders}</td>
+                          <td>{d.delivered}</td>
+                          <td style={d.onTimePct != null && d.onTimePct < 80 ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{d.onTimePct == null ? "—" : `${d.onTimePct}%`}</td>
+                          <td style={d.avgDelayMin ? { color: "var(--red)" } : undefined}>{d.avgDelayMin == null ? "—" : `${d.avgDelayMin}m`}</td>
+                          <td>{d.avgStops}</td>
+                          <td>{d.miles}</td>
+                          <td>{fmtMoney(d.revenue)}</td>
+                          <td>{d.revPerMile == null ? "—" : fmtMoney(d.revPerMile)}</td>
+                          <td style={d.utilizationPct != null && d.utilizationPct > 100 ? { color: "var(--red)", fontWeight: 700 } : undefined}>{d.utilizationPct == null ? "—" : `${d.utilizationPct}%`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
 

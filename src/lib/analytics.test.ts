@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeKpis, driverStats, groupVolume, overdueOrders, inDateRange, approvalTurnaroundMs } from "@/lib/analytics";
+import { computeKpis, driverStats, driverKpis, groupVolume, overdueOrders, inDateRange, approvalTurnaroundMs } from "@/lib/analytics";
 import { mkDelivery } from "@/lib/__fixtures";
 import type { OrderEvent } from "@/lib/types";
 
@@ -120,5 +120,34 @@ describe("approvalTurnaroundMs", () => {
 
   it("ignores orders that were never approved", () => {
     expect(approvalTurnaroundMs([mkDelivery({ approved_at: null })], []).count).toBe(0);
+  });
+});
+
+describe("driverKpis", () => {
+  it("computes orders, revenue, revenue/mile and on-time %", () => {
+    const dels = [
+      mkDelivery({ assigned_driver: "Ana", stage: "delivered", delivery_date: "2026-07-20", delivery_windows: "1000-1200", route_miles: 10, delivery_fee: 100, pod_delivered_at: "2026-07-20T11:00:00", est_pallets: 6 }),
+      mkDelivery({ assigned_driver: "Ana", stage: "delivered", delivery_date: "2026-07-20", delivery_windows: "1000-1200", route_miles: 10, delivery_fee: 100, pod_delivered_at: "2026-07-20T14:00:00", est_pallets: 6 }),
+      mkDelivery({ assigned_driver: "Ana", stage: "canceled", delivery_date: "2026-07-20", delivery_fee: 999 }),
+    ];
+    const [k] = driverKpis(dels, () => 12);
+    expect(k.driver).toBe("Ana");
+    expect(k.orders).toBe(2);        // canceled excluded
+    expect(k.delivered).toBe(2);
+    expect(k.revenue).toBe(200);
+    expect(k.miles).toBe(20);
+    expect(k.revPerMile).toBe(10);
+    expect(k.onTimePct).toBe(50);    // one of two delivered on time
+    expect(k.routes).toBe(1);
+    expect(k.avgStops).toBe(2);
+  });
+
+  it("derives utilization from avg pallets per day vs capacity", () => {
+    const dels = [
+      mkDelivery({ assigned_driver: "Ana", stage: "approved", delivery_date: "2026-07-20", est_pallets: 6 }),
+      mkDelivery({ assigned_driver: "Ana", stage: "approved", delivery_date: "2026-07-20", est_pallets: 6 }),
+    ];
+    const [k] = driverKpis(dels, () => 12);
+    expect(k.utilizationPct).toBe(100); // 12 pallets / 1 day ÷ 12 cap
   });
 });
