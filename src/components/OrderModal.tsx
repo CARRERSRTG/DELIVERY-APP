@@ -105,6 +105,9 @@ export function OrderModal({
   // After a successful delivery we keep the modal open on a success screen so the
   // driver can print the slip; holds the fully-updated (delivered) order.
   const [justDelivered, setJustDelivered] = useState<Delivery | null>(null);
+  // Customer-satisfaction rating on a delivered order (local mirror so the
+  // stars light up instantly; also persisted).
+  const [csatRating, setCsatRating] = useState<number | null>(existing?.csat_rating ?? null);
 
   const events = existing ? eventsFor(existing.id) : [];
   const userName = (id: string | null | undefined) =>
@@ -724,6 +727,34 @@ export function OrderModal({
                   t={t}
                 />
                 <div className="hint">{t("Photo of the load / material. On a phone this opens the camera.", "Foto de la carga / material. En el teléfono abre la cámara.")}</div>
+              </>
+            )}
+
+            {existing.stage === "delivered" && me.role !== "sales" && (
+              <>
+                <div className="section-label">⭐ {t("Customer satisfaction", "Satisfacción del cliente")}</div>
+                <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 8 }}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      title={`${n}`}
+                      onClick={() => { setCsatRating(n); updateDelivery(existing.id, { csat_rating: n }); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 26, lineHeight: 1, padding: 0, color: (csatRating ?? 0) >= n ? "var(--amber)" : "var(--line)" }}
+                    >★</button>
+                  ))}
+                  {csatRating != null && (
+                    <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }}
+                      onClick={() => { setCsatRating(null); updateDelivery(existing.id, { csat_rating: null, csat_comment: null }); }}>
+                      {t("Clear", "Borrar")}
+                    </button>
+                  )}
+                </div>
+                <input
+                  defaultValue={existing.csat_comment ?? ""}
+                  placeholder={t("Optional comment from the customer…", "Comentario opcional del cliente…")}
+                  onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (existing.csat_comment ?? null)) updateDelivery(existing.id, { csat_comment: v }); }}
+                  style={{ marginBottom: 14, maxWidth: 460 }}
+                />
               </>
             )}
 

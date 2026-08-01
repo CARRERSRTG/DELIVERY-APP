@@ -240,5 +240,14 @@ alter table public.deliveries
   add column if not exists approved_by         uuid,
   add column if not exists approved_at         timestamptz;
 
+-- ---------- 021: cost model + customer satisfaction ----------
+alter table public.settings
+  add column if not exists fuel_price        numeric,
+  add column if not exists fleet_mpg         numeric,
+  add column if not exists cost_per_delivery numeric;
+alter table public.deliveries
+  add column if not exists csat_rating  integer,
+  add column if not exists csat_comment text;
+
 -- Refresh PostgREST's schema cache so new columns are usable immediately.
 notify pgrst, 'reload schema';

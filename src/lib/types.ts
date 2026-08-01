@@ -122,6 +122,10 @@ export interface Delivery {
   assigned_sales_rep: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  /** Customer satisfaction on a delivered order: 1–5 stars + an optional note.
+   * Recorded from the order form. Feeds the CSAT KPI. */
+  csat_rating?: number | null;
+  csat_comment?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -217,4 +221,14 @@ export interface Settings {
    * only customers from orders they own. User id → scope. Missing = "all"
    * (preserves the previous behavior for Manager/Logistics). */
   customer_scope?: Record<string, "all" | "own">;
+
+  // ---- Delivery cost model (Epic D) — drives the fuel-cost / cost-per-delivery
+  // KPIs, derived from each order's route_miles. All optional; a KPI shows "—"
+  // until the pieces it needs are set. ----
+  /** Fuel price, $ per gallon. */
+  fuel_price?: number | null;
+  /** Fleet average fuel economy, miles per gallon. */
+  fleet_mpg?: number | null;
+  /** Flat overhead cost charged per delivery/stop, in $. */
+  cost_per_delivery?: number | null;
 }

@@ -71,20 +71,35 @@ export default function DashboardPage() {
   const kpis = useMemo(() => computeKpis(scoped), [scoped]);
   const stageCounts = useMemo(() => countByStage(scoped, STAGES.map((s) => s.key) as Stage[]), [scoped]);
   const drivers = useMemo(
-    () => driverKpis(scoped, (n) => settings.driver_capacity?.[n] ?? DEFAULT_CAPACITY),
-    [scoped, settings.driver_capacity],
+    () => driverKpis(
+      scoped,
+      (n) => settings.driver_capacity?.[n] ?? DEFAULT_CAPACITY,
+      { fuelPrice: settings.fuel_price, mpg: settings.fleet_mpg, base: settings.cost_per_delivery },
+    ),
+    [scoped, settings.driver_capacity, settings.fuel_price, settings.fleet_mpg, settings.cost_per_delivery],
   );
   // Fleet roll-up across the drivers in range.
   const fleet = useMemo(() => {
+    const avg = (vals: (number | null)[]) => {
+      const v = vals.filter((x): x is number => x != null);
+      return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null;
+    };
     const revenue = drivers.reduce((s, d) => s + d.revenue, 0);
     const miles = drivers.reduce((s, d) => s + d.miles, 0);
-    const util = drivers.map((d) => d.utilizationPct).filter((v): v is number => v != null);
-    const ot = drivers.map((d) => d.onTimePct).filter((v): v is number => v != null);
+    const fuel = drivers.reduce((s, d) => s + (d.fuelCost ?? 0), 0);
+    const anyFuel = drivers.some((d) => d.fuelCost != null);
+    const avgUtil = avg(drivers.map((d) => d.utilizationPct));
+    const avgOnTime = avg(drivers.map((d) => d.onTimePct));
+    const avgCostPer = avg(drivers.map((d) => d.costPerDelivery));
+    const avgCsat = avg(drivers.map((d) => d.avgCsat));
     return {
       revenue: Math.round(revenue * 100) / 100,
       revPerMile: miles > 0 ? Math.round((revenue / miles) * 100) / 100 : null,
-      avgUtil: util.length ? Math.round(util.reduce((s, v) => s + v, 0) / util.length) : null,
-      avgOnTime: ot.length ? Math.round(ot.reduce((s, v) => s + v, 0) / ot.length) : null,
+      fuelCost: anyFuel ? Math.round(fuel * 100) / 100 : null,
+      avgCostPer: avgCostPer == null ? null : Math.round(avgCostPer * 100) / 100,
+      avgUtil: avgUtil == null ? null : Math.round(avgUtil),
+      avgOnTime: avgOnTime == null ? null : Math.round(avgOnTime),
+      avgCsat: avgCsat == null ? null : Math.round(avgCsat * 10) / 10,
     };
   }, [drivers]);
   const stores = useMemo(() => groupVolume(scoped, "store"), [scoped]);
@@ -203,8 +218,11 @@ export default function DashboardPage() {
                 <div className="kpi-grid" style={{ marginBottom: 16 }}>
                   <Kpi n={fmtMoney(fleet.revenue)} label={t("Fleet revenue", "Ingresos de flota")} tone="green" small />
                   <Kpi n={fleet.revPerMile == null ? "—" : fmtMoney(fleet.revPerMile)} label={t("Revenue / mile", "Ingreso / milla")} small />
+                  <Kpi n={fleet.fuelCost == null ? "—" : fmtMoney(fleet.fuelCost)} label={t("Fuel cost", "Costo combustible")} tone="amber" small />
+                  <Kpi n={fleet.avgCostPer == null ? "—" : fmtMoney(fleet.avgCostPer)} label={t("Cost / delivery", "Costo / entrega")} small />
                   <Kpi n={fleet.avgOnTime == null ? "—" : `${fleet.avgOnTime}%`} label={t("Avg on-time", "A tiempo prom.")} tone={fleet.avgOnTime != null && fleet.avgOnTime < 80 ? "amber" : "green"} />
                   <Kpi n={fleet.avgUtil == null ? "—" : `${fleet.avgUtil}%`} label={t("Avg utilization", "Utilización prom.")} tone={fleet.avgUtil != null && fleet.avgUtil > 100 ? "red" : "accent"} />
+                  <Kpi n={fleet.avgCsat == null ? "—" : `${fleet.avgCsat}★`} label={t("Avg rating", "Calificación prom.")} tone="green" small />
                 </div>
                 <div className="tbl-scroll" style={{ border: "none" }}>
                   <table className="orders" style={{ minWidth: 760, fontVariantNumeric: "tabular-nums" }}>
@@ -220,6 +238,9 @@ export default function DashboardPage() {
                         <th>{t("Revenue", "Ingresos")}</th>
                         <th>{t("$/mi", "$/mi")}</th>
                         <th>{t("Util.", "Util.")}</th>
+                        <th>{t("Fuel", "Comb.")}</th>
+                        <th>{t("Cost/del", "Costo/ent")}</th>
+                        <th>{t("Rating", "Calif.")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -235,6 +256,9 @@ export default function DashboardPage() {
                           <td>{fmtMoney(d.revenue)}</td>
                           <td>{d.revPerMile == null ? "—" : fmtMoney(d.revPerMile)}</td>
                           <td style={d.utilizationPct != null && d.utilizationPct > 100 ? { color: "var(--red)", fontWeight: 700 } : undefined}>{d.utilizationPct == null ? "—" : `${d.utilizationPct}%`}</td>
+                          <td>{d.fuelCost == null ? "—" : fmtMoney(d.fuelCost)}</td>
+                          <td>{d.costPerDelivery == null ? "—" : fmtMoney(d.costPerDelivery)}</td>
+                          <td>{d.avgCsat == null ? "—" : `${d.avgCsat}★`}</td>
                         </tr>
                       ))}
                     </tbody>

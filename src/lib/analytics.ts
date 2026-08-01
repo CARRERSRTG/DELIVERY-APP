@@ -121,20 +121,29 @@ export interface DriverKpi {
   avgDelayMin: number | null;// avg minutes past promised across delivered (0 if on time)
   pallets: number;
   utilizationPct: number | null; // avg pallets/day ÷ capacity
+  fuelCost: number | null;       // miles ÷ mpg × fuel price
+  costPerDelivery: number | null;// (fuel + flat overhead × orders) ÷ orders
+  avgCsat: number | null;        // avg 1–5 rating across rated deliveries
+  csatCount: number;
 }
 
+/** Company cost model — the pieces the fuel/cost KPIs derive from. */
+export interface CostModel { fuelPrice?: number | null; mpg?: number | null; base?: number | null; }
+
 /** Rich per-driver KPIs (Epic D). Cancelled/rejected orders are excluded.
- * capacityOf gives each driver's per-day pallet capacity. */
-export function driverKpis(deliveries: Delivery[], capacityOf: (driver: string) => number): DriverKpi[] {
+ * capacityOf gives each driver's per-day pallet capacity; cost (optional)
+ * drives the fuel-cost / cost-per-delivery figures. */
+export function driverKpis(deliveries: Delivery[], capacityOf: (driver: string) => number, cost?: CostModel): DriverKpi[] {
   interface Acc {
     orders: number; delivered: number; days: Set<string>; miles: number; revenue: number;
     onTimeElig: number; onTime: number; delaySum: number; delayCount: number; pallets: number;
+    csatSum: number; csatCount: number;
   }
   const map = new Map<string, Acc>();
   for (const d of deliveries) {
     if (!d.assigned_driver) continue;
     if (d.stage === "canceled" || d.stage === "rejected") continue;
-    const a = map.get(d.assigned_driver) ?? { orders: 0, delivered: 0, days: new Set<string>(), miles: 0, revenue: 0, onTimeElig: 0, onTime: 0, delaySum: 0, delayCount: 0, pallets: 0 };
+    const a = map.get(d.assigned_driver) ?? { orders: 0, delivered: 0, days: new Set<string>(), miles: 0, revenue: 0, onTimeElig: 0, onTime: 0, delaySum: 0, delayCount: 0, pallets: 0, csatSum: 0, csatCount: 0 };
     a.orders++;
     if (d.delivery_date) a.days.add(d.delivery_date);
     a.miles += Number(d.route_miles ?? 0);
@@ -150,14 +159,20 @@ export function driverKpis(deliveries: Delivery[], capacityOf: (driver: string) 
         a.delaySum += Math.max(0, done - due);
         a.delayCount++;
       }
+      if (d.csat_rating != null) { a.csatSum += Number(d.csat_rating); a.csatCount++; }
     }
     map.set(d.assigned_driver, a);
   }
+  const fuelReady = cost?.fuelPrice != null && cost?.mpg != null && cost.mpg > 0;
+  const base = cost?.base ?? null;
   return [...map.entries()]
     .map(([driver, a]) => {
       const routes = a.days.size || 1;
       const cap = capacityOf(driver) || 0;
       const avgPerDay = a.pallets / routes;
+      const fuelCost = fuelReady ? Math.round((a.miles / (cost!.mpg as number)) * (cost!.fuelPrice as number) * 100) / 100 : null;
+      const costTotal = (fuelCost ?? 0) + (base ?? 0) * a.orders;
+      const costPerDelivery = a.orders > 0 && (fuelCost != null || base != null) ? Math.round((costTotal / a.orders) * 100) / 100 : null;
       return {
         driver,
         orders: a.orders,
@@ -172,6 +187,10 @@ export function driverKpis(deliveries: Delivery[], capacityOf: (driver: string) 
         avgDelayMin: a.delayCount ? Math.round(a.delaySum / a.delayCount / 60_000) : null,
         pallets: Math.round(a.pallets),
         utilizationPct: cap ? Math.round((avgPerDay / cap) * 100) : null,
+        fuelCost,
+        costPerDelivery,
+        avgCsat: a.csatCount ? Math.round((a.csatSum / a.csatCount) * 10) / 10 : null,
+        csatCount: a.csatCount,
       };
     })
     .sort((x, y) => y.orders - x.orders);

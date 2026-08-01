@@ -84,6 +84,33 @@ export default function SettingsPage() {
       </div>
 
       <div className="card">
+        <h2>⛽ {t("Delivery cost model", "Modelo de costos de entrega")}</h2>
+        <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+          {t(
+            "Powers the Fuel cost and Cost/delivery KPIs on the Dashboard, derived from each order's route miles. Leave blank to hide those metrics.",
+            "Alimenta los KPIs de Costo de combustible y Costo/entrega en el Panel, a partir de las millas de cada orden. Deje en blanco para ocultar esas métricas.",
+          )}
+        </p>
+        <div className="grid g2" style={{ maxWidth: 520 }}>
+          <RateInput
+            label={t("Fuel price ($/gal)", "Precio combustible ($/gal)")}
+            value={settings.fuel_price ?? 0}
+            onSave={(v) => { saveSettings({ fuel_price: v || null } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
+          />
+          <RateInput
+            label={t("Fleet average MPG", "MPG promedio de flota")}
+            value={settings.fleet_mpg ?? 0}
+            onSave={(v) => { saveSettings({ fleet_mpg: v || null } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
+          />
+          <RateInput
+            label={t("Overhead per delivery ($)", "Gasto fijo por entrega ($)")}
+            value={settings.cost_per_delivery ?? 0}
+            onSave={(v) => { saveSettings({ cost_per_delivery: v || null } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
+          />
+        </div>
+      </div>
+
+      <div className="card">
         <h2>📞 {t("RingCentral integration", "Integración RingCentral")}</h2>
         <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
           {t(

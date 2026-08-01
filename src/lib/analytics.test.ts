@@ -150,4 +150,23 @@ describe("driverKpis", () => {
     const [k] = driverKpis(dels, () => 12);
     expect(k.utilizationPct).toBe(100); // 12 pallets / 1 day ÷ 12 cap
   });
+
+  it("computes fuel cost, cost per delivery and CSAT from the cost model", () => {
+    const dels = [
+      mkDelivery({ assigned_driver: "Ana", stage: "delivered", delivery_date: "2026-07-20", route_miles: 20, csat_rating: 5 }),
+      mkDelivery({ assigned_driver: "Ana", stage: "delivered", delivery_date: "2026-07-20", route_miles: 20, csat_rating: 3 }),
+    ];
+    const [k] = driverKpis(dels, () => 12, { fuelPrice: 4, mpg: 20, base: 10 });
+    expect(k.fuelCost).toBe(8);          // 40 mi ÷ 20 mpg = 2 gal × $4
+    expect(k.costPerDelivery).toBe(14);  // ($8 fuel + $10×2 base) ÷ 2 orders
+    expect(k.avgCsat).toBe(4);           // (5 + 3) / 2
+    expect(k.csatCount).toBe(2);
+  });
+
+  it("leaves fuel/cost null without a cost model", () => {
+    const [k] = driverKpis([mkDelivery({ assigned_driver: "Ana", stage: "approved", route_miles: 10 })], () => 12);
+    expect(k.fuelCost).toBeNull();
+    expect(k.costPerDelivery).toBeNull();
+    expect(k.avgCsat).toBeNull();
+  });
 });
