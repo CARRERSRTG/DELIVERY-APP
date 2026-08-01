@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.2.46";
+export const APP_VERSION = "0.2.48";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
@@ -85,7 +85,7 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   { id: "driver",    label: "🚚 Driver",    label_es: "🚚 Chofer",     href: "/driver", roles: ["driver", "admin"], cap: "deliver" },
   // Logistics works entirely inside its own route-planning queue, same as
   // Warehouse/Driver — it doesn't get the general Orders board or dashboard.
-  { id: "routes",    label: "🧭 Routes",    label_es: "🧭 Rutas",      href: "/routes", roles: ["logistics", "admin"], cap: "route_plan" },
+  { id: "routes",    label: "🧭 Routes Manager", label_es: "🧭 Gestor de Rutas", href: "/routes", roles: ["logistics", "admin"], cap: "route_plan" },
   { id: "data",      label: "🗂 Data",      label_es: "🗂 Datos",      href: "/data", roles: ["admin"], cap: "settings" },
   { id: "settings",  label: "⚙️ Settings",  label_es: "⚙️ Ajustes",    href: "/settings" },
   { id: "users",     label: "🛡 Users",     label_es: "🛡 Usuarios",   href: "/users", roles: ["admin"], cap: "users" },

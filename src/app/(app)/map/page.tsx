@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { driverNames, stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
-import { LeafletMap, type MapPoint } from "@/components/LeafletMap";
+import { LeafletMap, type MapPoint, type MapLine } from "@/components/LeafletMap";
 import { cityFromAddress, fallbackDriverColor, fmtDate, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery } from "@/lib/types";
@@ -13,12 +13,23 @@ import type { Delivery } from "@/lib/types";
 const UNASSIGNED_COLOR = "#6b7686";
 
 export default function MapPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, ready } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, notify, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   const [open, setOpen] = useState<Delivery | null>(null);
 
+  // Clicking a pin selects that order: we draw its pickup→dropoff route (with
+  // distance + time) and let a dispatcher assign a driver on the spot.
+  const [selected, setSelected] = useState<Delivery | null>(null);
+  const [pickupPt, setPickupPt] = useState<{ lat: number; lng: number } | null>(null);
+  const [route, setRoute] = useState<{ positions: [number, number][]; miles: number; duration: string } | null>(null);
+  const [routeBusy, setRouteBusy] = useState(false);
+  const [assignBusy, setAssignBusy] = useState(false);
+
   const canManageColors = me?.role === "manager" || me?.role === "admin";
+  // Everyone who reaches this page except sales can dispatch (warehouse/driver
+  // are blocked below); sales sees pins but can't assign.
+  const canAssign = !!me && me.role !== "sales";
 
   // Unlike the Orders page, sales sees every delivery's point on the map —
   // full situational awareness of the day's dispatch activity. But the Map
@@ -44,9 +55,67 @@ export default function MapPage() {
     return settings.driver_colors?.[driver] || fallbackDriverColor(driver);
   };
 
+  // Best-effort pickup coordinates for an order: its own captured point, else
+  // geocode the pickup address (or the sold-from store's address).
+  const resolvePickup = async (d: Delivery): Promise<{ lat: number; lng: number } | null> => {
+    if (d.pickup_lat != null && d.pickup_lng != null) return { lat: d.pickup_lat, lng: d.pickup_lng };
+    const addr = (d.pickup_address || settings.stores.find((s) => s.name === d.store)?.address || d.store || "").trim();
+    if (!addr) return null;
+    try {
+      const res = await fetch("/api/geocode-point", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: addr }) });
+      if (!res.ok) return null;
+      const p = await res.json();
+      return typeof p?.lat === "number" && typeof p?.lng === "number" ? p : null;
+    } catch { return null; }
+  };
+
+  // Select an order (from a pin click): draw its pickup→dropoff route and time.
+  const selectOrder = async (d: Delivery) => {
+    setSelected(d);
+    setRoute(null);
+    setPickupPt(null);
+    if (d.delivery_lat == null || d.delivery_lng == null) return;
+    setRouteBusy(true);
+    const pk = await resolvePickup(d);
+    setPickupPt(pk);
+    if (pk) {
+      try {
+        const res = await fetch("/api/optimize-route", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stops: [{ id: "p", lat: pk.lat, lng: pk.lng }, { id: "d", lat: d.delivery_lat, lng: d.delivery_lng }], roundtrip: false }),
+        });
+        const b = await res.json();
+        if (res.ok && Array.isArray(b.geometry) && b.geometry.length) {
+          setRoute({
+            positions: (b.geometry as [number, number][]).map(([lng, lat]) => [lat, lng]),
+            miles: b.miles ?? 0,
+            duration: b.duration_text || "",
+          });
+        }
+      } catch { /* leave route null */ }
+    }
+    setRouteBusy(false);
+  };
+
+  const closePanel = () => { setSelected(null); setRoute(null); setPickupPt(null); };
+
+  const assignDriver = async (driver: string | null) => {
+    if (!selected) return;
+    setAssignBusy(true);
+    const ok = await updateDelivery(selected.id, { assigned_driver: driver });
+    setAssignBusy(false);
+    if (ok) {
+      setSelected((s) => (s ? { ...s, assigned_driver: driver } : s));
+      notify(driver
+        ? t(`#${selected.order_no} assigned to ${driver}`, `#${selected.order_no} asignada a ${driver}`)
+        : t(`#${selected.order_no} unassigned`, `#${selected.order_no} sin asignar`));
+    }
+  };
+
   const points: MapPoint[] = useMemo(
-    () =>
-      dayOrders
+    () => {
+      const pts: MapPoint[] = dayOrders
         .filter((d) => d.delivery_lat != null && d.delivery_lng != null)
         .map((d) => ({
           id: d.id,
@@ -58,9 +127,29 @@ export default function MapPage() {
           label: isMine(d)
             ? `#${d.order_no} — ${d.account || t("(no account)", "(sin cuenta)")} — ${d.assigned_driver || t("Unassigned", "Sin asignar")}`
             : t("Delivery", "Entrega"),
-        })),
+          // Dim everything except the selected order once one is picked.
+          dimmed: !!selected && d.id !== selected.id,
+        }));
+      // The selected order's pickup point, marked "P".
+      if (selected && pickupPt) {
+        pts.push({ id: "__pickup", lat: pickupPt.lat, lng: pickupPt.lng, color: "#111827", label: `${t("Pickup", "Recolección")}: ${selected.store || ""}`, badge: "P" });
+      }
+      return pts;
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dayOrders, settings.driver_colors, me],
+    [dayOrders, settings.driver_colors, me, selected, pickupPt],
+  );
+
+  // The pickup→dropoff line for the selected order.
+  const lines: MapLine[] = useMemo(
+    () => (route ? [{ id: "route", color: "#2456c9", positions: route.positions }] : []),
+    [route],
+  );
+
+  // Zoom to the selected order's route when one is drawn.
+  const fitTo = useMemo<[number, number][] | undefined>(
+    () => (route && route.positions.length ? route.positions : undefined),
+    [route],
   );
 
   const drivers = driverNames(users);
@@ -109,11 +198,49 @@ export default function MapPage() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <LeafletMap points={points} onPointClick={(id) => {
+        <LeafletMap points={points} lines={lines} fitTo={fitTo} onPointClick={(id) => {
+          if (id === "__pickup") return;
           const d = dayOrders.find((x) => x.id === id);
-          if (d) openPoint(d);
+          if (!d) return;
+          // Sales: pins are visual only. Everyone else: open the dispatch panel.
+          if (canAssign) selectOrder(d); else openPoint(d);
         }} />
       </div>
+
+      {selected && canAssign && (
+        <div className="card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0 }}>
+              #{selected.order_no} — {selected.account || t("(no account)", "(sin cuenta)")}{" "}
+              <span className="sema" style={{ background: stageInfo(selected.stage).color, color: "#fff" }}>{stageLabel(selected.stage, lang)}</span>
+            </h2>
+            <button className="btn btn-ghost btn-sm" onClick={closePanel}>✕ {t("Close", "Cerrar")}</button>
+          </div>
+          <div className="detail-row"><span className="dk">{t("Route", "Ruta")}</span><span className="dv">{selected.store || "—"} → {cityFromAddress(selected.delivery_address, cityNames) || selected.delivery_address || "—"}</span></div>
+          <div className="detail-row"><span className="dk">{t("Window", "Ventana")}</span><span className="dv">{selected.delivery_windows || "—"}</span></div>
+          <div className="detail-row"><span className="dk">{t("Pallets", "Tarimas")}</span><span className="dv">{selected.actual_pallets ?? selected.est_pallets ?? "—"}</span></div>
+          <div className="detail-row">
+            <span className="dk">{t("Pickup → Dropoff", "Recolección → Entrega")}</span>
+            <span className="dv" style={{ fontWeight: 700 }}>
+              {routeBusy
+                ? t("Calculating…", "Calculando…")
+                : route
+                  ? `${route.miles} mi · ${route.duration}`
+                  : t("Route unavailable", "Ruta no disponible")}
+            </span>
+          </div>
+          <div className="field" style={{ maxWidth: 320, marginTop: 10 }}>
+            <label>{t("Assign driver", "Asignar chofer")}</label>
+            <select value={selected.assigned_driver ?? ""} disabled={assignBusy} onChange={(e) => assignDriver(e.target.value || null)}>
+              <option value="">{t("Unassigned", "Sin asignar")}</option>
+              {drivers.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setOpen(selected)}>{t("Open full order", "Abrir orden completa")}</button>
+          </div>
+        </div>
+      )}
 
       {missingPoints > 0 && (
         <div className="hint" style={{ marginTop: 8 }}>
