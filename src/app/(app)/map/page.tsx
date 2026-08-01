@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { driverNames, stageInfo, stageLabel } from "@/lib/constants";
@@ -28,6 +28,10 @@ export default function MapPage() {
   const [route, setRoute] = useState<{ positions: [number, number][]; miles: number; duration: string } | null>(null);
   const [routeBusy, setRouteBusy] = useState(false);
   const [assignBusy, setAssignBusy] = useState(false);
+  // Draw every unassigned order's pickup→dropoff route on the map, so a
+  // dispatcher sees where the day's open work needs to go at a glance.
+  const [showRoutes, setShowRoutes] = useState(true);
+  const [unassignedRoutes, setUnassignedRoutes] = useState<Record<string, [number, number][]>>({});
 
   const canManageColors = me?.role === "manager" || me?.role === "admin";
   // Everyone who reaches this page except sales can dispatch (warehouse/driver
@@ -42,6 +46,12 @@ export default function MapPage() {
   const dayOrders = useMemo(() => {
     return deliveries.filter((d) => d.delivery_date === date && d.stage !== "canceled");
   }, [deliveries, date]);
+
+  // Unassigned orders that have a delivery point — the ones we auto-route.
+  const unassignedOrders = useMemo(
+    () => dayOrders.filter((d) => !d.assigned_driver && d.delivery_lat != null && d.delivery_lng != null),
+    [dayOrders],
+  );
 
   const isMine = (d: Delivery) => me?.role !== "sales" || orderOwner(d) === me.id;
 
@@ -100,6 +110,37 @@ export default function MapPage() {
     }
     setRouteBusy(false);
   };
+
+  // Fill in each unassigned order's pickup→dropoff road route, one at a time
+  // (throttled so we don't hammer the routing service), cached by order id.
+  useEffect(() => {
+    if (!showRoutes) return;
+    let cancelled = false;
+    (async () => {
+      for (const d of unassignedOrders) {
+        if (cancelled) return;
+        if (unassignedRoutes[d.id]) continue;
+        const pk = await resolvePickup(d);
+        if (cancelled) return;
+        if (!pk) continue;
+        try {
+          const res = await fetch("/api/optimize-route", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ stops: [{ id: "p", lat: pk.lat, lng: pk.lng }, { id: "d", lat: d.delivery_lat, lng: d.delivery_lng }], roundtrip: false }),
+          });
+          const b = await res.json();
+          if (!cancelled && res.ok && Array.isArray(b.geometry) && b.geometry.length) {
+            const positions = (b.geometry as [number, number][]).map(([lng, lat]) => [lat, lng] as [number, number]);
+            setUnassignedRoutes((prev) => ({ ...prev, [d.id]: positions }));
+          }
+        } catch { /* skip this one */ }
+        await new Promise((r) => setTimeout(r, 120));
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRoutes, unassignedOrders]);
 
   const closePanel = () => { setSelected(null); setRoute(null); setPickupPt(null); };
 
@@ -161,11 +202,19 @@ export default function MapPage() {
     [dayOrders, settings.driver_colors, me, selected, pickupPt],
   );
 
-  // The pickup→dropoff line for the selected order.
-  const lines: MapLine[] = useMemo(
-    () => (route ? [{ id: "route", color: "#2456c9", positions: route.positions }] : []),
-    [route],
-  );
+  // Unassigned orders' pickup→dropoff routes (dimmed when one order is focused),
+  // plus the focused order's own route on top.
+  const lines: MapLine[] = useMemo(() => {
+    const out: MapLine[] = [];
+    if (showRoutes) {
+      for (const d of unassignedOrders) {
+        const pos = unassignedRoutes[d.id];
+        if (pos && pos.length) out.push({ id: `u:${d.id}`, color: UNASSIGNED_COLOR, positions: pos, dashed: true, dimmed: !!selected });
+      }
+    }
+    if (route) out.push({ id: "route", color: "#2456c9", positions: route.positions });
+    return out;
+  }, [route, showRoutes, unassignedOrders, unassignedRoutes, selected]);
 
   // Zoom to the selected order's route when one is drawn.
   const fitTo = useMemo<[number, number][] | undefined>(
@@ -248,6 +297,15 @@ export default function MapPage() {
           </div>
           {date !== todayISO() && (
             <button className="btn btn-ghost btn-sm" onClick={() => setDate(todayISO())}>{t("Today", "Hoy")}</button>
+          )}
+          {canAssign && unassignedOrders.length > 0 && (
+            <button
+              className={"btn btn-sm " + (showRoutes ? "btn-primary" : "btn-ghost")}
+              onClick={() => setShowRoutes((v) => !v)}
+              title={t("Show each unassigned order's pickup→dropoff route", "Mostrar la ruta recolección→entrega de cada orden sin asignar")}
+            >
+              🧭 {t("Unassigned routes", "Rutas sin asignar")} ({unassignedOrders.length})
+            </button>
           )}
           {geocoding > 0 && <span className="hint">{t("Locating addresses…", "Ubicando direcciones…")}</span>}
         </div>
