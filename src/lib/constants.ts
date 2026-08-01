@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.2.61";
+export const APP_VERSION = "0.2.62";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.

@@ -1143,13 +1143,20 @@ export default function RoutesPage() {
                           </tr>
                           {batch.map((d, bi) => {
                             const i = startIdx + bi;
+                            // Flag a stop whose optimized ETA lands after its window closes.
+                            const eta = routeEtas[u.full_name]?.[d.id];
+                            const win = parseWindow(d.delivery_windows);
+                            const etaMin = eta ? parseInt(eta.slice(0, 2), 10) * 60 + parseInt(eta.slice(3, 5), 10) : null;
+                            const late = etaMin != null && win != null && etaMin > win[1];
                             return (
                               <tr key={d.id}>
                                 <td style={{ borderLeft: `4px solid ${tColor}` }}>{d.route_seq != null ? i + 1 : "—"}</td>
                                 <td className="ordno">#{d.order_no}</td>
                                 <td>{d.account || "—"}</td>
                                 <td>{d.delivery_address || "—"}</td>
-                                <td style={{ fontWeight: 600 }}>{routeEtas[u.full_name]?.[d.id] ?? "—"}</td>
+                                <td style={{ fontWeight: 600, color: late ? "var(--red)" : undefined }} title={late ? t("ETA is after the delivery window", "La llegada es después de la ventana") : undefined}>
+                                  {eta ?? "—"}{late ? " ⚠️" : ""}
+                                </td>
                                 <td>{d.delivery_windows || "—"}</td>
                                 <td style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                                   {sequenced && (
