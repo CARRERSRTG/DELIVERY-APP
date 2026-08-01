@@ -8,7 +8,7 @@ import { OrderModal } from "@/components/OrderModal";
 import { LeafletMap, type MapPoint, type MapLine } from "@/components/LeafletMap";
 import { cityFromAddress, deliveryRisk, fallbackDriverColor, fmtDate, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
-import { assignmentWarnings, recommendDriver, type AssignWarning } from "@/lib/dispatch";
+import { assignmentWarnings, autoAssign, recommendDriver, type AssignWarning } from "@/lib/dispatch";
 import type { Delivery } from "@/lib/types";
 
 const UNASSIGNED_COLOR = "#6b7686";
@@ -21,9 +21,10 @@ export default function MapPage() {
   const [date, setDate] = useState(todayISO());
   const [open, setOpen] = useState<Delivery | null>(null);
 
-  // Clicking a pin selects that order: we draw its pickup→dropoff route (with
-  // distance + time) and let a dispatcher assign a driver on the spot.
-  const [selected, setSelected] = useState<Delivery | null>(null);
+  // Clicking a pin toggles it in a multi-selection. One order selected → its
+  // detail + assign panel; several → a bulk-assign panel. Selected orders'
+  // pickup→dropoff routes are highlighted.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pickupPt, setPickupPt] = useState<{ lat: number; lng: number } | null>(null);
   const [route, setRoute] = useState<{ positions: [number, number][]; miles: number; duration: string } | null>(null);
   const [routeBusy, setRouteBusy] = useState(false);
@@ -31,7 +32,8 @@ export default function MapPage() {
   // Draw every unassigned order's pickup→dropoff route on the map, so a
   // dispatcher sees where the day's open work needs to go at a glance.
   const [showRoutes, setShowRoutes] = useState(true);
-  const [unassignedRoutes, setUnassignedRoutes] = useState<Record<string, [number, number][]>>({});
+  // Cached pickup→dropoff geometry per order id (unassigned auto-routes + selected).
+  const [routeCache, setRouteCache] = useState<Record<string, [number, number][]>>({});
 
   const canManageColors = me?.role === "manager" || me?.role === "admin";
   // Everyone who reaches this page except sales can dispatch (warehouse/driver
@@ -52,6 +54,13 @@ export default function MapPage() {
     () => dayOrders.filter((d) => !d.assigned_driver && d.delivery_lat != null && d.delivery_lng != null),
     [dayOrders],
   );
+
+  // Currently multi-selected orders; `selected` is the single one (rich detail).
+  const selectedList = useMemo(() => dayOrders.filter((d) => selectedIds.has(d.id)), [dayOrders, selectedIds]);
+  const selected = selectedList.length === 1 ? selectedList[0] : null;
+  const toggleSelect = (id: string) =>
+    setSelectedIds((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const clearSelection = () => setSelectedIds(new Set());
 
   const isMine = (d: Delivery) => me?.role !== "sales" || orderOwner(d) === me.id;
 
@@ -82,97 +91,112 @@ export default function MapPage() {
     } catch { return null; }
   };
 
-  // Select an order (from a pin click): draw its pickup→dropoff route and time.
-  const selectOrder = async (d: Delivery) => {
-    setSelected(d);
-    setRoute(null);
-    setPickupPt(null);
-    if (d.delivery_lat == null || d.delivery_lng == null) return;
-    setRouteBusy(true);
+  // Resolve an order's pickup→dropoff road route (geometry + distance + time).
+  const fetchOrderRoute = async (d: Delivery): Promise<{ pk: { lat: number; lng: number } | null; positions: [number, number][]; miles: number; duration: string } | null> => {
+    if (d.delivery_lat == null || d.delivery_lng == null) return null;
     const pk = await resolvePickup(d);
-    setPickupPt(pk);
-    if (pk) {
-      try {
-        const res = await fetch("/api/optimize-route", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stops: [{ id: "p", lat: pk.lat, lng: pk.lng }, { id: "d", lat: d.delivery_lat, lng: d.delivery_lng }], roundtrip: false }),
-        });
-        const b = await res.json();
-        if (res.ok && Array.isArray(b.geometry) && b.geometry.length) {
-          setRoute({
-            positions: (b.geometry as [number, number][]).map(([lng, lat]) => [lat, lng]),
-            miles: b.miles ?? 0,
-            duration: b.duration_text || "",
-          });
-        }
-      } catch { /* leave route null */ }
-    }
-    setRouteBusy(false);
+    if (!pk) return { pk: null, positions: [], miles: 0, duration: "" };
+    try {
+      const res = await fetch("/api/optimize-route", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stops: [{ id: "p", lat: pk.lat, lng: pk.lng }, { id: "d", lat: d.delivery_lat, lng: d.delivery_lng }], roundtrip: false }),
+      });
+      const b = await res.json();
+      if (res.ok && Array.isArray(b.geometry) && b.geometry.length) {
+        return { pk, positions: (b.geometry as [number, number][]).map(([lng, lat]) => [lat, lng] as [number, number]), miles: b.miles ?? 0, duration: b.duration_text || "" };
+      }
+    } catch { /* fall through */ }
+    return { pk, positions: [], miles: 0, duration: "" };
   };
 
-  // Fill in each unassigned order's pickup→dropoff road route, one at a time
-  // (throttled so we don't hammer the routing service), cached by order id.
+  // When exactly one order is selected, compute its route detail (distance/time)
+  // and pickup pin for the panel.
   useEffect(() => {
-    if (!showRoutes) return;
+    let cancelled = false;
+    setRoute(null);
+    setPickupPt(null);
+    if (!selected) return;
+    setRouteBusy(true);
+    (async () => {
+      const r = await fetchOrderRoute(selected);
+      if (cancelled) return;
+      setPickupPt(r?.pk ?? null);
+      if (r && r.positions.length) {
+        setRoute({ positions: r.positions, miles: r.miles, duration: r.duration });
+        setRouteCache((prev) => ({ ...prev, [selected.id]: r.positions }));
+      }
+      setRouteBusy(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
+
+  // Fill in road routes (one at a time, throttled, cached) for the unassigned
+  // pool (when enabled) plus every selected order, so all draw on the map.
+  useEffect(() => {
     let cancelled = false;
     (async () => {
-      for (const d of unassignedOrders) {
+      const targets = [...(showRoutes ? unassignedOrders : []), ...selectedList];
+      for (const d of targets) {
         if (cancelled) return;
-        if (unassignedRoutes[d.id]) continue;
-        const pk = await resolvePickup(d);
+        if (routeCache[d.id] || d.delivery_lat == null) continue;
+        const r = await fetchOrderRoute(d);
         if (cancelled) return;
-        if (!pk) continue;
-        try {
-          const res = await fetch("/api/optimize-route", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ stops: [{ id: "p", lat: pk.lat, lng: pk.lng }, { id: "d", lat: d.delivery_lat, lng: d.delivery_lng }], roundtrip: false }),
-          });
-          const b = await res.json();
-          if (!cancelled && res.ok && Array.isArray(b.geometry) && b.geometry.length) {
-            const positions = (b.geometry as [number, number][]).map(([lng, lat]) => [lat, lng] as [number, number]);
-            setUnassignedRoutes((prev) => ({ ...prev, [d.id]: positions }));
-          }
-        } catch { /* skip this one */ }
-        await new Promise((r) => setTimeout(r, 120));
+        if (r && r.positions.length) setRouteCache((prev) => ({ ...prev, [d.id]: r.positions }));
+        await new Promise((res) => setTimeout(res, 120));
       }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showRoutes, unassignedOrders]);
+  }, [showRoutes, unassignedOrders, selectedList]);
 
-  const closePanel = () => { setSelected(null); setRoute(null); setPickupPt(null); };
-
-  const assignDriver = async (driver: string | null) => {
-    if (!selected) return;
+  // Assign (or unassign) a list of orders to one driver — logs an audit note per
+  // order and notifies the driver in-app. Clears the selection when done.
+  const assignOrders = async (orders: Delivery[], driver: string | null) => {
+    if (!orders.length) return;
     setAssignBusy(true);
-    const prev = selected.assigned_driver;
-    const ok = await updateDelivery(selected.id, { assigned_driver: driver });
-    setAssignBusy(false);
-    if (ok) {
-      setSelected((s) => (s ? { ...s, assigned_driver: driver } : s));
-      // Audit trail: record the (re)assignment as a note.
-      addNote(selected.id, driver
+    const du = driver ? users.find((u) => u.role === "driver" && u.full_name === driver) : null;
+    const notifs: { user_id: string; delivery_id: string; order_no: number; kind: string; message: string }[] = [];
+    for (const d of orders) {
+      const prev = d.assigned_driver;
+      const ok = await updateDelivery(d.id, { assigned_driver: driver });
+      if (!ok) continue;
+      addNote(d.id, driver
         ? `Assigned to ${driver}${prev && prev !== driver ? ` (from ${prev})` : ""}`
         : `Unassigned${prev ? ` (was ${prev})` : ""}`);
-      notify(driver
-        ? t(`#${selected.order_no} assigned to ${driver}`, `#${selected.order_no} asignada a ${driver}`)
-        : t(`#${selected.order_no} unassigned`, `#${selected.order_no} sin asignar`));
-      // Notify the driver in-app that a delivery landed on their plate.
-      if (driver) {
-        const du = users.find((u) => u.role === "driver" && u.full_name === driver);
-        if (du) {
-          await pushNotifs([{
-            user_id: du.id,
-            delivery_id: selected.id,
-            order_no: selected.order_no,
-            kind: "assigned",
-            message: `Order #${selected.order_no} was assigned to you${selected.delivery_windows ? ` (${selected.delivery_windows})` : ""}`,
-          }]);
-        }
-      }
+      if (du) notifs.push({ user_id: du.id, delivery_id: d.id, order_no: d.order_no, kind: "assigned", message: `Order #${d.order_no} was assigned to you${d.delivery_windows ? ` (${d.delivery_windows})` : ""}` });
     }
+    if (notifs.length) await pushNotifs(notifs);
+    setAssignBusy(false);
+    clearSelection();
+    notify(driver
+      ? t(`${orders.length} order(s) assigned to ${driver}`, `${orders.length} orden(es) asignadas a ${driver}`)
+      : t(`${orders.length} order(s) unassigned`, `${orders.length} orden(es) sin asignar`));
+  };
+  const assignDriver = (driver: string | null) => assignOrders(selectedList, driver);
+
+  // Auto-assign only the selected (unassigned) loads across the drivers.
+  const autoAssignSelected = async () => {
+    const pool = selectedList.filter((d) => !d.assigned_driver && d.delivery_lat != null);
+    if (!pool.length) { notify(t("Select unassigned loads to auto-assign.", "Seleccione cargas sin asignar.")); return; }
+    const res = autoAssign(pool, drivers, capacityOf, { maxTripsPerDay: 2 });
+    if (!res.assignments.length) { notify(t("Couldn't place the selected loads.", "No se pudieron colocar las cargas.")); return; }
+    setAssignBusy(true);
+    const byName = new Map(users.filter((u) => u.role === "driver").map((u) => [u.full_name, u]));
+    const notifs: { user_id: string; delivery_id: string; order_no: number; kind: string; message: string }[] = [];
+    for (const a of res.assignments) {
+      const d = pool.find((x) => x.id === a.orderId)!;
+      const ok = await updateDelivery(a.orderId, { assigned_driver: a.driver });
+      if (!ok) continue;
+      addNote(a.orderId, `Assigned to ${a.driver}`);
+      const u = byName.get(a.driver);
+      if (u) notifs.push({ user_id: u.id, delivery_id: a.orderId, order_no: d.order_no, kind: "assigned", message: `Order #${d.order_no} was assigned to you${d.delivery_windows ? ` (${d.delivery_windows})` : ""}` });
+    }
+    if (notifs.length) await pushNotifs(notifs);
+    setAssignBusy(false);
+    clearSelection();
+    notify(t(`Auto-assigned ${res.assignments.length} load(s)`, `Auto-asignadas ${res.assignments.length} carga(s)`));
   };
 
   const points: MapPoint[] = useMemo(
@@ -189,38 +213,49 @@ export default function MapPage() {
           label: isMine(d)
             ? `#${d.order_no} — ${d.account || t("(no account)", "(sin cuenta)")} — ${d.assigned_driver || t("Unassigned", "Sin asignar")}`
             : t("Delivery", "Entrega"),
-          // Dim everything except the selected order once one is picked.
-          dimmed: !!selected && d.id !== selected.id,
+          // Dim everything that isn't selected once a selection exists.
+          dimmed: selectedIds.size > 0 && !selectedIds.has(d.id),
         }));
-      // The selected order's pickup point, marked "P".
+      // A single selected order's pickup point, marked "P".
       if (selected && pickupPt) {
         pts.push({ id: "__pickup", lat: pickupPt.lat, lng: pickupPt.lng, color: "#111827", label: `${t("Pickup", "Recolección")}: ${selected.store || ""}`, badge: "P" });
       }
       return pts;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dayOrders, settings.driver_colors, me, selected, pickupPt],
+    [dayOrders, settings.driver_colors, me, selectedIds, selected, pickupPt],
   );
 
-  // Unassigned orders' pickup→dropoff routes (dimmed when one order is focused),
-  // plus the focused order's own route on top.
+  // Selected orders' routes in blue; the unassigned pool in gray (dimmed while
+  // a selection is active).
   const lines: MapLine[] = useMemo(() => {
     const out: MapLine[] = [];
+    const hasSel = selectedIds.size > 0;
     if (showRoutes) {
       for (const d of unassignedOrders) {
-        const pos = unassignedRoutes[d.id];
-        if (pos && pos.length) out.push({ id: `u:${d.id}`, color: UNASSIGNED_COLOR, positions: pos, dashed: true, dimmed: !!selected });
+        if (selectedIds.has(d.id)) continue;
+        const pos = routeCache[d.id];
+        if (pos && pos.length) out.push({ id: `u:${d.id}`, color: UNASSIGNED_COLOR, positions: pos, dashed: true, dimmed: hasSel });
       }
     }
-    if (route) out.push({ id: "route", color: "#2456c9", positions: route.positions });
+    for (const d of selectedList) {
+      const pos = routeCache[d.id];
+      if (pos && pos.length) out.push({ id: `s:${d.id}`, color: "#2456c9", positions: pos });
+    }
     return out;
-  }, [route, showRoutes, unassignedOrders, unassignedRoutes, selected]);
+  }, [showRoutes, unassignedOrders, routeCache, selectedIds, selectedList]);
 
-  // Zoom to the selected order's route when one is drawn.
-  const fitTo = useMemo<[number, number][] | undefined>(
-    () => (route && route.positions.length ? route.positions : undefined),
-    [route],
-  );
+  // Zoom to the selected orders (their delivery points + any drawn routes).
+  const fitTo = useMemo<[number, number][] | undefined>(() => {
+    if (selectedList.length === 0) return undefined;
+    const pts: [number, number][] = [];
+    for (const d of selectedList) {
+      if (d.delivery_lat != null && d.delivery_lng != null) pts.push([d.delivery_lat, d.delivery_lng]);
+      const pos = routeCache[d.id];
+      if (pos) pts.push(...pos);
+    }
+    return pts.length ? pts : undefined;
+  }, [selectedList, routeCache]);
 
   const drivers = driverNames(users);
   const missingPoints = dayOrders.length - points.length;
@@ -316,8 +351,8 @@ export default function MapPage() {
           if (id === "__pickup") return;
           const d = dayOrders.find((x) => x.id === id);
           if (!d) return;
-          // Sales: pins are visual only. Everyone else: open the dispatch panel.
-          if (canAssign) selectOrder(d); else openPoint(d);
+          // Sales: pins are visual only. Everyone else: toggle it in the selection.
+          if (canAssign) toggleSelect(d.id); else openPoint(d);
         }} />
       </div>
 
@@ -329,7 +364,7 @@ export default function MapPage() {
               <span className="sema" style={{ background: stageInfo(selected.stage).color, color: "#fff" }}>{stageLabel(selected.stage, lang)}</span>
               {riskChip(deliveryRisk(selected))}
             </h2>
-            <button className="btn btn-ghost btn-sm" onClick={closePanel}>✕ {t("Close", "Cerrar")}</button>
+            <button className="btn btn-ghost btn-sm" onClick={clearSelection}>✕ {t("Close", "Cerrar")}</button>
           </div>
           <div className="detail-row"><span className="dk">{t("Route", "Ruta")}</span><span className="dv">{selected.store || "—"} → {cityFromAddress(selected.delivery_address, cityNames) || selected.delivery_address || "—"}</span></div>
           <div className="detail-row"><span className="dk">{t("Window", "Ventana")}</span><span className="dv">{selected.delivery_windows || "—"}</span></div>
@@ -378,6 +413,29 @@ export default function MapPage() {
 
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setOpen(selected)}>{t("Open full order", "Abrir orden completa")}</button>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- Multi-select panel ---------- */}
+      {selectedList.length > 1 && canAssign && (
+        <div className="card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0 }}>
+              {selectedList.length} {t("loads selected", "cargas seleccionadas")}{" "}
+              <span className="count-tag">{Math.round(selectedList.reduce((s, d) => s + Number(d.actual_pallets ?? d.est_pallets ?? 0), 0))} {t("pallets", "tarimas")}</span>
+            </h2>
+            <button className="btn btn-ghost btn-sm" onClick={clearSelection}>✕ {t("Clear", "Limpiar")}</button>
+          </div>
+          <p className="hint" style={{ marginTop: 6 }}>{t("Their routes are highlighted in blue. Assign all to one driver, or auto-assign the unassigned ones.", "Sus rutas se resaltan en azul. Asigne todas a un chofer, o auto-asigne las que estén sin asignar.")}</p>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+            <select defaultValue="" disabled={assignBusy} style={{ width: "auto" }}
+              onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v) assignOrders(selectedList, v); }}>
+              <option value="">{t("Assign all to…", "Asignar todas a…")}</option>
+              {drivers.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <button className="btn btn-amber btn-sm" disabled={assignBusy} onClick={autoAssignSelected}>✨ {t("Auto-assign selected", "Auto-asignar selección")}</button>
+            <button className="btn btn-ghost btn-sm" disabled={assignBusy} onClick={() => assignOrders(selectedList, null)}>{t("Unassign", "Quitar")}</button>
           </div>
         </div>
       )}
