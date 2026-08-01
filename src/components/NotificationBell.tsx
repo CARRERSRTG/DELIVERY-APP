@@ -107,14 +107,14 @@ export function NotificationBell() {
           ) : (
             <div className="notif-list">
               {notifications.map((n) => {
-                const info = stageInfo(n.kind);
+                const dotColor = n.kind === "assigned" ? "var(--accent)" : stageInfo(n.kind).color;
                 return (
                   <button
                     key={n.id}
                     className={"notif-item" + (n.read ? "" : " unread")}
                     onClick={() => onPick(n.id, n.read, n.delivery_id)}
                   >
-                    <span className="notif-dot" style={{ background: info.color }} />
+                    <span className="notif-dot" style={{ background: dotColor }} />
                     <span className="notif-body">
                       <span className="notif-msg">{n.message}</span>
                       <span className="notif-time">{ago(n.created_at)}</span>

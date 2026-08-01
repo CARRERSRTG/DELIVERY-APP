@@ -16,7 +16,7 @@ const UNASSIGNED_COLOR = "#6b7686";
 const DEFAULT_CAPACITY = 12;
 
 export default function MapPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, notify, ready } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, notify, pushNotifs, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   const [open, setOpen] = useState<Delivery | null>(null);
@@ -113,6 +113,19 @@ export default function MapPage() {
       notify(driver
         ? t(`#${selected.order_no} assigned to ${driver}`, `#${selected.order_no} asignada a ${driver}`)
         : t(`#${selected.order_no} unassigned`, `#${selected.order_no} sin asignar`));
+      // Notify the driver in-app that a delivery landed on their plate.
+      if (driver) {
+        const du = users.find((u) => u.role === "driver" && u.full_name === driver);
+        if (du) {
+          await pushNotifs([{
+            user_id: du.id,
+            delivery_id: selected.id,
+            order_no: selected.order_no,
+            kind: "assigned",
+            message: `Order #${selected.order_no} was assigned to you${selected.delivery_windows ? ` (${selected.delivery_windows})` : ""}`,
+          }]);
+        }
+      }
     }
   };
 
