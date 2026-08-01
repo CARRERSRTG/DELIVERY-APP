@@ -60,6 +60,84 @@ export function windowConflicts(order: WindowCheck, deliveries: Delivery[]): Del
   });
 }
 
+// ---- Smart driver assignment (Epic B) -------------------------------------
+// Structured warnings + a capacity/conflict-aware recommendation, shared by the
+// Map dispatch panel and (later) the order form. The lib stays i18n-free — the
+// UI formats these into sentences.
+
+/** Pallets already committed to a driver on a given date (active orders only). */
+export function driverPalletsOn(
+  driver: string | null | undefined,
+  date: string | null | undefined,
+  deliveries: Delivery[],
+  excludeId?: string,
+): number {
+  if (!driver || !date) return 0;
+  let total = 0;
+  for (const d of deliveries) {
+    if (d.id === excludeId) continue;
+    if (d.assigned_driver !== driver) continue;
+    if (d.delivery_date !== date) continue;
+    if (d.stage === "delivered" || d.stage === "canceled" || d.stage === "rejected") continue;
+    total += Number(d.actual_pallets ?? d.est_pallets ?? 0);
+  }
+  return total;
+}
+
+export interface AssignWarning {
+  kind: "conflict" | "over_capacity";
+  /** conflict: the other orders that overlap this one for the driver + date. */
+  conflicts?: Delivery[];
+  /** over_capacity: pallets already booked, this order's pallets, and the cap. */
+  used?: number;
+  adding?: number;
+  capacity?: number;
+}
+
+/** What would go wrong assigning `order` to `driver` — empty means clean. */
+export function assignmentWarnings(
+  order: Pick<Delivery, "id" | "delivery_date" | "delivery_windows" | "actual_pallets" | "est_pallets">,
+  driver: string,
+  deliveries: Delivery[],
+  capacity: number | undefined,
+): AssignWarning[] {
+  const out: AssignWarning[] = [];
+  const conflicts = windowConflicts(
+    { id: order.id, assigned_driver: driver, delivery_date: order.delivery_date, delivery_windows: order.delivery_windows },
+    deliveries,
+  );
+  if (conflicts.length) out.push({ kind: "conflict", conflicts });
+  if (capacity && capacity > 0) {
+    const used = driverPalletsOn(driver, order.delivery_date, deliveries, order.id);
+    const adding = Number(order.actual_pallets ?? order.est_pallets ?? 0);
+    if (used + adding > capacity) out.push({ kind: "over_capacity", used, adding, capacity });
+  }
+  return out;
+}
+
+export interface DriverPick {
+  driver: string;
+  warnings: AssignWarning[];
+  pallets: number;
+}
+
+/** Best driver for an order: fewest warnings, then the lightest current load. */
+export function recommendDriver(
+  order: Delivery,
+  driverNames: string[],
+  deliveries: Delivery[],
+  capacityOf: (driver: string) => number | undefined,
+): DriverPick | null {
+  if (!driverNames.length) return null;
+  const scored: DriverPick[] = driverNames.map((driver) => ({
+    driver,
+    warnings: assignmentWarnings(order, driver, deliveries, capacityOf(driver)),
+    pallets: driverPalletsOn(driver, order.delivery_date, deliveries, order.id),
+  }));
+  scored.sort((a, b) => a.warnings.length - b.warnings.length || a.pallets - b.pallets);
+  return scored[0];
+}
+
 /** Order a driver's stops for display. A Logistics Manager's optimized
  * sequence (route_seq) wins when set; anything not yet sequenced falls back
  * to delivery window start (then miles) — a simple, dependency-free guess. */

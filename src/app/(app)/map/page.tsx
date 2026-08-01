@@ -8,9 +8,12 @@ import { OrderModal } from "@/components/OrderModal";
 import { LeafletMap, type MapPoint, type MapLine } from "@/components/LeafletMap";
 import { cityFromAddress, fallbackDriverColor, fmtDate, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
+import { assignmentWarnings, recommendDriver, type AssignWarning } from "@/lib/dispatch";
 import type { Delivery } from "@/lib/types";
 
 const UNASSIGNED_COLOR = "#6b7686";
+// Matches the Routes Manager default when a driver has no capacity set.
+const DEFAULT_CAPACITY = 12;
 
 export default function MapPage() {
   const { me, users, deliveries, settings, saveSettings, updateDelivery, notify, ready } = useData();
@@ -155,6 +158,30 @@ export default function MapPage() {
   const drivers = driverNames(users);
   const missingPoints = dayOrders.length - points.length;
 
+  // Smart-assist for the selected order: a recommended driver, plus warnings
+  // (window conflict / over capacity) for whoever is currently assigned.
+  const capacityOf = (n: string) => settings.driver_capacity?.[n] ?? DEFAULT_CAPACITY;
+  const recommendation = useMemo(
+    () => (selected ? recommendDriver(selected, drivers, deliveries, capacityOf) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selected, drivers, deliveries, settings.driver_capacity],
+  );
+  const currentWarnings = useMemo(
+    () => (selected?.assigned_driver ? assignmentWarnings(selected, selected.assigned_driver, deliveries, capacityOf(selected.assigned_driver)) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selected, deliveries, settings.driver_capacity],
+  );
+  const warnText = (w: AssignWarning) =>
+    w.kind === "conflict"
+      ? t(
+          `Overlaps ${w.conflicts!.map((c) => `#${c.order_no} (${c.delivery_windows || "?"})`).join(", ")}`,
+          `Se traslapa con ${w.conflicts!.map((c) => `#${c.order_no} (${c.delivery_windows || "?"})`).join(", ")}`,
+        )
+      : t(
+          `Over capacity: ${w.used} + ${w.adding} > ${w.capacity} pallets`,
+          `Sobre capacidad: ${w.used} + ${w.adding} > ${w.capacity} tarimas`,
+        );
+
   // From/To/pallets summary for this date — same "own orders only" boundary
   // as everything else on this page for sales.
   const cityNames = settings.stores.map((s) => s.name);
@@ -229,6 +256,20 @@ export default function MapPage() {
                   : t("Route unavailable", "Ruta no disponible")}
             </span>
           </div>
+          {recommendation && recommendation.driver !== selected.assigned_driver && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13.5 }}>
+                {t("Suggested", "Sugerido")}: <b>★ {recommendation.driver}</b>
+                {recommendation.warnings.length === 0
+                  ? <span className="sema" style={{ background: "var(--green)", color: "#fff", marginLeft: 8 }}>{t("clear", "sin conflictos")}</span>
+                  : <span className="hint" style={{ marginLeft: 8 }}>{t("(best available)", "(mejor disponible)")}</span>}
+              </span>
+              <button className="btn btn-sm btn-primary" disabled={assignBusy} onClick={() => assignDriver(recommendation.driver)}>
+                {t("Assign", "Asignar")}
+              </button>
+            </div>
+          )}
+
           <div className="field" style={{ maxWidth: 320, marginTop: 10 }}>
             <label>{t("Assign driver", "Asignar chofer")}</label>
             <select value={selected.assigned_driver ?? ""} disabled={assignBusy} onChange={(e) => assignDriver(e.target.value || null)}>
@@ -236,6 +277,17 @@ export default function MapPage() {
               {drivers.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
+
+          {currentWarnings.length > 0 && (
+            <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+              {currentWarnings.map((w, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 12px", borderRadius: 8, background: "color-mix(in srgb, var(--amber, #e9a13b) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--amber, #e9a13b) 45%, transparent)", fontSize: 13.5 }}>
+                  <span aria-hidden>⚠️</span><span>{warnText(w)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setOpen(selected)}>{t("Open full order", "Abrir orden completa")}</button>
           </div>

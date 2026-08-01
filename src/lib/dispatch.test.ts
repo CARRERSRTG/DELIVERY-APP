@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseWindow, suggestDriver, windowConflicts, routeOrder, splitIntoTrips } from "@/lib/dispatch";
+import { parseWindow, suggestDriver, windowConflicts, routeOrder, splitIntoTrips, driverPalletsOn, assignmentWarnings, recommendDriver } from "@/lib/dispatch";
 import { mkDelivery } from "@/lib/__fixtures";
 
 describe("parseWindow", () => {
@@ -133,5 +133,53 @@ describe("splitIntoTrips", () => {
     // By est_pallets (2+2=4) these'd fit in one 10-pallet load; by the
     // warehouse-confirmed actual_pallets (9+9=18) they don't.
     expect(splitIntoTrips(stops, 10).map((trip) => trip.map((d) => d.order_no))).toEqual([[1], [2]]);
+  });
+});
+
+describe("driverPalletsOn", () => {
+  const dels = [
+    mkDelivery({ assigned_driver: "Ana", delivery_date: "2026-07-20", stage: "approved", est_pallets: 4 }),
+    mkDelivery({ assigned_driver: "Ana", delivery_date: "2026-07-20", stage: "ready", actual_pallets: 3, est_pallets: 5 }),
+    mkDelivery({ assigned_driver: "Ana", delivery_date: "2026-07-20", stage: "delivered", est_pallets: 9 }),
+    mkDelivery({ assigned_driver: "Ana", delivery_date: "2026-07-21", stage: "approved", est_pallets: 2 }),
+  ];
+  it("sums active pallets for a driver+date, preferring actual over est", () => {
+    expect(driverPalletsOn("Ana", "2026-07-20", dels)).toBe(7); // 4 + 3, delivered excluded
+  });
+  it("returns 0 for a missing driver or date", () => {
+    expect(driverPalletsOn(null, "2026-07-20", dels)).toBe(0);
+    expect(driverPalletsOn("Ana", null, dels)).toBe(0);
+  });
+});
+
+describe("assignmentWarnings", () => {
+  it("flags an overlapping window for the same driver+date", () => {
+    const order = mkDelivery({ id: "x", order_no: 2000, delivery_date: "2026-07-20", delivery_windows: "1100-1300" });
+    const other = mkDelivery({ order_no: 1001, assigned_driver: "Ana", delivery_date: "2026-07-20", delivery_windows: "1000-1200", stage: "approved" });
+    const w = assignmentWarnings(order, "Ana", [order, other], undefined);
+    expect(w.some((x) => x.kind === "conflict")).toBe(true);
+  });
+  it("flags over-capacity", () => {
+    const order = mkDelivery({ id: "x", delivery_date: "2026-07-20", delivery_windows: "0800-0900", est_pallets: 5 });
+    const other = mkDelivery({ assigned_driver: "Ana", delivery_date: "2026-07-20", stage: "approved", est_pallets: 10 });
+    const w = assignmentWarnings(order, "Ana", [order, other], 12);
+    expect(w.some((x) => x.kind === "over_capacity")).toBe(true);
+  });
+  it("is clean with no conflict and within capacity", () => {
+    const order = mkDelivery({ id: "x", delivery_date: "2026-07-20", delivery_windows: "0800-0900", est_pallets: 2 });
+    expect(assignmentWarnings(order, "Ana", [order], 12)).toEqual([]);
+  });
+});
+
+describe("recommendDriver", () => {
+  it("prefers a clean driver over a conflicted one", () => {
+    const order = mkDelivery({ id: "x", order_no: 3000, delivery_date: "2026-07-20", delivery_windows: "1000-1200", est_pallets: 2 });
+    const busy = mkDelivery({ order_no: 1001, assigned_driver: "Ana", delivery_date: "2026-07-20", delivery_windows: "1000-1200", stage: "approved", est_pallets: 2 });
+    const pick = recommendDriver(order, ["Ana", "Beto"], [order, busy], () => 12);
+    expect(pick?.driver).toBe("Beto");
+    expect(pick?.warnings).toEqual([]);
+  });
+  it("returns null when there are no drivers", () => {
+    expect(recommendDriver(mkDelivery({}), [], [], () => 12)).toBeNull();
   });
 });
