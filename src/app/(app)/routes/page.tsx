@@ -34,6 +34,8 @@ import type { Delivery } from "@/lib/types";
 // ============================================================
 
 const UNASSIGNED_COLOR = "#6b7686";
+// Distinct colors for multiple selected unassigned loads (route + pin).
+const SEL_PALETTE = ["#2456c9", "#0f8a8a", "#d1782e", "#7c4dbc", "#1f9d61", "#d64545", "#e9a13b"];
 // Orders that need dispatching: approved but not yet picked up.
 const ROUTE_STAGES: Delivery["stage"][] = ["approved", "fulfilling", "ready"];
 // Used whenever a driver has no capacity set yet in Settings.
@@ -296,6 +298,13 @@ export default function RoutesPage() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedOrders, unassigned]);
+
+  // A distinct color per selected unassigned load (shared by its pin + route).
+  const selColorById = useMemo(() => {
+    const m = new Map<string, string>();
+    unassigned.filter((d) => selectedOrders.has(d.id)).forEach((d, i) => m.set(d.id, SEL_PALETTE[i % SEL_PALETTE.length]));
+    return m;
+  }, [unassigned, selectedOrders]);
 
   // Search + saved filter over the unassigned pool.
   const unassignedShown = useMemo(() => {
@@ -701,7 +710,7 @@ export default function RoutesPage() {
           id: d.id,
           lat: d.delivery_lat,
           lng: d.delivery_lng,
-          color: sel ? "#2456c9" : UNASSIGNED_COLOR,
+          color: sel ? (selColorById.get(d.id) ?? "#2456c9") : UNASSIGNED_COLOR,
           label: `#${d.order_no} — ${t("Unassigned", "Sin asignar")}`,
           dimmed: sel ? false : (focused || selActive),
         });
@@ -722,7 +731,7 @@ export default function RoutesPage() {
     }
     return pts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, selectedOrders, depotCoords, drivers]);
+  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, selectedOrders, selColorById, depotCoords, drivers]);
 
   // Every optimized driver's routes are always drawn; a focus just dims the
   // others. Clicking a route focuses its driver (see onLineClick below).
@@ -757,15 +766,20 @@ export default function RoutesPage() {
         if (trace.ret.length > 1) out.push({ id: `pret:${i}`, color, positions: trace.ret, dashed: true, offset: 7 });
       });
     }
-    // Selected unassigned loads: draw their pickup→dropoff route in blue.
+    // Selected unassigned loads: each in its own color — the "go" leg solid
+    // (pickup→dropoff) and the "return" leg dashed (dropoff→pickup), offset so
+    // it sits beside the outbound line.
     for (const d of unassigned) {
       if (!selectedOrders.has(d.id)) continue;
       const pos = selRouteCache[d.id];
-      if (pos && pos.length) out.push({ id: `sel:${d.id}`, color: "#2456c9", positions: pos });
+      if (!pos || !pos.length) continue;
+      const color = selColorById.get(d.id) ?? "#2456c9";
+      out.push({ id: `sel:${d.id}`, color, positions: pos });
+      out.push({ id: `selret:${d.id}`, color, positions: [...pos].reverse(), dashed: true, offset: 6 });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeLines, selected, preview, settings.driver_colors, selectedOrders, selRouteCache, unassigned]);
+  }, [routeLines, selected, preview, settings.driver_colors, selectedOrders, selRouteCache, selColorById, unassigned]);
 
   const onLineClick = (id: string) => {
     const m = id.match(/^(?:line|ret):(.+)#\d+$/);
@@ -1064,16 +1078,19 @@ export default function RoutesPage() {
                 {unassignedShown.map((d) => {
                   const s = stageInfo(d.stage);
                   return (
-                    <tr key={d.id} className={selectedOrders.has(d.id) ? "row-selected" : ""}>
-                      <td><input type="checkbox" checked={selectedOrders.has(d.id)} onChange={() => toggleOrder(d.id)} aria-label={`#${d.order_no}`} /></td>
+                    <tr key={d.id} className={selectedOrders.has(d.id) ? "row-selected" : ""} onClick={() => toggleOrder(d.id)} style={{ cursor: "pointer" }}>
+                      <td>
+                        <input type="checkbox" checked={selectedOrders.has(d.id)} readOnly aria-label={`#${d.order_no}`} />
+                        {selectedOrders.has(d.id) && <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: selColorById.get(d.id), marginLeft: 5, verticalAlign: "middle", boxShadow: "0 0 0 1px var(--line)" }} />}
+                      </td>
                       <td className="ordno">#{d.order_no}</td>
                       <td>{d.account || "—"}</td>
                       <td>{d.store || "—"}</td>
                       <td>{d.actual_pallets ?? d.est_pallets ?? "—"}</td>
-                      <td><DateCell d={d} date={date} onChange={reschedule} t={t} /></td>
+                      <td onClick={(e) => e.stopPropagation()}><DateCell d={d} date={date} onChange={reschedule} t={t} /></td>
                       <td>{d.delivery_windows || "—"}</td>
                       <td><span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span></td>
-                      <td>
+                      <td onClick={(e) => e.stopPropagation()}>
                         {singleSel ? (
                           <button
                             className="btn btn-ghost btn-sm"
