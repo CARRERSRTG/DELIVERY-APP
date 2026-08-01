@@ -488,3 +488,15 @@ table.orders th { text-align: left; }
 .dboard-card:hover { border-color: var(--accent); }
 .dboard-card:active { cursor: grabbing; }
 .dboard-card.dragging { opacity: .5; }
+
+/* ---------- Gantt / day-timeline ---------- */
+.gantt-scroll { overflow-x: auto; }
+.gantt { display: grid; gap: 6px; min-width: 620px; }
+.gantt-axis, .gantt-row { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 10px; }
+.gantt-rowlabel { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-rowlabel .hint { margin-left: auto; }
+.gantt-track { position: relative; height: 30px; }
+.gantt-hours { height: 18px; }
+.gantt-hour { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--gray); }
+.gantt-grid { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
+.gantt-bar { position: absolute; top: 4px; height: 22px; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; padding: 0 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.28); }

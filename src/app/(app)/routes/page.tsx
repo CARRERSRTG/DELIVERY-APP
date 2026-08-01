@@ -8,6 +8,7 @@ import { autoAssign, parseWindow, splitIntoTrips, unavailableDriverNames } from 
 import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap";
 import { AvailabilityManager } from "@/components/AvailabilityManager";
 import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
+import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { fallbackDriverColor, fmtDate, isOverdue, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery } from "@/lib/types";
@@ -136,7 +137,7 @@ export default function RoutesPage() {
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<"routes" | "orders" | "board">("routes");
+  const [tab, setTab] = useState<"routes" | "orders" | "board" | "timeline">("routes");
   const [busyDriver, setBusyDriver] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number }>>({});
   const [routeLines, setRouteLines] = useState<Record<string, TripTrace[]>>({});
@@ -316,6 +317,14 @@ export default function RoutesPage() {
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unassigned, drivers, byDriver, settings.driver_colors, settings.driver_capacity, lang]);
+
+  // Timeline rows: drivers that have stops, each drawn over the day axis.
+  const ganttRows: GanttRow[] = useMemo(
+    () => boardColumns
+      .filter((c) => c.key !== "__unassigned__" && c.orders.length > 0)
+      .map((c) => ({ key: c.key, title: c.title, color: c.color, orders: c.orders })),
+    [boardColumns],
+  );
 
   // A driver's stops changed, so any earlier optimize summary/trace (and any
   // in-flight simulation) is stale — drop it rather than show a route that
@@ -871,7 +880,20 @@ export default function RoutesPage() {
         <button className={"vt " + (tab === "routes" ? "on" : "")} onClick={() => setTab("routes")}>🧭 {t("Routes", "Rutas")} ({withStops.length})</button>
         <button className={"vt " + (tab === "orders" ? "on" : "")} onClick={() => setTab("orders")}>📦 {t("Unassigned", "Sin asignar")} ({unassigned.length})</button>
         <button className={"vt " + (tab === "board" ? "on" : "")} onClick={() => setTab("board")}>🗂 {t("Board", "Tablero")}</button>
+        <button className={"vt " + (tab === "timeline" ? "on" : "")} onClick={() => setTab("timeline")}>📅 {t("Timeline", "Horario")}</button>
       </div>
+
+      {/* ---------- Day timeline (Gantt) ---------- */}
+      {tab === "timeline" && (
+        <div className="card" style={{ margin: 0 }}>
+          <p className="hint" style={{ marginTop: 0 }}>
+            {t("Each driver's day by delivery window (07:00–19:00).", "El día de cada chofer por ventana de entrega (07:00–19:00).")}
+          </p>
+          {ganttRows.length === 0
+            ? <div className="empty">{t("No assigned orders to show yet.", "Aún no hay órdenes asignadas.")}</div>
+            : <GanttTimeline rows={ganttRows} t={t} />}
+        </div>
+      )}
 
       {/* ---------- Drag-and-drop board ---------- */}
       {tab === "board" && (
