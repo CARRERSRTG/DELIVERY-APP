@@ -6,7 +6,6 @@ import { usePrefs } from "@/lib/prefs";
 import { canPlanRoutes, stageInfo, stageLabel } from "@/lib/constants";
 import { autoAssign, parseWindow, splitIntoTrips, unavailableDriverNames } from "@/lib/dispatch";
 import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap";
-import { AvailabilityManager } from "@/components/AvailabilityManager";
 import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { fallbackDriverColor, fmtDate, isOverdue, shiftDateISO, todayISO } from "@/lib/utils";
@@ -130,7 +129,7 @@ interface RoutePlan {
 }
 
 export default function RoutesPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, availability, addAvailability, removeAvailability, ready } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, availability, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   // Which drivers are highlighted on the map / focused in the tables. Empty
@@ -919,8 +918,6 @@ export default function RoutesPage() {
 
       {/* ---------- Unassigned pool ---------- */}
       {tab === "orders" && (
-      <div style={{ display: "grid", gap: 16 }}>
-      <AvailabilityManager drivers={drivers} availability={availability} onAdd={addAvailability} onRemove={removeAvailability} t={t} />
       <div className="card" style={{ margin: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => toggleCollapse("__unassigned__")}>
           <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} title={t("Collapse", "Contraer")}>{isCollapsed("__unassigned__") ? "▸" : "▾"}</button>
@@ -1037,7 +1034,6 @@ export default function RoutesPage() {
           </div>
         )}
         </>}
-      </div>
       </div>
       )}
 
