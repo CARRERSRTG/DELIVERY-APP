@@ -61,6 +61,7 @@ export default function DataPage() {
         items={settings.stores}
         usageField="store"
         deliveries={deliveries}
+        autoApprove
         onChange={(v) => save({ stores: v }, t("Stores saved", "Tiendas guardadas"))}
         t={t}
       />
@@ -81,13 +82,15 @@ export default function DataPage() {
 
 /** Editable table of named locations, with in-place edit + usage-aware delete. */
 function LocationTable({
-  title, blurb, items, usageField, deliveries, onChange, t,
+  title, blurb, items, usageField, deliveries, onChange, autoApprove, t,
 }: {
   title: string;
   blurb: string;
   items: NamedLocation[];
   usageField: "pickup_name" | "delivery_name" | "store";
   deliveries: Delivery[];
+  /** Stores only: expose the "auto-approve orders" per-location toggle. */
+  autoApprove?: boolean;
   onChange: (v: NamedLocation[]) => void;
   t: (en: string, es: string) => string;
 }) {
@@ -116,8 +119,10 @@ function LocationTable({
     const clash = items.some((x, i) => x.name.toLowerCase() === name.toLowerCase() && i !== editing);
     if (clash) { await confirmAction(t(`"${name}" already exists.`, `"${name}" ya existe.`), { alertOnly: true }); return; }
     const next = [...items];
-    if (adding) next.push({ name, address: draft.address.trim() });
-    else if (editing != null) next[editing] = { name, address: draft.address.trim() };
+    const rec: NamedLocation = { name, address: draft.address.trim() };
+    if (autoApprove) rec.auto_approve = !!draft.auto_approve;
+    if (adding) next.push(rec);
+    else if (editing != null) next[editing] = rec;
     onChange(next);
     cancel();
   };
@@ -150,7 +155,25 @@ function LocationTable({
           placeholder={t("Search an address…", "Busca una dirección…")}
         />
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
+      {autoApprove && (
+        <label className="perm-opt" style={{ marginTop: 10, maxWidth: 520 }}>
+          <input
+            type="checkbox"
+            checked={!!draft.auto_approve}
+            onChange={(e) => setDraft({ ...draft, auto_approve: e.target.checked })}
+          />
+          <span>
+            <b>{t("Auto-approve orders (no admin approval)", "Auto-aprobar órdenes (sin aprobación)")}</b>
+            <span className="hint" style={{ display: "block" }}>
+              {t(
+                "Orders sold from this store skip manager approval and are created already Approved.",
+                "Las órdenes vendidas desde esta tienda se crean ya Aprobadas, sin aprobación del gerente.",
+              )}
+            </span>
+          </span>
+        </label>
+      )}
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <button className="btn btn-ghost btn-sm" onClick={cancel}>{t("Cancel", "Cancelar")}</button>
         <button className="btn btn-primary btn-sm" onClick={commit} disabled={!draft.name.trim()}>{t("Save", "Guardar")}</button>
       </div>
@@ -175,6 +198,11 @@ function LocationTable({
                 <span className="loc-addr">{it.address || t("(no address)", "(sin dirección)")}</span>
               </div>
               <div style={{ display: "flex", gap: 6, alignItems: "center", flex: "0 0 auto" }}>
+                {autoApprove && it.auto_approve && (
+                  <span className="sema" style={{ background: "var(--green)", color: "#fff" }} title={t("Orders skip approval", "Órdenes sin aprobación")}>
+                    ✓ {t("Auto-approve", "Auto-aprobar")}
+                  </span>
+                )}
                 {(usage.get(it.name) ?? 0) > 0 && (
                   <span className="sema" style={{ background: "var(--gray)", color: "#fff" }}>
                     {usage.get(it.name)} {t("used", "usos")}

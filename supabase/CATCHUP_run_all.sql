@@ -1,6 +1,6 @@
 -- ============================================================
 -- CATCH-UP SCRIPT — brings an existing database fully in sync with
--- the app code (migrations 001–019 in one idempotent script).
+-- the app code (migrations 001–020 in one idempotent script).
 --
 -- SAFE TO RUN as many times as you like: every statement either uses
 -- "if not exists" / "create or replace" / "drop ... if exists", or is
@@ -74,8 +74,16 @@ alter table public.settings add column if not exists sales_columns jsonb;
 -- ---------- 008: assigned sales rep ----------
 alter table public.deliveries add column if not exists assigned_sales_rep uuid references public.profiles(id) on delete set null;
 
--- ---------- 009 + 012: route_seq + stage guard (with logistics + split-load insert) ----------
+-- ---------- 009 + 012 + 020: route_seq + stage guard (logistics, split-load, auto-approve) ----------
 alter table public.deliveries add column if not exists route_seq integer;
+
+-- 020: does the named store auto-approve its orders? (settings.stores flag)
+create or replace function public.store_auto_approves(store_name text)
+  returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(bool_or((s->>'auto_approve')::boolean), false)
+  from public.settings, jsonb_array_elements(coalesce(stores, '[]'::jsonb)) as s
+  where s->>'name' = store_name;
+$$;
 
 create or replace function public.guard_delivery_stage()
   returns trigger language plpgsql security definer set search_path = public as $$
@@ -83,6 +91,7 @@ declare
   r text := coalesce(public.current_user_role(), 'sales');
   old_stage text := case when TG_OP = 'UPDATE' then OLD.stage else null end;
   new_stage text := NEW.stage;
+  auto boolean := public.store_auto_approves(NEW.store);
 begin
   if auth.uid() is null then return NEW; end if;   -- SQL editor / service role
   if r = 'admin' then return NEW; end if;
@@ -107,6 +116,7 @@ begin
     end if;
     if r in ('sales','driver') then
       if new_stage in ('draft','pending') then return NEW; end if;
+      if new_stage = 'approved' and auto then return NEW; end if;  -- auto-approve store
       raise exception 'New orders start as draft or pending';
     end if;
     raise exception 'Only sales, managers or drivers can create orders';
@@ -128,6 +138,7 @@ begin
     or (old_stage = 'rejected' and new_stage = 'pending')
     or (old_stage = 'draft'    and new_stage = 'canceled')
     or (old_stage = 'rejected' and new_stage = 'canceled')
+    or (r in ('sales','driver') and new_stage = 'approved' and old_stage in ('draft','pending') and auto)  -- auto-approve store
     or (r = 'driver' and old_stage = 'ready'     and new_stage = 'picked_up')
     or (r = 'driver' and old_stage = 'picked_up' and new_stage = 'delivered')
     or (r = 'driver' and old_stage = 'picked_up' and new_stage = 'ready') then

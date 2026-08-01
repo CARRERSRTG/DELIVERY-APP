@@ -139,6 +139,9 @@ export interface OrderEvent {
 export interface NamedLocation {
   name: string;
   address: string;
+  /** Stores only: when true, orders sold from this store skip manager approval
+   * and are created already Approved. Undefined/false = normal approval flow. */
+  auto_approve?: boolean;
 }
 
 /** A saved customer/site account — picking it on an order auto-fills who to
@@ -208,4 +211,10 @@ export interface Settings {
    * email this address; an admin sets it in Settings. Falls back to
    * DEFAULT_HELP_EMAIL when unset. */
   help_email?: string;
+
+  /** Per-user customer visibility on the Accounts page, set by an admin on the
+   * Users page. "all" = sees every customer (with a Mine/All toggle); "own" =
+   * only customers from orders they own. User id → scope. Missing = "all"
+   * (preserves the previous behavior for Manager/Logistics). */
+  customer_scope?: Record<string, "all" | "own">;
 }

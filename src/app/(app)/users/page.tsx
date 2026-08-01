@@ -11,7 +11,7 @@ import type { UserRole } from "@/lib/types";
 const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 
 export default function UsersPage() {
-  const { me, users, settings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser } = useData();
+  const { me, users, settings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser, saveSettings } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
   const [email, setEmail] = useState("");
@@ -108,6 +108,19 @@ export default function UsersPage() {
                 <select value={u.store ?? ""} onChange={(e) => updateUserStore(u.id, e.target.value || null)} style={{ maxWidth: 150 }} title={t("Assigned store", "Tienda asignada")}>
                   <option value="">{t("All stores", "Todas las tiendas")}</option>
                   {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+                </select>
+              )}
+              {/* Customer visibility on the Accounts page. Admin always sees all;
+                  Manager/Logistics can be scoped to only their own customers. */}
+              {(u.role === "manager" || u.role === "logistics") && (
+                <select
+                  value={settings.customer_scope?.[u.id] ?? "all"}
+                  onChange={(e) => saveSettings({ customer_scope: { ...(settings.customer_scope ?? {}), [u.id]: e.target.value as "all" | "own" } })}
+                  style={{ maxWidth: 160 }}
+                  title={t("Customer visibility", "Visibilidad de clientes")}
+                >
+                  <option value="all">{t("All customers", "Todos los clientes")}</option>
+                  <option value="own">{t("Own customers only", "Solo sus clientes")}</option>
                 </select>
               )}
               <span className="sema" style={{ background: info.color, color: "#fff" }}>{roleLabel(u.role, lang)}</span>

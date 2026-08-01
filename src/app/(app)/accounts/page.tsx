@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
-import { deliveryColumns, downloadCSV, fmtDate, fmtMoney, isOverdue, toCSV, todayISO } from "@/lib/utils";
+import { deliveryColumns, downloadCSV, fmtDate, fmtMoney, isOverdue, orderOwner, toCSV, todayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 // ============================================================
@@ -25,16 +25,23 @@ interface AccountRow {
   pallets: number;
   fees: number;
   lastDate: string | null;
+  mine: boolean;
 }
 
 const CLOSED = ["delivered", "canceled", "rejected"];
 
 export default function AccountsPage() {
-  const { me, deliveries, ready } = useData();
+  const { me, deliveries, settings, ready } = useData();
   const { lang, t } = usePrefs();
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [open, setOpen] = useState<Delivery | null>(null);
+
+  // Per-user customer visibility (set on the Users page). Admin always "all".
+  const myScope: "all" | "own" = me?.role === "admin" ? "all" : (settings.customer_scope?.[me?.id ?? ""] ?? "all");
+  // "own" users are locked to their own customers; "all" users get a toggle.
+  const [view, setView] = useState<"all" | "mine">("all");
+  const effectiveView: "all" | "mine" = myScope === "own" ? "mine" : view;
 
   const accounts = useMemo<AccountRow[]>(() => {
     const map = new Map<string, Delivery[]>();
@@ -53,15 +60,19 @@ export default function AccountsPage() {
         pallets: Math.round(orders.reduce((s, d) => s + Number(d.actual_pallets ?? d.est_pallets ?? 0), 0)),
         fees: Math.round(orders.filter((d) => d.stage !== "canceled").reduce((s, d) => s + (d.delivery_fee ?? 0), 0) * 100) / 100,
         lastDate: orders.map((d) => d.delivery_date).filter(Boolean).sort().reverse()[0] ?? null,
+        // "Mine" = this customer has at least one order I own (created / assigned to me).
+        mine: !!me && orders.some((d) => orderOwner(d) === me.id),
       }))
       .sort((a, b) => b.total - a.total);
-  }, [deliveries, t]);
+  }, [deliveries, t, me]);
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return accounts;
-    return accounts.filter((a) => a.name.toLowerCase().includes(needle));
-  }, [accounts, q]);
+    return accounts.filter((a) =>
+      (effectiveView === "all" || a.mine) &&
+      (!needle || a.name.toLowerCase().includes(needle)),
+    );
+  }, [accounts, q, effectiveView]);
 
   const current = picked ? accounts.find((a) => a.name === picked) ?? null : null;
 
@@ -131,6 +142,18 @@ export default function AccountsPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        {myScope === "all" ? (
+          <div className="toggle-group">
+            <button className={"toggle-btn " + (effectiveView === "all" ? "on" : "")} onClick={() => setView("all")}>
+              {t("All customers", "Todos los clientes")}
+            </button>
+            <button className={"toggle-btn " + (effectiveView === "mine" ? "on" : "")} onClick={() => setView("mine")}>
+              {t("My customers", "Mis clientes")}
+            </button>
+          </div>
+        ) : (
+          <span className="sema" style={{ background: "var(--accent)", color: "#fff" }}>{t("Your customers only", "Solo sus clientes")}</span>
+        )}
       </div>
 
       {!ready ? (

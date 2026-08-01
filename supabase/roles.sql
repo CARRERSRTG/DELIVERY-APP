@@ -41,12 +41,21 @@ create trigger profiles_guard_role before update on public.profiles
 --   sales:     create draft; draft<->pending; rejected->pending; edit while draft/pending/rejected
 --   manager:   pending->approved; pending->rejected; approved->pending (unlock)
 --   warehouse: approved->fulfilling->ready->ready<->delivered; edit fulfillment fields
+-- Does the named store auto-approve its orders? (settings.stores flag)
+create or replace function public.store_auto_approves(store_name text)
+  returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(bool_or((s->>'auto_approve')::boolean), false)
+  from public.settings, jsonb_array_elements(coalesce(stores, '[]'::jsonb)) as s
+  where s->>'name' = store_name;
+$$;
+
 create or replace function public.guard_delivery_stage()
   returns trigger language plpgsql security definer set search_path = public as $$
 declare
   r text := coalesce(public.current_user_role(), 'sales');
   old_stage text := case when TG_OP = 'UPDATE' then OLD.stage else null end;
   new_stage text := NEW.stage;
+  auto boolean := public.store_auto_approves(NEW.store);
 begin
   -- Service role / SQL editor: no auth context, allow everything.
   if auth.uid() is null then return NEW; end if;
@@ -77,6 +86,7 @@ begin
     end if;
     if r in ('sales','driver') then
       if new_stage in ('draft','pending') then return NEW; end if;
+      if new_stage = 'approved' and auto then return NEW; end if;  -- auto-approve store
       raise exception 'New orders start as draft or pending';
     end if;
     raise exception 'Only sales, managers or drivers can create orders';
@@ -98,6 +108,7 @@ begin
     or (old_stage = 'rejected' and new_stage = 'pending')
     or (old_stage = 'draft'    and new_stage = 'canceled')
     or (old_stage = 'rejected' and new_stage = 'canceled')
+    or (r in ('sales','driver') and new_stage = 'approved' and old_stage in ('draft','pending') and auto)  -- auto-approve store
     or (r = 'driver' and old_stage = 'ready'     and new_stage = 'picked_up')
     or (r = 'driver' and old_stage = 'picked_up' and new_stage = 'delivered')
     or (r = 'driver' and old_stage = 'picked_up' and new_stage = 'ready') then

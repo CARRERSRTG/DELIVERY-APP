@@ -128,6 +128,10 @@ export function OrderModal({
   // shows up "owned by" everywhere else (own-orders filters, dashboard credit).
   // Intratienda and Transfer are store-to-store — no customer, so no sales rep
   // to credit. Only customer Delivery orders placed on someone's behalf need one.
+  // A store can be flagged "auto-approve" (Data page) — orders sold from it
+  // skip manager approval and are created already Approved, for any creator.
+  const storeAutoApprove = !!settings.stores.find((s) => s.name === d.store)?.auto_approve;
+
   const needsSalesRep = isNew && (me.role === "manager" || me.role === "admin" || me.role === "driver")
     && !isIntraTienda(d.order_type) && !isPickupOrTransfer(d.order_type);
   const salesReps = useMemo(() => users.filter((u) => u.role === "sales"), [users]);
@@ -1160,9 +1164,10 @@ export function OrderModal({
                   {canCreate(me) && <button className="btn btn-ghost" onClick={save} disabled={busy}>{t("Save draft", "Guardar borrador")}</button>}
                   {canCreate(me) && (
                     <button className="btn btn-primary" disabled={busy} onClick={async () => {
-                      // Office Managers approve their own orders on the spot —
-                      // no need to route it back to themselves (or a peer) for approval.
-                      const autoApprove = me.role === "manager";
+                      // Office Managers approve their own orders on the spot, and
+                      // any order sold from an auto-approve store is approved on
+                      // creation regardless of who places it.
+                      const autoApprove = me.role === "manager" || storeAutoApprove;
                       const payload = withDurations({
                         ...d,
                         stage: autoApprove ? "approved" : "pending",
@@ -1178,7 +1183,11 @@ export function OrderModal({
                           : t(`Order #${row.order_no} submitted for approval`, `Orden #${row.order_no} enviada a aprobación`));
                         await autoSendTracking(row); onClose();
                       }
-                    }}>{me.role === "manager" ? t("Create order (approved)", "Crear orden (aprobada)") : t("Submit for approval", "Enviar a aprobación")}</button>
+                    }}>{me.role === "manager"
+                      ? t("Create order (approved)", "Crear orden (aprobada)")
+                      : storeAutoApprove
+                        ? t("Create (auto-approved)", "Crear (auto-aprobada)")
+                        : t("Submit for approval", "Enviar a aprobación")}</button>
                   )}
                 </>
               ) : (
