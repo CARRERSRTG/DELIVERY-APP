@@ -130,7 +130,7 @@ interface RoutePlan {
 }
 
 export default function RoutesPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, notify, availability, addAvailability, removeAvailability, ready } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, availability, addAvailability, removeAvailability, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   // Which drivers are highlighted on the map / focused in the tables. Empty
@@ -345,13 +345,25 @@ export default function RoutesPage() {
     return updateDelivery(id, { assigned_driver: null, route_seq: null });
   };
 
+  // A single manual (re)assignment — assign + write an audit note.
+  const manualAssign = (id: string, driver: string) => {
+    const d = dayOrders.find((x) => x.id === id);
+    assignTo(id, driver);
+    addNote(id, `Assigned to ${driver}${d?.assigned_driver && d.assigned_driver !== driver ? ` (from ${d.assigned_driver})` : ""}`);
+  };
+  const manualUnassign = (id: string) => {
+    const d = dayOrders.find((x) => x.id === id);
+    unassign(id);
+    if (d?.assigned_driver) addNote(id, `Unassigned (was ${d.assigned_driver})`);
+  };
+
   // Drag-and-drop on the board: move an order to a driver column, or back to
   // the unassigned pool.
   const boardMove = (orderId: string, columnKey: string) => {
     const d = dayOrders.find((x) => x.id === orderId);
     if (!d) return;
-    if (columnKey === "__unassigned__") { if (d.assigned_driver) unassign(orderId); }
-    else if (d.assigned_driver !== columnKey) assignTo(orderId, columnKey);
+    if (columnKey === "__unassigned__") { if (d.assigned_driver) manualUnassign(orderId); }
+    else if (d.assigned_driver !== columnKey) manualAssign(orderId, columnKey);
   };
 
   /** Solve a driver's full day for the given stop list — capacity-split
@@ -1011,7 +1023,7 @@ export default function RoutesPage() {
                             {previewBusy === d.id ? "…" : `🔮 ${t("Simulate add", "Simular")}`}
                           </button>
                         ) : (
-                          <select defaultValue="" onChange={(e) => { if (e.target.value) assignTo(d.id, e.target.value); }} style={{ width: "auto" }}>
+                          <select defaultValue="" onChange={(e) => { if (e.target.value) manualAssign(d.id, e.target.value); }} style={{ width: "auto" }}>
                             <option value="">{t("Select driver…", "Seleccione chofer…")}</option>
                             {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                           </select>

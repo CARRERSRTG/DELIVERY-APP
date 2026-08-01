@@ -16,7 +16,7 @@ const UNASSIGNED_COLOR = "#6b7686";
 const DEFAULT_CAPACITY = 12;
 
 export default function MapPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, notify, pushNotifs, ready } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, pushNotifs, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   const [open, setOpen] = useState<Delivery | null>(null);
@@ -106,10 +106,15 @@ export default function MapPage() {
   const assignDriver = async (driver: string | null) => {
     if (!selected) return;
     setAssignBusy(true);
+    const prev = selected.assigned_driver;
     const ok = await updateDelivery(selected.id, { assigned_driver: driver });
     setAssignBusy(false);
     if (ok) {
       setSelected((s) => (s ? { ...s, assigned_driver: driver } : s));
+      // Audit trail: record the (re)assignment as a note.
+      addNote(selected.id, driver
+        ? `Assigned to ${driver}${prev && prev !== driver ? ` (from ${prev})` : ""}`
+        : `Unassigned${prev ? ` (was ${prev})` : ""}`);
       notify(driver
         ? t(`#${selected.order_no} assigned to ${driver}`, `#${selected.order_no} asignada a ${driver}`)
         : t(`#${selected.order_no} unassigned`, `#${selected.order_no} sin asignar`));
