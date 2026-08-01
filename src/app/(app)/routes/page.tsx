@@ -7,6 +7,7 @@ import { canPlanRoutes, stageInfo, stageLabel } from "@/lib/constants";
 import { autoAssign, parseWindow, splitIntoTrips, unavailableDriverNames } from "@/lib/dispatch";
 import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap";
 import { AvailabilityManager } from "@/components/AvailabilityManager";
+import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { fallbackDriverColor, fmtDate, isOverdue, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery } from "@/lib/types";
@@ -135,7 +136,7 @@ export default function RoutesPage() {
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<"routes" | "orders">("routes");
+  const [tab, setTab] = useState<"routes" | "orders" | "board">("routes");
   const [busyDriver, setBusyDriver] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number }>>({});
   const [routeLines, setRouteLines] = useState<Record<string, TripTrace[]>>({});
@@ -302,6 +303,20 @@ export default function RoutesPage() {
     return map;
   }, [dayOrders]);
 
+  // Columns for the drag-and-drop board: the unassigned pool, then one per driver.
+  const boardColumns: BoardColumn[] = useMemo(() => {
+    const cols: BoardColumn[] = [
+      { key: "__unassigned__", title: t("Unassigned", "Sin asignar"), color: UNASSIGNED_COLOR, orders: unassigned },
+    ];
+    for (const u of drivers) {
+      const orders = byDriver.get(u.full_name) ?? [];
+      const pallets = Math.round(orders.reduce((s, d) => s + Number(d.actual_pallets ?? d.est_pallets ?? 0), 0));
+      cols.push({ key: u.full_name, title: u.full_name, color: colorFor(u.full_name), orders, sub: `${pallets}/${capacityFor(u.full_name)}` });
+    }
+    return cols;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unassigned, drivers, byDriver, settings.driver_colors, settings.driver_capacity, lang]);
+
   // A driver's stops changed, so any earlier optimize summary/trace (and any
   // in-flight simulation) is stale — drop it rather than show a route that
   // no longer matches.
@@ -319,6 +334,15 @@ export default function RoutesPage() {
     const d = dayOrders.find((x) => x.id === id);
     if (d?.assigned_driver) clearRouteFor(d.assigned_driver);
     return updateDelivery(id, { assigned_driver: null, route_seq: null });
+  };
+
+  // Drag-and-drop on the board: move an order to a driver column, or back to
+  // the unassigned pool.
+  const boardMove = (orderId: string, columnKey: string) => {
+    const d = dayOrders.find((x) => x.id === orderId);
+    if (!d) return;
+    if (columnKey === "__unassigned__") { if (d.assigned_driver) unassign(orderId); }
+    else if (d.assigned_driver !== columnKey) assignTo(orderId, columnKey);
   };
 
   /** Solve a driver's full day for the given stop list — capacity-split
@@ -846,7 +870,18 @@ export default function RoutesPage() {
       <div className="viewtoggle" style={{ marginBottom: 12 }}>
         <button className={"vt " + (tab === "routes" ? "on" : "")} onClick={() => setTab("routes")}>🧭 {t("Routes", "Rutas")} ({withStops.length})</button>
         <button className={"vt " + (tab === "orders" ? "on" : "")} onClick={() => setTab("orders")}>📦 {t("Unassigned", "Sin asignar")} ({unassigned.length})</button>
+        <button className={"vt " + (tab === "board" ? "on" : "")} onClick={() => setTab("board")}>🗂 {t("Board", "Tablero")}</button>
       </div>
+
+      {/* ---------- Drag-and-drop board ---------- */}
+      {tab === "board" && (
+        <div className="card" style={{ margin: 0 }}>
+          <p className="hint" style={{ marginTop: 0 }}>
+            {t("Drag an order card onto a driver to assign it, or back to Unassigned to remove it.", "Arrastre una tarjeta a un chofer para asignarla, o de vuelta a Sin asignar para quitarla.")}
+          </p>
+          <DispatchBoard columns={boardColumns} onMove={boardMove} t={t} lang={lang} />
+        </div>
+      )}
 
       {/* ---------- Unassigned pool ---------- */}
       {tab === "orders" && (
