@@ -130,6 +130,19 @@ export interface Delivery {
   updated_at: string;
 }
 
+/** A window when a driver is unavailable (vacation / sick / vehicle
+ * maintenance / other). Consumed by the dispatch board + optimizer. */
+export interface DriverAvailability {
+  id: string;
+  driver_id: string;
+  kind: "vacation" | "sick" | "maintenance" | "other";
+  start_date: string;
+  end_date: string;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface OrderEvent {
   id: string;
   delivery_id: string;
