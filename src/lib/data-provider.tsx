@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Delivery, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
+import type { Delivery, DriverAvailability, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner } from "@/lib/utils";
@@ -93,6 +93,11 @@ export interface DataState {
   /** Grant a specific person extra capabilities on top of their role. */
   updateUserPermissions: (userId: string, permissions: string[]) => Promise<void>;
   deleteUser: (userId: string) => Promise<boolean>;
+
+  // driver availability (vacation / sick / vehicle maintenance)
+  availability: DriverAvailability[];
+  addAvailability: (seed: Omit<DriverAvailability, "id" | "created_at" | "created_by">) => Promise<void>;
+  removeAvailability: (id: string) => Promise<void>;
 }
 
 export const Ctx = createContext<DataState | null>(null);
@@ -142,6 +147,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [events, setEvents] = useState<OrderEvent[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [availability, setAvailability] = useState<DriverAvailability[]>([]);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -152,7 +158,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   }, []);
 
   const reloadAll = useCallback(async () => {
-    const [s, p, d, e, n] = await Promise.all([
+    const [s, p, d, e, n, av] = await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("profiles").select("id, full_name, role, store, avatar_url").order("full_name"),
       supabase.from("deliveries").select("*").eq("is_training", teaching).order("order_no", { ascending: false }),
@@ -160,12 +166,14 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       me
         ? supabase.from("notifications").select("*").eq("user_id", me.id).order("created_at", { ascending: false }).limit(50)
         : Promise.resolve({ data: [] as AppNotification[] }),
+      supabase.from("driver_availability").select("*").order("start_date", { ascending: false }),
     ]);
     if (s.data) setSettings(s.data as Settings);
     if (p.data) setUsers(p.data as Profile[]);
     if (d.data) setDeliveries(d.data as Delivery[]);
     if (e.data) setEvents(e.data as OrderEvent[]);
     if (n.data) setNotifications(n.data as AppNotification[]);
+    if (av.data) setAvailability(av.data as DriverAvailability[]);
     setReady(true);
   }, [supabase, me, teaching]);
 
@@ -215,6 +223,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => { reloadAll(); checkSession(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, reloadAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "driver_availability" }, reloadAll)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -445,11 +454,24 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     [notify],
   );
 
+  const addAvailability = useCallback<DataState["addAvailability"]>(async (seed) => {
+    const { error } = await supabase.from("driver_availability").insert({ ...seed, created_by: me?.id ?? null });
+    if (error) { notify("Error: " + error.message); return; }
+    await reloadAll();
+  }, [supabase, me, notify, reloadAll]);
+
+  const removeAvailability = useCallback<DataState["removeAvailability"]>(async (id) => {
+    const { error } = await supabase.from("driver_availability").delete().eq("id", id);
+    if (error) { notify("Error: " + error.message); return; }
+    await reloadAll();
+  }, [supabase, notify, reloadAll]);
+
   const value: DataState = {
     ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, clearTrainingData, settings, users, deliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
+    availability, addAvailability, removeAvailability,
   };
 
   return (

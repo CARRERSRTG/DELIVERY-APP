@@ -4,8 +4,9 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { canPlanRoutes, stageInfo, stageLabel } from "@/lib/constants";
-import { autoAssign, parseWindow, splitIntoTrips } from "@/lib/dispatch";
+import { autoAssign, parseWindow, splitIntoTrips, unavailableDriverNames } from "@/lib/dispatch";
 import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap";
+import { AvailabilityManager } from "@/components/AvailabilityManager";
 import { fallbackDriverColor, fmtDate, isOverdue, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery } from "@/lib/types";
@@ -127,7 +128,7 @@ interface RoutePlan {
 }
 
 export default function RoutesPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, notify, ready } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, notify, availability, addAvailability, removeAvailability, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   // Which drivers are highlighted on the map / focused in the tables. Empty
@@ -196,6 +197,11 @@ export default function RoutesPage() {
   const geocoding = useAutoGeocode(dayOrders, updateDelivery);
 
   const drivers = useMemo(() => users.filter((u) => u.role === "driver"), [users]);
+  // Drivers on vacation/sick/maintenance for the selected day — excluded from auto-assign.
+  const unavailableToday = useMemo(
+    () => unavailableDriverNames(availability, new Map(users.map((u) => [u.id, u.full_name])), date),
+    [availability, users, date],
+  );
   const colorFor = (driver: string | null) => (driver ? settings.driver_colors?.[driver] || fallbackDriverColor(driver) : UNASSIGNED_COLOR);
   const capacityFor = (driver: string) => settings.driver_capacity?.[driver] ?? DEFAULT_CAPACITY;
   const setCapacity = (driver: string, capacity: number) => {
@@ -456,7 +462,7 @@ export default function RoutesPage() {
     if (autoAssigning || optimizingAll || busyDriver != null) return;
     const driverNames = drivers.map((u) => u.full_name);
     if (!driverNames.length) { notify(t("Add drivers first (give someone the Driver role).", "Agregue choferes primero (asigne el rol de Chofer).")); return; }
-    const res = autoAssign(unassigned, driverNames, capacityFor, { maxTripsPerDay: 2 });
+    const res = autoAssign(unassigned, driverNames, capacityFor, { maxTripsPerDay: 2, unavailable: unavailableToday });
     if (!res.assignments.length) {
       notify(t("Nothing could be auto-assigned (no coordinates or no capacity).", "No se pudo auto-asignar nada (sin coordenadas o sin capacidad)."));
       return;
@@ -492,7 +498,7 @@ export default function RoutesPage() {
   const bulkAutoAssign = async () => {
     const chosen = unassigned.filter((d) => selectedOrders.has(d.id));
     if (!chosen.length) return;
-    const res = autoAssign(chosen, drivers.map((u) => u.full_name), capacityFor, { maxTripsPerDay: 2 });
+    const res = autoAssign(chosen, drivers.map((u) => u.full_name), capacityFor, { maxTripsPerDay: 2, unavailable: unavailableToday });
     if (!res.assignments.length) { notify(t("Couldn't place the selected orders.", "No se pudieron colocar las órdenes seleccionadas.")); return; }
     setAutoAssigning(true);
     try { for (const a of res.assignments) await assignTo(a.orderId, a.driver); } finally { setAutoAssigning(false); }
@@ -838,6 +844,8 @@ export default function RoutesPage() {
 
       {/* ---------- Unassigned pool ---------- */}
       {tab === "orders" && (
+      <div style={{ display: "grid", gap: 16 }}>
+      <AvailabilityManager drivers={drivers} availability={availability} onAdd={addAvailability} onRemove={removeAvailability} t={t} />
       <div className="card" style={{ margin: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => toggleCollapse("__unassigned__")}>
           <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} title={t("Collapse", "Contraer")}>{isCollapsed("__unassigned__") ? "▸" : "▾"}</button>
@@ -942,6 +950,7 @@ export default function RoutesPage() {
           </div>
         )}
         </>}
+      </div>
       </div>
       )}
 

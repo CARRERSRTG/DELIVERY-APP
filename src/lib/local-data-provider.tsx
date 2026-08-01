@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ctx, type DataState } from "@/lib/data-provider";
-import type { Delivery, OrderEvent, Profile, Settings, Stage } from "@/lib/types";
+import type { Delivery, DriverAvailability, OrderEvent, Profile, Settings, Stage } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner, todayISO } from "@/lib/utils";
@@ -24,12 +24,13 @@ interface Store {
   deliveries: Delivery[];
   events: OrderEvent[];
   notifications: AppNotification[];
+  availability: DriverAvailability[];
 }
 
 function seed(): Store {
   const settings = demoSettings();
   const deliveries = demoDeliveries(settings);
-  return { settings, users: DEMO_USERS, deliveries, events: [], notifications: demoNotifications(deliveries) };
+  return { settings, users: DEMO_USERS, deliveries, events: [], notifications: demoNotifications(deliveries), availability: [] };
 }
 
 function load(): Store {
@@ -53,7 +54,7 @@ export function resetLocalData() {
 }
 
 export function LocalDataProvider({ children, me }: { children: React.ReactNode; me: Profile }) {
-  const [store, setStore] = useState<Store>(() => (typeof window === "undefined" ? seed() : { settings: seed().settings, users: DEMO_USERS, deliveries: [], events: [], notifications: [] }));
+  const [store, setStore] = useState<Store>(() => (typeof window === "undefined" ? seed() : { settings: seed().settings, users: DEMO_USERS, deliveries: [], events: [], notifications: [], availability: [] }));
   const [ready, setReady] = useState(false);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -250,13 +251,24 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     return true;
   }, [persist, notify]);
 
+  const addAvailability = useCallback<DataState["addAvailability"]>(async (seedRow) => {
+    const s = storeRef.current;
+    const row: DriverAvailability = { id: uid(), created_at: new Date().toISOString(), created_by: me.id, ...seedRow };
+    persist({ ...s, availability: [row, ...(s.availability ?? [])] });
+  }, [persist, me.id]);
+  const removeAvailability = useCallback<DataState["removeAvailability"]>(async (id) => {
+    const s = storeRef.current;
+    persist({ ...s, availability: (s.availability ?? []).filter((r) => r.id !== id) });
+  }, [persist]);
+
   const value: DataState = useMemo(() => ({
     ready, me, realRole: me.role, viewAs: null, setViewAs: () => {}, teaching: false, setTeaching: () => {}, clearTrainingData: async () => {}, settings: store.settings, users: store.users, deliveries: store.deliveries, events: store.events,
     notifications: store.notifications.filter((n) => n.user_id === me.id),
     toast, notify, markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
-  }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, pushNotifs, addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser]);
+    availability: store.availability ?? [], addAvailability, removeAvailability,
+  }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, pushNotifs, addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser, addAvailability, removeAvailability]);
 
   return (
     <Ctx.Provider value={value}>

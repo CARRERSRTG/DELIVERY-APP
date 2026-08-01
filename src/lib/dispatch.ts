@@ -154,6 +154,24 @@ function haversineMiles(a: [number, number], b: [number, number]): number {
   return 2 * EARTH_MILES * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
+/** Driver full-names that are unavailable on a given date, from availability
+ * rows (vacation/sick/maintenance). `nameById` maps a driver's user id to their
+ * full name (which is how assignments reference drivers). */
+export function unavailableDriverNames(
+  availability: { driver_id: string; start_date: string; end_date: string }[],
+  nameById: Map<string, string>,
+  dateISO: string,
+): Set<string> {
+  const out = new Set<string>();
+  for (const a of availability) {
+    if (a.start_date <= dateISO && dateISO <= a.end_date) {
+      const name = nameById.get(a.driver_id);
+      if (name) out.add(name);
+    }
+  }
+  return out;
+}
+
 export interface AutoAssignResult {
   assignments: { orderId: string; driver: string }[];
   /** Orders that couldn't be placed — no coordinates, or no driver with room

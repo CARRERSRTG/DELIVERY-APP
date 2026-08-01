@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseWindow, suggestDriver, windowConflicts, routeOrder, splitIntoTrips, driverPalletsOn, assignmentWarnings, recommendDriver, autoAssign } from "@/lib/dispatch";
+import { parseWindow, suggestDriver, windowConflicts, routeOrder, splitIntoTrips, driverPalletsOn, assignmentWarnings, recommendDriver, autoAssign, unavailableDriverNames } from "@/lib/dispatch";
 import { mkDelivery } from "@/lib/__fixtures";
 
 describe("parseWindow", () => {
@@ -214,5 +214,22 @@ describe("autoAssign", () => {
     const res = autoAssign([at("1")], ["Ana"], () => 12, { unavailable: new Set(["Ana"]) });
     expect(res.assignments).toHaveLength(0);
     expect(res.unassigned).toHaveLength(1);
+  });
+});
+
+describe("unavailableDriverNames", () => {
+  const nameById = new Map([["u1", "Ana"], ["u2", "Beto"]]);
+  const rows = [
+    { driver_id: "u1", start_date: "2026-07-20", end_date: "2026-07-25" },
+    { driver_id: "u2", start_date: "2026-08-01", end_date: "2026-08-01" },
+  ];
+  it("flags a driver whose range covers the date", () => {
+    expect([...unavailableDriverNames(rows, nameById, "2026-07-22")]).toEqual(["Ana"]);
+  });
+  it("is empty on a date nobody is off", () => {
+    expect(unavailableDriverNames(rows, nameById, "2026-07-30").size).toBe(0);
+  });
+  it("includes range boundaries", () => {
+    expect(unavailableDriverNames(rows, nameById, "2026-08-01").has("Beto")).toBe(true);
   });
 });
