@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { canPlanRoutes, stageInfo, stageLabel } from "@/lib/constants";
-import { parseWindow, splitIntoTrips } from "@/lib/dispatch";
+import { autoAssign, parseWindow, splitIntoTrips } from "@/lib/dispatch";
 import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap";
 import { fallbackDriverColor, fmtDate, isOverdue, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
@@ -127,7 +127,7 @@ interface RoutePlan {
 }
 
 export default function RoutesPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, ready } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, notify, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   // Which drivers are highlighted on the map / focused in the tables. Empty
@@ -145,6 +145,7 @@ export default function RoutesPage() {
   const [preview, setPreview] = useState<{ orderId: string; orderNo: number; driver: string; plan: RoutePlan } | null>(null);
   const [previewBusy, setPreviewBusy] = useState<string | null>(null);
   const [optimizingAll, setOptimizingAll] = useState(false);
+  const [autoAssigning, setAutoAssigning] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // Which panels are collapsed — the unassigned pool ("__unassigned__") and
   // each driver (by name), so a busy board can be folded down to just the
@@ -431,6 +432,31 @@ export default function RoutesPage() {
     setOptimizingAll(false);
   };
 
+  // Auto-assign every unassigned order across the drivers (capacity + window +
+  // proximity aware), then leave the "Optimize all routes" button to sequence
+  // each driver's day into real OSRM routes.
+  const runAutoAssign = async () => {
+    if (autoAssigning || optimizingAll || busyDriver != null) return;
+    const driverNames = drivers.map((u) => u.full_name);
+    if (!driverNames.length) { notify(t("Add drivers first (give someone the Driver role).", "Agregue choferes primero (asigne el rol de Chofer).")); return; }
+    const res = autoAssign(unassigned, driverNames, capacityFor, { maxTripsPerDay: 2 });
+    if (!res.assignments.length) {
+      notify(t("Nothing could be auto-assigned (no coordinates or no capacity).", "No se pudo auto-asignar nada (sin coordenadas o sin capacidad)."));
+      return;
+    }
+    setAutoAssigning(true);
+    try {
+      for (const a of res.assignments) await assignTo(a.orderId, a.driver);
+    } finally {
+      setAutoAssigning(false);
+    }
+    const nDrivers = new Set(res.assignments.map((a) => a.driver)).size;
+    notify(t(
+      `Auto-assigned ${res.assignments.length} order(s) to ${nDrivers} driver(s)${res.unassigned.length ? ` · ${res.unassigned.length} left (no location/capacity)` : ""}. Now tap “Optimize all routes”.`,
+      `Auto-asignadas ${res.assignments.length} orden(es) a ${nDrivers} chofer(es)${res.unassigned.length ? ` · ${res.unassigned.length} sin colocar (sin ubicación/capacidad)` : ""}. Ahora toque “Optimizar todas las rutas”.`,
+    ));
+  };
+
   /** Simulate adding an unassigned order to the selected driver's day —
    * shows the would-be route (dashed) and totals without saving anything. */
   const previewAdd = async (d: Delivery, driver: string) => {
@@ -622,7 +648,7 @@ export default function RoutesPage() {
   return (
     <>
       <div className="page-head">
-        <h2>{t("Route Planning", "Planificación de Rutas")} <span className="count-tag">{dayOrders.length}</span></h2>
+        <h2>{t("Routes Manager", "Gestor de Rutas")} <span className="count-tag">{dayOrders.length}</span></h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div className="viewtoggle">
             <button className="vt" onClick={() => setDate((d) => shiftDateISO(d, -1))} title={t("Previous day", "Día anterior")}>◀</button>
@@ -633,8 +659,16 @@ export default function RoutesPage() {
             <button className="btn btn-ghost btn-sm" onClick={() => setDate(todayISO())}>{t("Today", "Hoy")}</button>
           )}
           <button
+            className="btn btn-amber btn-sm"
+            disabled={autoAssigning || optimizingAll || busyDriver != null || unassigned.length === 0 || drivers.length === 0}
+            onClick={runAutoAssign}
+            title={t("Distribute all unassigned orders across drivers", "Repartir todas las órdenes sin asignar entre los choferes")}
+          >
+            {autoAssigning ? `… ${t("Assigning", "Asignando")}` : `✨ ${t("Auto-assign", "Auto-asignar")} (${unassigned.length})`}
+          </button>
+          <button
             className="btn btn-primary btn-sm"
-            disabled={optimizingAll || busyDriver != null || drivers.every((u) => (byDriver.get(u.full_name) ?? []).length === 0)}
+            disabled={optimizingAll || autoAssigning || busyDriver != null || drivers.every((u) => (byDriver.get(u.full_name) ?? []).length === 0)}
             onClick={optimizeAll}
           >
             {optimizingAll ? `… ${t("Optimizing", "Optimizando")} ${busyDriver ?? ""}` : `🧭 ${t("Optimize all routes", "Optimizar todas las rutas")}`}

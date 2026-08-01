@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseWindow, suggestDriver, windowConflicts, routeOrder, splitIntoTrips, driverPalletsOn, assignmentWarnings, recommendDriver } from "@/lib/dispatch";
+import { parseWindow, suggestDriver, windowConflicts, routeOrder, splitIntoTrips, driverPalletsOn, assignmentWarnings, recommendDriver, autoAssign } from "@/lib/dispatch";
 import { mkDelivery } from "@/lib/__fixtures";
 
 describe("parseWindow", () => {
@@ -181,5 +181,38 @@ describe("recommendDriver", () => {
   });
   it("returns null when there are no drivers", () => {
     expect(recommendDriver(mkDelivery({}), [], [], () => 12)).toBeNull();
+  });
+});
+
+describe("autoAssign", () => {
+  const at = (id: string, over: Partial<import("@/lib/types").Delivery> = {}) =>
+    mkDelivery({ id, order_no: Number(id), delivery_lat: 26.2, delivery_lng: -98.2, est_pallets: 2, ...over });
+
+  it("places orders with coordinates and returns those without", () => {
+    const a = at("1", { delivery_windows: "0800-1000" });
+    const b = at("2", { delivery_windows: "1200-1400" });
+    const noPt = mkDelivery({ id: "3", order_no: 3, delivery_lat: null, delivery_lng: null });
+    const res = autoAssign([a, b, noPt], ["Ana"], () => 12);
+    expect(res.assignments).toHaveLength(2);
+    expect(res.unassigned.map((d) => d.id)).toEqual(["3"]);
+  });
+
+  it("won't load a driver past capacity × trips", () => {
+    // cap 5 × 1 trip = 5; two 4-pallet orders can't share the driver.
+    const res = autoAssign([at("1", { est_pallets: 4 }), at("2", { est_pallets: 4 })], ["Ana"], () => 5, { maxTripsPerDay: 1 });
+    expect(res.assignments).toHaveLength(1);
+    expect(res.unassigned).toHaveLength(1);
+  });
+
+  it("splits window-overlapping orders across drivers", () => {
+    const res = autoAssign([at("1", { delivery_windows: "0900-1100" }), at("2", { delivery_windows: "0900-1100" })], ["Ana", "Beto"], () => 12);
+    expect(res.assignments).toHaveLength(2);
+    expect(new Set(res.assignments.map((a) => a.driver)).size).toBe(2);
+  });
+
+  it("returns everything unassigned when no drivers are available", () => {
+    const res = autoAssign([at("1")], ["Ana"], () => 12, { unavailable: new Set(["Ana"]) });
+    expect(res.assignments).toHaveLength(0);
+    expect(res.unassigned).toHaveLength(1);
   });
 });
