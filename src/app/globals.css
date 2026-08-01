@@ -472,3 +472,6 @@ table.orders th { text-align: left; }
   .help-fab { right: 14px; bottom: 14px; padding: 12px; }
   .help-fab-label { display: none; }
 }
+
+/* Selected rows in the dispatch bulk-assign table */
+.orders tr.row-selected td { background: var(--accent-soft); }

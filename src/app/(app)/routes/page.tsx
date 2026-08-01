@@ -146,6 +146,9 @@ export default function RoutesPage() {
   const [previewBusy, setPreviewBusy] = useState<string | null>(null);
   const [optimizingAll, setOptimizingAll] = useState(false);
   const [autoAssigning, setAutoAssigning] = useState(false);
+  // Multi-select + search for the unassigned pool (bulk assignment).
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [orderSearch, setOrderSearch] = useState("");
   const [err, setErr] = useState<string | null>(null);
   // Which panels are collapsed — the unassigned pool ("__unassigned__") and
   // each driver (by name), so a busy board can be folded down to just the
@@ -251,6 +254,20 @@ export default function RoutesPage() {
     () => dayOrders.filter((d) => !d.assigned_driver).sort((a, b) => a.order_no - b.order_no),
     [dayOrders],
   );
+
+  // Search the unassigned pool by order #, customer, address, phone or store.
+  const unassignedShown = useMemo(() => {
+    const q = orderSearch.trim().toLowerCase();
+    if (!q) return unassigned;
+    return unassigned.filter((d) =>
+      String(d.order_no).includes(q) ||
+      (d.account || "").toLowerCase().includes(q) ||
+      (d.delivery_address || "").toLowerCase().includes(q) ||
+      (d.delivery_phone || "").toLowerCase().includes(q) ||
+      (d.contact || "").toLowerCase().includes(q) ||
+      (d.store || "").toLowerCase().includes(q),
+    );
+  }, [unassigned, orderSearch]);
 
   // Each driver's stops for the day, in their current sequence (optimized
   // order first, unsequenced ones after — same rule as the Driver page).
@@ -454,6 +471,36 @@ export default function RoutesPage() {
     notify(t(
       `Auto-assigned ${res.assignments.length} order(s) to ${nDrivers} driver(s)${res.unassigned.length ? ` · ${res.unassigned.length} left (no location/capacity)` : ""}. Now tap “Optimize all routes”.`,
       `Auto-asignadas ${res.assignments.length} orden(es) a ${nDrivers} chofer(es)${res.unassigned.length ? ` · ${res.unassigned.length} sin colocar (sin ubicación/capacidad)` : ""}. Ahora toque “Optimizar todas las rutas”.`,
+    ));
+  };
+
+  const toggleOrder = (id: string) =>
+    setSelectedOrders((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const clearSelection = () => setSelectedOrders(new Set());
+
+  // Assign every checked order to one driver.
+  const bulkAssign = async (driver: string) => {
+    const ids = unassigned.filter((d) => selectedOrders.has(d.id)).map((d) => d.id);
+    if (!ids.length || !driver) return;
+    setAutoAssigning(true);
+    try { for (const id of ids) await assignTo(id, driver); } finally { setAutoAssigning(false); }
+    clearSelection();
+    notify(t(`Assigned ${ids.length} order(s) to ${driver}`, `Asignadas ${ids.length} orden(es) a ${driver}`));
+  };
+
+  // Auto-assign only the checked orders across the drivers.
+  const bulkAutoAssign = async () => {
+    const chosen = unassigned.filter((d) => selectedOrders.has(d.id));
+    if (!chosen.length) return;
+    const res = autoAssign(chosen, drivers.map((u) => u.full_name), capacityFor, { maxTripsPerDay: 2 });
+    if (!res.assignments.length) { notify(t("Couldn't place the selected orders.", "No se pudieron colocar las órdenes seleccionadas.")); return; }
+    setAutoAssigning(true);
+    try { for (const a of res.assignments) await assignTo(a.orderId, a.driver); } finally { setAutoAssigning(false); }
+    clearSelection();
+    const nDrivers = new Set(res.assignments.map((a) => a.driver)).size;
+    notify(t(
+      `Auto-assigned ${res.assignments.length} order(s) to ${nDrivers} driver(s)${res.unassigned.length ? ` · ${res.unassigned.length} left` : ""}.`,
+      `Auto-asignadas ${res.assignments.length} orden(es) a ${nDrivers} chofer(es)${res.unassigned.length ? ` · ${res.unassigned.length} sin colocar` : ""}.`,
     ));
   };
 
@@ -806,13 +853,48 @@ export default function RoutesPage() {
             )}
           </p>
         )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "10px 0" }}>
+          <input
+            value={orderSearch}
+            onChange={(e) => setOrderSearch(e.target.value)}
+            placeholder={t("Search # / customer / address / phone…", "Buscar # / cliente / dirección / teléfono…")}
+            style={{ maxWidth: 300 }}
+          />
+          {selectedOrders.size > 0 && (
+            <>
+              <span className="count-tag">{selectedOrders.size} {t("selected", "seleccionadas")}</span>
+              <select defaultValue="" disabled={autoAssigning} style={{ width: "auto" }}
+                onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v) bulkAssign(v); }}>
+                <option value="">{t("Assign selected to…", "Asignar selección a…")}</option>
+                {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
+              </select>
+              <button className="btn btn-amber btn-sm" onClick={bulkAutoAssign} disabled={autoAssigning}>✨ {t("Auto-assign selected", "Auto-asignar selección")}</button>
+              <button className="btn btn-ghost btn-sm" onClick={clearSelection}>{t("Clear", "Limpiar")}</button>
+            </>
+          )}
+        </div>
         {unassigned.length === 0 ? (
           <div className="empty">{t("Everything on this date has a driver.", "Todo en esta fecha ya tiene chofer.")}</div>
+        ) : unassignedShown.length === 0 ? (
+          <div className="empty">{t("No unassigned orders match your search.", "Ninguna orden sin asignar coincide con la búsqueda.")}</div>
         ) : (
           <div className="tbl-scroll" style={{ border: "none" }}>
-            <table className="orders" style={{ minWidth: 520 }}>
+            <table className="orders" style={{ minWidth: 560 }}>
               <thead>
                 <tr>
+                  <th style={{ width: 28 }}>
+                    <input
+                      type="checkbox"
+                      aria-label={t("Select all", "Seleccionar todo")}
+                      checked={unassignedShown.length > 0 && unassignedShown.every((d) => selectedOrders.has(d.id))}
+                      onChange={(e) => setSelectedOrders((s) => {
+                        const n = new Set(s);
+                        if (e.target.checked) unassignedShown.forEach((d) => n.add(d.id));
+                        else unassignedShown.forEach((d) => n.delete(d.id));
+                        return n;
+                      })}
+                    />
+                  </th>
                   <th>{t("ID", "ID")}</th>
                   <th>{t("Account", "Cuenta")}</th>
                   <th>{t("Store", "Tienda")}</th>
@@ -824,10 +906,11 @@ export default function RoutesPage() {
                 </tr>
               </thead>
               <tbody>
-                {unassigned.map((d) => {
+                {unassignedShown.map((d) => {
                   const s = stageInfo(d.stage);
                   return (
-                    <tr key={d.id}>
+                    <tr key={d.id} className={selectedOrders.has(d.id) ? "row-selected" : ""}>
+                      <td><input type="checkbox" checked={selectedOrders.has(d.id)} onChange={() => toggleOrder(d.id)} aria-label={`#${d.order_no}`} /></td>
                       <td className="ordno">#{d.order_no}</td>
                       <td>{d.account || "—"}</td>
                       <td>{d.store || "—"}</td>
