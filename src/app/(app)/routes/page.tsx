@@ -152,6 +152,8 @@ export default function RoutesPage() {
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [orderSearch, setOrderSearch] = useState("");
   const [poolFilter, setPoolFilter] = useState<"all" | "overdue" | "noloc" | "windowed">("all");
+  // Cached pickup→dropoff geometry for selected unassigned loads (drawn on the map).
+  const [selRouteCache, setSelRouteCache] = useState<Record<string, [number, number][]>>({});
   const [err, setErr] = useState<string | null>(null);
   // Which panels are collapsed — the unassigned pool ("__unassigned__") and
   // each driver (by name), so a busy board can be folded down to just the
@@ -262,6 +264,38 @@ export default function RoutesPage() {
     () => dayOrders.filter((d) => !d.assigned_driver).sort((a, b) => a.order_no - b.order_no),
     [dayOrders],
   );
+
+  // Draw each selected unassigned load's pickup→dropoff route on the map
+  // (throttled, cached), so pressing loads shows where they go.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const chosen = unassigned.filter((d) => selectedOrders.has(d.id) && d.delivery_lat != null && d.delivery_lng != null);
+      for (const d of chosen) {
+        if (cancelled) return;
+        if (selRouteCache[d.id]) continue;
+        const addr = (d.pickup_address || settings.stores.find((s) => s.name === d.store)?.address || d.store || "").trim();
+        const pk = await getDepotCoords(addr);
+        if (cancelled) return;
+        if (!pk) continue;
+        try {
+          const res = await fetch("/api/optimize-route", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ stops: [{ id: "p", lat: pk[0], lng: pk[1] }, { id: "d", lat: d.delivery_lat, lng: d.delivery_lng }], roundtrip: false }),
+          });
+          const b = await res.json();
+          if (!cancelled && res.ok && Array.isArray(b.geometry) && b.geometry.length) {
+            const positions = (b.geometry as [number, number][]).map(([lng, lat]) => [lat, lng] as [number, number]);
+            setSelRouteCache((p) => ({ ...p, [d.id]: positions }));
+          }
+        } catch { /* skip */ }
+        await new Promise((r) => setTimeout(r, 120));
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOrders, unassigned]);
 
   // Search + saved filter over the unassigned pool.
   const unassignedShown = useMemo(() => {
@@ -655,13 +689,22 @@ export default function RoutesPage() {
         color: colorFor(u.full_name),
         badge: "P",
         label: `${t("Pickup / base", "Recolección / base")} (${u.full_name}) — ${addr}`,
-        dimmed: isDim(u.full_name),
+        dimmed: isDim(u.full_name) || selectedOrders.size > 0,
       });
     }
+    const selActive = selectedOrders.size > 0;
     for (const d of dayOrders) {
       if (d.delivery_lat == null || d.delivery_lng == null) continue;
       if (!d.assigned_driver) {
-        pts.push({ id: d.id, lat: d.delivery_lat, lng: d.delivery_lng, color: UNASSIGNED_COLOR, label: `#${d.order_no} — ${t("Unassigned", "Sin asignar")}`, dimmed: focused });
+        const sel = selectedOrders.has(d.id);
+        pts.push({
+          id: d.id,
+          lat: d.delivery_lat,
+          lng: d.delivery_lng,
+          color: sel ? "#2456c9" : UNASSIGNED_COLOR,
+          label: `#${d.order_no} — ${t("Unassigned", "Sin asignar")}`,
+          dimmed: sel ? false : (focused || selActive),
+        });
         continue;
       }
       const list = byDriver.get(d.assigned_driver) ?? [];
@@ -674,12 +717,12 @@ export default function RoutesPage() {
         color: stopColor.get(d.id) ?? colorFor(d.assigned_driver),
         badge,
         label: `#${d.order_no} — ${d.assigned_driver}${badge ? ` (${t("Stop", "Parada")} ${badge})` : ""}`,
-        dimmed: isDim(d.assigned_driver),
+        dimmed: isDim(d.assigned_driver) || selActive,
       });
     }
     return pts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, depotCoords, drivers]);
+  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, selectedOrders, depotCoords, drivers]);
 
   // Every optimized driver's routes are always drawn; a focus just dims the
   // others. Clicking a route focuses its driver (see onLineClick below).
@@ -714,9 +757,15 @@ export default function RoutesPage() {
         if (trace.ret.length > 1) out.push({ id: `pret:${i}`, color, positions: trace.ret, dashed: true, offset: 7 });
       });
     }
+    // Selected unassigned loads: draw their pickup→dropoff route in blue.
+    for (const d of unassigned) {
+      if (!selectedOrders.has(d.id)) continue;
+      const pos = selRouteCache[d.id];
+      if (pos && pos.length) out.push({ id: `sel:${d.id}`, color: "#2456c9", positions: pos });
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeLines, selected, preview, settings.driver_colors]);
+  }, [routeLines, selected, preview, settings.driver_colors, selectedOrders, selRouteCache, unassigned]);
 
   const onLineClick = (id: string) => {
     const m = id.match(/^(?:line|ret):(.+)#\d+$/);
@@ -726,6 +775,17 @@ export default function RoutesPage() {
   // What the map frames: the selected drivers' stops + pickups when any are
   // focused, otherwise the whole day.
   const fitTo: [number, number][] = useMemo(() => {
+    // Selected unassigned loads take priority — frame them + their routes.
+    if (selectedOrders.size > 0) {
+      const pts: [number, number][] = [];
+      for (const d of unassigned) {
+        if (!selectedOrders.has(d.id)) continue;
+        if (d.delivery_lat != null && d.delivery_lng != null) pts.push([d.delivery_lat, d.delivery_lng]);
+        const pos = selRouteCache[d.id];
+        if (pos) pts.push(...pos);
+      }
+      if (pts.length) return pts;
+    }
     if (!focused) return points.map((p) => [p.lat, p.lng] as [number, number]);
     const ids = new Set<string>();
     for (const name of selected) {
@@ -735,7 +795,7 @@ export default function RoutesPage() {
     }
     return points.filter((p) => ids.has(p.id)).map((p) => [p.lat, p.lng] as [number, number]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, selected]);
+  }, [points, selected, selectedOrders, selRouteCache, unassigned]);
 
   if (!me) return null;
   if (!canPlanRoutes(me)) {
@@ -844,7 +904,10 @@ export default function RoutesPage() {
           )}
         </div>
         <div className="card" style={{ flex: "3 1 460px", margin: 0, padding: 0, overflow: "hidden" }}>
-          <LeafletMap points={points} lines={lines} onLineClick={onLineClick} fitTo={fitTo} height={520} />
+          <LeafletMap points={points} lines={lines} onLineClick={onLineClick} fitTo={fitTo} height={520} onPointClick={(id) => {
+            const d = dayOrders.find((x) => x.id === id);
+            if (d && !d.assigned_driver) toggleOrder(d.id);
+          }} />
         </div>
       </div>
       <div className="hint" style={{ marginTop: 4, marginBottom: 14 }}>
