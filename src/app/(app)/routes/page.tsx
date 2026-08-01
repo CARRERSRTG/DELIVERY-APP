@@ -147,9 +147,10 @@ export default function RoutesPage() {
   const [previewBusy, setPreviewBusy] = useState<string | null>(null);
   const [optimizingAll, setOptimizingAll] = useState(false);
   const [autoAssigning, setAutoAssigning] = useState(false);
-  // Multi-select + search for the unassigned pool (bulk assignment).
+  // Multi-select + search + saved filter for the unassigned pool.
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [orderSearch, setOrderSearch] = useState("");
+  const [poolFilter, setPoolFilter] = useState<"all" | "overdue" | "noloc" | "windowed">("all");
   const [err, setErr] = useState<string | null>(null);
   // Which panels are collapsed — the unassigned pool ("__unassigned__") and
   // each driver (by name), so a busy board can be folded down to just the
@@ -261,19 +262,24 @@ export default function RoutesPage() {
     [dayOrders],
   );
 
-  // Search the unassigned pool by order #, customer, address, phone or store.
+  // Search + saved filter over the unassigned pool.
   const unassignedShown = useMemo(() => {
     const q = orderSearch.trim().toLowerCase();
-    if (!q) return unassigned;
-    return unassigned.filter((d) =>
-      String(d.order_no).includes(q) ||
-      (d.account || "").toLowerCase().includes(q) ||
-      (d.delivery_address || "").toLowerCase().includes(q) ||
-      (d.delivery_phone || "").toLowerCase().includes(q) ||
-      (d.contact || "").toLowerCase().includes(q) ||
-      (d.store || "").toLowerCase().includes(q),
-    );
-  }, [unassigned, orderSearch]);
+    return unassigned.filter((d) => {
+      if (poolFilter === "overdue" && !isOverdue(d)) return false;
+      if (poolFilter === "noloc" && d.delivery_lat != null) return false;
+      if (poolFilter === "windowed" && !d.delivery_windows) return false;
+      if (!q) return true;
+      return (
+        String(d.order_no).includes(q) ||
+        (d.account || "").toLowerCase().includes(q) ||
+        (d.delivery_address || "").toLowerCase().includes(q) ||
+        (d.delivery_phone || "").toLowerCase().includes(q) ||
+        (d.contact || "").toLowerCase().includes(q) ||
+        (d.store || "").toLowerCase().includes(q)
+      );
+    });
+  }, [unassigned, orderSearch, poolFilter]);
 
   // Each driver's stops for the day, in their current sequence (optimized
   // order first, unsequenced ones after — same rule as the Driver page).
@@ -868,6 +874,18 @@ export default function RoutesPage() {
             placeholder={t("Search # / customer / address / phone…", "Buscar # / cliente / dirección / teléfono…")}
             style={{ maxWidth: 300 }}
           />
+          {(["all", "overdue", "windowed", "noloc"] as const).map((f) => (
+            <button
+              key={f}
+              className={"btn btn-sm " + (poolFilter === f ? "btn-primary" : "btn-ghost")}
+              onClick={() => setPoolFilter(f)}
+            >
+              {f === "all" ? t("All", "Todas")
+                : f === "overdue" ? t("Overdue", "Atrasadas")
+                : f === "windowed" ? t("Windowed", "Con ventana")
+                : t("No location", "Sin ubicación")}
+            </button>
+          ))}
           {selectedOrders.size > 0 && (
             <>
               <span className="count-tag">{selectedOrders.size} {t("selected", "seleccionadas")}</span>
