@@ -24,6 +24,8 @@ interface Place {
   brand: string | null;
   city: string | null;
   phone: string | null;
+  /** Which query layer this came from (flooring / bigbox / hardware). */
+  cat?: string;
 }
 
 const COLORS: Record<Klass, string> = {
@@ -37,9 +39,11 @@ function classify(p: Place): Klass {
   const n = p.name.toLowerCase();
   const b = (p.brand ?? "").toLowerCase();
   if (n.includes("rodriguez tile") || b.includes("rodriguez tile")) return "rtg";
-  if (n.includes("home depot") || n.includes("lowe") || p.shop === "doityourself") return "bigbox";
-  if (["hardware", "trade", "building_materials", "paint"].includes(p.shop ?? "")) return "hardware";
-  return "competitor";
+  // Big-box by name or by source (shop=doityourself / the "bigbox" query layer).
+  if (n.includes("home depot") || n.includes("lowe") || p.shop === "doityourself" || p.cat === "bigbox") return "bigbox";
+  // Hardware by tag or by source layer.
+  if (["hardware", "trade", "building_materials", "paint"].includes(p.shop ?? "") || p.cat === "hardware") return "hardware";
+  return "competitor"; // dedicated flooring
 }
 
 export default function MarketPage() {
@@ -61,7 +65,9 @@ export default function MarketPage() {
       for (const c of cats) {
         const r = await fetch(`/api/places?category=${c}`).then((res) => res.json()).catch(() => ({ error: "fetch" }));
         if (!r.error) anyOk = true;
-        for (const p of (r.places ?? []) as Place[]) byId.set(p.id, p);
+        for (const p of (r.places ?? []) as Place[]) {
+          if (!byId.has(p.id)) byId.set(p.id, { ...p, cat: c }); // first layer wins the tag
+        }
         setPlaces([...byId.values()]); // progressive: show each layer as it lands
       }
       if (!anyOk) setErr(t("Couldn't reach the live places service. Try Refresh.", "No se pudo consultar el servicio en vivo. Use Actualizar."));
