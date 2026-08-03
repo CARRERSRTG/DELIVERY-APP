@@ -8,7 +8,8 @@ import { routeOrder } from "@/lib/dispatch";
 import { OrdersTable } from "@/components/OrdersTable";
 import { OrderModal } from "@/components/OrderModal";
 import { ShiftClock } from "@/components/ShiftClock";
-import { yesterdayISO } from "@/lib/utils";
+import { printRouteManifest } from "@/lib/manifest";
+import { fmtDate, todayISO, yesterdayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 // Full workflow visible to drivers now, in order: an order is approved but
@@ -65,6 +66,13 @@ export default function DriverPage() {
     return routed ? routeOrder(list) : list;
   }, [scoped, tab, routed]);
 
+  // The active route to print: everything still to deliver (staged + out),
+  // sequenced the same way the board routes them.
+  const manifestStops = useMemo(
+    () => routeOrder(scoped.filter((d) => d.stage === "ready" || d.stage === "picked_up")),
+    [scoped],
+  );
+
   if (!me) return null;
   if (!canDeliver(me) || me.role === "warehouse") {
     return <div className="empty">{t("You don’t have access to the driver view.", "No tienes acceso a la vista de chofer.")}</div>;
@@ -83,6 +91,12 @@ export default function DriverPage() {
               {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
             </select>
           </label>
+          <button
+            className="btn btn-ghost"
+            disabled={!manifestStops.length}
+            onClick={() => printRouteManifest(me.full_name, manifestStops, settings, lang, fmtDate(todayISO()))}
+            title={t("Print your route as a checklist", "Imprime tu ruta como lista")}
+          >🖨 {t("Print route", "Imprimir ruta")}</button>
           {canCreate(me) && (
             <button className="btn btn-primary" onClick={() => setCreating(true)}>+ {t("New order", "Nueva orden")}</button>
           )}

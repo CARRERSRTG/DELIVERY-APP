@@ -8,6 +8,7 @@ import { autoAssign, parseWindow, splitIntoTrips, unavailableDriverNames } from 
 import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap";
 import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
+import { printRouteManifest } from "@/lib/manifest";
 import { fallbackDriverColor, fmtDate, isOverdue, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery } from "@/lib/types";
@@ -359,6 +360,15 @@ export default function RoutesPage() {
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unassigned, drivers, byDriver, settings.driver_colors, settings.driver_capacity, lang]);
+
+  // Print a driver's route for the selected day, in optimized stop sequence
+  // (route_seq when planned, else by order number).
+  const printManifestFor = (driver: string) => {
+    const stops = [...(byDriver.get(driver) ?? [])].sort(
+      (a, b) => (a.route_seq ?? 9999) - (b.route_seq ?? 9999) || a.order_no - b.order_no,
+    );
+    printRouteManifest(driver, stops, settings, lang, fmtDate(date));
+  };
 
   // Timeline rows: drivers that have stops, each drawn over the day axis.
   const ganttRows: GanttRow[] = useMemo(
@@ -989,7 +999,7 @@ export default function RoutesPage() {
           <p className="hint" style={{ marginTop: 0 }}>
             {t("Drag an order card onto a driver to assign it, or back to Unassigned to remove it.", "Arrastre una tarjeta a un chofer para asignarla, o de vuelta a Sin asignar para quitarla.")}
           </p>
-          <DispatchBoard columns={boardColumns} onMove={boardMove} t={t} lang={lang} />
+          <DispatchBoard columns={boardColumns} onMove={boardMove} t={t} lang={lang} onPrint={printManifestFor} />
         </div>
       )}
 

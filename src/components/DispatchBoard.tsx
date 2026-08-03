@@ -18,12 +18,14 @@ export interface BoardColumn {
  * Drag an order card between columns to (re)assign or unassign it. Uses native
  * HTML5 drag-and-drop — no dependencies. */
 export function DispatchBoard({
-  columns, onMove, t, lang,
+  columns, onMove, t, lang, onPrint,
 }: {
   columns: BoardColumn[];
   onMove: (orderId: string, columnKey: string) => void;
   t: (en: string, es: string) => string;
   lang: "en" | "es";
+  /** When set, driver columns show a 🖨 button that prints their route. */
+  onPrint?: (columnKey: string) => void;
 }) {
   const [over, setOver] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -49,6 +51,14 @@ export function DispatchBoard({
             <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{col.title}</b>
             <span className="count-tag">{col.orders.length}</span>
             {col.sub && <span className="hint" style={{ marginLeft: "auto" }}>{col.sub}</span>}
+            {onPrint && col.key !== "__unassigned__" && col.orders.length > 0 && (
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ marginLeft: col.sub ? 6 : "auto", padding: "2px 7px", lineHeight: 1 }}
+                title={t("Print this route", "Imprimir esta ruta")}
+                onClick={(e) => { e.stopPropagation(); onPrint(col.key); }}
+              >🖨</button>
+            )}
           </div>
           <div className="dboard-body">
             {col.orders.length === 0 ? (
