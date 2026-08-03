@@ -24,9 +24,13 @@ interface Place {
   brand: string | null;
   city: string | null;
   phone: string | null;
+  rating: number | null;
+  address: string | null;
   /** Which query layer this came from (flooring / bigbox / hardware). */
   cat?: string;
 }
+
+type SortKey = "name" | "type" | "city" | "rating";
 
 const COLORS: Record<Klass, string> = {
   rtg: "#2456c9",        // blue — us
@@ -34,6 +38,14 @@ const COLORS: Record<Klass, string> = {
   bigbox: "#d1782e",     // orange — big-box secondary sellers
   hardware: "#1f9d61",   // green — hardware / prospects
 };
+
+const KLASS_LABEL: Record<Klass, { en: string; es: string }> = {
+  rtg: { en: "Rodriguez Tile Group", es: "Rodriguez Tile Group" },
+  competitor: { en: "Flooring competitor", es: "Competidor de pisos" },
+  bigbox: { en: "Big-box (also sells flooring)", es: "Grande tienda (también vende pisos)" },
+  hardware: { en: "Hardware / prospect", es: "Ferretería / prospecto" },
+};
+const KLASS_ORDER: Klass[] = ["rtg", "competitor", "bigbox", "hardware"];
 
 function classify(p: Place): Klass {
   const n = p.name.toLowerCase();
@@ -53,6 +65,9 @@ export default function MarketPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [show, setShow] = useState<Record<Klass, boolean>>({ rtg: true, competitor: true, bigbox: true, hardware: true });
+  const [q, setQ] = useState("");
+  const [view, setView] = useState<"list" | "city" | "type">("list");
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "name", dir: 1 });
 
   const load = async () => {
     setLoading(true);
@@ -89,6 +104,36 @@ export default function MarketPage() {
 
   const shown = useMemo(() => classed.filter((p) => show[p.klass]), [classed, show]);
 
+  // Table: search across name/city/address/phone, then sort.
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return shown;
+    return shown.filter((p) =>
+      p.name.toLowerCase().includes(needle) ||
+      (p.city || "").toLowerCase().includes(needle) ||
+      (p.address || "").toLowerCase().includes(needle) ||
+      (p.phone || "").toLowerCase().includes(needle),
+    );
+  }, [shown, q]);
+
+  const sorted = useMemo(() => {
+    const { key, dir } = sort;
+    return [...filtered].sort((a, b) => {
+      const av = key === "name" ? a.name.toLowerCase()
+        : key === "city" ? (a.city || "~").toLowerCase()
+        : key === "type" ? a.klass
+        : (a.rating ?? -1);
+      const bv = key === "name" ? b.name.toLowerCase()
+        : key === "city" ? (b.city || "~").toLowerCase()
+        : key === "type" ? b.klass
+        : (b.rating ?? -1);
+      return av < bv ? -dir : av > bv ? dir : a.name.localeCompare(b.name);
+    });
+  }, [filtered, sort]);
+
+  const toggleSort = (key: SortKey) =>
+    setSort((s) => (s.key === key ? { key, dir: (s.dir === 1 ? -1 : 1) as 1 | -1 } : { key, dir: 1 }));
+
   const points: MapPoint[] = useMemo(
     () => shown.map((p) => ({
       id: p.id,
@@ -101,12 +146,22 @@ export default function MarketPage() {
   );
   const fitTo = useMemo<[number, number][]>(() => points.map((p) => [p.lat, p.lng] as [number, number]), [points]);
 
-  const legend: { k: Klass; en: string; es: string }[] = [
-    { k: "rtg", en: "Rodriguez Tile Group", es: "Rodriguez Tile Group" },
-    { k: "competitor", en: "Flooring competitors", es: "Competidores de pisos" },
-    { k: "bigbox", en: "Big-box (also sell flooring)", es: "Grandes tiendas (también venden pisos)" },
-    { k: "hardware", en: "Hardware / prospects", es: "Ferreterías / prospectos" },
-  ];
+  const legend = KLASS_ORDER.map((k) => ({ k, en: KLASS_LABEL[k].en, es: KLASS_LABEL[k].es }));
+
+  // A reusable row for the tables (list + grouped views).
+  const Row = ({ p }: { p: Place & { klass: Klass } }) => (
+    <tr>
+      <td style={{ fontWeight: 700 }}>
+        <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: COLORS[p.klass], marginRight: 7, verticalAlign: "middle" }} />
+        {p.name}
+      </td>
+      <td>{t(KLASS_LABEL[p.klass].en, KLASS_LABEL[p.klass].es)}</td>
+      <td>{p.city || "—"}</td>
+      <td style={{ fontVariantNumeric: "tabular-nums" }}>{p.rating != null ? `★ ${p.rating.toFixed(1)}` : "—"}</td>
+      <td>{p.phone ? <a className="link-tel" href={`tel:${p.phone}`}>{p.phone}</a> : "—"}</td>
+      <td><a href={`https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`} target="_blank" rel="noopener noreferrer" title={t("Open in Maps", "Abrir en Mapas")}>🧭</a></td>
+    </tr>
+  );
 
   if (!me) return null;
   if (!["admin", "manager", "sales"].includes(me.role)) {
@@ -149,40 +204,78 @@ export default function MarketPage() {
       </div>
 
       <div className="card">
-        <h2>📋 {t("Companies", "Empresas")} <span className="count-tag">{shown.length}</span></h2>
-        {loading ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+          <h2 style={{ margin: 0 }}>📋 {t("Companies", "Empresas")} <span className="count-tag">{filtered.length}</span></h2>
+          <span style={{ flex: 1 }} />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t("Search name / city / address / phone…", "Buscar nombre / ciudad / dirección / teléfono…")}
+            style={{ maxWidth: 280 }}
+          />
+          <div className="toggle-group">
+            <button className={"toggle-btn " + (view === "list" ? "on" : "")} onClick={() => setView("list")}>{t("List", "Lista")}</button>
+            <button className={"toggle-btn " + (view === "city" ? "on" : "")} onClick={() => setView("city")}>{t("By city", "Por ciudad")}</button>
+            <button className={"toggle-btn " + (view === "type" ? "on" : "")} onClick={() => setView("type")}>{t("By type", "Por tipo")}</button>
+          </div>
+        </div>
+
+        {loading && filtered.length === 0 ? (
           <div className="empty">{t("Loading live data…", "Cargando datos en vivo…")}</div>
-        ) : shown.length === 0 ? (
-          <div className="empty">{t("No companies to show. Toggle a category on, or refresh.", "Nada que mostrar. Active una categoría o actualice.")}</div>
-        ) : (
+        ) : filtered.length === 0 ? (
+          <div className="empty">{t("No companies match. Adjust filters or search.", "Nada coincide. Ajuste filtros o búsqueda.")}</div>
+        ) : view === "list" ? (
           <div className="tbl-scroll" style={{ border: "none" }}>
-            <table className="orders" style={{ minWidth: 520 }}>
+            <table className="orders" style={{ minWidth: 620 }}>
               <thead>
                 <tr>
-                  <th>{t("Company", "Empresa")}</th>
-                  <th>{t("Type", "Tipo")}</th>
-                  <th>{t("City", "Ciudad")}</th>
+                  {([["name", t("Company", "Empresa")], ["type", t("Type", "Tipo")], ["city", t("City", "Ciudad")], ["rating", t("Rating", "Calif.")]] as [SortKey, string][]).map(([k, lbl]) => (
+                    <th key={k} className="clickable" onClick={() => toggleSort(k)} style={{ cursor: "pointer", whiteSpace: "nowrap" }}>
+                      {lbl}{sort.key === k ? (sort.dir === 1 ? " ▲" : " ▼") : ""}
+                    </th>
+                  ))}
                   <th>{t("Phone", "Teléfono")}</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {[...shown].sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
-                  const l = legend.find((x) => x.k === p.klass)!;
-                  return (
-                    <tr key={p.id}>
-                      <td style={{ fontWeight: 700 }}>
-                        <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: COLORS[p.klass], marginRight: 7, verticalAlign: "middle" }} />
-                        {p.name}
-                      </td>
-                      <td>{t(l.en, l.es)}</td>
-                      <td>{p.city || "—"}</td>
-                      <td>{p.phone ? <a className="link-tel" href={`tel:${p.phone}`}>{p.phone}</a> : "—"}</td>
-                    </tr>
-                  );
-                })}
+                {sorted.map((p) => <Row key={p.id} p={p} />)}
               </tbody>
             </table>
           </div>
+        ) : (
+          // Grouped by city or by type.
+          (() => {
+            const groups = new Map<string, (Place & { klass: Klass })[]>();
+            for (const p of sorted) {
+              const key = view === "city" ? (p.city || t("(unknown city)", "(ciudad desconocida)")) : t(KLASS_LABEL[p.klass].en, KLASS_LABEL[p.klass].es);
+              (groups.get(key) ?? groups.set(key, []).get(key)!).push(p);
+            }
+            const keys = [...groups.keys()].sort((a, b) => groups.get(b)!.length - groups.get(a)!.length || a.localeCompare(b));
+            return (
+              <div style={{ display: "grid", gap: 16 }}>
+                {keys.map((k) => (
+                  <div key={k}>
+                    <h3 style={{ margin: "0 0 6px", fontSize: 15 }}>
+                      {view === "type" && groups.get(k)![0] && <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: COLORS[groups.get(k)![0].klass], marginRight: 7, verticalAlign: "middle" }} />}
+                      {k} <span className="count-tag">{groups.get(k)!.length}</span>
+                    </h3>
+                    <div className="tbl-scroll" style={{ border: "none" }}>
+                      <table className="orders" style={{ minWidth: 620 }}>
+                        <thead>
+                          <tr>
+                            <th>{t("Company", "Empresa")}</th><th>{t("Type", "Tipo")}</th><th>{t("City", "Ciudad")}</th>
+                            <th>{t("Rating", "Calif.")}</th><th>{t("Phone", "Teléfono")}</th><th></th>
+                          </tr>
+                        </thead>
+                        <tbody>{groups.get(k)!.map((p) => <Row key={p.id} p={p} />)}</tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()
         )}
       </div>
     </>

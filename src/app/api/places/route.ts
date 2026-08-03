@@ -35,6 +35,8 @@ interface Place {
   brand: string | null;
   city: string | null;
   phone: string | null;
+  rating: number | null;
+  address: string | null;
 }
 
 // ---- Google Places (New) — used when GOOGLE_MAPS_API_KEY is set. Far better
@@ -86,6 +88,8 @@ async function viaGoogle(key: string, category: string): Promise<Place[]> {
             brand: null,
             city: cityFromGoogle(p.formattedAddress as string | undefined),
             phone: (p.nationalPhoneNumber as string | undefined) ?? null,
+            rating: typeof p.rating === "number" ? (p.rating as number) : null,
+            address: (p.formattedAddress as string | undefined) ?? null,
           });
         }
       } catch { /* skip this query/center */ }
@@ -136,6 +140,7 @@ export async function GET(req: Request) {
         const lat = (el.lat as number) ?? (el.center as { lat: number } | undefined)?.lat;
         const lng = (el.lon as number) ?? (el.center as { lon: number } | undefined)?.lon;
         if (typeof lat !== "number" || typeof lng !== "number") return null;
+        const street = [tags["addr:housenumber"], tags["addr:street"]].filter(Boolean).join(" ");
         return {
           id: `${el.type}/${el.id}`,
           name: tags.name || tags.brand || "(unnamed)",
@@ -145,6 +150,8 @@ export async function GET(req: Request) {
           brand: tags.brand ?? null,
           city: tags["addr:city"] ?? null,
           phone: tags.phone ?? tags["contact:phone"] ?? null,
+          rating: null,
+          address: street || null,
         } as Place;
       })
       .filter((p): p is Place => p !== null && p.name !== "(unnamed)");
