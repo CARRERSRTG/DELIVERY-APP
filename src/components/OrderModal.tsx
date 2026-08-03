@@ -108,6 +108,11 @@ export function OrderModal({
   // Customer-satisfaction rating on a delivered order (local mirror so the
   // stars light up instantly; also persisted).
   const [csatRating, setCsatRating] = useState<number | null>(existing?.csat_rating ?? null);
+  // Local mirrors of the drive-to-pickup / arrival stamps, so the "En route" /
+  // "Arrived" indicator updates instantly (the `existing` prop isn't re-synced
+  // from the store while the modal stays open).
+  const [departedAt, setDepartedAt] = useState<string | null>(existing?.departed_at ?? null);
+  const [arrivedAt, setArrivedAt] = useState<string | null>(existing?.arrived_at ?? null);
 
   const events = existing ? eventsFor(existing.id) : [];
   const userName = (id: string | null | undefined) =>
@@ -389,20 +394,22 @@ export function OrderModal({
   // open so they can then tap "Pick up" when they've loaded.
   const depart = async () => {
     if (!existing) return;
+    const now = new Date().toISOString();
     setBusy(true);
-    const ok = await updateDelivery(existing.id, { departed_at: new Date().toISOString() });
+    const ok = await updateDelivery(existing.id, { departed_at: now });
     setBusy(false);
-    if (ok) notify(t("En route to pickup", "En camino a recoger"));
+    if (ok) { setDepartedAt(now); notify(t("En route to pickup", "En camino a recoger")); }
   };
 
   // Driver reaches the delivery stop — stamps arrived_at without changing the
   // stage. Splits transit into driving vs dwell/service time at the stop.
   const arrive = async () => {
     if (!existing) return;
+    const now = new Date().toISOString();
     setBusy(true);
-    const ok = await updateDelivery(existing.id, { arrived_at: new Date().toISOString() });
+    const ok = await updateDelivery(existing.id, { arrived_at: now });
     setBusy(false);
-    if (ok) notify(t("Arrived at stop", "Llegó a la parada"));
+    if (ok) { setArrivedAt(now); notify(t("Arrived at stop", "Llegó a la parada")); }
   };
 
   // Warehouse confirms the real pallet count as part of marking the order
@@ -1290,9 +1297,9 @@ export function OrderModal({
               onRequestPickup={() => { setPickupPallets(String(existing!.actual_pallets ?? existing!.est_pallets ?? "")); setShowPickupConfirm(true); }}
               onConfirmPickup={confirmPickup}
               onCancelPickup={() => setShowPickupConfirm(false)}
-              departedAt={existing.departed_at}
+              departedAt={departedAt}
               onDepart={depart}
-              arrivedAt={existing.arrived_at}
+              arrivedAt={arrivedAt}
               onArrive={arrive}
             />
           ) : null}

@@ -1,6 +1,12 @@
 import type { Delivery, DriverShift, OrderEvent, Profile, Stage } from "@/lib/types";
 import { isOverdue, orderOwner } from "@/lib/utils";
 import { parseWindow } from "@/lib/dispatch";
+import { distanceMeters } from "@/lib/geo";
+
+// How far the POD GPS stamp can sit from the geocoded destination before the
+// delivery is flagged as location-mismatched (metres). ~250 m tolerates
+// parking lots, geocode drift, and large sites without flagging real stops.
+export const POD_GPS_TOLERANCE_M = 250;
 
 // ============================================================
 // Read-only analytics over the deliveries + event log. Pure functions,
@@ -278,6 +284,8 @@ export interface DriverQualityKpi {
   podCompliancePct: number | null;    // delivered with a signature or photo ÷ delivered
   csatResponsePct: number | null;     // delivered that got rated ÷ delivered
   shortLoads: number;                 // loaded fewer pallets than ordered
+  podGpsChecked: number;              // delivered with both POD GPS + geocoded destination
+  podGpsFar: number;                  // of those, stamped beyond the tolerance from the destination
 }
 
 /** Per-driver timing + quality KPIs (Tier 1). Cancelled/rejected excluded.
@@ -289,8 +297,9 @@ export function driverQualityKpis(deliveries: Delivery[]): DriverQualityKpi[] {
     transitSum: number; transitN: number;
     dwellSum: number; dwellN: number;
     redeliveries: number; podOk: number; rated: number; shortLoads: number;
+    podGpsChecked: number; podGpsFar: number;
   }
-  const zero = (): Acc => ({ orders: 0, delivered: 0, driveSum: 0, driveN: 0, transitSum: 0, transitN: 0, dwellSum: 0, dwellN: 0, redeliveries: 0, podOk: 0, rated: 0, shortLoads: 0 });
+  const zero = (): Acc => ({ orders: 0, delivered: 0, driveSum: 0, driveN: 0, transitSum: 0, transitN: 0, dwellSum: 0, dwellN: 0, redeliveries: 0, podOk: 0, rated: 0, shortLoads: 0, podGpsChecked: 0, podGpsFar: 0 });
   const span = (from: string | null, to: string | null) => (from && to ? new Date(to).getTime() - new Date(from).getTime() : NaN);
   const map = new Map<string, Acc>();
   for (const d of deliveries) {
@@ -310,6 +319,13 @@ export function driverQualityKpis(deliveries: Delivery[]): DriverQualityKpi[] {
       if (dwell > 0) { a.dwellSum += dwell; a.dwellN++; }
       if (d.pod_signature || (d.photos?.length ?? 0) > 0) a.podOk++;
       if (d.csat_rating != null) a.rated++;
+      // POD GPS accuracy: compare where the driver stamped delivery to the
+      // geocoded destination, when both are known.
+      if (d.pod_lat != null && d.pod_lng != null && d.delivery_lat != null && d.delivery_lng != null) {
+        a.podGpsChecked++;
+        const m = distanceMeters({ lat: d.pod_lat, lng: d.pod_lng }, { lat: d.delivery_lat, lng: d.delivery_lng });
+        if (m > POD_GPS_TOLERANCE_M) a.podGpsFar++;
+      }
     }
     map.set(d.assigned_driver, a);
   }
@@ -327,6 +343,8 @@ export function driverQualityKpis(deliveries: Delivery[]): DriverQualityKpi[] {
       podCompliancePct: a.delivered ? Math.round((a.podOk / a.delivered) * 100) : null,
       csatResponsePct: a.delivered ? Math.round((a.rated / a.delivered) * 100) : null,
       shortLoads: a.shortLoads,
+      podGpsChecked: a.podGpsChecked,
+      podGpsFar: a.podGpsFar,
     }))
     .sort((x, y) => y.orders - x.orders);
 }

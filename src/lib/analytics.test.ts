@@ -280,4 +280,18 @@ describe("driverQualityKpis", () => {
     ]);
     expect(k.podCompliancePct).toBe(100);
   });
+
+  it("flags a POD GPS stamp far from the geocoded destination", () => {
+    const dest = { delivery_lat: 26.2, delivery_lng: -98.2 };
+    const [k] = driverQualityKpis([
+      // On-site: same coords → within tolerance.
+      mkDelivery({ assigned_driver: "Sam", stage: "delivered", pod_lat: 26.2, pod_lng: -98.2, ...dest }),
+      // ~1.5 km away → flagged.
+      mkDelivery({ assigned_driver: "Sam", stage: "delivered", pod_lat: 26.213, pod_lng: -98.2, ...dest }),
+      // Missing POD coords → not checked.
+      mkDelivery({ assigned_driver: "Sam", stage: "delivered", ...dest }),
+    ]);
+    expect(k.podGpsChecked).toBe(2);
+    expect(k.podGpsFar).toBe(1);
+  });
 });

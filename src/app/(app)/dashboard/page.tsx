@@ -338,7 +338,7 @@ export default function DashboardPage() {
               <div className="empty">{t("No driver orders in this range.", "Sin órdenes de chofer en este rango.")}</div>
             ) : (
               <div className="tbl-scroll" style={{ border: "none" }}>
-                <table className="orders" style={{ minWidth: 780, fontVariantNumeric: "tabular-nums" }}>
+                <table className="orders" style={{ minWidth: 860, fontVariantNumeric: "tabular-nums" }}>
                   <thead>
                     <tr>
                       <th>{t("Driver", "Chofer")}</th>
@@ -349,6 +349,7 @@ export default function DashboardPage() {
                       <th title={t("Deliveries that got a rating", "Entregas que recibieron calificación")}>{t("Rated %", "% Calif.")}</th>
                       <th title={t("Second-attempt deliveries", "Entregas en segundo intento")}>{t("Redeliv.", "Reenvíos")}</th>
                       <th title={t("Loaded fewer pallets than ordered", "Cargó menos tarimas de las pedidas")}>{t("Short loads", "Carga corta")}</th>
+                      <th title={t("Deliveries stamped far from the destination address", "Entregas marcadas lejos de la dirección de destino")}>{t("GPS off", "GPS lejos")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -362,6 +363,7 @@ export default function DashboardPage() {
                         <td>{d.csatResponsePct == null ? "—" : `${d.csatResponsePct}%`}</td>
                         <td style={d.redeliveries ? { color: "var(--red)", fontWeight: 700 } : undefined}>{d.redeliveries || "—"}{d.redeliveryPct ? ` (${d.redeliveryPct}%)` : ""}</td>
                         <td style={d.shortLoads ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{d.shortLoads || "—"}</td>
+                        <td style={d.podGpsFar ? { color: "var(--red)", fontWeight: 700 } : undefined} title={d.podGpsChecked ? `${d.podGpsFar}/${d.podGpsChecked} ${t("checked", "verificadas")}` : t("no GPS data yet", "sin datos GPS aún")}>{d.podGpsChecked === 0 ? "—" : (d.podGpsFar || "0")}</td>
                       </tr>
                     ))}
                   </tbody>
