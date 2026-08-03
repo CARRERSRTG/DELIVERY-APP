@@ -136,6 +136,33 @@ export default function DashboardPage() {
     downloadCSV(`deliveries_${from}_to_${to}.csv`, toCSV(headers, data));
   };
 
+  // One row per driver merging performance + idle + timing/quality KPIs.
+  const exportDrivers = () => {
+    const names = new Set<string>([...drivers.map((d) => d.driver), ...idle.map((d) => d.driver), ...quality.map((d) => d.driver)]);
+    if (!names.size) return;
+    const perf = new Map(drivers.map((d) => [d.driver, d]));
+    const idl = new Map(idle.map((d) => [d.driver, d]));
+    const qual = new Map(quality.map((d) => [d.driver, d]));
+    const headers = [
+      "Driver", "Orders", "Delivered", "On-time %", "Avg delay (min)", "Stops/route", "Miles",
+      "Revenue", "$/mi", "Pallet util %", "Fuel", "Cost/delivery", "Avg rating", "CSAT count",
+      "On-clock (min)", "Active (min)", "Idle (min)", "Active %", "Deliveries/hr",
+      "Drive→pickup (min)", "Transit (min)", "Dwell (min)", "POD compliance %", "Rated %",
+      "Redeliveries", "Redelivery %", "Short loads", "GPS checked", "GPS off",
+    ];
+    const rows = [...names].map((name) => {
+      const p = perf.get(name); const i = idl.get(name); const q = qual.get(name);
+      return [
+        name, p?.orders ?? "", p?.delivered ?? "", p?.onTimePct ?? "", p?.avgDelayMin ?? "", p?.avgStops ?? "", p?.miles ?? "",
+        p?.revenue ?? "", p?.revPerMile ?? "", p?.utilizationPct ?? "", p?.fuelCost ?? "", p?.costPerDelivery ?? "", p?.avgCsat ?? "", p?.csatCount ?? "",
+        i?.onClockMin ?? "", i?.activeMin ?? "", i?.idleMin ?? "", i?.activePct ?? "", i?.perActiveHr ?? "",
+        q?.avgDriveToPickupMin ?? "", q?.avgTransitMin ?? "", q?.avgDwellMin ?? "", q?.podCompliancePct ?? "", q?.csatResponsePct ?? "",
+        q?.redeliveries ?? "", q?.redeliveryPct ?? "", q?.shortLoads ?? "", q?.podGpsChecked ?? "", q?.podGpsFar ?? "",
+      ];
+    });
+    downloadCSV(`driver_stats_${from}_to_${to}.csv`, toCSV(headers, rows));
+  };
+
   const openOrder = (id: string) => router.push(`/?order=${id}`);
 
   return (
@@ -159,6 +186,7 @@ export default function DashboardPage() {
           <button className={"btn btn-sm " + (rangeMode === "month" && from === startOfMonthISO() ? "btn-primary" : "btn-ghost")} onClick={thisMonth}>{t("This month", "Este mes")}</button>
           <button className="btn btn-ghost btn-sm" onClick={lastMonth}>{t("Last month", "Mes pasado")}</button>
           <button className="btn btn-ghost" onClick={exportRange} disabled={!scoped.length}>⬇ {t("Export range", "Exportar rango")}</button>
+          <button className="btn btn-ghost" onClick={exportDrivers} disabled={!drivers.length && !idle.length}>⬇ {t("Export driver stats", "Exportar stats de choferes")}</button>
         </div>
       </div>
 
