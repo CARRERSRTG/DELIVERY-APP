@@ -55,6 +55,11 @@ interface Place {
   phone: string | null;
   rating: number | null;
   address: string | null;
+  website: string | null;
+  ratingCount: number | null;
+  mapsUri: string | null;
+  status: string | null;      // OPERATIONAL / CLOSED_TEMPORARILY / …
+  hours: string[] | null;     // weekday text lines
 }
 
 // ---- Google Places (New) — used when GOOGLE_MAPS_API_KEY is set. Far better
@@ -83,7 +88,7 @@ async function viaGoogle(key: string, category: string): Promise<Place[]> {
           headers: {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": key,
-            "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.formattedAddress,places.nationalPhoneNumber,places.rating",
+            "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.formattedAddress,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.websiteUri,places.googleMapsUri,places.businessStatus,places.regularOpeningHours",
           },
           body: JSON.stringify({
             textQuery,
@@ -108,6 +113,11 @@ async function viaGoogle(key: string, category: string): Promise<Place[]> {
             phone: (p.nationalPhoneNumber as string | undefined) ?? null,
             rating: typeof p.rating === "number" ? (p.rating as number) : null,
             address: (p.formattedAddress as string | undefined) ?? null,
+            website: (p.websiteUri as string | undefined) ?? null,
+            ratingCount: typeof p.userRatingCount === "number" ? (p.userRatingCount as number) : null,
+            mapsUri: (p.googleMapsUri as string | undefined) ?? null,
+            status: (p.businessStatus as string | undefined) ?? null,
+            hours: ((p.regularOpeningHours as { weekdayDescriptions?: string[] } | undefined)?.weekdayDescriptions) ?? null,
           });
         }
       } catch { /* skip this query/center */ }
@@ -170,6 +180,11 @@ export async function GET(req: Request) {
           phone: tags.phone ?? tags["contact:phone"] ?? null,
           rating: null,
           address: street || null,
+          website: tags.website ?? tags["contact:website"] ?? null,
+          ratingCount: null,
+          mapsUri: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+          status: null,
+          hours: tags.opening_hours ? [tags.opening_hours] : null,
         } as Place;
       })
       .filter((p): p is Place => p !== null && p.name !== "(unnamed)");

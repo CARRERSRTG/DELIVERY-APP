@@ -26,6 +26,11 @@ interface Place {
   phone: string | null;
   rating: number | null;
   address: string | null;
+  website?: string | null;
+  ratingCount?: number | null;
+  mapsUri?: string | null;
+  status?: string | null;
+  hours?: string[] | null;
   /** Which query layer this came from (flooring / bigbox / hardware). */
   cat?: string;
 }
@@ -71,6 +76,7 @@ export default function MarketPage() {
   const [q, setQ] = useState("");
   const [view, setView] = useState<"list" | "city" | "type">("list");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "name", dir: 1 });
+  const [selId, setSelId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -137,6 +143,7 @@ export default function MarketPage() {
   }, [classed]);
 
   const shown = useMemo(() => classed.filter((p) => show[p.klass]), [classed, show]);
+  const selected = useMemo(() => classed.find((p) => p.id === selId) ?? null, [classed, selId]);
 
   // Table: search across name/city/address/phone, then sort.
   const filtered = useMemo(() => {
@@ -184,7 +191,7 @@ export default function MarketPage() {
 
   // A reusable row for the tables (list + grouped views).
   const Row = ({ p }: { p: Place & { klass: Klass } }) => (
-    <tr>
+    <tr className={"clickable" + (selId === p.id ? " row-selected" : "")} style={{ cursor: "pointer" }} onClick={() => setSelId(p.id)}>
       <td style={{ fontWeight: 700 }}>
         <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: COLORS[p.klass], marginRight: 7, verticalAlign: "middle" }} />
         {p.name}
@@ -234,8 +241,49 @@ export default function MarketPage() {
       {err && <div className="card" style={{ borderColor: "var(--red)" }}>{err}</div>}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <LeafletMap points={points} fitTo={fitTo.length ? fitTo : undefined} height={520} />
+        <LeafletMap points={points} fitTo={fitTo.length ? fitTo : undefined} height={520} onPointClick={(id) => setSelId(id)} />
       </div>
+
+      {selected && (
+        <div className="card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0 }}>
+              <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: COLORS[selected.klass], marginRight: 8, verticalAlign: "middle", boxShadow: "0 0 0 1px var(--line)" }} />
+              {selected.name}
+            </h2>
+            <button className="btn btn-ghost btn-sm" onClick={() => setSelId(null)}>✕ {t("Close", "Cerrar")}</button>
+          </div>
+          <div style={{ marginTop: 4 }}>
+            <span className="sema" style={{ background: COLORS[selected.klass], color: "#fff" }}>{t(KLASS_LABEL[selected.klass].en, KLASS_LABEL[selected.klass].es)}</span>
+            {selected.status && selected.status !== "OPERATIONAL" && (
+              <span className="sema" style={{ background: "var(--red)", color: "#fff", marginLeft: 6 }}>
+                {selected.status === "CLOSED_TEMPORARILY" ? t("Temporarily closed", "Cerrado temporalmente") : t("Closed", "Cerrado")}
+              </span>
+            )}
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            {selected.rating != null && (
+              <div className="detail-row"><span className="dk">{t("Rating", "Calificación")}</span>
+                <span className="dv"><b>★ {selected.rating.toFixed(1)}</b>{selected.ratingCount != null ? ` (${selected.ratingCount} ${t("reviews", "reseñas")})` : ""}</span></div>
+            )}
+            <div className="detail-row"><span className="dk">{t("Address", "Dirección")}</span><span className="dv">{selected.address || selected.city || "—"}</span></div>
+            {selected.city && <div className="detail-row"><span className="dk">{t("City", "Ciudad")}</span><span className="dv">{selected.city}</span></div>}
+            {selected.phone && <div className="detail-row"><span className="dk">{t("Phone", "Teléfono")}</span><span className="dv"><a className="link-tel" href={`tel:${selected.phone}`}>{selected.phone}</a></span></div>}
+            {selected.website && <div className="detail-row"><span className="dk">{t("Website", "Sitio web")}</span><span className="dv" style={{ overflow: "hidden", textOverflow: "ellipsis" }}><a href={selected.website} target="_blank" rel="noopener noreferrer">{selected.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a></span></div>}
+            {selected.hours && selected.hours.length > 0 && (
+              <div className="detail-row"><span className="dk">{t("Hours", "Horario")}</span>
+                <span className="dv" style={{ display: "grid", gap: 1 }}>{selected.hours.map((h, i) => <span key={i} style={{ fontSize: 12.5 }}>{h}</span>)}</span></div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            {selected.phone && <a className="btn btn-primary btn-sm" href={`tel:${selected.phone}`}>📞 {t("Call", "Llamar")}</a>}
+            <a className="btn btn-ghost btn-sm" href={selected.mapsUri || `https://www.google.com/maps/search/?api=1&query=${selected.lat},${selected.lng}`} target="_blank" rel="noopener noreferrer">🧭 {t("Directions", "Cómo llegar")}</a>
+            {selected.website && <a className="btn btn-ghost btn-sm" href={selected.website} target="_blank" rel="noopener noreferrer">🌐 {t("Website", "Sitio")}</a>}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
