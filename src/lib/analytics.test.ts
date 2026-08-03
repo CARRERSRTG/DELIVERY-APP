@@ -194,6 +194,19 @@ describe("driverShiftKpis", () => {
     expect(k.open).toBe(false);
   });
 
+  it("counts the drive-to-pickup leg (departed_at) as active when present", () => {
+    // 8h clocked; departed 08:30, delivered 11:00 → 2.5h active (vs 2h from pickup).
+    const shifts = [mkShift()];
+    const deliveries = [mkDelivery({
+      assigned_driver: "Alex", stage: "delivered",
+      departed_at: "2026-08-01T08:30:00.000Z",
+      pickup_gps_at: "2026-08-01T09:00:00.000Z", pod_delivered_at: "2026-08-01T11:00:00.000Z",
+    })];
+    const [k] = driverShiftKpis(shifts, deliveries, nameOf);
+    expect(k.activeMin).toBe(150); // 2h30 from departed_at, not 2h from pickup
+    expect(k.idleMin).toBe(8 * 60 - 150);
+  });
+
   it("open shift counts up to `now` and is flagged", () => {
     const now = new Date("2026-08-01T10:00:00.000Z").getTime();
     const shifts = [mkShift({ ended_at: null })]; // started 08:00, now 10:00 → 2h

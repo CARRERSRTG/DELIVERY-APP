@@ -284,8 +284,8 @@ export default function DashboardPage() {
             <h2>⏱️ {t("Driver idle time", "Tiempo inactivo de choferes")}</h2>
             <p className="hint" style={{ marginTop: -6, marginBottom: 10 }}>
               {t(
-                "On-clock time from the shift clock, minus time actively out on a delivery (pickup → delivered).",
-                "Tiempo en turno del reloj, menos el tiempo activo en reparto (recogida → entregado).",
+                "On-clock time from the shift clock, minus time actively out on a delivery (from departure/pickup → delivered).",
+                "Tiempo en turno del reloj, menos el tiempo activo en reparto (desde salida/recogida → entregado).",
               )}
             </p>
             {idle.length === 0 ? (

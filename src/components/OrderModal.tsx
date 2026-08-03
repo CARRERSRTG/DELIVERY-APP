@@ -384,6 +384,17 @@ export function OrderModal({
     if (ok) { notify(t(`Moved to ${stageLabel(to, lang)}`, `Movido a ${stageLabel(to, lang)}`)); onClose(); }
   };
 
+  // Driver sets off toward the pickup — stamps departed_at (drive-to-pickup
+  // leg) without changing the stage. Feeds the idle-time KPI. Keeps the dialog
+  // open so they can then tap "Pick up" when they've loaded.
+  const depart = async () => {
+    if (!existing) return;
+    setBusy(true);
+    const ok = await updateDelivery(existing.id, { departed_at: new Date().toISOString() });
+    setBusy(false);
+    if (ok) notify(t("En route to pickup", "En camino a recoger"));
+  };
+
   // Warehouse confirms the real pallet count as part of marking the order
   // ready — actual_pallets is stamped in the same write as the stage move.
   const confirmReady = async () => {
@@ -417,7 +428,7 @@ export function OrderModal({
       // Remainder: same order number with the next letter, re-staged for a
       // new trip with no driver yet.
       const { id: _id, created_at: _ca, updated_at: _ua, created_by: _cb, route_seq: _rs,
-        pickup_lat: _plat, pickup_lng: _plng, pickup_gps_at: _pgps, ...src } = existing;
+        pickup_lat: _plat, pickup_lng: _plng, pickup_gps_at: _pgps, departed_at: _dep, ...src } = existing;
       const rowB = await addDelivery({
         ...src,
         order_no: existing.order_no,
@@ -1269,6 +1280,8 @@ export function OrderModal({
               onRequestPickup={() => { setPickupPallets(String(existing!.actual_pallets ?? existing!.est_pallets ?? "")); setShowPickupConfirm(true); }}
               onConfirmPickup={confirmPickup}
               onCancelPickup={() => setShowPickupConfirm(false)}
+              departedAt={existing.departed_at}
+              onDepart={depart}
             />
           ) : null}
         </div>
@@ -1283,6 +1296,7 @@ function StageActions({
   showCancel, setShowCancel, cancelReason, onPrint, onRequestDeliver, podOpen,
   readyConfirmOpen, onRequestReady, onConfirmReady, onCancelReady,
   pickupConfirmOpen, onRequestPickup, onConfirmPickup, onCancelPickup,
+  departedAt, onDepart,
 }: {
   me: Profile; stage: Stage; busy: boolean;
   onEdit: () => void;
@@ -1292,6 +1306,7 @@ function StageActions({
   onPrint: () => void; onRequestDeliver: () => void; podOpen: boolean;
   readyConfirmOpen: boolean; onRequestReady: () => void; onConfirmReady: () => void; onCancelReady: () => void;
   pickupConfirmOpen: boolean; onRequestPickup: () => void; onConfirmPickup: () => void; onCancelPickup: () => void;
+  departedAt: string | null; onDepart: () => void;
 }) {
   const { t } = usePrefs();
   const btns: React.ReactNode[] = [];
@@ -1347,6 +1362,16 @@ function StageActions({
   // Driver (and warehouse/admin): pick up a ready order, then mark it delivered.
   if (canDeliver(me) && stage === "ready") {
     if (!pickupConfirmOpen) {
+      // Drive-to-pickup: stamp "on my way" so the drive counts as active time.
+      if (!departedAt) {
+        btns.push(<button key="depart" className="btn btn-ghost" onClick={onDepart} disabled={busy}>🚗 {t("Start drive to pickup", "Iniciar viaje a recoger")}</button>);
+      } else {
+        btns.push(
+          <span key="enroute" className="hint" style={{ alignSelf: "center" }}>
+            🚗 {t("En route since", "En camino desde")} {new Date(departedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </span>,
+        );
+      }
       btns.push(<button key="pickup" className="btn btn-primary" onClick={onRequestPickup} disabled={busy}>🚚 {t("Pick up — out for delivery", "Recoger — en reparto")}</button>);
     } else {
       btns.push(<button key="pickupback" className="btn btn-ghost" onClick={onCancelPickup} disabled={busy}>{t("Back", "Atrás")}</button>);

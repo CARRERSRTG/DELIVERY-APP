@@ -44,6 +44,7 @@ export function mkDelivery(over: Partial<Delivery> = {}): Delivery {
     pod_received_by: null,
     pod_signature: null,
     pod_delivered_at: null,
+    departed_at: null,
     photos: null,
     pickup_lat: null,
     pickup_lng: null,

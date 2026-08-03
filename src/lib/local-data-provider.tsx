@@ -305,7 +305,7 @@ function seedRow(n: number): Delivery {
     delivery_name: null, delivery_address: null,
     delivery_windows: null, account: null, contact: null, delivery_phone: null, delivery_notes: null,
     route_miles: null, route_duration: null, route_provider: null, route_traffic: null,
-    pod_received_by: null, pod_signature: null, pod_delivered_at: null, photos: null,
+    pod_received_by: null, pod_signature: null, pod_delivered_at: null, departed_at: null, photos: null,
     pickup_lat: null, pickup_lng: null, pickup_gps_at: null,
     pod_lat: null, pod_lng: null, pod_accuracy: null,
     delivery_lat: null, delivery_lng: null, delivery_pin_source: null,

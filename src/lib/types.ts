@@ -96,6 +96,9 @@ export interface Delivery {
    * the truck or the goods dropped at the door. */
   photos: string[] | null;
 
+  // When the driver set off toward the pickup (drive-to-pickup leg). Used as
+  // the start of "active" time for the idle-time KPI when present.
+  departed_at: string | null;
   // GPS stamps — where the driver actually was at each milestone. Captured from
   // the device at the moment of the action (no continuous tracking).
   pickup_lat: number | null;

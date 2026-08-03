@@ -228,11 +228,15 @@ export function driverShiftKpis(
     if (!s.ended_at) c.open = true;
     clock.set(name, c);
   }
-  // Active (working) time: pickup → delivered on each order that has both stamps.
+  // Active (working) time on each delivered order: from when the driver set off
+  // toward the pickup (departed_at) — or, failing that, the pickup stamp — up to
+  // delivery. Using departed_at counts the drive-to-pickup leg as work.
   const active = new Map<string, number>();
   for (const d of deliveries) {
-    if (!d.assigned_driver || !d.pickup_gps_at || !d.pod_delivered_at) continue;
-    const span = new Date(d.pod_delivered_at).getTime() - new Date(d.pickup_gps_at).getTime();
+    if (!d.assigned_driver || !d.pod_delivered_at) continue;
+    const start = d.departed_at ?? d.pickup_gps_at;
+    if (!start) continue;
+    const span = new Date(d.pod_delivered_at).getTime() - new Date(start).getTime();
     if (span > 0) active.set(d.assigned_driver, (active.get(d.assigned_driver) ?? 0) + span);
   }
   const names = new Set<string>([...clock.keys(), ...active.keys()]);
