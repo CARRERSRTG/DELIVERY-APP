@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { LeafletMap, type MapPoint } from "@/components/LeafletMap";
+import { downloadCSV, toCSV } from "@/lib/utils";
 
 // ============================================================
 // Market Map — a live view of the flooring market across Hidalgo + Cameron
@@ -202,6 +203,22 @@ export default function MarketPage() {
   const toggleSort = (key: SortKey) =>
     setSort((s) => (s.key === key ? { key, dir: (s.dir === 1 ? -1 : 1) as 1 | -1 } : { key, dir: 1 }));
 
+  const exportCsv = () => {
+    const headers = ["Name", "Type", "City", "Rating", "Reviews", "Distance (mi)", "Phone", "Website", "Address"];
+    const rows = sorted.map((p) => [
+      p.name,
+      t(KLASS_LABEL[p.klass].en, KLASS_LABEL[p.klass].es),
+      p.city ?? "",
+      p.rating != null ? p.rating.toFixed(1) : "",
+      p.ratingCount != null ? p.ratingCount : "",
+      p.klass !== "rtg" && distById.get(p.id) ? distById.get(p.id)!.miles : "",
+      p.phone ?? "",
+      p.website ?? "",
+      p.address ?? "",
+    ]);
+    downloadCSV(`market_map_${new Date().toISOString().slice(0, 10)}.csv`, toCSV(headers, rows));
+  };
+
   const points: MapPoint[] = useMemo(
     () => shown.map((p) => ({
       id: p.id,
@@ -332,6 +349,9 @@ export default function MarketPage() {
             <button className={"toggle-btn " + (view === "city" ? "on" : "")} onClick={() => setView("city")}>{t("By city", "Por ciudad")}</button>
             <button className={"toggle-btn " + (view === "type" ? "on" : "")} onClick={() => setView("type")}>{t("By type", "Por tipo")}</button>
           </div>
+          <button className="btn btn-ghost btn-sm" onClick={exportCsv} disabled={!sorted.length} title={t("Export the filtered list to CSV", "Exportar la lista filtrada a CSV")}>
+            ⬇ {t("Export CSV", "Exportar CSV")}
+          </button>
         </div>
 
         {loading && filtered.length === 0 ? (
