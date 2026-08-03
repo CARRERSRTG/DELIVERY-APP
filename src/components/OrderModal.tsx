@@ -372,8 +372,12 @@ export function OrderModal({
     // Stamp the driver's location when they collect the load (never blocks).
     let extra: Partial<Delivery> | undefined;
     if (to === "picked_up") {
+      // Always stamp the pickup time (feeds the pickup/transit KPIs); add GPS
+      // coords too when the driver allows location, but never require them.
       const gps = await captureLocation();
-      if (gps) extra = { pickup_lat: gps.lat, pickup_lng: gps.lng, pickup_gps_at: gps.at };
+      extra = gps
+        ? { pickup_lat: gps.lat, pickup_lng: gps.lng, pickup_gps_at: gps.at }
+        : { pickup_gps_at: new Date().toISOString() };
     }
     const ok = await setStage(existing.id, to, note, extra);
     setBusy(false);
@@ -403,7 +407,9 @@ export function OrderModal({
     if (total > 0 && n > total) { notify(t(`Only ${total} pallets on this order.`, `Esta orden solo tiene ${total} tarimas.`)); return; }
     setBusy(true);
     const gps = await captureLocation();
-    const gpsExtra = gps ? { pickup_lat: gps.lat, pickup_lng: gps.lng, pickup_gps_at: gps.at } : {};
+    const gpsExtra = gps
+      ? { pickup_lat: gps.lat, pickup_lng: gps.lng, pickup_gps_at: gps.at }
+      : { pickup_gps_at: new Date().toISOString() };
     if (total > 0 && n < total) {
       const mySuffix = existing.order_suffix ?? "a";
       const nextSuffix = String.fromCharCode(mySuffix.charCodeAt(0) + 1);
@@ -625,6 +631,23 @@ export function OrderModal({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={justDelivered.pod_signature} alt="signature" style={{ maxHeight: 110, background: "#fff", border: "1px solid var(--line)", borderRadius: 8, margin: "6px auto", display: "block" }} />
           )}
+          {/* Rate the delivery on the spot — feeds the CSAT KPI. */}
+          <div style={{ margin: "12px 0" }}>
+            <div className="hint" style={{ marginBottom: 4 }}>⭐ {t("How did the delivery go? (optional)", "¿Cómo estuvo la entrega? (opcional)")}</div>
+            <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  title={`${n}`}
+                  onClick={() => { setCsatRating(n); updateDelivery(justDelivered.id, { csat_rating: n }); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 30, lineHeight: 1, padding: 0, color: (csatRating ?? 0) >= n ? "var(--amber)" : "var(--line)" }}
+                >★</button>
+              ))}
+              {csatRating != null && (
+                <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={() => { setCsatRating(null); updateDelivery(justDelivered.id, { csat_rating: null }); }}>{t("Clear", "Borrar")}</button>
+              )}
+            </div>
+          </div>
           <p className="hint" style={{ marginBottom: 16 }}>{t("Print the delivery slip, then close.", "Imprima el comprobante de entrega y luego cierre.")}</p>
           <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
             <button className="btn btn-primary" onClick={() => printDeliverySlip(justDelivered, settings, users, lang)}>🖨 {t("Print slip", "Imprimir comprobante")}</button>
