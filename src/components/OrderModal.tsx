@@ -395,6 +395,16 @@ export function OrderModal({
     if (ok) notify(t("En route to pickup", "En camino a recoger"));
   };
 
+  // Driver reaches the delivery stop — stamps arrived_at without changing the
+  // stage. Splits transit into driving vs dwell/service time at the stop.
+  const arrive = async () => {
+    if (!existing) return;
+    setBusy(true);
+    const ok = await updateDelivery(existing.id, { arrived_at: new Date().toISOString() });
+    setBusy(false);
+    if (ok) notify(t("Arrived at stop", "Llegó a la parada"));
+  };
+
   // Warehouse confirms the real pallet count as part of marking the order
   // ready — actual_pallets is stamped in the same write as the stage move.
   const confirmReady = async () => {
@@ -1282,6 +1292,8 @@ export function OrderModal({
               onCancelPickup={() => setShowPickupConfirm(false)}
               departedAt={existing.departed_at}
               onDepart={depart}
+              arrivedAt={existing.arrived_at}
+              onArrive={arrive}
             />
           ) : null}
         </div>
@@ -1296,7 +1308,7 @@ function StageActions({
   showCancel, setShowCancel, cancelReason, onPrint, onRequestDeliver, podOpen,
   readyConfirmOpen, onRequestReady, onConfirmReady, onCancelReady,
   pickupConfirmOpen, onRequestPickup, onConfirmPickup, onCancelPickup,
-  departedAt, onDepart,
+  departedAt, onDepart, arrivedAt, onArrive,
 }: {
   me: Profile; stage: Stage; busy: boolean;
   onEdit: () => void;
@@ -1307,6 +1319,7 @@ function StageActions({
   readyConfirmOpen: boolean; onRequestReady: () => void; onConfirmReady: () => void; onCancelReady: () => void;
   pickupConfirmOpen: boolean; onRequestPickup: () => void; onConfirmPickup: () => void; onCancelPickup: () => void;
   departedAt: string | null; onDepart: () => void;
+  arrivedAt: string | null; onArrive: () => void;
 }) {
   const { t } = usePrefs();
   const btns: React.ReactNode[] = [];
@@ -1379,6 +1392,17 @@ function StageActions({
     }
   }
   if (canDeliver(me) && stage === "picked_up" && !podOpen) {
+    // Arrival: stamp when the driver reaches the stop, so transit splits into
+    // driving vs dwell/service time. Optional — delivery works without it.
+    if (!arrivedAt) {
+      btns.push(<button key="arrive" className="btn btn-ghost" onClick={onArrive} disabled={busy}>🚦 {t("Arrived at stop", "Llegué a la parada")}</button>);
+    } else {
+      btns.push(
+        <span key="arrived" className="hint" style={{ alignSelf: "center" }}>
+          🚦 {t("Arrived", "Llegó")} {new Date(arrivedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </span>,
+      );
+    }
     btns.push(<button key="deliv" className="btn btn-green" onClick={onRequestDeliver} disabled={busy}>{t("Mark delivered", "Marcar entregado")}</button>);
   }
 

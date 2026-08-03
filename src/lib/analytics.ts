@@ -199,9 +199,11 @@ export function driverKpis(deliveries: Delivery[], capacityOf: (driver: string) 
 export interface DriverShiftKpi {
   driver: string;                 // driver's name
   onClockMin: number;             // total minutes clocked in
-  activeMin: number;              // minutes actively working a delivery (pickup → delivered)
+  activeMin: number;              // minutes actively working a delivery (departure/pickup → delivered)
   idleMin: number;                // on-clock minus active, floored at 0
   activePct: number | null;       // active ÷ on-clock
+  delivered: number;              // deliveries completed in the window
+  perActiveHr: number | null;     // deliveries ÷ active hours (throughput)
   open: boolean;                  // currently on the clock
 }
 
@@ -232,8 +234,10 @@ export function driverShiftKpis(
   // toward the pickup (departed_at) — or, failing that, the pickup stamp — up to
   // delivery. Using departed_at counts the drive-to-pickup leg as work.
   const active = new Map<string, number>();
+  const delivered = new Map<string, number>();
   for (const d of deliveries) {
     if (!d.assigned_driver || !d.pod_delivered_at) continue;
+    delivered.set(d.assigned_driver, (delivered.get(d.assigned_driver) ?? 0) + 1);
     const start = d.departed_at ?? d.pickup_gps_at;
     if (!start) continue;
     const span = new Date(d.pod_delivered_at).getTime() - new Date(start).getTime();
@@ -246,16 +250,85 @@ export function driverShiftKpis(
       // Active can't exceed on-clock (some work may predate a clock-in).
       const act = onClock > 0 ? Math.min(active.get(driver) ?? 0, onClock) : (active.get(driver) ?? 0);
       const idle = Math.max(0, onClock - act);
+      const activeMin = Math.round(act / 60_000);
+      const del = delivered.get(driver) ?? 0;
       return {
         driver,
         onClockMin: Math.round(onClock / 60_000),
-        activeMin: Math.round(act / 60_000),
+        activeMin,
         idleMin: Math.round(idle / 60_000),
         activePct: onClock > 0 ? Math.round((act / onClock) * 100) : null,
+        delivered: del,
+        perActiveHr: activeMin > 0 ? Math.round((del / (activeMin / 60)) * 10) / 10 : null,
         open: clock.get(driver)?.open ?? false,
       };
     })
     .sort((a, b) => b.onClockMin - a.onClockMin);
+}
+
+export interface DriverQualityKpi {
+  driver: string;
+  orders: number;                     // active (non-cancelled) orders
+  delivered: number;
+  avgDriveToPickupMin: number | null; // departed → pickup
+  avgTransitMin: number | null;       // pickup → delivered
+  avgDwellMin: number | null;         // arrived → delivered (service time at the stop)
+  redeliveries: number;               // orders that are a redelivery of a failed attempt
+  redeliveryPct: number | null;       // redeliveries ÷ orders
+  podCompliancePct: number | null;    // delivered with a signature or photo ÷ delivered
+  csatResponsePct: number | null;     // delivered that got rated ÷ delivered
+  shortLoads: number;                 // loaded fewer pallets than ordered
+}
+
+/** Per-driver timing + quality KPIs (Tier 1). Cancelled/rejected excluded.
+ * Timing averages only count orders that carry the needed stamps. */
+export function driverQualityKpis(deliveries: Delivery[]): DriverQualityKpi[] {
+  interface Acc {
+    orders: number; delivered: number;
+    driveSum: number; driveN: number;
+    transitSum: number; transitN: number;
+    dwellSum: number; dwellN: number;
+    redeliveries: number; podOk: number; rated: number; shortLoads: number;
+  }
+  const zero = (): Acc => ({ orders: 0, delivered: 0, driveSum: 0, driveN: 0, transitSum: 0, transitN: 0, dwellSum: 0, dwellN: 0, redeliveries: 0, podOk: 0, rated: 0, shortLoads: 0 });
+  const span = (from: string | null, to: string | null) => (from && to ? new Date(to).getTime() - new Date(from).getTime() : NaN);
+  const map = new Map<string, Acc>();
+  for (const d of deliveries) {
+    if (!d.assigned_driver) continue;
+    if (d.stage === "canceled" || d.stage === "rejected") continue;
+    const a = map.get(d.assigned_driver) ?? zero();
+    a.orders++;
+    if (d.redelivery_of) a.redeliveries++;
+    if (d.actual_pallets != null && d.est_pallets != null && d.actual_pallets < d.est_pallets) a.shortLoads++;
+    const drive = span(d.departed_at, d.pickup_gps_at);
+    if (drive > 0) { a.driveSum += drive; a.driveN++; }
+    if (d.stage === "delivered") {
+      a.delivered++;
+      const transit = span(d.pickup_gps_at, d.pod_delivered_at);
+      if (transit > 0) { a.transitSum += transit; a.transitN++; }
+      const dwell = span(d.arrived_at, d.pod_delivered_at);
+      if (dwell > 0) { a.dwellSum += dwell; a.dwellN++; }
+      if (d.pod_signature || (d.photos?.length ?? 0) > 0) a.podOk++;
+      if (d.csat_rating != null) a.rated++;
+    }
+    map.set(d.assigned_driver, a);
+  }
+  const avgMin = (sum: number, n: number) => (n ? Math.round(sum / n / 60_000) : null);
+  return [...map.entries()]
+    .map(([driver, a]) => ({
+      driver,
+      orders: a.orders,
+      delivered: a.delivered,
+      avgDriveToPickupMin: avgMin(a.driveSum, a.driveN),
+      avgTransitMin: avgMin(a.transitSum, a.transitN),
+      avgDwellMin: avgMin(a.dwellSum, a.dwellN),
+      redeliveries: a.redeliveries,
+      redeliveryPct: a.orders ? Math.round((a.redeliveries / a.orders) * 100) : null,
+      podCompliancePct: a.delivered ? Math.round((a.podOk / a.delivered) * 100) : null,
+      csatResponsePct: a.delivered ? Math.round((a.rated / a.delivered) * 100) : null,
+      shortLoads: a.shortLoads,
+    }))
+    .sort((x, y) => y.orders - x.orders);
 }
 
 export interface GroupStat { key: string; total: number; delivered: number; pallets: number; }

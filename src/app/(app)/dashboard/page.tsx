@@ -6,7 +6,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel, STAGES } from "@/lib/constants";
 import {
-  approvalTurnaroundMs, computeKpis, countByStage, driverKpis, driverShiftKpis,
+  approvalTurnaroundMs, computeKpis, countByStage, driverKpis, driverQualityKpis, driverShiftKpis,
   groupVolume, inDateRange, overdueOrders, salesRepStatsThisMonth,
 } from "@/lib/analytics";
 
@@ -88,6 +88,9 @@ export default function DashboardPage() {
     });
     return driverShiftKpis(shiftScoped, scoped, (id) => nameById.get(id));
   }, [shifts, users, scoped, from, to]);
+
+  // Timing + quality KPIs (Tier 1) over the scoped deliveries.
+  const quality = useMemo(() => driverQualityKpis(scoped), [scoped]);
 
   // Fleet roll-up across the drivers in range.
   const fleet = useMemo(() => {
@@ -300,6 +303,7 @@ export default function DashboardPage() {
                       <th>{t("Active", "Activo")}</th>
                       <th>{t("Idle", "Inactivo")}</th>
                       <th>{t("Active %", "% Activo")}</th>
+                      <th>{t("Deliv/hr", "Entr/h")}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -311,7 +315,53 @@ export default function DashboardPage() {
                         <td>{fmtDuration(d.activeMin * 60_000)}</td>
                         <td style={d.activePct != null && d.activePct < 50 ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{fmtDuration(d.idleMin * 60_000)}</td>
                         <td style={d.activePct != null && d.activePct < 50 ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{d.activePct == null ? "—" : `${d.activePct}%`}</td>
+                        <td>{d.perActiveHr == null ? "—" : d.perActiveHr}</td>
                         <td>{d.open && <span className="sema" style={{ background: "var(--green)", color: "#fff" }}>{t("On the clock", "En turno")}</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* ---------- Driver timing & quality (Tier 1) ---------- */}
+          <div className="card">
+            <h2>🎯 {t("Driver timing & quality", "Tiempos y calidad de choferes")}</h2>
+            <p className="hint" style={{ marginTop: -6, marginBottom: 10 }}>
+              {t(
+                "Leg times (from driver stamps), first-attempt success, proof-of-delivery capture, and rating response.",
+                "Tiempos por tramo (de marcas del chofer), éxito al primer intento, captura de comprobante y respuesta de calificación.",
+              )}
+            </p>
+            {quality.length === 0 ? (
+              <div className="empty">{t("No driver orders in this range.", "Sin órdenes de chofer en este rango.")}</div>
+            ) : (
+              <div className="tbl-scroll" style={{ border: "none" }}>
+                <table className="orders" style={{ minWidth: 780, fontVariantNumeric: "tabular-nums" }}>
+                  <thead>
+                    <tr>
+                      <th>{t("Driver", "Chofer")}</th>
+                      <th title={t("Departure → pickup", "Salida → recogida")}>{t("Drive→pickup", "A recoger")}</th>
+                      <th title={t("Pickup → delivered", "Recogida → entregado")}>{t("Transit", "Tránsito")}</th>
+                      <th title={t("Arrived → delivered (service time)", "Llegada → entregado (tiempo de servicio)")}>{t("Dwell", "En parada")}</th>
+                      <th title={t("Deliveries with a signature or photo", "Entregas con firma o foto")}>{t("POD %", "% Comp.")}</th>
+                      <th title={t("Deliveries that got a rating", "Entregas que recibieron calificación")}>{t("Rated %", "% Calif.")}</th>
+                      <th title={t("Second-attempt deliveries", "Entregas en segundo intento")}>{t("Redeliv.", "Reenvíos")}</th>
+                      <th title={t("Loaded fewer pallets than ordered", "Cargó menos tarimas de las pedidas")}>{t("Short loads", "Carga corta")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quality.map((d) => (
+                      <tr key={d.driver}>
+                        <td style={{ fontWeight: 700 }}>{d.driver}</td>
+                        <td>{d.avgDriveToPickupMin == null ? "—" : fmtDuration(d.avgDriveToPickupMin * 60_000)}</td>
+                        <td>{d.avgTransitMin == null ? "—" : fmtDuration(d.avgTransitMin * 60_000)}</td>
+                        <td>{d.avgDwellMin == null ? "—" : fmtDuration(d.avgDwellMin * 60_000)}</td>
+                        <td style={d.podCompliancePct != null && d.podCompliancePct < 90 ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{d.podCompliancePct == null ? "—" : `${d.podCompliancePct}%`}</td>
+                        <td>{d.csatResponsePct == null ? "—" : `${d.csatResponsePct}%`}</td>
+                        <td style={d.redeliveries ? { color: "var(--red)", fontWeight: 700 } : undefined}>{d.redeliveries || "—"}{d.redeliveryPct ? ` (${d.redeliveryPct}%)` : ""}</td>
+                        <td style={d.shortLoads ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{d.shortLoads || "—"}</td>
                       </tr>
                     ))}
                   </tbody>

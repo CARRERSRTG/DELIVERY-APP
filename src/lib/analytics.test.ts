@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeKpis, driverStats, driverKpis, driverShiftKpis, groupVolume, overdueOrders, inDateRange, approvalTurnaroundMs } from "@/lib/analytics";
+import { computeKpis, driverStats, driverKpis, driverShiftKpis, driverQualityKpis, groupVolume, overdueOrders, inDateRange, approvalTurnaroundMs } from "@/lib/analytics";
 import { mkDelivery } from "@/lib/__fixtures";
 import type { DriverShift, OrderEvent } from "@/lib/types";
 
@@ -216,6 +216,19 @@ describe("driverShiftKpis", () => {
     expect(k.idleMin).toBe(2 * 60); // no deliveries → all idle
   });
 
+  it("computes deliveries per active hour", () => {
+    // 8h clocked; 4h active over 2 deliveries → 0.5 deliveries/active-hr.
+    const shifts = [mkShift()];
+    const deliveries = [
+      mkDelivery({ assigned_driver: "Alex", stage: "delivered", pickup_gps_at: "2026-08-01T09:00:00.000Z", pod_delivered_at: "2026-08-01T11:00:00.000Z" }),
+      mkDelivery({ assigned_driver: "Alex", stage: "delivered", pickup_gps_at: "2026-08-01T12:00:00.000Z", pod_delivered_at: "2026-08-01T14:00:00.000Z" }),
+    ];
+    const [k] = driverShiftKpis(shifts, deliveries, nameOf);
+    expect(k.delivered).toBe(2);
+    expect(k.activeMin).toBe(4 * 60);
+    expect(k.perActiveHr).toBe(0.5);
+  });
+
   it("caps active at on-clock time and ignores unknown drivers", () => {
     const shifts = [mkShift(), mkShift({ id: "s2", driver_id: "ghost" })];
     const deliveries = [mkDelivery({
@@ -227,5 +240,44 @@ describe("driverShiftKpis", () => {
     expect(rows[0].activeMin).toBe(8 * 60); // capped at on-clock
     expect(rows[0].idleMin).toBe(0);
     expect(rows[0].activePct).toBe(100);
+  });
+});
+
+describe("driverQualityKpis", () => {
+  it("computes leg times, redelivery, POD compliance, rating response, short loads", () => {
+    const dels = [
+      // Full success: 30m drive, 90m transit (45m dwell), signed, rated, full load.
+      mkDelivery({
+        assigned_driver: "Sam", stage: "delivered", est_pallets: 6, actual_pallets: 6,
+        departed_at: "2026-08-01T08:00:00.000Z", pickup_gps_at: "2026-08-01T08:30:00.000Z",
+        arrived_at: "2026-08-01T09:15:00.000Z", pod_delivered_at: "2026-08-01T10:00:00.000Z",
+        pod_signature: "sig", csat_rating: 5,
+      }),
+      // Redelivery, short load, no POD, unrated.
+      mkDelivery({
+        assigned_driver: "Sam", stage: "delivered", est_pallets: 6, actual_pallets: 4,
+        redelivery_of: "old-1",
+      }),
+      // Cancelled — excluded entirely.
+      mkDelivery({ assigned_driver: "Sam", stage: "canceled" }),
+    ];
+    const [k] = driverQualityKpis(dels);
+    expect(k.orders).toBe(2);              // cancelled excluded
+    expect(k.delivered).toBe(2);
+    expect(k.avgDriveToPickupMin).toBe(30);
+    expect(k.avgTransitMin).toBe(90);      // only the first has both stamps
+    expect(k.avgDwellMin).toBe(45);        // arrived → delivered
+    expect(k.redeliveries).toBe(1);
+    expect(k.redeliveryPct).toBe(50);
+    expect(k.podCompliancePct).toBe(50);   // 1 of 2 delivered signed
+    expect(k.csatResponsePct).toBe(50);    // 1 of 2 rated
+    expect(k.shortLoads).toBe(1);          // 4 < 6 pallets
+  });
+
+  it("counts a photo (no signature) as POD compliant", () => {
+    const [k] = driverQualityKpis([
+      mkDelivery({ assigned_driver: "Sam", stage: "delivered", photos: ["p1"] }),
+    ]);
+    expect(k.podCompliancePct).toBe(100);
   });
 });
