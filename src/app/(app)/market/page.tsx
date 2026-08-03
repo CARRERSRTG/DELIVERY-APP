@@ -120,10 +120,16 @@ export default function MarketPage() {
     return () => { cancelled = true; };
   }, [settings.stores]);
 
-  const classed = useMemo(
-    () => [...storePlaces, ...places].map((p) => ({ ...p, klass: classify(p) })),
-    [storePlaces, places],
-  );
+  const classed = useMemo(() => {
+    // If the live source already returned an RTG location near one of our own
+    // stores, drop the store overlay there to avoid a duplicate blue pin.
+    const liveRtg = places.filter((p) => p.name.toLowerCase().includes("rodriguez tile"));
+    const merged = [...storePlaces, ...places].filter((p) =>
+      !p.id.startsWith("store:") ||
+      !liveRtg.some((r) => Math.abs(r.lat - p.lat) < 0.008 && Math.abs(r.lng - p.lng) < 0.008),
+    );
+    return merged.map((p) => ({ ...p, klass: classify(p) }));
+  }, [storePlaces, places]);
   const counts = useMemo(() => {
     const c: Record<Klass, number> = { rtg: 0, competitor: 0, bigbox: 0, hardware: 0 };
     for (const p of classed) c[p.klass]++;
