@@ -248,6 +248,9 @@ alter table public.settings
 alter table public.deliveries
   add column if not exists csat_rating  integer,
   add column if not exists csat_comment text;
+-- 023: Market Map prospect CRM
+alter table public.settings
+  add column if not exists prospect_status jsonb not null default '{}'::jsonb;
 
 -- ---------- 022: driver availability ----------
 create table if not exists public.driver_availability (

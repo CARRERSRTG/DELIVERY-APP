@@ -244,4 +244,13 @@ export interface Settings {
   fleet_mpg?: number | null;
   /** Flat overhead cost charged per delivery/stop, in $. */
   cost_per_delivery?: number | null;
+
+  /** Market Map prospect CRM — status per external place id (Google/OSM).
+   * A lightweight sales tracker layered over the live places. */
+  prospect_status?: Record<string, {
+    status: "contacted" | "interested" | "partner" | "not_interested";
+    note?: string | null;
+    updated_at?: string;
+    updated_by?: string | null;
+  }>;
 }

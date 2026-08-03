@@ -62,6 +62,15 @@ const KLASS_LABEL: Record<Klass, { en: string; es: string }> = {
 };
 const KLASS_ORDER: Klass[] = ["rtg", "competitor", "bigbox", "hardware"];
 
+type Status = "contacted" | "interested" | "partner" | "not_interested";
+const STATUS_META: Record<Status, { en: string; es: string; color: string }> = {
+  contacted: { en: "Contacted", es: "Contactado", color: "#6b7686" },
+  interested: { en: "Interested", es: "Interesado", color: "#e9a13b" },
+  partner: { en: "Partner", es: "Socio", color: "#1f9d61" },
+  not_interested: { en: "Not interested", es: "No interesado", color: "#d64545" },
+};
+const STATUS_ORDER: Status[] = ["contacted", "interested", "partner", "not_interested"];
+
 function classify(p: Place): Klass {
   const n = p.name.toLowerCase();
   const b = (p.brand ?? "").toLowerCase();
@@ -74,7 +83,7 @@ function classify(p: Place): Klass {
 }
 
 export default function MarketPage() {
-  const { me, settings } = useData();
+  const { me, settings, saveSettings } = useData();
   const { t } = usePrefs();
   const [places, setPlaces] = useState<Place[]>([]);
   // The company's own stores are Rodriguez Tile Group — always shown in blue,
@@ -87,6 +96,7 @@ export default function MarketPage() {
   const [view, setView] = useState<"list" | "city" | "type">("list");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "name", dir: 1 });
   const [selId, setSelId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "tagged" | Status>("all");
 
   const load = async () => {
     setLoading(true);
@@ -174,14 +184,21 @@ export default function MarketPage() {
   // Table: search across name/city/address/phone, then sort.
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return shown;
-    return shown.filter((p) =>
-      p.name.toLowerCase().includes(needle) ||
-      (p.city || "").toLowerCase().includes(needle) ||
-      (p.address || "").toLowerCase().includes(needle) ||
-      (p.phone || "").toLowerCase().includes(needle),
-    );
-  }, [shown, q]);
+    const ps = settings.prospect_status ?? {};
+    return shown.filter((p) => {
+      if (statusFilter !== "all") {
+        const st = ps[p.id]?.status;
+        if (statusFilter === "tagged" ? !st : st !== statusFilter) return false;
+      }
+      if (!needle) return true;
+      return (
+        p.name.toLowerCase().includes(needle) ||
+        (p.city || "").toLowerCase().includes(needle) ||
+        (p.address || "").toLowerCase().includes(needle) ||
+        (p.phone || "").toLowerCase().includes(needle)
+      );
+    });
+  }, [shown, q, statusFilter, settings.prospect_status]);
 
   const sorted = useMemo(() => {
     const { key, dir } = sort;
@@ -203,11 +220,28 @@ export default function MarketPage() {
   const toggleSort = (key: SortKey) =>
     setSort((s) => (s.key === key ? { key, dir: (s.dir === 1 ? -1 : 1) as 1 | -1 } : { key, dir: 1 }));
 
+  const prospects = settings.prospect_status ?? {};
+  const setStatus = (id: string, s: Status | "") => {
+    const next = { ...prospects };
+    if (!s) delete next[id];
+    else next[id] = { status: s, note: next[id]?.note ?? null, updated_at: new Date().toISOString(), updated_by: me?.id ?? null };
+    saveSettings({ prospect_status: next });
+  };
+  const setNote = (id: string, note: string) => {
+    const trimmed = note.trim() || null;
+    const cur = prospects[id];
+    if (!cur && !trimmed) return;
+    saveSettings({ prospect_status: { ...prospects, [id]: { status: cur?.status ?? "contacted", note: trimmed, updated_at: new Date().toISOString(), updated_by: me?.id ?? null } } });
+  };
+
   const exportCsv = () => {
-    const headers = ["Name", "Type", "City", "Rating", "Reviews", "Distance (mi)", "Phone", "Website", "Address"];
+    const headers = ["Name", "Type", "Status", "Note", "City", "Rating", "Reviews", "Distance (mi)", "Phone", "Website", "Address"];
+    const ps = settings.prospect_status ?? {};
     const rows = sorted.map((p) => [
       p.name,
       t(KLASS_LABEL[p.klass].en, KLASS_LABEL[p.klass].es),
+      ps[p.id] ? t(STATUS_META[ps[p.id]!.status].en, STATUS_META[ps[p.id]!.status].es) : "",
+      ps[p.id]?.note ?? "",
       p.city ?? "",
       p.rating != null ? p.rating.toFixed(1) : "",
       p.ratingCount != null ? p.ratingCount : "",
@@ -239,6 +273,7 @@ export default function MarketPage() {
       <td style={{ fontWeight: 700 }}>
         <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: COLORS[p.klass], marginRight: 7, verticalAlign: "middle" }} />
         {p.name}
+        {prospects[p.id] && <span className="sema" style={{ background: STATUS_META[prospects[p.id]!.status].color, color: "#fff", marginLeft: 6 }}>{t(STATUS_META[prospects[p.id]!.status].en, STATUS_META[prospects[p.id]!.status].es)}</span>}
       </td>
       <td>{t(KLASS_LABEL[p.klass].en, KLASS_LABEL[p.klass].es)}</td>
       <td>{p.city || "—"}</td>
@@ -326,6 +361,31 @@ export default function MarketPage() {
             )}
           </div>
 
+          {selected.klass !== "rtg" && (
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+              <label style={{ fontSize: 12, color: "var(--gray)", textTransform: "uppercase", letterSpacing: ".04em" }}>{t("Prospect status", "Estado de prospecto")}</label>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                <button className={"btn btn-sm " + (!prospects[selected.id] ? "btn-primary" : "btn-ghost")} onClick={() => setStatus(selected.id, "")}>{t("None", "Ninguno")}</button>
+                {STATUS_ORDER.map((s) => {
+                  const on = prospects[selected.id]?.status === s;
+                  return (
+                    <button key={s} className="btn btn-sm" onClick={() => setStatus(selected.id, s)}
+                      style={on ? { background: STATUS_META[s].color, color: "#fff", borderColor: STATUS_META[s].color } : { background: "var(--accent-soft)", color: "var(--text)" }}>
+                      {t(STATUS_META[s].en, STATUS_META[s].es)}
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                defaultValue={prospects[selected.id]?.note ?? ""}
+                key={selected.id}
+                placeholder={t("Note (contact name, next step…)", "Nota (nombre de contacto, siguiente paso…)")}
+                onBlur={(e) => { if ((e.target.value.trim() || null) !== (prospects[selected.id]?.note ?? null)) setNote(selected.id, e.target.value); }}
+                style={{ marginTop: 8, maxWidth: 460 }}
+              />
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             {selected.phone && <a className="btn btn-primary btn-sm" href={`tel:${selected.phone}`}>📞 {t("Call", "Llamar")}</a>}
             <a className="btn btn-ghost btn-sm" href={selected.mapsUri || `https://www.google.com/maps/search/?api=1&query=${selected.lat},${selected.lng}`} target="_blank" rel="noopener noreferrer">🧭 {t("Directions", "Cómo llegar")}</a>
@@ -344,6 +404,11 @@ export default function MarketPage() {
             placeholder={t("Search name / city / address / phone…", "Buscar nombre / ciudad / dirección / teléfono…")}
             style={{ maxWidth: 280 }}
           />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} style={{ width: "auto" }} title={t("Filter by prospect status", "Filtrar por estado de prospecto")}>
+            <option value="all">{t("All statuses", "Todos los estados")}</option>
+            <option value="tagged">{t("Any status", "Con estado")}</option>
+            {STATUS_ORDER.map((s) => <option key={s} value={s}>{t(STATUS_META[s].en, STATUS_META[s].es)}</option>)}
+          </select>
           <div className="toggle-group">
             <button className={"toggle-btn " + (view === "list" ? "on" : "")} onClick={() => setView("list")}>{t("List", "Lista")}</button>
             <button className={"toggle-btn " + (view === "city" ? "on" : "")} onClick={() => setView("city")}>{t("By city", "Por ciudad")}</button>
