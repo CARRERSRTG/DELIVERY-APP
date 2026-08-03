@@ -35,7 +35,16 @@ interface Place {
   cat?: string;
 }
 
-type SortKey = "name" | "type" | "city" | "rating";
+type SortKey = "name" | "type" | "city" | "rating" | "distance";
+
+function haversineMiles(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 3958.8;
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
 
 const COLORS: Record<Klass, string> = {
   rtg: "#2456c9",        // blue — us
@@ -145,6 +154,22 @@ export default function MarketPage() {
   const shown = useMemo(() => classed.filter((p) => show[p.klass]), [classed, show]);
   const selected = useMemo(() => classed.find((p) => p.id === selId) ?? null, [classed, selId]);
 
+  // Distance (mi) from each place to the nearest RTG store.
+  const distById = useMemo(() => {
+    const m = new Map<string, { miles: number; store: string }>();
+    if (!storePlaces.length) return m;
+    for (const p of classed) {
+      let best = Infinity;
+      let name = "";
+      for (const s of storePlaces) {
+        const d = haversineMiles(p.lat, p.lng, s.lat, s.lng);
+        if (d < best) { best = d; name = s.city ?? s.name; }
+      }
+      m.set(p.id, { miles: Math.round(best * 10) / 10, store: name });
+    }
+    return m;
+  }, [classed, storePlaces]);
+
   // Table: search across name/city/address/phone, then sort.
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -163,14 +188,16 @@ export default function MarketPage() {
       const av = key === "name" ? a.name.toLowerCase()
         : key === "city" ? (a.city || "~").toLowerCase()
         : key === "type" ? a.klass
+        : key === "distance" ? (distById.get(a.id)?.miles ?? Infinity)
         : (a.rating ?? -1);
       const bv = key === "name" ? b.name.toLowerCase()
         : key === "city" ? (b.city || "~").toLowerCase()
         : key === "type" ? b.klass
+        : key === "distance" ? (distById.get(b.id)?.miles ?? Infinity)
         : (b.rating ?? -1);
       return av < bv ? -dir : av > bv ? dir : a.name.localeCompare(b.name);
     });
-  }, [filtered, sort]);
+  }, [filtered, sort, distById]);
 
   const toggleSort = (key: SortKey) =>
     setSort((s) => (s.key === key ? { key, dir: (s.dir === 1 ? -1 : 1) as 1 | -1 } : { key, dir: 1 }));
@@ -199,6 +226,7 @@ export default function MarketPage() {
       <td>{t(KLASS_LABEL[p.klass].en, KLASS_LABEL[p.klass].es)}</td>
       <td>{p.city || "—"}</td>
       <td style={{ fontVariantNumeric: "tabular-nums" }}>{p.rating != null ? `★ ${p.rating.toFixed(1)}` : "—"}</td>
+      <td style={{ fontVariantNumeric: "tabular-nums" }}>{p.klass !== "rtg" && distById.get(p.id) ? `${distById.get(p.id)!.miles} mi` : "—"}</td>
       <td>{p.phone ? <a className="link-tel" href={`tel:${p.phone}`}>{p.phone}</a> : "—"}</td>
       <td><a href={`https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`} target="_blank" rel="noopener noreferrer" title={t("Open in Maps", "Abrir en Mapas")}>🧭</a></td>
     </tr>
@@ -267,6 +295,10 @@ export default function MarketPage() {
               <div className="detail-row"><span className="dk">{t("Rating", "Calificación")}</span>
                 <span className="dv"><b>★ {selected.rating.toFixed(1)}</b>{selected.ratingCount != null ? ` (${selected.ratingCount} ${t("reviews", "reseñas")})` : ""}</span></div>
             )}
+            {selected.klass !== "rtg" && distById.get(selected.id) && (
+              <div className="detail-row"><span className="dk">{t("Nearest store", "Tienda más cercana")}</span>
+                <span className="dv"><b>{distById.get(selected.id)!.miles} mi</b> — {distById.get(selected.id)!.store}</span></div>
+            )}
             <div className="detail-row"><span className="dk">{t("Address", "Dirección")}</span><span className="dv">{selected.address || selected.city || "—"}</span></div>
             {selected.city && <div className="detail-row"><span className="dk">{t("City", "Ciudad")}</span><span className="dv">{selected.city}</span></div>}
             {selected.phone && <div className="detail-row"><span className="dk">{t("Phone", "Teléfono")}</span><span className="dv"><a className="link-tel" href={`tel:${selected.phone}`}>{selected.phone}</a></span></div>}
@@ -311,7 +343,7 @@ export default function MarketPage() {
             <table className="orders" style={{ minWidth: 620 }}>
               <thead>
                 <tr>
-                  {([["name", t("Company", "Empresa")], ["type", t("Type", "Tipo")], ["city", t("City", "Ciudad")], ["rating", t("Rating", "Calif.")]] as [SortKey, string][]).map(([k, lbl]) => (
+                  {([["name", t("Company", "Empresa")], ["type", t("Type", "Tipo")], ["city", t("City", "Ciudad")], ["rating", t("Rating", "Calif.")], ["distance", t("Dist.", "Dist.")]] as [SortKey, string][]).map(([k, lbl]) => (
                     <th key={k} className="clickable" onClick={() => toggleSort(k)} style={{ cursor: "pointer", whiteSpace: "nowrap" }}>
                       {lbl}{sort.key === k ? (sort.dir === 1 ? " ▲" : " ▼") : ""}
                     </th>
@@ -347,7 +379,7 @@ export default function MarketPage() {
                         <thead>
                           <tr>
                             <th>{t("Company", "Empresa")}</th><th>{t("Type", "Tipo")}</th><th>{t("City", "Ciudad")}</th>
-                            <th>{t("Rating", "Calif.")}</th><th>{t("Phone", "Teléfono")}</th><th></th>
+                            <th>{t("Rating", "Calif.")}</th><th>{t("Dist.", "Dist.")}</th><th>{t("Phone", "Teléfono")}</th><th></th>
                           </tr>
                         </thead>
                         <tbody>{groups.get(k)!.map((p) => <Row key={p.id} p={p} />)}</tbody>
