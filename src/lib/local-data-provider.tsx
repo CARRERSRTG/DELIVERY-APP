@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ctx, type DataState } from "@/lib/data-provider";
-import type { Delivery, DriverAvailability, OrderEvent, Profile, Settings, Stage } from "@/lib/types";
+import type { Delivery, DriverAvailability, DriverShift, OrderEvent, Profile, Settings, Stage } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner, todayISO } from "@/lib/utils";
@@ -25,12 +25,13 @@ interface Store {
   events: OrderEvent[];
   notifications: AppNotification[];
   availability: DriverAvailability[];
+  shifts: DriverShift[];
 }
 
 function seed(): Store {
   const settings = demoSettings();
   const deliveries = demoDeliveries(settings);
-  return { settings, users: DEMO_USERS, deliveries, events: [], notifications: demoNotifications(deliveries), availability: [] };
+  return { settings, users: DEMO_USERS, deliveries, events: [], notifications: demoNotifications(deliveries), availability: [], shifts: [] };
 }
 
 function load(): Store {
@@ -54,7 +55,7 @@ export function resetLocalData() {
 }
 
 export function LocalDataProvider({ children, me }: { children: React.ReactNode; me: Profile }) {
-  const [store, setStore] = useState<Store>(() => (typeof window === "undefined" ? seed() : { settings: seed().settings, users: DEMO_USERS, deliveries: [], events: [], notifications: [], availability: [] }));
+  const [store, setStore] = useState<Store>(() => (typeof window === "undefined" ? seed() : { settings: seed().settings, users: DEMO_USERS, deliveries: [], events: [], notifications: [], availability: [], shifts: [] }));
   const [ready, setReady] = useState(false);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -261,6 +262,18 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     persist({ ...s, availability: (s.availability ?? []).filter((r) => r.id !== id) });
   }, [persist]);
 
+  const clockIn = useCallback<DataState["clockIn"]>(async (driverId) => {
+    const s = storeRef.current;
+    if ((s.shifts ?? []).some((sh) => sh.driver_id === driverId && !sh.ended_at)) return;
+    const row: DriverShift = { id: uid(), driver_id: driverId, started_at: new Date().toISOString(), ended_at: null, note: null, created_at: new Date().toISOString() };
+    persist({ ...s, shifts: [row, ...(s.shifts ?? [])] });
+  }, [persist]);
+  const clockOut = useCallback<DataState["clockOut"]>(async (driverId) => {
+    const s = storeRef.current;
+    const now = new Date().toISOString();
+    persist({ ...s, shifts: (s.shifts ?? []).map((sh) => (sh.driver_id === driverId && !sh.ended_at ? { ...sh, ended_at: now } : sh)) });
+  }, [persist]);
+
   const value: DataState = useMemo(() => ({
     ready, me, realRole: me.role, viewAs: null, setViewAs: () => {}, teaching: false, setTeaching: () => {}, clearTrainingData: async () => {}, settings: store.settings, users: store.users, deliveries: store.deliveries, events: store.events,
     notifications: store.notifications.filter((n) => n.user_id === me.id),
@@ -268,7 +281,8 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
     availability: store.availability ?? [], addAvailability, removeAvailability,
-  }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, pushNotifs, addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser, addAvailability, removeAvailability]);
+    shifts: store.shifts ?? [], clockIn, clockOut,
+  }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, pushNotifs, addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser, addAvailability, removeAvailability, clockIn, clockOut]);
 
   return (
     <Ctx.Provider value={value}>

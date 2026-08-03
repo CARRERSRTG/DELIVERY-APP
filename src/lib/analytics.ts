@@ -1,4 +1,4 @@
-import type { Delivery, OrderEvent, Profile, Stage } from "@/lib/types";
+import type { Delivery, DriverShift, OrderEvent, Profile, Stage } from "@/lib/types";
 import { isOverdue, orderOwner } from "@/lib/utils";
 import { parseWindow } from "@/lib/dispatch";
 
@@ -194,6 +194,64 @@ export function driverKpis(deliveries: Delivery[], capacityOf: (driver: string) 
       };
     })
     .sort((x, y) => y.orders - x.orders);
+}
+
+export interface DriverShiftKpi {
+  driver: string;                 // driver's name
+  onClockMin: number;             // total minutes clocked in
+  activeMin: number;              // minutes actively working a delivery (pickup → delivered)
+  idleMin: number;                // on-clock minus active, floored at 0
+  activePct: number | null;       // active ÷ on-clock
+  open: boolean;                  // currently on the clock
+}
+
+/** Per-driver idle-time KPIs. On-clock time comes from the shift clock;
+ * active time is the sum of pickup→delivered spans on their orders. `nameOf`
+ * resolves a shift's driver_id to the name used on deliveries.assigned_driver.
+ * Pass already date-scoped shifts + deliveries to scope the window. */
+export function driverShiftKpis(
+  shifts: DriverShift[],
+  deliveries: Delivery[],
+  nameOf: (driverId: string) => string | undefined,
+  now: number = Date.now(),
+): DriverShiftKpi[] {
+  // On-clock time per driver name (open shifts count up to `now`).
+  const clock = new Map<string, { onClock: number; open: boolean }>();
+  for (const s of shifts) {
+    const name = nameOf(s.driver_id);
+    if (!name) continue;
+    const start = new Date(s.started_at).getTime();
+    const end = s.ended_at ? new Date(s.ended_at).getTime() : now;
+    if (!Number.isFinite(start) || end <= start) continue;
+    const c = clock.get(name) ?? { onClock: 0, open: false };
+    c.onClock += end - start;
+    if (!s.ended_at) c.open = true;
+    clock.set(name, c);
+  }
+  // Active (working) time: pickup → delivered on each order that has both stamps.
+  const active = new Map<string, number>();
+  for (const d of deliveries) {
+    if (!d.assigned_driver || !d.pickup_gps_at || !d.pod_delivered_at) continue;
+    const span = new Date(d.pod_delivered_at).getTime() - new Date(d.pickup_gps_at).getTime();
+    if (span > 0) active.set(d.assigned_driver, (active.get(d.assigned_driver) ?? 0) + span);
+  }
+  const names = new Set<string>([...clock.keys(), ...active.keys()]);
+  return [...names]
+    .map((driver) => {
+      const onClock = clock.get(driver)?.onClock ?? 0;
+      // Active can't exceed on-clock (some work may predate a clock-in).
+      const act = onClock > 0 ? Math.min(active.get(driver) ?? 0, onClock) : (active.get(driver) ?? 0);
+      const idle = Math.max(0, onClock - act);
+      return {
+        driver,
+        onClockMin: Math.round(onClock / 60_000),
+        activeMin: Math.round(act / 60_000),
+        idleMin: Math.round(idle / 60_000),
+        activePct: onClock > 0 ? Math.round((act / onClock) * 100) : null,
+        open: clock.get(driver)?.open ?? false,
+      };
+    })
+    .sort((a, b) => b.onClockMin - a.onClockMin);
 }
 
 export interface GroupStat { key: string; total: number; delivered: number; pallets: number; }

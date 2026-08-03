@@ -143,6 +143,18 @@ export interface DriverAvailability {
   created_at: string;
 }
 
+// A driver work session: clock-in → clock-out. ended_at null means the driver
+// is on the clock right now. Idle time = on-clock time minus time actively
+// working a delivery (pickup → delivered).
+export interface DriverShift {
+  id: string;
+  driver_id: string;
+  started_at: string;
+  ended_at: string | null;
+  note: string | null;
+  created_at: string;
+}
+
 export interface OrderEvent {
   id: string;
   delivery_id: string;

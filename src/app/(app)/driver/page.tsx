@@ -7,6 +7,7 @@ import { canCreate, canDeliver, ROLE_DEFAULT_COLUMNS } from "@/lib/constants";
 import { routeOrder } from "@/lib/dispatch";
 import { OrdersTable } from "@/components/OrdersTable";
 import { OrderModal } from "@/components/OrderModal";
+import { ShiftClock } from "@/components/ShiftClock";
 import { yesterdayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
@@ -71,6 +72,7 @@ export default function DriverPage() {
 
   return (
     <>
+      {me.role === "driver" && <ShiftClock driverId={me.id} />}
       <div className="page-head">
         <h2>{t("Driver", "Chofer")} <span className="count-tag">{rows.length}</span></h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>

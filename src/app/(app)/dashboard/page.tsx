@@ -6,7 +6,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel, STAGES } from "@/lib/constants";
 import {
-  approvalTurnaroundMs, computeKpis, countByStage, driverKpis,
+  approvalTurnaroundMs, computeKpis, countByStage, driverKpis, driverShiftKpis,
   groupVolume, inDateRange, overdueOrders, salesRepStatsThisMonth,
 } from "@/lib/analytics";
 
@@ -32,7 +32,7 @@ function daysAgoISO(n: number): string {
 type RangeMode = "week" | "month" | "custom";
 
 export default function DashboardPage() {
-  const { me, users, deliveries, events, settings, ready } = useData();
+  const { me, users, deliveries, events, settings, shifts, ready } = useData();
   const { lang, t } = usePrefs();
   const router = useRouter();
   const [from, setFrom] = useState(daysAgoISO(30));
@@ -78,6 +78,17 @@ export default function DashboardPage() {
     ),
     [scoped, settings.driver_capacity, settings.fuel_price, settings.fleet_mpg, settings.cost_per_delivery],
   );
+  // Idle-time KPIs: shifts started within the range, active time from the
+  // scoped deliveries. driver_id → name so shifts line up with assigned_driver.
+  const idle = useMemo(() => {
+    const nameById = new Map(users.map((u) => [u.id, u.full_name]));
+    const shiftScoped = shifts.filter((s) => {
+      const day = s.started_at.slice(0, 10);
+      return day >= from && day <= to;
+    });
+    return driverShiftKpis(shiftScoped, scoped, (id) => nameById.get(id));
+  }, [shifts, users, scoped, from, to]);
+
   // Fleet roll-up across the drivers in range.
   const fleet = useMemo(() => {
     const avg = (vals: (number | null)[]) => {
@@ -265,6 +276,47 @@ export default function DashboardPage() {
                   </table>
                 </div>
               </>
+            )}
+          </div>
+
+          {/* ---------- Driver idle time (shift clock) ---------- */}
+          <div className="card">
+            <h2>⏱️ {t("Driver idle time", "Tiempo inactivo de choferes")}</h2>
+            <p className="hint" style={{ marginTop: -6, marginBottom: 10 }}>
+              {t(
+                "On-clock time from the shift clock, minus time actively out on a delivery (pickup → delivered).",
+                "Tiempo en turno del reloj, menos el tiempo activo en reparto (recogida → entregado).",
+              )}
+            </p>
+            {idle.length === 0 ? (
+              <div className="empty">{t("No shifts clocked in this range.", "Sin turnos registrados en este rango.")}</div>
+            ) : (
+              <div className="tbl-scroll" style={{ border: "none" }}>
+                <table className="orders" style={{ minWidth: 560, fontVariantNumeric: "tabular-nums" }}>
+                  <thead>
+                    <tr>
+                      <th>{t("Driver", "Chofer")}</th>
+                      <th>{t("On-clock", "En turno")}</th>
+                      <th>{t("Active", "Activo")}</th>
+                      <th>{t("Idle", "Inactivo")}</th>
+                      <th>{t("Active %", "% Activo")}</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {idle.map((d) => (
+                      <tr key={d.driver}>
+                        <td style={{ fontWeight: 700 }}>{d.driver}</td>
+                        <td>{fmtDuration(d.onClockMin * 60_000)}</td>
+                        <td>{fmtDuration(d.activeMin * 60_000)}</td>
+                        <td style={d.activePct != null && d.activePct < 50 ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{fmtDuration(d.idleMin * 60_000)}</td>
+                        <td style={d.activePct != null && d.activePct < 50 ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{d.activePct == null ? "—" : `${d.activePct}%`}</td>
+                        <td>{d.open && <span className="sema" style={{ background: "var(--green)", color: "#fff" }}>{t("On the clock", "En turno")}</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 

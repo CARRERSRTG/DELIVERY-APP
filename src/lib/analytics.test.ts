@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { computeKpis, driverStats, driverKpis, groupVolume, overdueOrders, inDateRange, approvalTurnaroundMs } from "@/lib/analytics";
+import { computeKpis, driverStats, driverKpis, driverShiftKpis, groupVolume, overdueOrders, inDateRange, approvalTurnaroundMs } from "@/lib/analytics";
 import { mkDelivery } from "@/lib/__fixtures";
-import type { OrderEvent } from "@/lib/types";
+import type { DriverShift, OrderEvent } from "@/lib/types";
 
 describe("computeKpis", () => {
   it("counts each stage into the right bucket", () => {
@@ -168,5 +168,51 @@ describe("driverKpis", () => {
     expect(k.fuelCost).toBeNull();
     expect(k.costPerDelivery).toBeNull();
     expect(k.avgCsat).toBeNull();
+  });
+});
+
+describe("driverShiftKpis", () => {
+  const mkShift = (over: Partial<DriverShift> = {}): DriverShift => ({
+    id: "s1", driver_id: "u1", started_at: "2026-08-01T08:00:00.000Z",
+    ended_at: "2026-08-01T16:00:00.000Z", note: null, created_at: "2026-08-01T08:00:00.000Z", ...over,
+  });
+  const nameOf = (id: string) => (id === "u1" ? "Alex" : undefined);
+
+  it("idle = on-clock minus active pickup→delivered time", () => {
+    // 8h clocked; one delivery worked 2h → 6h idle, 25% active.
+    const shifts = [mkShift()];
+    const deliveries = [mkDelivery({
+      assigned_driver: "Alex", stage: "delivered",
+      pickup_gps_at: "2026-08-01T09:00:00.000Z", pod_delivered_at: "2026-08-01T11:00:00.000Z",
+    })];
+    const [k] = driverShiftKpis(shifts, deliveries, nameOf);
+    expect(k.driver).toBe("Alex");
+    expect(k.onClockMin).toBe(8 * 60);
+    expect(k.activeMin).toBe(2 * 60);
+    expect(k.idleMin).toBe(6 * 60);
+    expect(k.activePct).toBe(25);
+    expect(k.open).toBe(false);
+  });
+
+  it("open shift counts up to `now` and is flagged", () => {
+    const now = new Date("2026-08-01T10:00:00.000Z").getTime();
+    const shifts = [mkShift({ ended_at: null })]; // started 08:00, now 10:00 → 2h
+    const [k] = driverShiftKpis(shifts, [], nameOf, now);
+    expect(k.onClockMin).toBe(2 * 60);
+    expect(k.open).toBe(true);
+    expect(k.idleMin).toBe(2 * 60); // no deliveries → all idle
+  });
+
+  it("caps active at on-clock time and ignores unknown drivers", () => {
+    const shifts = [mkShift(), mkShift({ id: "s2", driver_id: "ghost" })];
+    const deliveries = [mkDelivery({
+      assigned_driver: "Alex", stage: "delivered",
+      pickup_gps_at: "2026-08-01T00:00:00.000Z", pod_delivered_at: "2026-08-02T00:00:00.000Z", // 24h > 8h
+    })];
+    const rows = driverShiftKpis(shifts, deliveries, nameOf);
+    expect(rows).toHaveLength(1); // ghost driver_id resolves to undefined → dropped
+    expect(rows[0].activeMin).toBe(8 * 60); // capped at on-clock
+    expect(rows[0].idleMin).toBe(0);
+    expect(rows[0].activePct).toBe(100);
   });
 });

@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Delivery, DriverAvailability, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
+import type { Delivery, DriverAvailability, DriverShift, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner } from "@/lib/utils";
@@ -98,6 +98,11 @@ export interface DataState {
   availability: DriverAvailability[];
   addAvailability: (seed: Omit<DriverAvailability, "id" | "created_at" | "created_by">) => Promise<void>;
   removeAvailability: (id: string) => Promise<void>;
+
+  // driver shift clock (idle-time KPI)
+  shifts: DriverShift[];
+  clockIn: (driverId: string) => Promise<void>;
+  clockOut: (driverId: string) => Promise<void>;
 }
 
 export const Ctx = createContext<DataState | null>(null);
@@ -148,6 +153,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [events, setEvents] = useState<OrderEvent[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [availability, setAvailability] = useState<DriverAvailability[]>([]);
+  const [shifts, setShifts] = useState<DriverShift[]>([]);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -158,7 +164,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   }, []);
 
   const reloadAll = useCallback(async () => {
-    const [s, p, d, e, n, av] = await Promise.all([
+    const [s, p, d, e, n, av, sh] = await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("profiles").select("id, full_name, role, store, avatar_url").order("full_name"),
       supabase.from("deliveries").select("*").eq("is_training", teaching).order("order_no", { ascending: false }),
@@ -167,6 +173,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         ? supabase.from("notifications").select("*").eq("user_id", me.id).order("created_at", { ascending: false }).limit(50)
         : Promise.resolve({ data: [] as AppNotification[] }),
       supabase.from("driver_availability").select("*").order("start_date", { ascending: false }),
+      supabase.from("driver_shifts").select("*").order("started_at", { ascending: false }),
     ]);
     if (s.data) setSettings(s.data as Settings);
     if (p.data) setUsers(p.data as Profile[]);
@@ -174,6 +181,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (e.data) setEvents(e.data as OrderEvent[]);
     if (n.data) setNotifications(n.data as AppNotification[]);
     if (av.data) setAvailability(av.data as DriverAvailability[]);
+    if (sh.data) setShifts(sh.data as DriverShift[]);
     setReady(true);
   }, [supabase, me, teaching]);
 
@@ -224,6 +232,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => { reloadAll(); checkSession(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "driver_availability" }, reloadAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "driver_shifts" }, reloadAll)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -466,12 +475,29 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     await reloadAll();
   }, [supabase, notify, reloadAll]);
 
+  const clockIn = useCallback<DataState["clockIn"]>(async (driverId) => {
+    // Guard against a second open shift (also enforced by a partial unique index).
+    if (shifts.some((sh) => sh.driver_id === driverId && !sh.ended_at)) return;
+    const { error } = await supabase.from("driver_shifts").insert({ driver_id: driverId });
+    if (error) { notify("Error: " + error.message); return; }
+    await reloadAll();
+  }, [supabase, shifts, notify, reloadAll]);
+
+  const clockOut = useCallback<DataState["clockOut"]>(async (driverId) => {
+    const open = shifts.find((sh) => sh.driver_id === driverId && !sh.ended_at);
+    if (!open) return;
+    const { error } = await supabase.from("driver_shifts").update({ ended_at: new Date().toISOString() }).eq("id", open.id);
+    if (error) { notify("Error: " + error.message); return; }
+    await reloadAll();
+  }, [supabase, shifts, notify, reloadAll]);
+
   const value: DataState = {
     ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, clearTrainingData, settings, users, deliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
     availability, addAvailability, removeAvailability,
+    shifts, clockIn, clockOut,
   };
 
   return (
