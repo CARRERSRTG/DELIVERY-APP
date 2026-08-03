@@ -59,9 +59,12 @@ function classify(p: Place): Klass {
 }
 
 export default function MarketPage() {
-  const { me } = useData();
+  const { me, settings } = useData();
   const { t } = usePrefs();
   const [places, setPlaces] = useState<Place[]>([]);
+  // The company's own stores are Rodriguez Tile Group — always shown in blue,
+  // geocoded from Settings, independent of the live places source.
+  const [storePlaces, setStorePlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [show, setShow] = useState<Record<Klass, boolean>>({ rtg: true, competitor: true, bigbox: true, hardware: true });
@@ -95,7 +98,32 @@ export default function MarketPage() {
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  const classed = useMemo(() => places.map((p) => ({ ...p, klass: classify(p) })), [places]);
+  // Geocode the company's own stores → blue RTG markers.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const out: Place[] = [];
+      for (const s of settings.stores) {
+        const addr = (s.address || s.name || "").trim();
+        if (!addr) continue;
+        try {
+          const res = await fetch("/api/geocode-point", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: `${addr}, TX` }) });
+          if (!res.ok) continue;
+          const p = await res.json();
+          if (!cancelled && typeof p?.lat === "number" && typeof p?.lng === "number") {
+            out.push({ id: `store:${s.name}`, name: `Rodriguez Tile Group — ${s.name}`, lat: p.lat, lng: p.lng, shop: null, brand: "Rodriguez Tile", city: s.name, phone: null, rating: null, address: s.address || null });
+          }
+        } catch { /* skip */ }
+      }
+      if (!cancelled) setStorePlaces(out);
+    })();
+    return () => { cancelled = true; };
+  }, [settings.stores]);
+
+  const classed = useMemo(
+    () => [...storePlaces, ...places].map((p) => ({ ...p, klass: classify(p) })),
+    [storePlaces, places],
+  );
   const counts = useMemo(() => {
     const c: Record<Klass, number> = { rtg: 0, competitor: 0, bigbox: 0, hardware: 0 };
     for (const p of classed) c[p.klass]++;

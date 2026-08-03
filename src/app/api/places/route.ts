@@ -26,6 +26,24 @@ const CATEGORY_QUERY: Record<string, (bbox: string) => string> = {
   hardware: (b) => `nwr["shop"~"^(hardware|trade|building_materials|paint)$"](${b});`,
 };
 
+// RGV town centers, so a place with no addr:city still gets a sensible city.
+const CITY_CENTERS: [string, number, number][] = [
+  ["McAllen", 26.203, -98.230], ["Edinburg", 26.303, -98.164], ["Pharr", 26.194, -98.184],
+  ["Mission", 26.216, -98.325], ["Alamo", 26.182, -98.120], ["San Juan", 26.189, -98.155],
+  ["Weslaco", 26.159, -97.991], ["Donna", 26.147, -98.052], ["Mercedes", 26.150, -97.914],
+  ["La Feria", 26.152, -97.823], ["Harlingen", 26.190, -97.696], ["San Benito", 26.133, -97.631],
+  ["Los Fresnos", 26.071, -97.476], ["Brownsville", 25.901, -97.497], ["Rio Hondo", 26.235, -97.581],
+];
+function nearestCity(lat: number, lng: number): string {
+  let best = CITY_CENTERS[0][0];
+  let bestD = Infinity;
+  for (const [name, clat, clng] of CITY_CENTERS) {
+    const d = (lat - clat) ** 2 + (lng - clng) ** 2;
+    if (d < bestD) { bestD = d; best = name; }
+  }
+  return best;
+}
+
 interface Place {
   id: string;
   name: string;
@@ -86,7 +104,7 @@ async function viaGoogle(key: string, category: string): Promise<Place[]> {
             lng: loc.longitude,
             shop: null,
             brand: null,
-            city: cityFromGoogle(p.formattedAddress as string | undefined),
+            city: cityFromGoogle(p.formattedAddress as string | undefined) ?? nearestCity(loc.latitude, loc.longitude),
             phone: (p.nationalPhoneNumber as string | undefined) ?? null,
             rating: typeof p.rating === "number" ? (p.rating as number) : null,
             address: (p.formattedAddress as string | undefined) ?? null,
@@ -148,7 +166,7 @@ export async function GET(req: Request) {
           lng,
           shop: tags.shop ?? null,
           brand: tags.brand ?? null,
-          city: tags["addr:city"] ?? null,
+          city: tags["addr:city"] ?? nearestCity(lat, lng),
           phone: tags.phone ?? tags["contact:phone"] ?? null,
           rating: null,
           address: street || null,
