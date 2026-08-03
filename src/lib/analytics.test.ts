@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeKpis, driverStats, driverKpis, driverShiftKpis, driverQualityKpis, groupVolume, overdueOrders, inDateRange, approvalTurnaroundMs } from "@/lib/analytics";
+import { computeKpis, driverStats, driverKpis, driverShiftKpis, driverQualityKpis, deliveryTrend, groupVolume, overdueOrders, inDateRange, approvalTurnaroundMs } from "@/lib/analytics";
 import { mkDelivery } from "@/lib/__fixtures";
 import type { DriverShift, OrderEvent } from "@/lib/types";
 
@@ -293,5 +293,31 @@ describe("driverQualityKpis", () => {
     ]);
     expect(k.podGpsChecked).toBe(2);
     expect(k.podGpsFar).toBe(1);
+  });
+});
+
+describe("deliveryTrend", () => {
+  it("buckets daily for short ranges with on-time and rating", () => {
+    const dels = [
+      mkDelivery({ stage: "delivered", delivery_date: "2026-08-01", delivery_windows: "1000-1200", pod_delivered_at: "2026-08-01T11:00:00", csat_rating: 5 }),
+      mkDelivery({ stage: "delivered", delivery_date: "2026-08-01", delivery_windows: "1000-1200", pod_delivered_at: "2026-08-01T15:00:00", csat_rating: 3 }),
+      mkDelivery({ stage: "delivered", delivery_date: "2026-08-03", delivery_windows: "1000-1200", pod_delivered_at: "2026-08-03T11:00:00" }),
+      mkDelivery({ stage: "ready", delivery_date: "2026-08-02" }), // not delivered → ignored
+    ];
+    const t = deliveryTrend(dels, "2026-08-01", "2026-08-03");
+    expect(t).toHaveLength(3);              // one bucket per day
+    expect(t[0]).toMatchObject({ label: "8/1", delivered: 2, onTimePct: 50, avgCsat: 4 });
+    expect(t[1]).toMatchObject({ delivered: 0, onTimePct: null, avgCsat: null });
+    expect(t[2]).toMatchObject({ delivered: 1, onTimePct: 100 });
+  });
+
+  it("collapses long ranges into fewer week-ish buckets", () => {
+    const t = deliveryTrend([], "2026-01-01", "2026-06-30", 12);
+    expect(t.length).toBeLessThanOrEqual(12);
+    expect(t.length).toBeGreaterThan(1);
+  });
+
+  it("returns [] for an inverted range", () => {
+    expect(deliveryTrend([], "2026-08-10", "2026-08-01")).toEqual([]);
   });
 });

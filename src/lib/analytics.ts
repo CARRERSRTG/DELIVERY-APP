@@ -113,6 +113,49 @@ function deliveredAtMs(d: Delivery): number | null {
   return t ? new Date(t).getTime() : null;
 }
 
+export interface TrendPoint {
+  label: string;             // short bucket label, e.g. "8/3"
+  delivered: number;         // deliveries completed in the bucket
+  onTimePct: number | null;  // on-time rate in the bucket
+  avgCsat: number | null;    // avg rating in the bucket
+}
+
+/** Time series of delivery volume / on-time / rating over [from, to],
+ * bucketed daily for short ranges and into ≤maxPoints week-ish chunks for long
+ * ones. Buckets by each order's delivery date (fallback input/created). */
+export function deliveryTrend(deliveries: Delivery[], from: string, to: string, maxPoints = 12): TrendPoint[] {
+  const dayMs = 86_400_000;
+  const start = Date.parse(from + "T00:00:00");
+  const end = Date.parse(to + "T00:00:00");
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return [];
+  const days = Math.round((end - start) / dayMs) + 1;
+  const bucketDays = days <= 21 ? 1 : Math.ceil(days / maxPoints);
+  const nBuckets = Math.ceil(days / bucketDays);
+  interface B { delivered: number; onElig: number; onTime: number; csatSum: number; csatN: number; }
+  const buckets: B[] = Array.from({ length: nBuckets }, () => ({ delivered: 0, onElig: 0, onTime: 0, csatSum: 0, csatN: 0 }));
+  for (const d of deliveries) {
+    if (d.stage !== "delivered") continue;
+    const dayStr = d.delivery_date || d.input_date || d.created_at.slice(0, 10);
+    const dTime = Date.parse(dayStr + "T00:00:00");
+    if (Number.isNaN(dTime) || dTime < start || dTime > end) continue;
+    const idx = Math.min(nBuckets - 1, Math.floor((dTime - start) / (bucketDays * dayMs)));
+    const b = buckets[idx];
+    b.delivered++;
+    const due = promisedDue(d), done = deliveredAtMs(d);
+    if (due != null && done != null) { b.onElig++; if (done <= due) b.onTime++; }
+    if (d.csat_rating != null) { b.csatSum += Number(d.csat_rating); b.csatN++; }
+  }
+  return buckets.map((b, i) => {
+    const bStart = new Date(start + i * bucketDays * dayMs);
+    return {
+      label: `${bStart.getMonth() + 1}/${bStart.getDate()}`,
+      delivered: b.delivered,
+      onTimePct: b.onElig ? Math.round((b.onTime / b.onElig) * 100) : null,
+      avgCsat: b.csatN ? Math.round((b.csatSum / b.csatN) * 10) / 10 : null,
+    };
+  });
+}
+
 export interface DriverKpi {
   driver: string;
   orders: number;

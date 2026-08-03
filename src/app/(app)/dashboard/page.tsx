@@ -6,9 +6,10 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel, STAGES } from "@/lib/constants";
 import {
-  approvalTurnaroundMs, computeKpis, countByStage, driverKpis, driverQualityKpis, driverShiftKpis,
+  approvalTurnaroundMs, computeKpis, countByStage, deliveryTrend, driverKpis, driverQualityKpis, driverShiftKpis,
   groupVolume, inDateRange, overdueOrders, salesRepStatsThisMonth,
 } from "@/lib/analytics";
+import { Sparkline } from "@/components/Sparkline";
 
 // Matches the Routes Manager / Map default when a driver has no capacity set.
 const DEFAULT_CAPACITY = 12;
@@ -91,6 +92,20 @@ export default function DashboardPage() {
 
   // Timing + quality KPIs (Tier 1) over the scoped deliveries.
   const quality = useMemo(() => driverQualityKpis(scoped), [scoped]);
+
+  // Delivery trend over the range (for the sparklines).
+  const trend = useMemo(() => deliveryTrend(scoped, from, to), [scoped, from, to]);
+
+  // Peer ranking: position each driver by on-time %, then rating, then orders
+  // (nulls sink). Used for the rank badge in the performance table.
+  const rankByDriver = useMemo(() => {
+    const ranked = [...drivers].sort((a, b) =>
+      (b.onTimePct ?? -1) - (a.onTimePct ?? -1) ||
+      (b.avgCsat ?? -1) - (a.avgCsat ?? -1) ||
+      b.orders - a.orders,
+    );
+    return new Map(ranked.map((d, i) => [d.driver, i + 1]));
+  }, [drivers]);
 
   // Fleet roll-up across the drivers in range.
   const fleet = useMemo(() => {
@@ -260,6 +275,23 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* ---------- Trends ---------- */}
+          <div className="card">
+            <h2>📈 {t("Trends", "Tendencias")}</h2>
+            <p className="hint" style={{ marginTop: -6, marginBottom: 10 }}>
+              {t("Delivery volume, on-time rate and rating across the selected range.", "Volumen de entregas, puntualidad y calificación en el rango seleccionado.")}
+            </p>
+            {trend.every((p) => p.delivered === 0) ? (
+              <div className="empty">{t("No deliveries in this range.", "Sin entregas en este rango.")}</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <TrendRow label={t("Deliveries", "Entregas")} values={trend.map((p) => p.delivered)} last={trend[trend.length - 1]?.delivered ?? null} color="var(--accent)" />
+                <TrendRow label={t("On-time %", "A tiempo %")} values={trend.map((p) => p.onTimePct)} last={trend[trend.length - 1]?.onTimePct ?? null} suffix="%" color="var(--green)" />
+                <TrendRow label={t("Avg rating", "Calif. prom.")} values={trend.map((p) => p.avgCsat)} last={trend[trend.length - 1]?.avgCsat ?? null} suffix="★" color="var(--amber)" />
+              </div>
+            )}
+          </div>
+
           {/* ---------- Driver & fleet KPIs ---------- */}
           <div className="card">
             <h2>🚚 {t("Driver & fleet KPIs", "KPIs de choferes y flota")}</h2>
@@ -301,12 +333,19 @@ export default function DashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {drivers.map((d) => (
+                      {drivers.map((d) => {
+                        const rank = rankByDriver.get(d.driver);
+                        return (
                         <tr key={d.driver}>
-                          <td style={{ fontWeight: 700 }}>{d.driver}</td>
+                          <td style={{ fontWeight: 700 }}>
+                            {rank != null && (
+                              <span className="sema" title={t("On-time rank vs peers", "Ranking de puntualidad vs pares")} style={{ marginRight: 6, background: rank === 1 ? "var(--green)" : "var(--line)", color: rank === 1 ? "#fff" : "var(--muted)" }}>#{rank}</span>
+                            )}
+                            {d.driver}
+                          </td>
                           <td>{d.orders}</td>
                           <td>{d.delivered}</td>
-                          <td style={d.onTimePct != null && d.onTimePct < 80 ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{d.onTimePct == null ? "—" : `${d.onTimePct}%`}</td>
+                          <td style={d.onTimePct != null && fleet.avgOnTime != null ? (d.onTimePct >= fleet.avgOnTime ? { color: "var(--green)", fontWeight: 700 } : { color: "var(--amber)", fontWeight: 700 }) : undefined} title={fleet.avgOnTime != null ? `${t("Fleet avg", "Prom. flota")} ${fleet.avgOnTime}%` : undefined}>{d.onTimePct == null ? "—" : `${d.onTimePct}%`}</td>
                           <td style={d.avgDelayMin ? { color: "var(--red)" } : undefined}>{d.avgDelayMin == null ? "—" : `${d.avgDelayMin}m`}</td>
                           <td>{d.avgStops}</td>
                           <td>{d.miles}</td>
@@ -315,10 +354,28 @@ export default function DashboardPage() {
                           <td style={d.utilizationPct != null && d.utilizationPct > 100 ? { color: "var(--red)", fontWeight: 700 } : undefined}>{d.utilizationPct == null ? "—" : `${d.utilizationPct}%`}</td>
                           <td>{d.fuelCost == null ? "—" : fmtMoney(d.fuelCost)}</td>
                           <td>{d.costPerDelivery == null ? "—" : fmtMoney(d.costPerDelivery)}</td>
-                          <td>{d.avgCsat == null ? "—" : `${d.avgCsat}★`}</td>
+                          <td style={d.avgCsat != null && fleet.avgCsat != null ? (d.avgCsat >= fleet.avgCsat ? { color: "var(--green)", fontWeight: 700 } : { color: "var(--amber)", fontWeight: 700 }) : undefined}>{d.avgCsat == null ? "—" : `${d.avgCsat}★`}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop: "2px solid var(--line)", fontWeight: 700 }}>
+                        <td>{t("Fleet avg", "Prom. flota")}</td>
+                        <td>{drivers.reduce((s, d) => s + d.orders, 0)}</td>
+                        <td>{drivers.reduce((s, d) => s + d.delivered, 0)}</td>
+                        <td>{fleet.avgOnTime == null ? "—" : `${fleet.avgOnTime}%`}</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>{Math.round(drivers.reduce((s, d) => s + d.miles, 0) * 10) / 10}</td>
+                        <td>{fmtMoney(fleet.revenue)}</td>
+                        <td>{fleet.revPerMile == null ? "—" : fmtMoney(fleet.revPerMile)}</td>
+                        <td>{fleet.avgUtil == null ? "—" : `${fleet.avgUtil}%`}</td>
+                        <td>{fleet.fuelCost == null ? "—" : fmtMoney(fleet.fuelCost)}</td>
+                        <td>{fleet.avgCostPer == null ? "—" : fmtMoney(fleet.avgCostPer)}</td>
+                        <td>{fleet.avgCsat == null ? "—" : `${fleet.avgCsat}★`}</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </>
@@ -505,6 +562,21 @@ function Kpi({ n, label, tone, small }: { n: number | string; label: string; ton
     <div className="kpi">
       <b style={{ color, fontSize: small ? 17 : undefined }}>{n}</b>
       <span>{label}</span>
+    </div>
+  );
+}
+
+// One labelled sparkline row: metric name · sparkline · latest value.
+function TrendRow({ label, values, last, suffix = "", color }: {
+  label: string; values: (number | null)[]; last: number | null; suffix?: string; color: string;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+      <span className="hint" style={{ width: 110, flexShrink: 0 }}>{label}</span>
+      <div style={{ flex: 1, minWidth: 0, overflowX: "auto" }}><Sparkline values={values} color={color} width={220} /></div>
+      <b style={{ width: 64, textAlign: "right", flexShrink: 0, color, fontVariantNumeric: "tabular-nums" }}>
+        {last == null ? "—" : `${last}${suffix}`}
+      </b>
     </div>
   );
 }
