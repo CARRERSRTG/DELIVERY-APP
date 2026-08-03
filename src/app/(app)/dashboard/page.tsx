@@ -106,6 +106,11 @@ export default function DashboardPage() {
     const avgOnTime = avg(drivers.map((d) => d.onTimePct));
     const avgCostPer = avg(drivers.map((d) => d.costPerDelivery));
     const avgCsat = avg(drivers.map((d) => d.avgCsat));
+    const totalIdleMin = idle.reduce((s, d) => s + d.idleMin, 0);
+    const avgPerActiveHr = avg(idle.map((d) => d.perActiveHr));
+    const avgPod = avg(quality.map((d) => d.podCompliancePct));
+    const totalRedeliveries = quality.reduce((s, d) => s + d.redeliveries, 0);
+    const totalGpsOff = quality.reduce((s, d) => s + d.podGpsFar, 0);
     return {
       revenue: Math.round(revenue * 100) / 100,
       revPerMile: miles > 0 ? Math.round((revenue / miles) * 100) / 100 : null,
@@ -114,8 +119,13 @@ export default function DashboardPage() {
       avgUtil: avgUtil == null ? null : Math.round(avgUtil),
       avgOnTime: avgOnTime == null ? null : Math.round(avgOnTime),
       avgCsat: avgCsat == null ? null : Math.round(avgCsat * 10) / 10,
+      totalIdleMin,
+      avgPerActiveHr: avgPerActiveHr == null ? null : Math.round(avgPerActiveHr * 10) / 10,
+      avgPod: avgPod == null ? null : Math.round(avgPod),
+      totalRedeliveries,
+      totalGpsOff,
     };
-  }, [drivers]);
+  }, [drivers, idle, quality]);
   const stores = useMemo(() => groupVolume(scoped, "store"), [scoped]);
   const accounts = useMemo(() => groupVolume(scoped, "account").slice(0, 8), [scoped]);
   const turnaround = useMemo(() => approvalTurnaroundMs(scoped, events), [scoped, events]);
@@ -265,6 +275,11 @@ export default function DashboardPage() {
                   <Kpi n={fleet.avgOnTime == null ? "—" : `${fleet.avgOnTime}%`} label={t("Avg on-time", "A tiempo prom.")} tone={fleet.avgOnTime != null && fleet.avgOnTime < 80 ? "amber" : "green"} />
                   <Kpi n={fleet.avgUtil == null ? "—" : `${fleet.avgUtil}%`} label={t("Avg utilization", "Utilización prom.")} tone={fleet.avgUtil != null && fleet.avgUtil > 100 ? "red" : "accent"} />
                   <Kpi n={fleet.avgCsat == null ? "—" : `${fleet.avgCsat}★`} label={t("Avg rating", "Calificación prom.")} tone="green" small />
+                  <Kpi n={fleet.avgPerActiveHr == null ? "—" : fleet.avgPerActiveHr} label={t("Deliveries / active hr", "Entregas / hora activa")} tone="accent" small />
+                  <Kpi n={fleet.totalIdleMin ? fmtDuration(fleet.totalIdleMin * 60_000) : "—"} label={t("Total idle time", "Tiempo inactivo total")} tone={fleet.totalIdleMin > 0 ? "amber" : undefined} small />
+                  <Kpi n={fleet.avgPod == null ? "—" : `${fleet.avgPod}%`} label={t("POD compliance", "Comprobante entrega")} tone={fleet.avgPod != null && fleet.avgPod < 90 ? "amber" : "green"} small />
+                  <Kpi n={fleet.totalRedeliveries || "—"} label={t("Redeliveries", "Reenvíos")} tone={fleet.totalRedeliveries > 0 ? "red" : undefined} small />
+                  <Kpi n={fleet.totalGpsOff || "—"} label={t("GPS-off deliveries", "Entregas GPS lejos")} tone={fleet.totalGpsOff > 0 ? "red" : undefined} small />
                 </div>
                 <div className="tbl-scroll" style={{ border: "none" }}>
                   <table className="orders" style={{ minWidth: 760, fontVariantNumeric: "tabular-nums" }}>
