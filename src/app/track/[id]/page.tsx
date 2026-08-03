@@ -9,12 +9,19 @@ import type { Delivery } from "@/lib/types";
 // Public, read-only delivery tracking page (#25). A customer opens
 // /track/<order-id> to see their delivery's status — no login.
 //
-// Local demo mode reads the browser's localStorage store. In Supabase mode,
-// point this at a public "delivery_status" view protected by RLS (only the
-// non-sensitive status columns) and fetch it with the anon client.
+// Local demo mode reads the browser's localStorage store. In Supabase mode it
+// calls /api/track/<id>, which returns ONLY the non-sensitive status fields
+// (via the service-role client, server-side).
 // ============================================================
 
-const LS_KEY = "rtg_deliveries_local_v7";
+const LS_KEY = "rtg_deliveries_local_v13";
+const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
+
+// Only the fields the public page shows.
+type TrackOrder = Pick<
+  Delivery,
+  "order_no" | "stage" | "account" | "delivery_date" | "delivery_windows" | "delivery_address" | "assigned_driver" | "pod_received_by"
+>;
 
 // The public-facing journey (internal-only stages are collapsed out).
 const PUBLIC_FLOW = ["approved", "fulfilling", "ready", "picked_up", "delivered"] as const;
@@ -30,18 +37,32 @@ const PUBLIC_LABEL: Record<string, string> = {
 const publicLabel = (stage: string) => PUBLIC_LABEL[stage] ?? stageInfo(stage).label;
 
 export default function TrackPage({ params }: { params: { id: string } }) {
-  const [order, setOrder] = useState<Delivery | null | undefined>(undefined);
+  const [order, setOrder] = useState<TrackOrder | null | undefined>(undefined);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const store = JSON.parse(raw) as { deliveries: Delivery[] };
-        setOrder(store.deliveries.find((d) => d.id === params.id) ?? null);
+    let cancelled = false;
+    (async () => {
+      if (LOCAL_MODE) {
+        try {
+          const raw = localStorage.getItem(LS_KEY);
+          if (raw) {
+            const store = JSON.parse(raw) as { deliveries: Delivery[] };
+            if (!cancelled) setOrder(store.deliveries.find((d) => d.id === params.id) ?? null);
+            return;
+          }
+        } catch { /* ignore */ }
+        if (!cancelled) setOrder(null);
         return;
       }
-    } catch { /* ignore */ }
-    setOrder(null);
+      try {
+        const res = await fetch(`/api/track/${params.id}`, { cache: "no-store" });
+        const b = await res.json().catch(() => ({}));
+        if (!cancelled) setOrder((b.order as TrackOrder | null) ?? null);
+      } catch {
+        if (!cancelled) setOrder(null);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [params.id]);
 
   const currentIdx = order ? PUBLIC_FLOW.indexOf(order.stage as (typeof PUBLIC_FLOW)[number]) : -1;
