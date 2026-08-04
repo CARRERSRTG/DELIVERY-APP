@@ -891,38 +891,7 @@ export function OrderModal({
                 </div>
               </div>
             )}
-            <div className="grid g2">
-              <Sel label={t("Order Type", "Tipo de Orden")} val={d.order_type} opts={settings.order_types} on={(v) => setD((p) => withTypeDefaults(p, v))} disabled={!salesFields} placeholder={t("Select order type", "Seleccione tipo de orden")} invalid={missingSet.has("order_type")} />
-              <Sel label={t("Store (Sold From)", "Tienda (Vendido Desde)")} val={d.store} opts={settings.stores.map((s) => s.name)} on={(v) => {
-                // Choosing a saved store auto-fills the pickup name + address from it.
-                const st = settings.stores.find((s) => s.name === v);
-                setD((p) => ({
-                  ...p,
-                  store: v,
-                  pickup_name: v || p.pickup_name,
-                  pickup_address: st?.address ? st.address : p.pickup_address,
-                }));
-              }} disabled={!salesFields || (me.role === "sales" && !!me.store && !homeIsDestination)} placeholder={t("Select store", "Seleccione tienda")} invalid={missingSet.has("store")} />
-            </div>
-            <div className="grid g4">
-              <Txt label="PO #" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
-              <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
-              <Txt label={t("Invoice #", "Factura #")} val={d.invoice_num} on={(v) => set("invoice_num", v)} disabled={!salesFields} invalid={missingSet.has("invoice_num") || !!invoiceDup} />
-              <Txt label={t("Est. Pallets (sales)", "Tarimas Est. (ventas)")} type="number" val={d.est_pallets ?? ""} on={(v) => set("est_pallets", v === "" ? null : Number(v))} disabled={!salesFields} invalid={missingSet.has("est_pallets")} />
-            </div>
-            {invoiceDup && (
-              <div className="hint" style={{ color: "var(--red)", fontWeight: 600, marginTop: -6, marginBottom: 10 }}>
-                ⚠ {t(
-                  `Duplicate invoice — order #${invoiceDup.order_no} already uses invoice #${invoiceDup.invoice_num}.`,
-                  `Factura duplicada — la orden #${invoiceDup.order_no} ya usa la factura #${invoiceDup.invoice_num}.`,
-                )}
-              </div>
-            )}
-            <div className="grid g2">
-              <Txt label={t("Delivery Fee charged ($)", "Costo de Entrega cobrado ($)")} type="number" val={d.delivery_fee ?? ""} on={(v) => set("delivery_fee", v === "" ? null : Number(v))} disabled={!salesFields} placeholder="0.00" invalid={missingSet.has("delivery_fee")} />
-            </div>
-
-            <div className="section-label">{t("Schedule", "Programación")}</div>
+            {/* ---- Schedule ---- */}
             <div className="grid g2">
               <Txt label={t("Delivery Date", "Fecha de Entrega")} type="date" val={d.delivery_date} on={(v) => set("delivery_date", v)} disabled={!salesFields} invalid={missingSet.has("delivery_date")} />
               <WindowSel val={d.delivery_windows} on={(v) => set("delivery_windows", v)} disabled={!salesFields} invalid={missingSet.has("delivery_windows")} t={t} />
@@ -937,7 +906,88 @@ export function OrderModal({
               </div>
             )}
 
-            <div className="section-label">{t("Pickup", "Recolección")}</div>
+            {/* ---- Customer / contact ---- */}
+            <div className="grid g3">
+              <AccountCombo
+                val={d.account}
+                on={(v) => {
+                  // Picking a saved account fills who to contact there (still
+                  // editable after) and defaults the order type: an internal
+                  // branch account → Intertienda, a customer account → Customer.
+                  const rec = savedAccounts.find((a) => a.name.toLowerCase() === v.toLowerCase());
+                  setD((p) => {
+                    const withAcct: Draft = {
+                      ...p,
+                      account: v,
+                      contact: rec ? rec.contact : p.contact,
+                      delivery_phone: rec ? rec.phone : p.delivery_phone,
+                    };
+                    const wantType = !v.trim() ? null : (rec?.intertienda ? "Intertienda" : "Customer");
+                    return wantType && settings.order_types.includes(wantType)
+                      ? withTypeDefaults(withAcct, wantType)
+                      : withAcct;
+                  });
+                }}
+                options={accountOptions}
+                disabled={!salesFields}
+                placeholder={t("Select account…", "Seleccione cuenta…")}
+                t={t}
+              />
+              <Txt label={t("Contact name", "Nombre de Contacto")} val={d.contact} on={(v) => set("contact", v)} disabled={!salesFields} invalid={missingSet.has("contact")} />
+              <Txt label={t("Number", "Número")} val={d.delivery_phone} on={(v) => set("delivery_phone", v)} disabled={!salesFields} invalid={missingSet.has("delivery_phone")} />
+            </div>
+            {salesFields && !!d.account?.trim() && !!d.contact?.trim() && !!d.delivery_phone?.trim() &&
+              !savedAccounts.some((a) => a.name.toLowerCase() === d.account!.trim().toLowerCase() && a.contact === d.contact && a.phone === d.delivery_phone) && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ marginTop: -6, marginBottom: 10 }}
+                  onClick={() => saveAccount({ name: d.account!.trim(), contact: d.contact!.trim(), phone: d.delivery_phone!.trim(), intertienda: d.order_type === "Intertienda" })}
+                >
+                  💾 {t("Save this contact for the account", "Guardar este contacto para la cuenta")}
+                </button>
+            )}
+
+            {/* ---- Order type · fee · pallets ---- */}
+            <div className="grid g3">
+              <Sel label={t("Order Type", "Tipo de Orden")} val={d.order_type} opts={settings.order_types} on={(v) => setD((p) => withTypeDefaults(p, v))} disabled={!salesFields} placeholder={t("Select order type", "Seleccione tipo de orden")} invalid={missingSet.has("order_type")} />
+              <Txt label={t("Delivery Fee charged ($)", "Costo de Entrega cobrado ($)")} type="number" val={d.delivery_fee ?? ""} on={(v) => set("delivery_fee", v === "" ? null : Number(v))} disabled={!salesFields} placeholder="0.00" invalid={missingSet.has("delivery_fee")} />
+              <Txt label={t("Est. Pallets (sales)", "Tarimas Est. (ventas)")} type="number" val={d.est_pallets ?? ""} on={(v) => set("est_pallets", v === "" ? null : Number(v))} disabled={!salesFields} invalid={missingSet.has("est_pallets")} />
+            </div>
+
+            {/* ---- Document references ---- */}
+            <div className="grid g3">
+              <Txt label={t("Invoice #", "Factura #")} val={d.invoice_num} on={(v) => set("invoice_num", v)} disabled={!salesFields} invalid={missingSet.has("invoice_num") || !!invoiceDup} />
+              <Txt label="PO #" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
+              <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
+            </div>
+            {invoiceDup && (
+              <div className="hint" style={{ color: "var(--red)", fontWeight: 600, marginTop: -6, marginBottom: 10 }}>
+                ⚠ {t(
+                  `Duplicate invoice — order #${invoiceDup.order_no} already uses invoice #${invoiceDup.invoice_num}.`,
+                  `Factura duplicada — la orden #${invoiceDup.order_no} ya usa la factura #${invoiceDup.invoice_num}.`,
+                )}
+              </div>
+            )}
+
+            {/* ---- Store (Sold From) + its address ---- */}
+            <div className="grid g2">
+              <Sel label={t("Store (Sold From)", "Tienda (Vendido Desde)")} val={d.store} opts={settings.stores.map((s) => s.name)} on={(v) => {
+                // Choosing a saved store auto-fills the pickup name + address from it.
+                const st = settings.stores.find((s) => s.name === v);
+                setD((p) => ({
+                  ...p,
+                  store: v,
+                  pickup_name: v || p.pickup_name,
+                  pickup_address: st?.address ? st.address : p.pickup_address,
+                }));
+              }} disabled={!salesFields || (me.role === "sales" && !!me.store && !homeIsDestination)} placeholder={t("Select store", "Seleccione tienda")} invalid={missingSet.has("store")} />
+              <div className="field">
+                <label>{t("Store address", "Dirección de tienda")}</label>
+                <input value={settings.stores.find((s) => s.name === d.store)?.address ?? ""} disabled placeholder={t("from the selected store", "de la tienda seleccionada")} />
+              </div>
+            </div>
+
+            {/* ---- Pickup ---- */}
             <div className="grid g2">
               <LocationCombo
                 nameLabel={t("Pickup Name", "Nombre de Recolección")}
@@ -957,7 +1007,7 @@ export function OrderModal({
               />
             </div>
 
-            <div className="section-label">{t("Delivery", "Entrega")}</div>
+            {/* ---- Delivery ---- */}
             {isIntraStore ? (
               // Intra-store transfer: the destination is another known store, picked
               // from the dropdown — but the dropoff address is always shown too.
@@ -1044,51 +1094,7 @@ export function OrderModal({
               </div>
             )}
 
-            <div className="grid g3">
-              <AccountCombo
-                val={d.account}
-                on={(v) => {
-                  // Picking a saved account fills who to contact there (still
-                  // editable after) and defaults the order type: an internal
-                  // branch account → Intertienda, a customer account → Customer.
-                  // Only overrides an existing type name the workspace actually
-                  // has, and the rep can always change it manually.
-                  const rec = savedAccounts.find((a) => a.name.toLowerCase() === v.toLowerCase());
-                  setD((p) => {
-                    const withAcct: Draft = {
-                      ...p,
-                      account: v,
-                      contact: rec ? rec.contact : p.contact,
-                      delivery_phone: rec ? rec.phone : p.delivery_phone,
-                    };
-                    // A named account defaults the type: branch account →
-                    // Intertienda, anything else → Customer. Clearing it leaves
-                    // the type as-is. Applying the type also runs its directional
-                    // defaults (receiving branch → Sold From is the rep's choice).
-                    const wantType = !v.trim() ? null : (rec?.intertienda ? "Intertienda" : "Customer");
-                    return wantType && settings.order_types.includes(wantType)
-                      ? withTypeDefaults(withAcct, wantType)
-                      : withAcct;
-                  });
-                }}
-                options={accountOptions}
-                disabled={!salesFields}
-                placeholder={t("Select account…", "Seleccione cuenta…")}
-                t={t}
-              />
-              <Txt label={t("Contact name", "Nombre de Contacto")} val={d.contact} on={(v) => set("contact", v)} disabled={!salesFields} invalid={missingSet.has("contact")} />
-              <Txt label={t("Delivery Phone Number", "Teléfono de Entrega")} val={d.delivery_phone} on={(v) => set("delivery_phone", v)} disabled={!salesFields} invalid={missingSet.has("delivery_phone")} />
-            </div>
-            {salesFields && !!d.account?.trim() && !!d.contact?.trim() && !!d.delivery_phone?.trim() &&
-              !savedAccounts.some((a) => a.name.toLowerCase() === d.account!.trim().toLowerCase() && a.contact === d.contact && a.phone === d.delivery_phone) && (
-                <button
-                  className="btn btn-ghost btn-sm"
-                  style={{ marginTop: -6, marginBottom: 10 }}
-                  onClick={() => saveAccount({ name: d.account!.trim(), contact: d.contact!.trim(), phone: d.delivery_phone!.trim(), intertienda: d.order_type === "Intertienda" })}
-                >
-                  💾 {t("Save this contact for the account", "Guardar este contacto para la cuenta")}
-                </button>
-            )}
+            {/* ---- Delivery notes ---- */}
             <div className="field">
               <label>{t("Delivery Notes", "Notas de Entrega")}</label>
               <textarea rows={2} value={d.delivery_notes ?? ""} disabled={!salesFields} onChange={(e) => set("delivery_notes", e.target.value)} />
