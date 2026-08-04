@@ -276,7 +276,7 @@ export default function RoutesPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const chosen = unassigned.filter((d) => selectedOrders.has(d.id) && d.delivery_lat != null && d.delivery_lng != null);
+      const chosen = dayOrders.filter((d) => selectedOrders.has(d.id) && d.delivery_lat != null && d.delivery_lng != null);
       for (const d of chosen) {
         if (cancelled) return;
         const addr = (d.pickup_address || settings.stores.find((s) => s.name === d.store)?.address || d.store || "").trim();
@@ -304,14 +304,22 @@ export default function RoutesPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedOrders, unassigned]);
+  }, [selectedOrders, dayOrders]);
 
-  // A distinct color per selected unassigned load (shared by its pin + route).
+  // A distinct color per selected load (shared by its pickup pin + route),
+  // whether the load is assigned or still in the pool.
   const selColorById = useMemo(() => {
     const m = new Map<string, string>();
-    unassigned.filter((d) => selectedOrders.has(d.id)).forEach((d, i) => m.set(d.id, SEL_PALETTE[i % SEL_PALETTE.length]));
+    dayOrders.filter((d) => selectedOrders.has(d.id)).forEach((d, i) => m.set(d.id, SEL_PALETTE[i % SEL_PALETTE.length]));
     return m;
-  }, [unassigned, selectedOrders]);
+  }, [dayOrders, selectedOrders]);
+
+  // How many of the selected loads are still in the pool — the bulk-assign
+  // controls act on these only (a selected assigned load is just a map view).
+  const poolSelectedCount = useMemo(
+    () => unassigned.reduce((n, d) => n + (selectedOrders.has(d.id) ? 1 : 0), 0),
+    [unassigned, selectedOrders],
+  );
 
   // Search + saved filter over the unassigned pool.
   const unassignedShown = useMemo(() => {
@@ -733,6 +741,7 @@ export default function RoutesPage() {
         });
         continue;
       }
+      const sel = selectedOrders.has(d.id);
       const list = byDriver.get(d.assigned_driver) ?? [];
       const idx = list.findIndex((x) => x.id === d.id);
       const badge = d.route_seq != null ? String(idx + 1) : undefined;
@@ -740,15 +749,17 @@ export default function RoutesPage() {
         id: d.id,
         lat: d.delivery_lat,
         lng: d.delivery_lng,
-        color: stopColor.get(d.id) ?? colorFor(d.assigned_driver),
-        badge,
+        // A selected assigned stop pops in its own selection color, un-dimmed,
+        // marked "D" so it pairs with its "P" pickup pin.
+        color: sel ? (selColorById.get(d.id) ?? "#2456c9") : (stopColor.get(d.id) ?? colorFor(d.assigned_driver)),
+        badge: sel ? "D" : badge,
         label: `#${d.order_no} — ${d.assigned_driver}${badge ? ` (${t("Stop", "Parada")} ${badge})` : ""}`,
-        dimmed: isDim(d.assigned_driver) || selActive,
+        dimmed: sel ? false : (isDim(d.assigned_driver) || selActive),
       });
     }
-    // Pickup ("P") pin for each selected unassigned load, in its own color, so
-    // the PU→DEL pairing is visible even before the road route resolves.
-    for (const d of unassigned) {
+    // Pickup ("P") pin for each selected load (assigned or pool), in its own
+    // color, so the PU→DEL pairing is visible even before the road route loads.
+    for (const d of dayOrders) {
       if (!selectedOrders.has(d.id)) continue;
       const pk = selPickup[d.id];
       if (!pk) continue;
@@ -764,7 +775,7 @@ export default function RoutesPage() {
     }
     return pts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, selectedOrders, selColorById, selPickup, unassigned, depotCoords, drivers]);
+  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, selectedOrders, selColorById, selPickup, depotCoords, drivers]);
 
   // Every optimized driver's routes are always drawn; a focus just dims the
   // others. Clicking a route focuses its driver (see onLineClick below).
@@ -799,12 +810,12 @@ export default function RoutesPage() {
         if (trace.ret.length > 1) out.push({ id: `pret:${i}`, color, positions: trace.ret, dashed: true, offset: 7 });
       });
     }
-    // Selected unassigned loads: each in its own color — the "go" leg solid
-    // (pickup→dropoff) and the "return" leg dashed (dropoff→pickup), offset so
-    // it sits beside the outbound line. When the road geometry isn't ready (or
-    // fails to load), fall back to a straight pickup→dropoff line so the PU→DEL
-    // pairing is ALWAYS shown, never just the dot.
-    for (const d of unassigned) {
+    // Selected loads (assigned or pool): each in its own color — the "go" leg
+    // solid (pickup→dropoff) and the "return" leg dashed (dropoff→pickup),
+    // offset so it sits beside the outbound line. When the road geometry isn't
+    // ready (or fails to load), fall back to a straight pickup→dropoff line so
+    // the PU→DEL pairing is ALWAYS shown, never just the dot.
+    for (const d of dayOrders) {
       if (!selectedOrders.has(d.id)) continue;
       const color = selColorById.get(d.id) ?? "#2456c9";
       const pos = selRouteCache[d.id];
@@ -820,7 +831,7 @@ export default function RoutesPage() {
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeLines, selected, preview, settings.driver_colors, selectedOrders, selRouteCache, selPickup, selColorById, unassigned]);
+  }, [routeLines, selected, preview, settings.driver_colors, selectedOrders, selRouteCache, selPickup, selColorById, dayOrders]);
 
   const onLineClick = (id: string) => {
     const m = id.match(/^(?:line|ret):(.+)#\d+$/);
@@ -833,7 +844,7 @@ export default function RoutesPage() {
     // Selected unassigned loads take priority — frame them + their routes.
     if (selectedOrders.size > 0) {
       const pts: [number, number][] = [];
-      for (const d of unassigned) {
+      for (const d of dayOrders) {
         if (!selectedOrders.has(d.id)) continue;
         if (d.delivery_lat != null && d.delivery_lng != null) pts.push([d.delivery_lat, d.delivery_lng]);
         const pk = selPickup[d.id];
@@ -852,7 +863,7 @@ export default function RoutesPage() {
     }
     return points.filter((p) => ids.has(p.id)).map((p) => [p.lat, p.lng] as [number, number]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, selected, selectedOrders, selRouteCache, selPickup, unassigned]);
+  }, [points, selected, selectedOrders, selRouteCache, selPickup, dayOrders]);
 
   if (!me) return null;
   if (!canPlanRoutes(me)) {
@@ -962,8 +973,9 @@ export default function RoutesPage() {
         </div>
         <div className="card" style={{ flex: "3 1 460px", margin: 0, padding: 0, overflow: "hidden" }}>
           <LeafletMap points={points} lines={lines} onLineClick={onLineClick} fitTo={fitTo} height={520} onPointClick={(id) => {
+            // Click any order pin (assigned or pool) to toggle its PU→DEL view.
             const d = dayOrders.find((x) => x.id === id);
-            if (d && !d.assigned_driver) toggleOrder(d.id);
+            if (d) toggleOrder(d.id);
           }} />
         </div>
       </div>
@@ -1075,12 +1087,16 @@ export default function RoutesPage() {
           {selectedOrders.size > 0 && (
             <>
               <span className="count-tag">{selectedOrders.size} {t("selected", "seleccionadas")}</span>
-              <select defaultValue="" disabled={autoAssigning} style={{ width: "auto" }}
-                onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v) bulkAssign(v); }}>
-                <option value="">{t("Assign selected to…", "Asignar selección a…")}</option>
-                {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
-              </select>
-              <button className="btn btn-amber btn-sm" onClick={bulkAutoAssign} disabled={autoAssigning}>✨ {t("Auto-assign selected", "Auto-asignar selección")}</button>
+              {poolSelectedCount > 0 && (
+                <>
+                  <select defaultValue="" disabled={autoAssigning} style={{ width: "auto" }}
+                    onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v) bulkAssign(v); }}>
+                    <option value="">{t("Assign selected to…", "Asignar selección a…")}</option>
+                    {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
+                  </select>
+                  <button className="btn btn-amber btn-sm" onClick={bulkAutoAssign} disabled={autoAssigning}>✨ {t("Auto-assign selected", "Auto-asignar selección")}</button>
+                </>
+              )}
               <button className="btn btn-ghost btn-sm" onClick={clearSelection}>{t("Clear", "Limpiar")}</button>
             </>
           )}
