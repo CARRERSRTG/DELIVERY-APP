@@ -26,6 +26,20 @@ export const todayISO = () => localISO(new Date());
 export const orderLabel = (d: { order_no: number; order_suffix?: string | null }) =>
   `${d.order_no}${d.order_suffix ?? ""}`;
 
+/** Default base for teaching-mode (sandbox) order numbers. */
+export const TRAINING_ORDER_BASE = 900000;
+
+/** Next order number for a teaching-mode order: it draws from its own high
+ * range (>= base) so a practice order never consumes a real order number.
+ * `deliveries` is the current (training-scoped) set. */
+export function nextTrainingOrderNo(
+  deliveries: { order_no?: number | null }[],
+  base: number = TRAINING_ORDER_BASE,
+): number {
+  const maxTraining = deliveries.reduce((m, x) => Math.max(m, Number(x.order_no ?? 0)), 0);
+  return Math.max(maxTraining, base) + 1;
+}
+
 /** Yesterday as local YYYY-MM-DD — the floor of what a salesperson sees by
  * default on the Orders table (yesterday / today / future only). */
 export const yesterdayISO = () => {

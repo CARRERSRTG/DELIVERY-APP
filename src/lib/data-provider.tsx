@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Delivery, DriverAvailability, DriverShift, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
-import { orderOwner } from "@/lib/utils";
+import { orderOwner, nextTrainingOrderNo, TRAINING_ORDER_BASE } from "@/lib/utils";
 
 const DEFAULT_SETTINGS: Settings = {
   id: 1,
@@ -34,10 +34,6 @@ const DEFAULT_SETTINGS: Settings = {
   manager_pending_cutoff: "16:00",
   sales_pending_cutoff: "16:15",
 };
-
-// Teaching-mode orders are numbered from this high base up, so practice orders
-// never collide with, or consume a number from, the real order sequence.
-const TRAINING_ORDER_BASE = 900000;
 
 export interface DataState {
   ready: boolean;
@@ -291,8 +287,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       // sequence, so real orders stay contiguous. (A pre-set order_no, e.g. a
       // split remainder, is respected.)
       if (teaching && payload.order_no == null) {
-        const maxTraining = deliveries.reduce((m, x) => Math.max(m, Number(x.order_no ?? 0)), 0);
-        payload.order_no = Math.max(maxTraining, TRAINING_ORDER_BASE) + 1;
+        payload.order_no = nextTrainingOrderNo(deliveries, TRAINING_ORDER_BASE);
       }
       const { data, error } = await supabase.from("deliveries").insert(payload).select().single();
       if (error) {
