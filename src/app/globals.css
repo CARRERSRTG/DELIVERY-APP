@@ -50,6 +50,22 @@ label { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: bloc
 .account-link:hover:not(.active) { background: rgba(255,255,255,.1); }
 .account-link.active { background: rgba(255,255,255,.16); }
 
+/* Prominent "← Back to account" button on the Settings page. */
+.btn-back-account {
+  font-size: 15px;
+  font-weight: 700;
+  padding: 11px 22px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(36,86,201,.28);
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+}
+.btn-back-account:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(36,86,201,.36);
+  filter: brightness(1.05);
+}
+.btn-back-account:active { transform: translateY(0); }
+
 .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 80px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
 .card h2 { font-size: 15px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }

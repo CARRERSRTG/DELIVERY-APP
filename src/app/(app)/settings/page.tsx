@@ -25,7 +25,7 @@ export default function SettingsPage() {
       <>
         <div className="page-head">
           <h2>{t("Settings", "Ajustes")}</h2>
-          <Link href="/account" className="btn btn-ghost">← {t("Back to account", "Volver a la cuenta")}</Link>
+          <Link href="/account" className="btn btn-primary btn-back-account">← {t("Back to account", "Volver a la cuenta")}</Link>
         </div>
         <AppearanceCard lang={lang} theme={theme} setLang={setLang} setTheme={setTheme} t={t} />
         <TeachingCard teaching={teaching} setTeaching={setTeaching} t={t} />
@@ -40,7 +40,7 @@ export default function SettingsPage() {
     <>
       <div className="page-head">
         <h2>{t("Settings", "Ajustes")}</h2>
-        <Link href="/account" className="btn btn-ghost">← {t("Back to account", "Volver a la cuenta")}</Link>
+        <Link href="/account" className="btn btn-primary btn-back-account">← {t("Back to account", "Volver a la cuenta")}</Link>
       </div>
 
       <AppearanceCard lang={lang} theme={theme} setLang={setLang} setTheme={setTheme} t={t} />
