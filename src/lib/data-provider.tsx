@@ -35,6 +35,10 @@ const DEFAULT_SETTINGS: Settings = {
   sales_pending_cutoff: "16:15",
 };
 
+// Teaching-mode orders are numbered from this high base up, so practice orders
+// never collide with, or consume a number from, the real order sequence.
+const TRAINING_ORDER_BASE = 900000;
+
 export interface DataState {
   ready: boolean;
   /** The EFFECTIVE user — role is overridden while an admin is "viewing as"
@@ -279,7 +283,17 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       // created_by is always the actual actor — a non-sales creator assigning
       // the order to a rep (OrderModal's Sales Rep picker) sets assigned_sales_rep
       // instead, which is what orderOwner() resolves for own-orders visibility.
-      const payload = { ...d, created_by: me?.id ?? null, is_training: teaching };
+      const payload: Partial<Delivery> = { ...d, created_by: me?.id ?? null, is_training: teaching };
+      // Teaching mode is a parallel sandbox: practice orders must NOT consume a
+      // real order number. order_no is a shared "by default" identity sequence,
+      // so we assign training orders their own high number range explicitly —
+      // Postgres keeps the identity value we pass without advancing the real
+      // sequence, so real orders stay contiguous. (A pre-set order_no, e.g. a
+      // split remainder, is respected.)
+      if (teaching && payload.order_no == null) {
+        const maxTraining = deliveries.reduce((m, x) => Math.max(m, Number(x.order_no ?? 0)), 0);
+        payload.order_no = Math.max(maxTraining, TRAINING_ORDER_BASE) + 1;
+      }
       const { data, error } = await supabase.from("deliveries").insert(payload).select().single();
       if (error) {
         notify("Error: " + error.message);
@@ -288,13 +302,15 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       const row = data as Delivery;
       setDeliveries((prev) => [row, ...prev]);
       await logEvent(row.id, "created");
-      // An order created straight into "pending" (Submit for approval) alerts managers.
-      if (row.stage && row.stage !== "draft") {
+      // An order created straight into "pending" (Submit for approval) alerts
+      // managers — but never in teaching mode, where it would ping real people
+      // about a practice order.
+      if (!teaching && row.stage && row.stage !== "draft") {
         await emitStageNotifs({ stage: row.stage, order_no: row.order_no, delivery_id: row.id, creatorId: orderOwner(row) });
       }
       return row;
     },
-    [supabase, me, notify, logEvent, emitStageNotifs, teaching],
+    [supabase, me, notify, logEvent, emitStageNotifs, teaching, deliveries],
   );
 
   const updateDelivery = useCallback<DataState["updateDelivery"]>(
@@ -343,10 +359,13 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       setDeliveries((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
       await logEvent(id, stage, note);
       const order = deliveries.find((c) => c.id === id);
-      await emitStageNotifs({ stage, order_no: order?.order_no ?? null, delivery_id: id, creatorId: order ? orderOwner(order) : null, reason: note });
+      // Never notify real people about a teaching-mode (sandbox) order.
+      if (!teaching) {
+        await emitStageNotifs({ stage, order_no: order?.order_no ?? null, delivery_id: id, creatorId: order ? orderOwner(order) : null, reason: note });
+      }
       return true;
     },
-    [supabase, me, notify, logEvent, deliveries, emitStageNotifs],
+    [supabase, me, notify, logEvent, deliveries, emitStageNotifs, teaching],
   );
 
   const eventsFor = useCallback(
