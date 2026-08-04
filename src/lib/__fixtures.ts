@@ -19,6 +19,7 @@ export function mkDelivery(over: Partial<Delivery> = {}): Delivery {
     po2: null,
     so_num: null,
     invoice_num: null,
+    estimate_num: null,
     input_date: "2026-07-15",
     input_time: "0900",
     delivery_date: "2026-07-20",

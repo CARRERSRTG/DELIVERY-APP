@@ -57,6 +57,9 @@ export interface Delivery {
   po2: string | null;
   so_num: string | null;
   invoice_num: string | null;
+  /** Internal reference for store-to-store moves (Transfer): an estimate #
+   * instead of a customer invoice / PO / SO. */
+  estimate_num: string | null;
   input_date: string | null;
   input_time: string | null;
   delivery_date: string | null;
@@ -196,11 +199,12 @@ export interface OrderTypeRule {
   /** Store-to-store move (branch → branch): the destination is another store,
    * so no external customer contact/phone is collected. */
   storeToStore?: boolean;
-  /** Which document reference the type requires:
+  /** Which document reference the type uses:
    *  - "invoice": Invoice # (and a delivery fee) required
    *  - "any": any one of PO # / SO # / Invoice #
-   *  - "none": no document reference required */
-  docRef?: "invoice" | "any" | "none";
+   *  - "none": no document reference required (shows the PO/SO/Invoice fields)
+   *  - "estimate": shows a single optional Estimate # field instead */
+  docRef?: "invoice" | "any" | "none" | "estimate";
   /** The rep's own store is the DESTINATION, not the origin (a "receiving"
    * branch move, e.g. Intertienda). On a new order the delivery defaults to the
    * rep's store and the rep chooses the "Sold From" (origin) store instead of

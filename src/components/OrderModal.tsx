@@ -332,6 +332,9 @@ export function OrderModal({
   // "Receiving" types (Intertienda): the rep's own store is the DESTINATION, so
   // the delivery defaults to it and the rep picks the "Sold From" (origin).
   const homeIsDestination = orderTypeRule(d.order_type, settings.order_type_rules).homeIsDestination === true;
+  // Which document-reference fields this type shows: "estimate" (Transfer) uses
+  // a single Estimate #; everything else uses the Invoice # / PO # / SO # trio.
+  const docRef = orderTypeRule(d.order_type, settings.order_type_rules).docRef ?? "invoice";
 
   // Apply a newly-chosen order type's directional defaults. For a receiving
   // type the rep's store becomes the destination and Sold From is theirs to
@@ -955,11 +958,18 @@ export function OrderModal({
             </div>
 
             {/* ---- Document references ---- */}
-            <div className="grid g3">
-              <Txt label={t("Invoice #", "Factura #")} val={d.invoice_num} on={(v) => set("invoice_num", v)} disabled={!salesFields} invalid={missingSet.has("invoice_num") || !!invoiceDup} />
-              <Txt label="PO #" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
-              <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
-            </div>
+            {docRef === "estimate" ? (
+              // Transfer: a single internal estimate number, no customer paperwork.
+              <div className="grid g2">
+                <Txt label={t("Estimate #", "Estimación #")} val={d.estimate_num} on={(v) => set("estimate_num", v)} disabled={!salesFields} invalid={missingSet.has("estimate_num")} />
+              </div>
+            ) : (
+              <div className="grid g3">
+                <Txt label={t("Invoice #", "Factura #")} val={d.invoice_num} on={(v) => set("invoice_num", v)} disabled={!salesFields} invalid={missingSet.has("invoice_num") || !!invoiceDup} />
+                <Txt label="PO #" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
+                <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
+              </div>
+            )}
             {invoiceDup && (
               <div className="hint" style={{ color: "var(--red)", fontWeight: 600, marginTop: -6, marginBottom: 10 }}>
                 ⚠ {t(

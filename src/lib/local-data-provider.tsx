@@ -299,7 +299,7 @@ function seedRow(n: number): Delivery {
     id: "", order_no: n, order_suffix: null, stage: "draft", rejected_reason: null,
     is_training: false, redelivery_of: null, redelivery_reason: null,
     prepared_status: null, status_temp: null, order_type: null, store: null,
-    po2: null, so_num: null, invoice_num: null, input_date: todayISO(), input_time: null,
+    po2: null, so_num: null, invoice_num: null, estimate_num: null, input_date: todayISO(), input_time: null,
     delivery_date: null, pickup_name: null, pickup_address: null, pickup_duration: null,
     delivery_fee: null, est_pallets: null, actual_pallets: null, assigned_driver: null, delivery_duration: null,
     delivery_name: null, delivery_address: null,

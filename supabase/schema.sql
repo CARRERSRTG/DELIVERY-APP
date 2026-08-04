@@ -52,7 +52,7 @@ create table if not exists public.settings (
   stores       jsonb not null default '[{"name":"Brownsville","address":""},{"name":"Weslaco","address":""},{"name":"Pharr","address":""},{"name":"McAllen","address":""},{"name":"Mission","address":""},{"name":"Edinburg","address":""}]'::jsonb,
   order_types  text[] not null default array['Customer','Intertienda','Transfer'],
   -- Per-type field rules keyed by type name: {storeToStore: bool, docRef: 'invoice'|'any'|'none'}.
-  order_type_rules jsonb not null default '{"Customer":{"storeToStore":false,"docRef":"invoice"},"Intertienda":{"storeToStore":true,"docRef":"any","homeIsDestination":true},"Transfer":{"storeToStore":true,"docRef":"none"}}'::jsonb,
+  order_type_rules jsonb not null default '{"Customer":{"storeToStore":false,"docRef":"invoice"},"Intertienda":{"storeToStore":true,"docRef":"any","homeIsDestination":true},"Transfer":{"storeToStore":true,"docRef":"estimate"}}'::jsonb,
   drivers      jsonb not null default '[]'::jsonb,
   -- Minutes added per pallet, used to auto-calculate durations. Admin-editable.
   pickup_min_per_pallet   numeric not null default 4,
@@ -84,9 +84,10 @@ create table if not exists public.deliveries (
   status_temp        text,                     -- Status (Temp)
   order_type         text,                     -- Order Type
   store              text,                     -- Store (Sold From)
-  po2                text,                     -- PO #2
+  po2                text,                     -- PO #
   so_num             text,                     -- SO #
   invoice_num        text,                     -- Invoice #
+  estimate_num       text,                     -- Estimate # (Transfer)
   input_date         date default current_date,-- Input Date
   input_time         text,                     -- Input Military Time (e.g. 1430)
   delivery_date      date,                     -- Delivery Date

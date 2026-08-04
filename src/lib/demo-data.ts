@@ -50,7 +50,7 @@ export function demoSettings(): Settings {
     order_type_rules: {
       Customer:    { storeToStore: false, docRef: "invoice" }, // external customer delivery
       Intertienda: { storeToStore: true,  docRef: "any", homeIsDestination: true }, // receiving branch: any one doc, rep's store is the destination
-      Transfer:    { storeToStore: true,  docRef: "none" },     // branch-to-branch, no paperwork
+      Transfer:    { storeToStore: true,  docRef: "estimate" }, // branch-to-branch: single Estimate #
     },
     pickup_locations: [
       { name: "Rio Supply Yard", address: "800 S Main St, McAllen TX" },
@@ -126,6 +126,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
     po2: null,
     so_num: null,
     invoice_num: null,
+    estimate_num: null,
     input_date: iso(-2),
     input_time: "0900",
     delivery_date: iso(0),
