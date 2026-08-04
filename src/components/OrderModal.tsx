@@ -1013,7 +1013,7 @@ export function OrderModal({
               // from the dropdown — but the dropoff address is always shown too.
               <div className="grid g2">
                 <Sel
-                  label={t("Delivery Store (destination)", "Tienda de Entrega (destino)")}
+                  label={t("Store destination", "Tienda destino")}
                   val={deliveryStore}
                   opts={settings.stores.map((s) => s.name)}
                   on={(v) => {
@@ -1025,7 +1025,7 @@ export function OrderModal({
                   placeholder={t("Select destination store", "Seleccione tienda destino")}
                   invalid={missingSet.has("delivery_name") || missingSet.has("delivery_address")}
                 />
-                <Txt label={t("Delivery Address (dropoff)", "Dirección de Entrega (destino)")} val={d.delivery_address} on={(v) => set("delivery_address", v)} disabled={!salesFields} placeholder={t("filled from the destination store", "se completa desde la tienda destino")} />
+                <Txt label={t("Delivery Address", "Dirección de Entrega")} val={d.delivery_address} on={(v) => set("delivery_address", v)} disabled={!salesFields} placeholder={t("filled from the destination store", "se completa desde la tienda destino")} />
               </div>
             ) : (
               <div className="grid g2">

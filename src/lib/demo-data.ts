@@ -49,7 +49,7 @@ export function demoSettings(): Settings {
     order_types: ["Customer", "Intertienda", "Transfer"],
     order_type_rules: {
       Customer:    { storeToStore: false, docRef: "invoice" }, // external customer delivery
-      Intertienda: { storeToStore: true,  docRef: "none", homeIsDestination: true }, // receiving branch: rep's store is the destination
+      Intertienda: { storeToStore: true,  docRef: "any", homeIsDestination: true }, // receiving branch: any one doc, rep's store is the destination
       Transfer:    { storeToStore: true,  docRef: "none" },     // branch-to-branch, no paperwork
     },
     pickup_locations: [
