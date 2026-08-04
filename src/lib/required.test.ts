@@ -5,8 +5,10 @@ import type { OrderTypeRule } from "@/lib/types";
 // The default rule set the app ships with.
 const RULES: Record<string, OrderTypeRule> = {
   Customer:    { storeToStore: false, docRef: "invoice" },
-  Intertienda: { storeToStore: true,  docRef: "any" },
+  Intertienda: { storeToStore: true,  docRef: "none" },
   Transfer:    { storeToStore: true,  docRef: "none" },
+  // A custom store-to-store type that DOES need any-one doc, to exercise "any".
+  Branch:      { storeToStore: true,  docRef: "any" },
 };
 
 // A fully-valid regular customer delivery.
@@ -98,18 +100,22 @@ describe("missingFields — document reference by rule", () => {
     expect(keys({ ...complete, invoice_num: "" })).toContain("invoice_num");
   });
 
-  it("Intertienda (docRef any) accepts ANY ONE of PO/SO/Invoice", () => {
-    const base = { ...complete, order_type: "Intertienda", invoice_num: "", so_num: "", po2: "" };
+  it("a docRef=any type accepts ANY ONE of PO/SO/Invoice", () => {
+    const base = { ...complete, order_type: "Branch", invoice_num: "", so_num: "", po2: "" };
     expect(keys(base)).toContain("doc_ref");
     expect(missingFields({ ...base, po2: "PO-1" }, RULES)).toEqual([]);
     expect(missingFields({ ...base, so_num: "SO-1" }, RULES)).toEqual([]);
     expect(missingFields({ ...base, invoice_num: "INV-1" }, RULES)).toEqual([]);
   });
 
+  it("Intertienda needs NO document reference (SO#, PO#, invoice all optional)", () => {
+    expect(missingFields({ ...complete, order_type: "Intertienda", invoice_num: "", so_num: "", po2: "" }, RULES)).toEqual([]);
+  });
+
   it("store-to-store types collect no contact/phone", () => {
     // No contact + no phone, but Intertienda/Transfer don't need them.
     const stripped = { ...complete, contact: "", delivery_phone: "" };
-    expect(missingFields({ ...stripped, order_type: "Intertienda", po2: "PO-1" }, RULES)).toEqual([]);
+    expect(missingFields({ ...stripped, order_type: "Intertienda", invoice_num: "" }, RULES)).toEqual([]);
     expect(missingFields({ ...stripped, order_type: "Transfer", invoice_num: "" }, RULES)).toEqual([]);
   });
 
@@ -120,7 +126,7 @@ describe("missingFields — document reference by rule", () => {
 
 describe("missingKeys", () => {
   it("lights up all three reference fields when doc_ref is missing", () => {
-    const k = missingKeys({ ...complete, order_type: "Intertienda", invoice_num: "", so_num: "", po2: "" }, RULES);
+    const k = missingKeys({ ...complete, order_type: "Branch", invoice_num: "", so_num: "", po2: "" }, RULES);
     expect(k.has("po2")).toBe(true);
     expect(k.has("so_num")).toBe(true);
     expect(k.has("invoice_num")).toBe(true);
