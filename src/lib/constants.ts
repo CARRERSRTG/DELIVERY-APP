@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.3.10";
+export const APP_VERSION = "0.3.11";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
@@ -111,6 +111,17 @@ export const ROLE_INFO: Record<UserRole, { label: string; label_es: string; colo
 
 export function roleLabel(role: UserRole, lang: Lang): string {
   return lang === "es" ? ROLE_INFO[role].label_es : ROLE_INFO[role].label;
+}
+
+/** The landing page a role works from — where the admin "view as" switcher
+ * jumps to so the preview lands on that role's actual view. */
+export function roleHome(role: UserRole): string {
+  switch (role) {
+    case "warehouse": return "/warehouse";
+    case "driver": return "/driver";
+    case "logistics": return "/routes";
+    default: return "/"; // admin / manager / sales work from the Orders board
+  }
 }
 
 export const ROLE_ORDER: UserRole[] = ["admin", "manager", "logistics", "sales", "warehouse", "driver"];

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { TABS, ROLE_INFO, ROLE_ORDER, extraCaps, roleLabel } from "@/lib/constants";
+import { usePathname, useRouter } from "next/navigation";
+import { TABS, ROLE_INFO, ROLE_ORDER, extraCaps, roleHome, roleLabel } from "@/lib/constants";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { avatarColor, initials } from "@/lib/utils";
@@ -13,6 +13,7 @@ import type { Profile, UserRole } from "@/lib/types";
 
 export function TopBar({ me: propMe }: { me: Profile }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { settings, me: ctxMe, realRole, viewAs, setViewAs, teaching, setTeaching } = useData();
   const { lang, t } = usePrefs();
   // `me` is the EFFECTIVE user — its role follows the admin "view as" preview.
@@ -86,7 +87,12 @@ export function TopBar({ me: propMe }: { me: Profile }) {
             <select
               value={viewAs ?? "admin"}
               aria-label={t("View the app as another role", "Ver la app como otro rol")}
-              onChange={(e) => setViewAs(e.target.value === "admin" ? null : (e.target.value as UserRole))}
+              onChange={(e) => {
+                const next = e.target.value === "admin" ? null : (e.target.value as UserRole);
+                setViewAs(next);
+                // Jump straight to the previewed role's own view.
+                router.push(roleHome(next ?? "admin"));
+              }}
             >
               {ROLE_ORDER.map((r) => (
                 <option key={r} value={r}>
