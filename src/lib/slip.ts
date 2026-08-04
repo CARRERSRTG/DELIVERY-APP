@@ -1,7 +1,7 @@
 import type { Delivery, Profile, Settings } from "@/lib/types";
 import type { Lang } from "@/lib/prefs";
 import { stageLabel } from "@/lib/constants";
-import { fmtDate, fmtDateTime, fmtMilitary, fmtMoney } from "@/lib/utils";
+import { fmtDate, fmtDateTime, fmtMilitary, fmtMoney, fmtWindows } from "@/lib/utils";
 
 // ============================================================
 // Printable delivery slip / packing list for a single order (#20).
@@ -81,7 +81,7 @@ export function printDeliverySlip(d: Delivery, settings: Settings, users: Profil
       ${row(T("Invoice #", "Factura #"), d.invoice_num || "")}
     </table></div><div><table>
       ${row(T("Delivery date", "Fecha entrega"), d.delivery_date ? fmtDate(d.delivery_date) : "")}
-      ${row(T("Windows", "Ventanas"), d.delivery_windows || "")}
+      ${row(T("Windows", "Ventanas"), fmtWindows(d.delivery_windows))}
       ${row(T("Pallets", "Tarimas"), String(d.actual_pallets ?? d.est_pallets ?? ""))}
       ${row(T("Delivery fee", "Costo de entrega"), d.delivery_fee == null ? "" : fmtMoney(d.delivery_fee))}
       ${row(T("Driver", "Chofer"), d.assigned_driver || "")}

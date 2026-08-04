@@ -754,12 +754,21 @@ export function OrderModal({
               <DriverDeliveryScreen order={existing} settings={settings} notify={notify} t={t} />
             ) : (
               <div className="detail-grid">
-                {deliveryColumns(existing).slice(1).map(([k, v]) => (
-                  <div className="detail-row" key={k}>
-                    <span className="dk">{colLabel(k, lang)}</span>
-                    <span className="dv">{v || "—"}</span>
-                  </div>
-                ))}
+                {deliveryColumns(existing).slice(1)
+                  // Route/redelivery details only show when they actually have a
+                  // value. Assigned Driver hides-when-empty for a salesperson but
+                  // always shows for logistics (they own dispatch).
+                  .filter(([k, v]) => {
+                    if (!v && ["Route Miles", "Est. Travel Time", "Re-delivery reason"].includes(k)) return false;
+                    if (k === "Assigned Driver" && !v && me.role === "sales") return false;
+                    return true;
+                  })
+                  .map(([k, v]) => (
+                    <div className="detail-row" key={k}>
+                      <span className="dk">{colLabel(k, lang)}</span>
+                      <span className="dv">{v || "—"}</span>
+                    </div>
+                  ))}
               </div>
             )}
             {existing.rejected_reason && (

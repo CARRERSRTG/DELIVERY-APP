@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.3.9";
+export const APP_VERSION = "0.3.10";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
@@ -141,6 +141,8 @@ export const ROLE_DEFAULT_COLUMNS: Partial<Record<UserRole, string[]>> = {
   sales: ["type", "store", "invoice", "date", "windows", "account"],
   // Drivers work off the customer invoice, never the internal SO #.
   driver: ["stage", "type", "store", "account", "invoice", "date", "windows", "pallets"],
+  // Warehouse works off the customer invoice too (Invoice # instead of SO #).
+  warehouse: ["stage", "type", "store", "account", "invoice", "date", "windows", "pallets", "driver"],
 };
 
 /** Drivers come from the Users list — anyone with the "driver" role. They're

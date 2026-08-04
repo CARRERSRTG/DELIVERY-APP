@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
-import { canFulfill } from "@/lib/constants";
+import { canFulfill, ROLE_DEFAULT_COLUMNS } from "@/lib/constants";
 import { OrdersTable } from "@/components/OrdersTable";
 import { OrderModal } from "@/components/OrderModal";
 import { yesterdayISO } from "@/lib/utils";
@@ -93,7 +93,7 @@ export default function WarehousePage() {
       </div>
 
       {ready ? (
-        <OrdersTable rows={rows} onOpen={setOpen} empty={t("Nothing in this queue.", "Nada en esta cola.")} />
+        <OrdersTable rows={rows} onOpen={setOpen} visible={ROLE_DEFAULT_COLUMNS.warehouse} empty={t("Nothing in this queue.", "Nada en esta cola.")} />
       ) : (
         <div className="empty">{t("Loading…", "Cargando…")}</div>
       )}

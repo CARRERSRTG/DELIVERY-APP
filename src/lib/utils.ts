@@ -146,6 +146,14 @@ export function fmtMilitary(t: string | null): string {
   return s.padStart(4, "0").slice(0, 4);
 }
 
+/** Delivery time window "0830-1730" → "08:30-17:30" for display (inserts the
+ * colon into each HHMM). Handles multiple comma-separated ranges. "—" if empty. */
+export function fmtWindows(w: string | null | undefined): string {
+  const s = String(w ?? "").trim();
+  if (!s) return "—";
+  return s.replace(/\b(\d{2})(\d{2})\b/g, "$1:$2");
+}
+
 export const telClean = (t: string | null) => (t || "").replace(/[^0-9+]/g, "");
 
 /** Best-effort city name pulled from a free-text address — matched against a
@@ -331,7 +339,7 @@ export function deliveryColumns(d: Delivery): [string, string][] {
     ["Assigned Driver", d.assigned_driver ?? ""],
     ["Delivery Duration", d.delivery_duration ?? ""],
     ["Delivery Address", d.delivery_address ?? ""],
-    ["Delivery Military Time Windows", d.delivery_windows ?? ""],
+    ["Delivery Military Time Windows", fmtWindows(d.delivery_windows)],
     ["Account", d.account ?? ""],
     ["Contact", d.contact ?? ""],
     ["Delivery Phone Number", d.delivery_phone ?? ""],
