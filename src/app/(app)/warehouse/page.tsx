@@ -13,6 +13,7 @@ const TABS = [
   { key: "approved", label: "Approved (new)", label_es: "Aprobado (nuevo)" },
   { key: "fulfilling", label: "Fulfilling", label_es: "Preparando" },
   { key: "ready", label: "Ready", label_es: "Listo" },
+  { key: "picked_up", label: "Out for delivery", label_es: "En reparto" },
   { key: "delivered", label: "Delivered", label_es: "Entregado" },
   { key: "all", label: "All", label_es: "Todas" },
 ] as const;

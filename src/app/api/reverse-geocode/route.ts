@@ -51,13 +51,18 @@ export async function POST(req: Request) {
   const google = process.env.GOOGLE_MAPS_API_KEY;
   const mapbox = process.env.MAPBOX_TOKEN;
 
-  try {
-    const address = google ? await viaGoogle(lat, lng, google)
-      : mapbox ? await viaMapbox(lat, lng, mapbox)
-      : await viaOSM(lat, lng);
-    if (!address) return NextResponse.json({ error: "No address found" }, { status: 404 });
-    return NextResponse.json({ address });
-  } catch {
-    return NextResponse.json({ error: "Reverse geocoding failed" }, { status: 502 });
-  }
+  // Try each configured provider in turn and fall through on failure/empty —
+  // so if Google is set but its Geocoding API isn't enabled (REQUEST_DENIED →
+  // no address), we still fall back to the free OSM lookup instead of 404ing.
+  const tryProvider = async (fn: () => Promise<string | null>): Promise<string | null> => {
+    try { return await fn(); } catch { return null; }
+  };
+
+  let address: string | null = null;
+  if (google) address = await tryProvider(() => viaGoogle(lat, lng, google));
+  if (!address && mapbox) address = await tryProvider(() => viaMapbox(lat, lng, mapbox));
+  if (!address) address = await tryProvider(() => viaOSM(lat, lng));
+
+  if (!address) return NextResponse.json({ error: "No address found" }, { status: 404 });
+  return NextResponse.json({ address });
 }

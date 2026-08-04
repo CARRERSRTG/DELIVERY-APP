@@ -366,9 +366,9 @@ export function OrderModal({
   // Dropping a manual pin also fills in Delivery Address from a reverse
   // geocode of that point, so the field isn't left blank — the rep can
   // still edit it by hand afterward (e.g. to add gate code instructions).
-  const savePin = async (lat: number, lng: number) => {
-    set("delivery_lat", lat); set("delivery_lng", lng); set("delivery_pin_source", "manual");
-    setShowPinPicker(false);
+  // Reverse-geocode a point → fill the Delivery Address. Shared by "drop" (so
+  // the address appears as soon as the pin lands) and "Save pin".
+  const geocodePin = async (lat: number, lng: number) => {
     setPinLookupBusy(true);
     try {
       const res = await fetch("/api/reverse-geocode", {
@@ -382,6 +382,19 @@ export function OrderModal({
       }
     } catch { /* best-effort — the pin itself is already saved either way */ }
     setPinLookupBusy(false);
+  };
+
+  // Dropping the pin previews it AND fills the address right away.
+  const dropPin = (lat: number, lng: number) => {
+    setPinDraft([lat, lng]);
+    void geocodePin(lat, lng);
+  };
+
+  const savePin = async (lat: number, lng: number) => {
+    set("delivery_lat", lat); set("delivery_lng", lng); set("delivery_pin_source", "manual");
+    setShowPinPicker(false);
+    // Fill the address if the drop didn't already (e.g. geocode was still in flight).
+    if (!(d.delivery_address || "").trim()) await geocodePin(lat, lng);
   };
 
   // Auto-calculate the route as soon as both ends of the trip are known.
@@ -1085,7 +1098,7 @@ export function OrderModal({
                   pickable
                   pickedPoint={pinDraft}
                   center={pinDraft ?? (d.delivery_lat != null && d.delivery_lng != null ? [d.delivery_lat, d.delivery_lng] : undefined)}
-                  onPick={(lat, lng) => setPinDraft([lat, lng])}
+                  onPick={(lat, lng) => dropPin(lat, lng)}
                   height={280}
                 />
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
