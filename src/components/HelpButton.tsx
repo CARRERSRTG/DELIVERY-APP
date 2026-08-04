@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { APP_VERSION, DEFAULT_HELP_EMAIL, roleLabel } from "@/lib/constants";
+import { telClean } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
 /** Floating "Help" button, mounted app-wide. Any user can tap it to email a
@@ -88,6 +89,15 @@ export function HelpButton({ me }: { me: Profile }) {
                 "Describa lo que sucede y enviaremos un correo a soporte. Incluiremos su nombre, rol y la página en la que está.",
               )}
             </p>
+            {settings.help_phone?.trim() && (
+              <a
+                href={`tel:${telClean(settings.help_phone)}`}
+                className="btn btn-green"
+                style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 12 }}
+              >
+                📞 {t("Call us", "Llámanos")} · {settings.help_phone}
+              </a>
+            )}
             <textarea
               rows={5}
               autoFocus

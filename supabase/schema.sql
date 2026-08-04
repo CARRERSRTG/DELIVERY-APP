@@ -57,6 +57,8 @@ create table if not exists public.settings (
   -- Minutes added per pallet, used to auto-calculate durations. Admin-editable.
   pickup_min_per_pallet   numeric not null default 4,
   delivery_min_per_pallet numeric not null default 5,
+  help_email   text,   -- Help-button recipient (falls back to DEFAULT_HELP_EMAIL)
+  help_phone   text,   -- Optional support phone → "Call" link on the Help button
   updated_at   timestamptz not null default now(),
   constraint settings_singleton check (id = 1)
 );

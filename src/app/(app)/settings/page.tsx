@@ -66,6 +66,18 @@ export default function SettingsPage() {
           invalidMsg={t("Enter a valid email address.", "Ingrese un correo válido.")}
           onSave={(v) => { saveSettings({ help_email: v || null } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
         />
+        <label style={{ display: "block", marginTop: 14, marginBottom: 6, fontSize: 13, fontWeight: 600 }}>
+          📞 {t("Support phone (optional)", "Teléfono de soporte (opcional)")}
+        </label>
+        <p className="hint" style={{ marginTop: 0, marginBottom: 8 }}>
+          {t("When set, the Help button shows a Call link that opens the user's phone dialer with this number.", "Cuando se define, el botón de Ayuda muestra un enlace de Llamada que abre el marcador del teléfono con este número.")}
+        </p>
+        <HelpPhone
+          current={settings.help_phone ?? ""}
+          placeholder="+1 956 555 0100"
+          saveLabel={t("Save", "Guardar")}
+          onSave={(v) => { saveSettings({ help_phone: v || null } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
+        />
       </div>
 
       <div className="card">
@@ -281,6 +293,25 @@ function AppName({ current, onSave, saveLabel }: { current: string; onSave: (v: 
     <div style={{ display: "flex", gap: 8, maxWidth: 460 }}>
       <input value={v} onChange={(e) => setV(e.target.value)} />
       <button className="btn btn-primary" onClick={() => onSave(v.trim() || current)}>{saveLabel}</button>
+    </div>
+  );
+}
+
+/** Optional support phone shown as a Call (tel:) link on the Help button. */
+function HelpPhone({
+  current, placeholder, onSave, saveLabel,
+}: { current: string; placeholder: string; onSave: (v: string) => void; saveLabel: string }) {
+  const [v, setV] = useState(current);
+  return (
+    <div style={{ display: "flex", gap: 8, maxWidth: 460 }}>
+      <input
+        type="tel"
+        value={v}
+        placeholder={placeholder}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onSave(v.trim())}
+      />
+      <button className="btn btn-primary" onClick={() => onSave(v.trim())}>{saveLabel}</button>
     </div>
   );
 }

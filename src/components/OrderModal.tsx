@@ -139,6 +139,9 @@ export function OrderModal({
   // A store can be flagged "auto-approve" (Data page) — orders sold from it
   // skip manager approval and are created already Approved, for any creator.
   const storeAutoApprove = !!settings.stores.find((s) => s.name === d.store)?.auto_approve;
+  // Business rule: an Intertienda order must carry a PO # before it can be
+  // auto-approved — without one it goes to Pending for manual handling.
+  const intertiendaNeedsPo = d.order_type === "Intertienda" && !(d.po2 || "").trim();
 
   // Store-to-store moves (Intertienda / Transfer) have no external customer, so
   // no sales rep to credit. Only external-customer orders placed on someone's
@@ -1370,8 +1373,9 @@ export function OrderModal({
                     <button className="btn btn-primary" disabled={busy} onClick={async () => {
                       // Office Managers approve their own orders on the spot, and
                       // any order sold from an auto-approve store is approved on
-                      // creation regardless of who places it.
-                      const autoApprove = me.role === "manager" || storeAutoApprove;
+                      // creation regardless of who places it — EXCEPT an
+                      // Intertienda without a PO #, which must go to Pending.
+                      const autoApprove = (me.role === "manager" || storeAutoApprove) && !intertiendaNeedsPo;
                       const payload = withDurations({
                         ...d,
                         stage: autoApprove ? "approved" : "pending",
@@ -1387,9 +1391,9 @@ export function OrderModal({
                           : t(`Order #${row.order_no} submitted for approval`, `Orden #${row.order_no} enviada a aprobación`));
                         await autoSendTracking(row); onClose();
                       }
-                    }}>{me.role === "manager"
+                    }}>{me.role === "manager" && !intertiendaNeedsPo
                       ? t("Create order (approved)", "Crear orden (aprobada)")
-                      : storeAutoApprove
+                      : storeAutoApprove && !intertiendaNeedsPo
                         ? t("Create (auto-approved)", "Crear (auto-aprobada)")
                         : t("Submit for approval", "Enviar a aprobación")}</button>
                   )}

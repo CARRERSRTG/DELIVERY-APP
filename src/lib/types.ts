@@ -275,6 +275,10 @@ export interface Settings {
    * DEFAULT_HELP_EMAIL when unset. */
   help_email?: string;
 
+  /** Optional support phone number. When set, the Help button shows a "Call"
+   * link that opens the user's phone dialer (tel:) with this number. */
+  help_phone?: string;
+
   /** Per-user customer visibility on the Accounts page, set by an admin on the
    * Users page. "all" = sees every customer (with a Mine/All toggle); "own" =
    * only customers from orders they own. User id → scope. Missing = "all"
