@@ -51,13 +51,13 @@ export async function POST(req: Request) {
   const google = process.env.GOOGLE_MAPS_API_KEY;
   const mapbox = process.env.MAPBOX_TOKEN;
 
-  try {
-    const point = google ? await viaGoogle(address, google)
-      : mapbox ? await viaMapbox(address, mapbox)
-      : await viaOSM(address);
-    if (!point) return NextResponse.json({ error: "Address not found" }, { status: 404 });
-    return NextResponse.json(point);
-  } catch {
-    return NextResponse.json({ error: "Geocoding failed" }, { status: 502 });
-  }
+  // Try each configured provider and fall through on failure/empty — so a
+  // disabled/uncredited Google key still falls back to free OSM.
+  const safe = async (fn: () => Promise<{ lat: number; lng: number } | null>) => { try { return await fn(); } catch { return null; } };
+  let point: { lat: number; lng: number } | null = null;
+  if (google) point = await safe(() => viaGoogle(address, google));
+  if (!point && mapbox) point = await safe(() => viaMapbox(address, mapbox));
+  if (!point) point = await safe(() => viaOSM(address));
+  if (!point) return NextResponse.json({ error: "Address not found" }, { status: 404 });
+  return NextResponse.json(point);
 }

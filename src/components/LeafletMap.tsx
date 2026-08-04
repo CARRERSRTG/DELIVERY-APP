@@ -119,12 +119,12 @@ export function LeafletMap({
       const fallback: [number, number] = [26.2034, -98.2300]; // Rio Grande Valley, TX
       const startCenter = center ?? (points[0] ? [points[0].lat, points[0].lng] as [number, number] : fallback);
       map = L.map(containerRef.current).setView(startCenter, zoom);
-      // Google map tiles via our server proxy (keeps the key server-side); the
-      // proxy transparently falls back to OpenStreetMap if the Map Tiles API
-      // isn't enabled, so the map always renders.
-      L.tileLayer("/api/map-tiles/{z}/{x}/{y}", {
-        attribution: "© Google · OpenStreetMap",
-        maxZoom: 20,
+      // Free OpenStreetMap tiles (no billing). A Google-tiles proxy exists at
+      // /api/map-tiles but is intentionally NOT used, to avoid Map Tiles API
+      // charges — switch this URL to "/api/map-tiles/{z}/{x}/{y}" to enable it.
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors",
+        maxZoom: 19,
       }).addTo(map);
       mapRef.current = map;
 

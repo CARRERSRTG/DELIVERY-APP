@@ -129,11 +129,14 @@ export async function POST(req: Request) {
   const google = process.env.GOOGLE_MAPS_API_KEY;
   const mapbox = process.env.MAPBOX_TOKEN;
 
+  // Try each configured provider and fall through on failure — so a
+  // disabled/uncredited Google key still falls back to free OSRM routing.
+  const safe = async (fn: () => Promise<Result>) => { try { return await fn(); } catch { return null; } };
   try {
-    let result: Result;
-    if (google) result = await viaGoogle(origin, destination, google);
-    else if (mapbox) result = await viaMapbox(origin, destination, mapbox);
-    else result = await viaOSM(origin, destination);
+    let result: Result | null = null;
+    if (google) result = await safe(() => viaGoogle(origin, destination, google));
+    if (!result && mapbox) result = await safe(() => viaMapbox(origin, destination, mapbox));
+    if (!result) result = await viaOSM(origin, destination); // free fallback (may throw → caught below)
     return NextResponse.json({
       ...result,
       miles: Math.round(result.miles * 10) / 10,

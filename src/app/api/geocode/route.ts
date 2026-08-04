@@ -58,14 +58,12 @@ export async function POST(req: Request) {
   const google = process.env.GOOGLE_MAPS_API_KEY;
   const mapbox = process.env.MAPBOX_TOKEN;
 
-  try {
-    let suggestions: string[];
-    if (google) suggestions = await viaGoogle(q, google);
-    else if (mapbox) suggestions = await viaMapbox(q, mapbox);
-    else suggestions = await viaOSM(q);
-    return NextResponse.json({ suggestions: suggestions.slice(0, 6) });
-  } catch {
-    // Autocomplete is best-effort — never block typing.
-    return NextResponse.json({ suggestions: [] });
-  }
+  // Try each configured provider and fall through on failure/empty, so if
+  // Google is disabled/uncredited we still get free OSM results.
+  const safe = async <T,>(fn: () => Promise<T[]>): Promise<T[]> => { try { return await fn(); } catch { return []; } };
+  let suggestions: string[] = [];
+  if (google) suggestions = await safe(() => viaGoogle(q, google));
+  if (!suggestions.length && mapbox) suggestions = await safe(() => viaMapbox(q, mapbox));
+  if (!suggestions.length) suggestions = await safe(() => viaOSM(q));
+  return NextResponse.json({ suggestions: suggestions.slice(0, 6) });
 }
