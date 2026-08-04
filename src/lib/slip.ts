@@ -77,7 +77,7 @@ export function printDeliverySlip(d: Delivery, settings: Settings, users: Profil
     <div class="cols"><div><table>
       ${row(T("Type", "Tipo"), d.order_type || "")}
       ${row(T("SO #", "SO #"), d.so_num || "")}
-      ${row(T("PO #2", "PO #2"), d.po2 || "")}
+      ${row(T("PO #", "PO #"), d.po2 || "")}
       ${row(T("Invoice #", "Factura #"), d.invoice_num || "")}
     </table></div><div><table>
       ${row(T("Delivery date", "Fecha entrega"), d.delivery_date ? fmtDate(d.delivery_date) : "")}

@@ -197,10 +197,15 @@ export interface OrderTypeRule {
    * so no external customer contact/phone is collected. */
   storeToStore?: boolean;
   /** Which document reference the type requires:
-   *  - "invoice": Customer Invoice # (and a delivery fee) required
-   *  - "any": any one of PO #2 / SO # / Invoice #
+   *  - "invoice": Invoice # (and a delivery fee) required
+   *  - "any": any one of PO # / SO # / Invoice #
    *  - "none": no document reference required */
   docRef?: "invoice" | "any" | "none";
+  /** The rep's own store is the DESTINATION, not the origin (a "receiving"
+   * branch move, e.g. Intertienda). On a new order the delivery defaults to the
+   * rep's store and the rep chooses the "Sold From" (origin) store instead of
+   * it being auto-locked to their own. */
+  homeIsDestination?: boolean;
 }
 
 export interface Settings {

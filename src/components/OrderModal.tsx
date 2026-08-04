@@ -14,7 +14,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { LeafletMap } from "@/components/LeafletMap";
 import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
-import { isStoreToStore, missingFields, missingKeys, type MissingField } from "@/lib/required";
+import { isStoreToStore, orderTypeRule, missingFields, missingKeys, type MissingField } from "@/lib/required";
 import { captureLocation, geoAvailable, mapLink } from "@/lib/geo";
 import type { AccountRecord, Delivery, NamedLocation, Profile, Settings, Stage } from "@/lib/types";
 
@@ -329,6 +329,26 @@ export function OrderModal({
   // Store-to-store still routes the DESTINATION to another store (dropdown
   // instead of a free address); the customer/contact fields stay visible.
   const isIntraStore = storeToStore;
+  // "Receiving" types (Intertienda): the rep's own store is the DESTINATION, so
+  // the delivery defaults to it and the rep picks the "Sold From" (origin).
+  const homeIsDestination = orderTypeRule(d.order_type, settings.order_type_rules).homeIsDestination === true;
+
+  // Apply a newly-chosen order type's directional defaults. For a receiving
+  // type the rep's store becomes the destination and Sold From is theirs to
+  // pick; otherwise Sold From defaults back to the rep's store.
+  const withTypeDefaults = (p: Draft, newType: string): Draft => {
+    const rule = orderTypeRule(newType, settings.order_type_rules);
+    const next: Draft = { ...p, order_type: newType };
+    if (rule.homeIsDestination && me.store) {
+      const home = settings.stores.find((s) => s.name === me.store);
+      next.delivery_name = me.store;
+      next.delivery_address = home?.address ?? p.delivery_address ?? "";
+      if (!p.store || p.store === me.store) next.store = ""; // rep chooses the origin
+    } else if (!p.store && me.store) {
+      next.store = me.store; // normal direction: Sold From is the rep's store
+    }
+    return next;
+  };
   // Which store the current delivery address belongs to (for the dropdown value).
   const deliveryStore = settings.stores.find((s) => s.address && s.address === d.delivery_address)?.name || "";
 
@@ -872,7 +892,7 @@ export function OrderModal({
               </div>
             )}
             <div className="grid g2">
-              <Sel label={t("Order Type", "Tipo de Orden")} val={d.order_type} opts={settings.order_types} on={(v) => set("order_type", v)} disabled={!salesFields} placeholder={t("Select order type", "Seleccione tipo de orden")} invalid={missingSet.has("order_type")} />
+              <Sel label={t("Order Type", "Tipo de Orden")} val={d.order_type} opts={settings.order_types} on={(v) => setD((p) => withTypeDefaults(p, v))} disabled={!salesFields} placeholder={t("Select order type", "Seleccione tipo de orden")} invalid={missingSet.has("order_type")} />
               <Sel label={t("Store (Sold From)", "Tienda (Vendido Desde)")} val={d.store} opts={settings.stores.map((s) => s.name)} on={(v) => {
                 // Choosing a saved store auto-fills the pickup name + address from it.
                 const st = settings.stores.find((s) => s.name === v);
@@ -882,12 +902,12 @@ export function OrderModal({
                   pickup_name: v || p.pickup_name,
                   pickup_address: st?.address ? st.address : p.pickup_address,
                 }));
-              }} disabled={!salesFields || (me.role === "sales" && !!me.store)} placeholder={t("Select store", "Seleccione tienda")} invalid={missingSet.has("store")} />
+              }} disabled={!salesFields || (me.role === "sales" && !!me.store && !homeIsDestination)} placeholder={t("Select store", "Seleccione tienda")} invalid={missingSet.has("store")} />
             </div>
             <div className="grid g4">
-              <Txt label="PO #2" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
+              <Txt label="PO #" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
               <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
-              <Txt label={t("Customer Invoice #", "Factura del Cliente #")} val={d.invoice_num} on={(v) => set("invoice_num", v)} disabled={!salesFields} invalid={missingSet.has("invoice_num") || !!invoiceDup} />
+              <Txt label={t("Invoice #", "Factura #")} val={d.invoice_num} on={(v) => set("invoice_num", v)} disabled={!salesFields} invalid={missingSet.has("invoice_num") || !!invoiceDup} />
               <Txt label={t("Est. Pallets (sales)", "Tarimas Est. (ventas)")} type="number" val={d.est_pallets ?? ""} on={(v) => set("est_pallets", v === "" ? null : Number(v))} disabled={!salesFields} invalid={missingSet.has("est_pallets")} />
             </div>
             {invoiceDup && (
@@ -1035,17 +1055,20 @@ export function OrderModal({
                   // has, and the rep can always change it manually.
                   const rec = savedAccounts.find((a) => a.name.toLowerCase() === v.toLowerCase());
                   setD((p) => {
-                    // A named account defaults the type: branch account →
-                    // Intertienda, anything else → Customer. Clearing it leaves
-                    // the type as-is. Only applied if the type name exists.
-                    const wantType = !v.trim() ? null : (rec?.intertienda ? "Intertienda" : "Customer");
-                    return {
+                    const withAcct: Draft = {
                       ...p,
                       account: v,
                       contact: rec ? rec.contact : p.contact,
                       delivery_phone: rec ? rec.phone : p.delivery_phone,
-                      order_type: wantType && settings.order_types.includes(wantType) ? wantType : p.order_type,
                     };
+                    // A named account defaults the type: branch account →
+                    // Intertienda, anything else → Customer. Clearing it leaves
+                    // the type as-is. Applying the type also runs its directional
+                    // defaults (receiving branch → Sold From is the rep's choice).
+                    const wantType = !v.trim() ? null : (rec?.intertienda ? "Intertienda" : "Customer");
+                    return wantType && settings.order_types.includes(wantType)
+                      ? withTypeDefaults(withAcct, wantType)
+                      : withAcct;
                   });
                 }}
                 options={accountOptions}

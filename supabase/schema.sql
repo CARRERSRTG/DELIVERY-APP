@@ -52,7 +52,7 @@ create table if not exists public.settings (
   stores       jsonb not null default '[{"name":"Brownsville","address":""},{"name":"Weslaco","address":""},{"name":"Pharr","address":""},{"name":"McAllen","address":""},{"name":"Mission","address":""},{"name":"Edinburg","address":""}]'::jsonb,
   order_types  text[] not null default array['Customer','Intertienda','Transfer'],
   -- Per-type field rules keyed by type name: {storeToStore: bool, docRef: 'invoice'|'any'|'none'}.
-  order_type_rules jsonb not null default '{"Customer":{"storeToStore":false,"docRef":"invoice"},"Intertienda":{"storeToStore":true,"docRef":"none"},"Transfer":{"storeToStore":true,"docRef":"none"}}'::jsonb,
+  order_type_rules jsonb not null default '{"Customer":{"storeToStore":false,"docRef":"invoice"},"Intertienda":{"storeToStore":true,"docRef":"none","homeIsDestination":true},"Transfer":{"storeToStore":true,"docRef":"none"}}'::jsonb,
   drivers      jsonb not null default '[]'::jsonb,
   -- Minutes added per pallet, used to auto-calculate durations. Admin-editable.
   pickup_min_per_pallet   numeric not null default 4,

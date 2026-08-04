@@ -13,9 +13,9 @@ import type { Delivery, OrderTypeRule } from "@/lib/types";
 //   • Est. Pallets
 //
 // Document reference — depends on the order type:
-//   • Intra-Tienda  → ANY ONE of PO #2 / SO # / Invoice #
+//   • Intra-Tienda  → ANY ONE of PO # / SO # / Invoice #
 //   • Transfer / Customer (picked up by the customer themselves) → optional (nothing required)
-//   • Everything else (Delivery…) → Customer Invoice # required
+//   • Everything else (Delivery…) → Invoice # required
 //
 // Nothing here hard-blocks: the rep is shown exactly what's missing and asked
 // whether to continue anyway.
@@ -90,14 +90,14 @@ export function missingFields(d: Partial<Delivery>, rules?: OrderTypeRules): Mis
   if (docRef === "any") {
     // Any one of the three is enough for a store-to-store move.
     if (!filled(d.po2) && !filled(d.so_num) && !filled(d.invoice_num)) {
-      out.push({ key: "doc_ref", en: "PO #2, SO # or Invoice # (any one)", es: "PO #2, SO # o Factura # (cualquiera)" });
+      out.push({ key: "doc_ref", en: "PO #, SO # or Invoice # (any one)", es: "PO #, SO # o Factura # (cualquiera)" });
     }
   } else if (docRef === "invoice") {
     // Regular customer delivery — the customer invoice is required, and the
     // delivery fee charged to the customer is mandatory (0 is allowed for a
     // free delivery; only a blank field counts as missing).
     if (!filled(d.invoice_num)) {
-      out.push({ key: "invoice_num", en: "Customer Invoice #", es: "Factura del Cliente #" });
+      out.push({ key: "invoice_num", en: "Invoice #", es: "Factura #" });
     }
     if (d.delivery_fee == null) {
       out.push({ key: "delivery_fee", en: "Delivery Fee charged ($)", es: "Costo de Entrega cobrado ($)" });

@@ -35,7 +35,7 @@ export const ORDER_COLUMNS: OrderColumn[] = [
   { key: "store", en: "Store", es: "Tienda", value: (d) => d.store, cell: (d) => d.store || "—" },
   { key: "account", en: "Account", es: "Cuenta", value: (d) => d.account, cell: (d) => d.account || "—" },
   { key: "so", en: "SO #", es: "SO #", value: (d) => d.so_num, cell: (d) => d.so_num || "—" },
-  { key: "po", en: "PO #2", es: "PO #2", value: (d) => d.po2, cell: (d) => d.po2 || "—" },
+  { key: "po", en: "PO #", es: "PO #", value: (d) => d.po2, cell: (d) => d.po2 || "—" },
   { key: "invoice", en: "Invoice #", es: "Factura #", value: (d) => d.invoice_num, cell: (d) => d.invoice_num || "—" },
   {
     key: "date", en: "Delivery Date", es: "Fecha entrega",

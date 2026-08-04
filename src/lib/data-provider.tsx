@@ -29,7 +29,7 @@ const DEFAULT_SETTINGS: Settings = {
   order_types: ["Customer", "Intertienda", "Transfer"],
   order_type_rules: {
     Customer:    { storeToStore: false, docRef: "invoice" },
-    Intertienda: { storeToStore: true,  docRef: "none" },
+    Intertienda: { storeToStore: true,  docRef: "none", homeIsDestination: true },
     Transfer:    { storeToStore: true,  docRef: "none" },
   },
   pickup_min_per_pallet: 4,

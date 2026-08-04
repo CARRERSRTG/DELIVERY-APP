@@ -166,11 +166,11 @@ function OrderTypesRulesEditor({
   save: (patch: Partial<Settings>, msg: string) => void;
   t: (en: string, es: string) => string;
 }) {
-  type Row = { name: string; storeToStore: boolean; docRef: OrderTypeRule["docRef"] };
+  type Row = { name: string; storeToStore: boolean; docRef: OrderTypeRule["docRef"]; homeIsDestination: boolean };
   const build = (): Row[] =>
     settings.order_types.map((name) => {
       const r = settings.order_type_rules?.[name];
-      return { name, storeToStore: r?.storeToStore ?? false, docRef: r?.docRef ?? "invoice" };
+      return { name, storeToStore: r?.storeToStore ?? false, docRef: r?.docRef ?? "invoice", homeIsDestination: r?.homeIsDestination ?? false };
     });
   const [rows, setRows] = useState<Row[]>(build);
   const [dirty, setDirty] = useState(false);
@@ -182,7 +182,7 @@ function OrderTypesRulesEditor({
   }, [deliveries]);
 
   const update = (i: number, patch: Partial<Row>) => { setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r))); setDirty(true); };
-  const add = () => { setRows((rs) => [...rs, { name: "", storeToStore: false, docRef: "invoice" }]); setDirty(true); };
+  const add = () => { setRows((rs) => [...rs, { name: "", storeToStore: false, docRef: "invoice", homeIsDestination: false }]); setDirty(true); };
   const remove = (i: number) => { setRows((rs) => rs.filter((_, idx) => idx !== i)); setDirty(true); };
   const reset = () => { setRows(build()); setDirty(false); };
 
@@ -193,7 +193,7 @@ function OrderTypesRulesEditor({
       const name = r.name.trim();
       if (!name || names.includes(name)) continue; // skip blanks + duplicates
       names.push(name);
-      rules[name] = { storeToStore: r.storeToStore, docRef: r.docRef };
+      rules[name] = { storeToStore: r.storeToStore, docRef: r.docRef, homeIsDestination: r.homeIsDestination };
     }
     if (!names.length) return;
     save({ order_types: names, order_type_rules: rules }, t("Order types saved", "Tipos de orden guardados"));
@@ -210,11 +210,12 @@ function OrderTypesRulesEditor({
         )}
       </p>
       <div className="tbl-scroll" style={{ border: "none" }}>
-        <table className="orders" style={{ minWidth: 660 }}>
+        <table className="orders" style={{ minWidth: 780 }}>
           <thead>
             <tr>
               <th>{t("Name", "Nombre")}</th>
               <th style={{ textAlign: "center" }}>{t("Store-to-store", "Entre tiendas")}</th>
+              <th style={{ textAlign: "center" }} title={t("The rep's own store is the destination (receiving); Sold From is chosen.", "La tienda del vendedor es el destino (recibe); Vendido Desde se elige.")}>{t("Rep store = dest.", "Tienda = destino")}</th>
               <th>{t("Document reference", "Referencia de documento")}</th>
               <th style={{ textAlign: "center" }}>{t("In use", "En uso")}</th>
               <th></th>
@@ -227,10 +228,13 @@ function OrderTypesRulesEditor({
                 <td style={{ textAlign: "center" }}>
                   <input type="checkbox" checked={r.storeToStore} onChange={(e) => update(i, { storeToStore: e.target.checked })} aria-label={t("Store-to-store", "Entre tiendas")} />
                 </td>
+                <td style={{ textAlign: "center" }}>
+                  <input type="checkbox" checked={r.homeIsDestination} onChange={(e) => update(i, { homeIsDestination: e.target.checked })} aria-label={t("Rep store is destination", "Tienda del vendedor es destino")} />
+                </td>
                 <td>
                   <select value={r.docRef} onChange={(e) => update(i, { docRef: e.target.value as OrderTypeRule["docRef"] })} style={{ width: "auto" }}>
-                    <option value="invoice">{t("Customer Invoice # required", "Factura del cliente # requerida")}</option>
-                    <option value="any">{t("Any one of PO#2 / SO# / Invoice#", "Cualquiera de PO#2 / SO# / Factura#")}</option>
+                    <option value="invoice">{t("Invoice # required", "Factura # requerida")}</option>
+                    <option value="any">{t("Any one of PO# / SO# / Invoice#", "Cualquiera de PO# / SO# / Factura #")}</option>
                     <option value="none">{t("No document required", "Sin documento requerido")}</option>
                   </select>
                 </td>
@@ -239,7 +243,7 @@ function OrderTypesRulesEditor({
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="hint" style={{ padding: 12 }}>{t("No order types — add one below.", "Sin tipos de orden — agregue uno abajo.")}</td></tr>
+              <tr><td colSpan={6} className="hint" style={{ padding: 12 }}>{t("No order types — add one below.", "Sin tipos de orden — agregue uno abajo.")}</td></tr>
             )}
           </tbody>
         </table>
