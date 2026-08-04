@@ -182,6 +182,21 @@ export function OrderModal({
       (x.invoice_num || "").trim().toLowerCase() === (draft.invoice_num || "").trim().toLowerCase(),
     );
   const invoiceDup = duplicateInvoiceOf(d);
+  // Sharing an invoice across deliveries (one invoice, several drops) is
+  // intentional — set when the rep links a past order's invoice, so the
+  // duplicate-invoice guard doesn't fight it. Cleared on a manual edit.
+  const [sharedInvoice, setSharedInvoice] = useState(false);
+  // Past orders' invoices the rep can attach this delivery to (most recent
+  // first, one entry per distinct invoice).
+  const pastInvoiceOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return deliveries
+      .filter((x) => x.id !== existing?.id && x.stage !== "canceled" && !!(x.invoice_num || "").trim())
+      .sort((a, b) => b.order_no - a.order_no)
+      .filter((x) => { const inv = x.invoice_num!.trim().toLowerCase(); if (seen.has(inv)) return false; seen.add(inv); return true; })
+      .slice(0, 100)
+      .map((x) => ({ invoice: x.invoice_num!.trim(), label: `${x.invoice_num} · #${x.order_no}${x.account ? ` · ${x.account}` : ""}` }));
+  }, [deliveries, existing?.id]);
 
   /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
    * what's missing / conflicting and chooses whether to continue. */
@@ -202,7 +217,7 @@ export function OrderModal({
     )))) return false;
 
     const dupInv = duplicateInvoiceOf(draft);
-    if (dupInv && !(await confirmAction(t(
+    if (dupInv && !sharedInvoice && !(await confirmAction(t(
       `⚠ Duplicate invoice: order #${dupInv.order_no} already uses invoice #${dupInv.invoice_num}. Create anyway?`,
       `⚠ Factura duplicada: la orden #${dupInv.order_no} ya usa la factura #${dupInv.invoice_num}. ¿Crear de todos modos?`,
     )))) return false;
@@ -985,13 +1000,43 @@ export function OrderModal({
                 <Txt label={t("Estimate #", "Estimación #")} val={d.estimate_num} on={(v) => set("estimate_num", v)} disabled={!salesFields} invalid={missingSet.has("estimate_num")} />
               </div>
             ) : (
-              <div className="grid g3">
-                <Txt label={t("Invoice #", "Factura #")} val={d.invoice_num} on={(v) => set("invoice_num", v)} disabled={!salesFields} invalid={missingSet.has("invoice_num") || !!invoiceDup} />
-                <Txt label="PO #" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
-                <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
+              <>
+                <div className="grid g3">
+                  <Txt label={t("Invoice #", "Factura #")} val={d.invoice_num} on={(v) => { set("invoice_num", v); setSharedInvoice(false); }} disabled={!salesFields} invalid={missingSet.has("invoice_num") || (!!invoiceDup && !sharedInvoice)} />
+                  <Txt label="PO #" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
+                  <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
+                </div>
+                {/* Attach this delivery to a past order's invoice (one invoice,
+                    several drops). */}
+                {salesFields && pastInvoiceOptions.length > 0 && (
+                  <div className="field" style={{ maxWidth: 460, marginTop: -4, marginBottom: 10 }}>
+                    <label>🔗 {t("Same invoice as a past order (optional)", "Misma factura que una orden anterior (opcional)")}</label>
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!v) return;
+                        setD((p) => ({ ...p, invoice_num: v }));
+                        setSharedInvoice(true);
+                        e.currentTarget.value = "";
+                      }}
+                    >
+                      <option value="">{t("Pick a past invoice to share…", "Elija una factura anterior a compartir…")}</option>
+                      {pastInvoiceOptions.map((o) => <option key={o.invoice} value={o.invoice}>{o.label}</option>)}
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
+            {invoiceDup && sharedInvoice && (
+              <div className="hint" style={{ color: "var(--green)", fontWeight: 600, marginTop: -6, marginBottom: 10 }}>
+                🔗 {t(
+                  `Sharing invoice #${invoiceDup.invoice_num} with order #${invoiceDup.order_no}.`,
+                  `Compartiendo la factura #${invoiceDup.invoice_num} con la orden #${invoiceDup.order_no}.`,
+                )}
               </div>
             )}
-            {invoiceDup && (
+            {invoiceDup && !sharedInvoice && (
               <div className="hint" style={{ color: "var(--red)", fontWeight: 600, marginTop: -6, marginBottom: 10 }}>
                 ⚠ {t(
                   `Duplicate invoice — order #${invoiceDup.order_no} already uses invoice #${invoiceDup.invoice_num}.`,
