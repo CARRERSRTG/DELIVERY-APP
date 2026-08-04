@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.3.4";
+export const APP_VERSION = "0.3.5";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
@@ -42,8 +42,8 @@ export function stageInfo(key: string): StageInfo {
 // (admin, logistics) get every stage in the canonical STAGES order.
 export const ROLE_FILTER_STAGES: Partial<Record<UserRole, Stage[]>> = {
   warehouse: ["approved", "ready", "fulfilling", "delivered"],
-  sales:     ["pending", "draft", "rejected", "approved", "ready", "fulfilling", "picked_up", "delivered", "canceled"],
-  manager:   ["pending", "draft", "rejected", "approved", "ready", "fulfilling", "picked_up", "delivered", "canceled"],
+  sales:     ["pending", "draft", "rejected", "approved", "fulfilling", "ready", "picked_up", "delivered", "canceled"],
+  manager:   ["pending", "draft", "rejected", "approved", "fulfilling", "ready", "picked_up", "delivered", "canceled"],
   driver:    ["ready", "picked_up", "delivered", "pending", "fulfilling"],
 };
 
