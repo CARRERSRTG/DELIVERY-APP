@@ -50,6 +50,39 @@ label { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: bloc
 .account-link:hover:not(.active) { background: rgba(255,255,255,.1); }
 .account-link.active { background: rgba(255,255,255,.16); }
 
+/* Admin role tag that doubles as the "view as" switcher: a colored pill whose
+   whole surface is a transparent native <select>. */
+.role-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter .12s ease, box-shadow .12s ease;
+}
+.role-switch:hover { filter: brightness(1.08); box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
+.role-switch select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.role-switch option { color: #000; }
+
 /* Prominent "← Back to account" button on the Settings page. */
 .btn-back-account {
   font-size: 15px;

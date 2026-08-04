@@ -59,30 +59,6 @@ export function TopBar({ me: propMe }: { me: Profile }) {
           })}
         </div>
         <NotificationBell />
-        {/* Admin sandbox: discreetly preview the app as any role. Only the real
-            admin ever sees this, and it never changes their account/role in the DB. */}
-        {realRole === "admin" && (
-          <label
-            title={t("Preview the app as another role (admin only)", "Previsualiza la app como otro rol (solo admin)")}
-            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12,
-              background: viewAs ? "rgba(233,161,59,.25)" : "rgba(255,255,255,.1)",
-              padding: "5px 9px", borderRadius: 8 }}
-          >
-            <span aria-hidden>👁</span>
-            <select
-              value={viewAs ?? "admin"}
-              onChange={(e) => setViewAs(e.target.value === "admin" ? null : (e.target.value as UserRole))}
-              style={{ width: "auto", background: "transparent", color: "#fff", border: "none",
-                padding: 0, fontSize: 12, fontWeight: 600 }}
-            >
-              {ROLE_ORDER.map((r) => (
-                <option key={r} value={r} style={{ color: "#000" }}>
-                  {r === "admin" ? t("View as… (me)", "Ver como… (yo)") : roleLabel(r, lang)}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
         {/* Your name + avatar is the entry to the account view (replaces the
             old "Account" nav tab). Lights up like a tab when on /account. */}
         <Link
@@ -96,12 +72,36 @@ export function TopBar({ me: propMe }: { me: Profile }) {
             {initials(me.full_name || "?")}
           </span>
           {me.full_name}
-          {role && (
-            <span className="sema" style={{ marginLeft: 4, background: role.color, color: "#fff" }}>
-              {viewAs ? "👁 " : ""}{roleLabel(me.role, lang)}
-            </span>
-          )}
         </Link>
+        {/* The role tag beside the name. For the real admin it doubles as the
+            "view as" role switcher (replaces the old 👁 dropdown); the visible
+            pill IS the dropdown. Everyone else sees a static role badge. */}
+        {realRole === "admin" ? (
+          <label
+            className="role-switch"
+            style={{ background: role.color }}
+            title={t("Preview the app as another role (admin only)", "Previsualiza la app como otro rol (solo admin)")}
+          >
+            {viewAs ? "👁 " : ""}{roleLabel(me.role, lang)} <span aria-hidden>▾</span>
+            <select
+              value={viewAs ?? "admin"}
+              aria-label={t("View the app as another role", "Ver la app como otro rol")}
+              onChange={(e) => setViewAs(e.target.value === "admin" ? null : (e.target.value as UserRole))}
+            >
+              {ROLE_ORDER.map((r) => (
+                <option key={r} value={r}>
+                  {r === "admin" ? t("Me (admin)", "Yo (admin)") : roleLabel(r, lang)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          role && (
+            <span className="sema" style={{ background: role.color, color: "#fff" }}>
+              {roleLabel(me.role, lang)}
+            </span>
+          )
+        )}
         <form action="/auth/signout" method="post">
           <button className="tab" type="submit" style={{ background: "rgba(255,255,255,.1)" }}>
             {t("Sign out", "Salir")}
