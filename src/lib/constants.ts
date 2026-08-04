@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.3.8";
+export const APP_VERSION = "0.3.9";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
@@ -25,7 +25,7 @@ export const STAGES: StageInfo[] = [
   { key: "draft",      label: "Draft",          color: "#6b7686", group: "sales" },
   { key: "pending",    label: "Pending Approval", color: "#e9a13b", group: "approval" },
   { key: "rejected",   label: "Rejected",       color: "#d64545", group: "approval" },
-  { key: "approved",   label: "Approved",       color: "#2456c9", group: "warehouse" },
+  { key: "approved",   label: "Programmed",     color: "#2456c9", group: "warehouse" },
   { key: "fulfilling", label: "Fulfilling",     color: "#7c4dbc", group: "warehouse" },
   { key: "ready",      label: "Ready",          color: "#0f8a8a", group: "warehouse" },
   { key: "picked_up",  label: "Picked Up",      color: "#d1782e", group: "warehouse" },
@@ -56,7 +56,7 @@ export const STAGE_ES: Record<Stage, string> = {
   draft: "Borrador",
   pending: "Pendiente",
   rejected: "Rechazado",
-  approved: "Aprobado",
+  approved: "Programado",
   fulfilling: "Preparando",
   ready: "Listo",
   picked_up: "Recogido",

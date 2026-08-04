@@ -727,11 +727,10 @@ export function OrderModal({
   }
 
   return (
-    // Viewing/editing an existing order: clicking the backdrop closes it
-    // (same dirty confirm as the ✕). Creating a brand-new order: a backdrop
-    // click does nothing — the only way out is an explicit button, so a
-    // stray click can't silently lose an order that was never saved at all.
-    <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget && !isNew) requestClose(); }}>
+    // Viewing an existing order: clicking the backdrop closes it. While EDITING
+    // (or creating), a backdrop click does nothing — the only way out is the ✕
+    // or a button, so a stray click can't discard in-progress edits.
+    <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget && !isNew && !editing) requestClose(); }}>
       <div className="modal">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>
@@ -1156,10 +1155,8 @@ export function OrderModal({
             {showWarehouse && (
               <>
                 <div className="section-label">{t("Warehouse / Fulfillment", "Almacén / Preparación")}</div>
-                <div className="grid g4">
+                <div className="grid g2">
                   <Txt label={t("Actual Pallets (warehouse)", "Tarimas Reales (almacén)")} type="number" val={d.actual_pallets ?? ""} on={(v) => set("actual_pallets", v === "" ? null : Number(v))} disabled={!whFields} placeholder={d.est_pallets != null ? t(`est. ${d.est_pallets}`, `est. ${d.est_pallets}`) : ""} />
-                  <Txt label={t("Prepared Status", "Estado de Preparación")} val={d.prepared_status} on={(v) => set("prepared_status", v)} disabled={!(editing && me.role === "admin")} placeholder={t("e.g. Staged", "ej. Preparado")} />
-                  <Txt label={t("Status (Temp)", "Estado (Temp)")} val={d.status_temp} on={(v) => set("status_temp", v)} disabled={!adminFields} placeholder={t("e.g. Ambient", "ej. Ambiente")} />
                   <Sel label={t("Assigned Driver", "Chofer Asignado")} val={d.assigned_driver} opts={driverNames(users)} on={(v) => set("assigned_driver", v)} disabled={!adminFields} placeholder={t("Unassigned", "Sin asignar")} />
                 </div>
                 {adminFields && (

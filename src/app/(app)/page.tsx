@@ -26,6 +26,10 @@ export default function OrdersPage() {
   const { me, users, deliveries, settings, ready, teaching, updateDelivery, setStage, notify } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
+
+  // Every store auto-approves → nothing ever sits in "Pending Approval", so
+  // that stage's filter chip is dropped and manager/sales land on Programmed.
+  const autoApproveAll = settings.stores.length > 0 && settings.stores.every((s) => s.auto_approve);
   const router = useRouter();
   const searchParams = useSearchParams();
   const [filter, setFilter] = useState<string>("all");
@@ -49,10 +53,16 @@ export default function OrdersPage() {
     if (!me || defaultFilterApplied.current === me.role) return;
     defaultFilterApplied.current = me.role;
     // Each role lands on the queue it actually acts on first.
-    if (me.role === "manager" || me.role === "sales") setFilter("pending");
+    if (me.role === "manager" || me.role === "sales") setFilter(autoApproveAll ? "approved" : "pending");
     else if (me.role === "warehouse") setFilter("approved");
     else if (me.role === "driver") setFilter("ready");
   }, [me?.role]);
+
+  // If every store auto-approves (so the Pending chip is hidden), never leave
+  // the board stuck on the now-invisible "pending" filter.
+  useEffect(() => {
+    if (autoApproveAll && filter === "pending") setFilter("approved");
+  }, [autoApproveAll, filter]);
 
   // Reloads whenever the role changes too (e.g. the local-demo "View as"
   // switcher), so each role shows its own saved columns, defaulting to
@@ -296,7 +306,9 @@ export default function OrdersPage() {
       <div className="filters">
         {view === "table" && (
           <>
-            {(me ? filterStagesFor(me.role) : STAGES.map((s) => s.key)).map((key) => (
+            {(me ? filterStagesFor(me.role) : STAGES.map((s) => s.key))
+              .filter((key) => !(autoApproveAll && key === "pending"))
+              .map((key) => (
               <button key={key} className={"chip " + (filter === key ? "on" : "")} onClick={() => setFilter(key)}>
                 {stageLabel(key, lang)} <span className="cnt">{counts[key] ?? 0}</span>
               </button>
