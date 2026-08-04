@@ -83,7 +83,15 @@ export function TopBar({ me: propMe }: { me: Profile }) {
             </select>
           </label>
         )}
-        <span style={{ fontSize: 12, opacity: 0.9, display: "inline-flex", alignItems: "center", gap: 6 }}>
+        {/* Your name + avatar is the entry to the account view (replaces the
+            old "Account" nav tab). Lights up like a tab when on /account. */}
+        <Link
+          href="/account"
+          title={t("Account & preferences", "Cuenta y preferencias")}
+          className={"account-link" + (pathname === "/account" || pathname.startsWith("/account/") ? " active" : "")}
+          style={{ fontSize: 12, opacity: 0.95, display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "4px 8px", borderRadius: 8, textDecoration: "none", color: "inherit" }}
+        >
           <span className="avatar sm" style={{ background: avatarColor(me.full_name || "?") }}>
             {initials(me.full_name || "?")}
           </span>
@@ -93,7 +101,7 @@ export function TopBar({ me: propMe }: { me: Profile }) {
               {viewAs ? "👁 " : ""}{roleLabel(me.role, lang)}
             </span>
           )}
-        </span>
+        </Link>
         <form action="/auth/signout" method="post">
           <button className="tab" type="submit" style={{ background: "rgba(255,255,255,.1)" }}>
             {t("Sign out", "Salir")}

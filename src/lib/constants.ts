@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.2.89";
+export const APP_VERSION = "0.2.90";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
@@ -94,8 +94,8 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   // Personal work summary — not shown to sales/manager (redundant with their
   // Orders default view) or warehouse (outside its restricted nav).
   { id: "summary",   label: "📈 Summary",   label_es: "📈 Resumen",    href: "/summary", roles: ["admin", "driver"] },
-  // Available to every role — each user's own profile and preferences.
-  { id: "account",   label: "👤 Account",   label_es: "👤 Cuenta",     href: "/account" },
+  // Account is reached by clicking your own name/avatar in the top bar (see
+  // TopBar) rather than a nav tab.
 ];
 
 // ---- Role metadata --------------------------------------------------------

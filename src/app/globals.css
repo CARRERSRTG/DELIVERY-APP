@@ -45,6 +45,11 @@ label { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: bloc
 .tab.active { background: var(--accent); color: #fff; }
 .tab:hover:not(.active) { background: rgba(255,255,255,.08); }
 
+/* Name/avatar in the top bar doubles as the link to the account view. */
+.account-link { cursor: pointer; transition: background .12s ease; }
+.account-link:hover:not(.active) { background: rgba(255,255,255,.1); }
+.account-link.active { background: rgba(255,255,255,.16); }
+
 .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 80px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
 .card h2 { font-size: 15px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
