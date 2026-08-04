@@ -20,7 +20,7 @@ const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 // Only the fields the public page shows.
 type TrackOrder = Pick<
   Delivery,
-  "order_no" | "stage" | "account" | "delivery_date" | "delivery_windows" | "delivery_address" | "assigned_driver" | "pod_received_by"
+  "order_no" | "order_code" | "stage" | "account" | "delivery_date" | "delivery_windows" | "delivery_address" | "assigned_driver" | "pod_received_by"
 >;
 
 // The public-facing journey (internal-only stages are collapsed out).
@@ -80,7 +80,7 @@ export default function TrackPage({ params }: { params: { id: string } }) {
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
               <div>
-                <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 24 }}>#{order.order_no}</div>
+                <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 24 }}>#{order.order_code || order.order_no}</div>
                 {order.account && <div className="hint">{order.account}</div>}
               </div>
               <span className="sema" style={{ background: stageInfo(order.stage).color, color: "#fff", fontSize: 13 }}>

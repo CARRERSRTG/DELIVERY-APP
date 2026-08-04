@@ -22,9 +22,10 @@ export function localISO(d: Date): string {
 
 export const todayISO = () => localISO(new Date());
 
-/** Human-facing order number incl. the split-load letter: "1001", "1001a". */
-export const orderLabel = (d: { order_no: number; order_suffix?: string | null }) =>
-  `${d.order_no}${d.order_suffix ?? ""}`;
+/** Human-facing order id incl. the split-load letter: "FA100", "FA100a".
+ * Uses the order_code; falls back to the internal number for legacy rows. */
+export const orderLabel = (d: { order_code?: string | null; order_no: number; order_suffix?: string | null }) =>
+  `${d.order_code || d.order_no}${d.order_suffix ?? ""}`;
 
 /** Default base for teaching-mode (sandbox) order numbers. */
 export const TRAINING_ORDER_BASE = 900000;
@@ -318,7 +319,7 @@ export function colLabel(key: string, lang: "en" | "es"): string {
 
 export function deliveryColumns(d: Delivery): [string, string][] {
   return [
-    ["ID", String(d.order_no)],
+    ["ID", orderLabel(d)],
     ["Prepared Status", d.prepared_status ?? ""],
     ["Status (Temp)", d.status_temp ?? ""],
     ["Order Type", d.order_type ?? ""],

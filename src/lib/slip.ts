@@ -1,7 +1,7 @@
 import type { Delivery, Profile, Settings } from "@/lib/types";
 import type { Lang } from "@/lib/prefs";
 import { stageLabel } from "@/lib/constants";
-import { fmtDate, fmtDateTime, fmtMilitary, fmtMoney, fmtWindows } from "@/lib/utils";
+import { fmtDate, fmtDateTime, fmtMilitary, fmtMoney, fmtWindows, orderLabel } from "@/lib/utils";
 
 // ============================================================
 // Printable delivery slip / packing list for a single order (#20).
@@ -19,7 +19,7 @@ export function printDeliverySlip(d: Delivery, settings: Settings, users: Profil
     `<tr><th>${esc(label)}</th><td>${esc(value || "—")}</td></tr>`;
 
   const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">
-    <title>${esc(settings.app_name)} — ${T("Slip", "Comprobante")} #${d.order_no}</title>
+    <title>${esc(settings.app_name)} — ${T("Slip", "Comprobante")} #${esc(orderLabel(d))}</title>
     <style>
       *{box-sizing:border-box;} body{font-family:Inter,Arial,sans-serif;color:#152238;margin:0;padding:28px;}
       .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #152238;padding-bottom:14px;margin-bottom:18px;}
@@ -48,7 +48,7 @@ export function printDeliverySlip(d: Delivery, settings: Settings, users: Profil
         <div style="font-size:12px;color:#6b7686;margin-top:4px;">${T("Delivery slip", "Comprobante de entrega")}</div>
       </div>
       <div>
-        <div class="ono">#${d.order_no}</div>
+        <div class="ono">#${esc(orderLabel(d))}</div>
         <div class="stage">${esc(stageLabel(d.stage, lang))}</div>
       </div>
     </div>

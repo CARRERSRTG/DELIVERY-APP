@@ -9,7 +9,7 @@ import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap
 import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
-import { fallbackDriverColor, fmtDate, isOverdue, shiftDateISO, todayISO } from "@/lib/utils";
+import { fallbackDriverColor, fmtDate, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery } from "@/lib/types";
 
@@ -736,7 +736,7 @@ export default function RoutesPage() {
           lng: d.delivery_lng,
           color: sel ? (selColorById.get(d.id) ?? "#2456c9") : UNASSIGNED_COLOR,
           badge: sel ? "D" : undefined,
-          label: `#${d.order_no} — ${sel ? t("Delivery", "Entrega") : t("Unassigned", "Sin asignar")}`,
+          label: `#${orderLabel(d)} — ${sel ? t("Delivery", "Entrega") : t("Unassigned", "Sin asignar")}`,
           dimmed: sel ? false : (focused || selActive),
         });
         continue;
@@ -753,7 +753,7 @@ export default function RoutesPage() {
         // marked "D" so it pairs with its "P" pickup pin.
         color: sel ? (selColorById.get(d.id) ?? "#2456c9") : (stopColor.get(d.id) ?? colorFor(d.assigned_driver)),
         badge: sel ? "D" : badge,
-        label: `#${d.order_no} — ${d.assigned_driver}${badge ? ` (${t("Stop", "Parada")} ${badge})` : ""}`,
+        label: `#${orderLabel(d)} — ${d.assigned_driver}${badge ? ` (${t("Stop", "Parada")} ${badge})` : ""}`,
         dimmed: sel ? false : (isDim(d.assigned_driver) || selActive),
       });
     }
@@ -769,7 +769,7 @@ export default function RoutesPage() {
         lng: pk[1],
         color: selColorById.get(d.id) ?? "#2456c9",
         badge: "P",
-        label: `#${d.order_no} — ${t("Pickup", "Recolección")}`,
+        label: `#${orderLabel(d)} — ${t("Pickup", "Recolección")}`,
         dimmed: false,
       });
     }
@@ -1139,7 +1139,7 @@ export default function RoutesPage() {
                   return (
                     <tr key={d.id} className={selectedOrders.has(d.id) ? "row-selected" : ""} onClick={() => toggleOrder(d.id)} style={{ cursor: "pointer" }}>
                       <td>
-                        <input type="checkbox" checked={selectedOrders.has(d.id)} readOnly aria-label={`#${d.order_no}`} />
+                        <input type="checkbox" checked={selectedOrders.has(d.id)} readOnly aria-label={`#${orderLabel(d)}`} />
                         {selectedOrders.has(d.id) && <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: selColorById.get(d.id), marginLeft: 5, verticalAlign: "middle", boxShadow: "0 0 0 1px var(--line)" }} />}
                       </td>
                       <td className="ordno">#{d.order_no}</td>

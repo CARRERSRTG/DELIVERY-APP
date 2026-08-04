@@ -198,7 +198,7 @@ export function OrderModal({
       .sort((a, b) => b.order_no - a.order_no)
       .filter((x) => { const inv = x.invoice_num!.trim().toLowerCase(); if (seen.has(inv)) return false; seen.add(inv); return true; })
       .slice(0, 100)
-      .map((x) => ({ invoice: x.invoice_num!.trim(), label: `${x.invoice_num} · #${x.order_no}${x.account ? ` · ${x.account}` : ""}` }));
+      .map((x) => ({ invoice: x.invoice_num!.trim(), label: `${x.invoice_num} · #${orderLabel(x)}${x.account ? ` · ${x.account}` : ""}` }));
   }, [deliveries, existing?.id]);
 
   /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
@@ -215,14 +215,14 @@ export function OrderModal({
     }
     const dup = duplicateOf(draft);
     if (dup && !(await confirmAction(t(
-      `Order #${dup.order_no} already has the same account, delivery date and PO. Create anyway?`,
-      `La orden #${dup.order_no} ya tiene la misma cuenta, fecha y PO. ¿Crear de todos modos?`,
+      `Order #${orderLabel(dup)} already has the same account, delivery date and PO. Create anyway?`,
+      `La orden #${orderLabel(dup)} ya tiene la misma cuenta, fecha y PO. ¿Crear de todos modos?`,
     )))) return false;
 
     const dupInv = duplicateInvoiceOf(draft);
     if (dupInv && !sharedInvoice && !(await confirmAction(t(
-      `⚠ Duplicate invoice: order #${dupInv.order_no} already uses invoice #${dupInv.invoice_num}. Create anyway?`,
-      `⚠ Factura duplicada: la orden #${dupInv.order_no} ya usa la factura #${dupInv.invoice_num}. ¿Crear de todos modos?`,
+      `⚠ Duplicate invoice: order #${orderLabel(dupInv)} already uses invoice #${dupInv.invoice_num}. Create anyway?`,
+      `⚠ Factura duplicada: la orden #${orderLabel(dupInv)} ya usa la factura #${dupInv.invoice_num}. ¿Crear de todos modos?`,
     )))) return false;
 
     // Scheduling capacity rules — warn, but let the rep request it anyway.
@@ -271,8 +271,8 @@ export function OrderModal({
     const date = row.delivery_date ? fmtDate(row.delivery_date) : "";
     const win = row.delivery_windows ? ` ${row.delivery_windows}` : "";
     const message = t(
-      `Hi ${who}your RDZ delivery #${row.order_no} is scheduled${date ? ` for ${date}${win}` : ""}. Track it live here: ${url}`,
-      `Hola ${who}su entrega RDZ #${row.order_no} está programada${date ? ` para el ${date}${win}` : ""}. Siga su estado aquí: ${url}`,
+      `Hi ${who}your RDZ delivery #${orderLabel(row)} is scheduled${date ? ` for ${date}${win}` : ""}. Track it live here: ${url}`,
+      `Hola ${who}su entrega RDZ #${orderLabel(row)} está programada${date ? ` para el ${date}${win}` : ""}. Siga su estado aquí: ${url}`,
     );
     try {
       const res = await fetch("/api/notify", {
@@ -293,7 +293,7 @@ export function OrderModal({
     if (isNew) {
       const row = await addDelivery(payload);
       setBusy(false);
-      if (row) { notify(t(`Order #${row.order_no} created`, `Orden #${row.order_no} creada`)); await autoSendTracking(row); onClose(); }
+      if (row) { notify(t(`Order #${orderLabel(row)} created`, `Orden #${orderLabel(row)} creada`)); await autoSendTracking(row); onClose(); }
     } else {
       const ok = await updateDelivery(existing!.id, payload);
       setBusy(false);
@@ -512,19 +512,19 @@ export function OrderModal({
         actual_pallets: rest,
         stage: "ready",
         assigned_driver: null,
-        delivery_notes: [existing.delivery_notes, t(`Split of #${existing.order_no}${mySuffix} — ${rest} pallets left behind.`, `División de #${existing.order_no}${mySuffix} — quedaron ${rest} tarimas.`)].filter(Boolean).join("\n"),
+        delivery_notes: [existing.delivery_notes, t(`Split of #${existing.order_code || existing.order_no}${mySuffix} — ${rest} pallets left behind.`, `División de #${existing.order_code || existing.order_no}${mySuffix} — quedaron ${rest} tarimas.`)].filter(Boolean).join("\n"),
       });
       if (!rowB) { setBusy(false); return; }
       const ok = await setStage(
         existing.id, "picked_up",
-        t(`Partial load: ${n} of ${total} pallets — remainder split to #${existing.order_no}${nextSuffix}`,
-          `Carga parcial: ${n} de ${total} tarimas — resto dividido a #${existing.order_no}${nextSuffix}`),
+        t(`Partial load: ${n} of ${total} pallets — remainder split to #${existing.order_code || existing.order_no}${nextSuffix}`,
+          `Carga parcial: ${n} de ${total} tarimas — resto dividido a #${existing.order_code || existing.order_no}${nextSuffix}`),
         { ...gpsExtra, order_suffix: mySuffix, actual_pallets: n },
       );
       setBusy(false);
       if (ok) {
-        notify(t(`Out for delivery as #${existing.order_no}${mySuffix} — #${existing.order_no}${nextSuffix} staged with ${rest} pallets`,
-          `En reparto como #${existing.order_no}${mySuffix} — #${existing.order_no}${nextSuffix} preparada con ${rest} tarimas`));
+        notify(t(`Out for delivery as #${existing.order_code || existing.order_no}${mySuffix} — #${existing.order_code || existing.order_no}${nextSuffix} staged with ${rest} pallets`,
+          `En reparto como #${existing.order_code || existing.order_no}${mySuffix} — #${existing.order_code || existing.order_no}${nextSuffix} preparada con ${rest} tarimas`));
         onClose();
       }
       return;
@@ -576,7 +576,7 @@ export function OrderModal({
   const remove = async () => {
     if (!existing) return;
     if (!(await confirmAction(
-      t(`Delete order #${existing.order_no}? This cannot be undone.`, `¿Eliminar la orden #${existing.order_no}? No se puede deshacer.`),
+      t(`Delete order #${orderLabel(existing)}? This cannot be undone.`, `¿Eliminar la orden #${orderLabel(existing)}? No se puede deshacer.`),
       { danger: true, confirmLabel: t("Delete", "Eliminar") },
     ))) return;
     await deleteDelivery(existing.id);
@@ -609,7 +609,7 @@ export function OrderModal({
     };
     const row = await addDelivery(payload);
     setBusy(false);
-    if (row) { notify(t(`Re-delivery logged as #${row.order_no}`, `Reentrega registrada como #${row.order_no}`)); onClose(); }
+    if (row) { notify(t(`Re-delivery logged as #${orderLabel(row)}`, `Reentrega registrada como #${orderLabel(row)}`)); onClose(); }
   };
 
   // Clone this order into a fresh draft (repeat customers, standing orders).
@@ -631,7 +631,7 @@ export function OrderModal({
     };
     const row = await addDelivery(payload);
     setBusy(false);
-    if (row) { notify(t(`Duplicated as #${row.order_no} (draft)`, `Duplicada como #${row.order_no} (borrador)`)); onClose(); }
+    if (row) { notify(t(`Duplicated as #${orderLabel(row)} (draft)`, `Duplicada como #${orderLabel(row)} (borrador)`)); onClose(); }
   };
 
   // ---- Saved pickup / dropoff points ----
@@ -709,7 +709,7 @@ export function OrderModal({
       <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
         <div className="modal" style={{ maxWidth: 460, textAlign: "center" }}>
           <div style={{ fontSize: 44 }}>✅</div>
-          <h3 style={{ marginTop: 8 }}>{t("Delivered", "Entregado")} #{justDelivered.order_no}</h3>
+          <h3 style={{ marginTop: 8 }}>{t("Delivered", "Entregado")} #{orderLabel(justDelivered)}</h3>
           <div className="sub" style={{ justifyContent: "center" }}>
             {t("Received by", "Recibido por")} <b>{justDelivered.pod_received_by}</b> · {fmtDateTime(justDelivered.pod_delivered_at)}
           </div>
@@ -1034,16 +1034,16 @@ export function OrderModal({
             {invoiceDup && sharedInvoice && (
               <div className="hint" style={{ color: "var(--green)", fontWeight: 600, marginTop: -6, marginBottom: 10 }}>
                 🔗 {t(
-                  `Sharing invoice #${invoiceDup.invoice_num} with order #${invoiceDup.order_no}.`,
-                  `Compartiendo la factura #${invoiceDup.invoice_num} con la orden #${invoiceDup.order_no}.`,
+                  `Sharing invoice #${invoiceDup.invoice_num} with order #${orderLabel(invoiceDup)}.`,
+                  `Compartiendo la factura #${invoiceDup.invoice_num} con la orden #${orderLabel(invoiceDup)}.`,
                 )}
               </div>
             )}
             {invoiceDup && !sharedInvoice && (
               <div className="hint" style={{ color: "var(--red)", fontWeight: 600, marginTop: -6, marginBottom: 10 }}>
                 ⚠ {t(
-                  `Duplicate invoice — order #${invoiceDup.order_no} already uses invoice #${invoiceDup.invoice_num}.`,
-                  `Factura duplicada — la orden #${invoiceDup.order_no} ya usa la factura #${invoiceDup.invoice_num}.`,
+                  `Duplicate invoice — order #${orderLabel(invoiceDup)} already uses invoice #${invoiceDup.invoice_num}.`,
+                  `Factura duplicada — la orden #${orderLabel(invoiceDup)} ya usa la factura #${invoiceDup.invoice_num}.`,
                 )}
               </div>
             )}
@@ -1229,7 +1229,7 @@ export function OrderModal({
                         `${d.assigned_driver} already has an overlapping window this day:`,
                         `${d.assigned_driver} ya tiene una ventana que se traslapa ese día:`,
                       )}{" "}
-                      {conflicts.map((c) => `#${c.order_no} (${c.delivery_windows || "—"})`).join(", ")}
+                      {conflicts.map((c) => `#${orderLabel(c)} (${c.delivery_windows || "—"})`).join(", ")}
                     </div>
                   </div>
                 )}
@@ -1387,8 +1387,8 @@ export function OrderModal({
                       setBusy(false);
                       if (row) {
                         notify(autoApprove
-                          ? t(`Order #${row.order_no} created and approved`, `Orden #${row.order_no} creada y aprobada`)
-                          : t(`Order #${row.order_no} submitted for approval`, `Orden #${row.order_no} enviada a aprobación`));
+                          ? t(`Order #${orderLabel(row)} created and approved`, `Orden #${orderLabel(row)} creada y aprobada`)
+                          : t(`Order #${orderLabel(row)} submitted for approval`, `Orden #${orderLabel(row)} enviada a aprobación`));
                         await autoSendTracking(row); onClose();
                       }
                     }}>{me.role === "manager" && !intertiendaNeedsPo
@@ -1809,8 +1809,8 @@ function ShareTracking({
     const whenEn = date ? ` for ${date}${win}` : "";
     const whenEs = date ? ` para el ${date}${win}` : "";
     return t(
-      `Hi ${who}your RDZ delivery #${order.order_no} is scheduled${whenEn}. Track it live here: ${url}`,
-      `Hola ${who}su entrega RDZ #${order.order_no} está programada${whenEs}. Siga su estado aquí: ${url}`,
+      `Hi ${who}your RDZ delivery #${orderLabel(order)} is scheduled${whenEn}. Track it live here: ${url}`,
+      `Hola ${who}su entrega RDZ #${orderLabel(order)} está programada${whenEs}. Siga su estado aquí: ${url}`,
     );
   };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { parseWindow } from "@/lib/dispatch";
+import { orderLabel } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 // Fixed day axis for the schedule view.
@@ -53,10 +54,10 @@ export function GanttTimeline({ rows, t }: { rows: GanttRow[]; t: (en: string, e
                     <div
                       key={d.id}
                       className="gantt-bar"
-                      title={`#${d.order_no} · ${d.delivery_windows} · ${d.account || ""}`}
+                      title={`#${orderLabel(d)} · ${d.delivery_windows} · ${d.account || ""}`}
                       style={{ left: `${left}%`, width: `${width}%`, background: row.color }}
                     >
-                      #{d.order_no}
+                      #{orderLabel(d)}
                     </div>
                   );
                 })}

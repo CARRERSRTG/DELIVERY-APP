@@ -113,6 +113,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
   const base = (n: number, over: Partial<Delivery>): Delivery => ({
     id: uid(),
     order_no: n,
+    order_code: null,
     order_suffix: null,
     stage: "draft",
     rejected_reason: null,

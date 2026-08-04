@@ -6,6 +6,7 @@ import type { Delivery, DriverAvailability, DriverShift, OrderEvent, Profile, Se
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner, todayISO } from "@/lib/utils";
+import { nextOrderCode } from "@/lib/order-code";
 import { DEMO_USERS, demoDeliveries, demoNotifications, demoSettings, uid } from "@/lib/demo-data";
 
 // ============================================================
@@ -108,7 +109,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
   // Fan a stage change out to the people who need to act next.
   const addNotifs = (
     s: Store,
-    args: { stage: Stage; order_no: number | null; delivery_id: string; creatorId: string | null; reason?: string | null },
+    args: { stage: Stage; order_no: number | null; order_code?: string | null; delivery_id: string; creatorId: string | null; reason?: string | null },
   ): AppNotification[] => {
     const seeds = notificationsForStage({ ...args, actorId: me.id, users: s.users });
     const now = new Date().toISOString();
@@ -124,8 +125,9 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
       ...seedRow(nextNo),
       ...d,
       id: uid(),
-      // Split loads (#1001b) pass in the original's order_no explicitly.
+      // Split loads (#1001b) pass in the original's order_no + order_code.
       order_no: d.order_no ?? nextNo,
+      order_code: d.order_code ?? nextOrderCode(s.deliveries.map((x) => x.order_code), new Date()),
       // created_by is always the actual actor — a non-sales creator assigning
       // the order to a rep (OrderModal's Sales Rep picker) sets assigned_sales_rep
       // instead, which is what orderOwner() resolves for own-orders visibility.
@@ -135,7 +137,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     } as Delivery;
     let next: Store = { ...s, deliveries: [row, ...s.deliveries], events: addEvent(s, row.id, "created") };
     if (row.stage && row.stage !== "draft") {
-      next = { ...next, notifications: addNotifs(next, { stage: row.stage, order_no: row.order_no, delivery_id: row.id, creatorId: orderOwner(row) }) };
+      next = { ...next, notifications: addNotifs(next, { stage: row.stage, order_no: row.order_no, order_code: row.order_code, delivery_id: row.id, creatorId: orderOwner(row) }) };
     }
     persist(next);
     return row;
@@ -175,7 +177,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     };
     persist({
       ...base,
-      notifications: addNotifs(base, { stage, order_no: cur?.order_no ?? null, delivery_id: id, creatorId: cur ? orderOwner(cur) : null, reason: note }),
+      notifications: addNotifs(base, { stage, order_no: cur?.order_no ?? null, order_code: cur?.order_code ?? null, delivery_id: id, creatorId: cur ? orderOwner(cur) : null, reason: note }),
     });
     return true;
   }, [me, persist, notify]);
@@ -296,7 +298,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
 function seedRow(n: number): Delivery {
   const now = new Date().toISOString();
   return {
-    id: "", order_no: n, order_suffix: null, stage: "draft", rejected_reason: null,
+    id: "", order_no: n, order_code: null, order_suffix: null, stage: "draft", rejected_reason: null,
     is_training: false, redelivery_of: null, redelivery_reason: null,
     prepared_status: null, status_temp: null, order_type: null, store: null,
     po2: null, so_num: null, invoice_num: null, estimate_num: null, input_date: todayISO(), input_time: null,

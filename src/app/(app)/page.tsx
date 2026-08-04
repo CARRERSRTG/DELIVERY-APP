@@ -9,7 +9,7 @@ import { canCreate, driverNames, filterStagesFor, ROLE_DEFAULT_COLUMNS, STAGES, 
 import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/OrdersTable";
 import { OrdersBoard } from "@/components/OrdersBoard";
 import { OrderModal } from "@/components/OrderModal";
-import { deliveryColumns, downloadCSV, isOverdue, isPendingUrgent, isToday, orderOwner, toCSV, todayISO, yesterdayISO } from "@/lib/utils";
+import { deliveryColumns, downloadCSV, orderLabel, isOverdue, isPendingUrgent, isToday, orderOwner, toCSV, todayISO, yesterdayISO } from "@/lib/utils";
 import { exportExcelByEmployee, exportPDFByEmployee } from "@/lib/export";
 import type { Delivery, Stage, UserRole } from "@/lib/types";
 
@@ -143,7 +143,7 @@ export default function OrdersPage() {
         if (!teaching && me?.role === "sales" && d.delivery_date && d.delivery_date < yesterdayISO()) return false;
         return true;
       }
-      const hay = [d.order_no, d.account, d.so_num, d.po2, d.invoice_num, d.store, d.delivery_address, d.contact, d.assigned_driver, d.delivery_phone]
+      const hay = [d.order_code, d.order_no, d.account, d.so_num, d.po2, d.invoice_num, d.store, d.delivery_address, d.contact, d.assigned_driver, d.delivery_phone]
         .map((x) => String(x ?? "").toLowerCase()).join(" ");
       return hay.includes(needle);
     });
@@ -211,7 +211,7 @@ export default function OrdersPage() {
   const bulkOverride = async (to: Stage) => {
     if (!to || !chosen.length) return;
     const label = stageLabel(to, lang);
-    const list = chosen.slice(0, 8).map((d) => `#${d.order_no}`).join(", ") + (chosen.length > 8 ? "…" : "");
+    const list = chosen.slice(0, 8).map((d) => `#${orderLabel(d)}`).join(", ") + (chosen.length > 8 ? "…" : "");
     const ok = await confirmAction(t(
       `Override ${chosen.length} order(s) to "${label}"?\n\n${list}\n\nThis skips the normal workflow steps. Each order's history will record the override.`,
       `¿Forzar ${chosen.length} orden(es) a "${label}"?\n\n${list}\n\nEsto omite los pasos normales del flujo. El historial de cada orden registrará el cambio.`,

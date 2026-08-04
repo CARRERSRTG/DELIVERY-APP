@@ -31,15 +31,16 @@ export type NotifSeed = Pick<AppNotification, "user_id" | "delivery_id" | "order
 export function notificationsForStage(args: {
   stage: Stage;
   order_no: number | null;
+  order_code?: string | null;
   delivery_id: string | null;
   creatorId: string | null;
   actorId: string | null;
   users: Profile[];
   reason?: string | null;
 }): NotifSeed[] {
-  const { stage, order_no, delivery_id, creatorId, actorId, users, reason } = args;
+  const { stage, order_no, order_code, delivery_id, creatorId, actorId, users, reason } = args;
   const seeds: NotifSeed[] = [];
-  const label = order_no != null ? `#${order_no}` : "";
+  const label = order_code ? `#${order_code}` : (order_no != null ? `#${order_no}` : "");
 
   const push = (userId: string | null | undefined, kind: string, message: string) => {
     if (!userId || userId === actorId) return;          // never notify the actor

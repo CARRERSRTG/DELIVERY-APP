@@ -31,7 +31,12 @@ export type Stage =
 // ---- Delivery order -------------------------------------------------------
 export interface Delivery {
   id: string;
+  /** Internal sequential number — kept for the DB sequence, sorting, and
+   * split-load links. Not shown in the UI; order_code is the human-facing id. */
   order_no: number;
+  /** Human-facing order id, e.g. "FA100" (year letter · week letter · counter).
+   * Assigned at creation from the created date. See lib/order-code.ts. */
+  order_code: string | null;
   /** Split-load letter. When a driver can only load part of an order, it
    * splits: the loaded part becomes e.g. #1001a and the remainder is a new
    * linked order #1001b (same order_no, next letter). Null = never split. */

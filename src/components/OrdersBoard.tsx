@@ -2,7 +2,7 @@
 
 import { STAGES, stageLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
-import { fmtDate } from "@/lib/utils";
+import { fmtDate, orderLabel } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 /** Kanban-style board: one column per workflow stage, orders as cards. */
@@ -34,7 +34,7 @@ export function OrdersBoard({
                   col.map((d) => (
                     <button key={d.id} className="board-card" onClick={() => onOpen(d)}>
                       <div className="board-card-top">
-                        <span className="board-card-no">#{d.order_no}</span>
+                        <span className="board-card-no">#{orderLabel(d)}</span>
                         {(d.actual_pallets ?? d.est_pallets) != null && (
                           <span className="board-card-pallets">{d.actual_pallets ?? d.est_pallets} {t("plt", "trm")}</span>
                         )}

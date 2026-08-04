@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // always fresh — status changes live
 
 // The only columns exposed to the public tracking page.
-const PUBLIC_FIELDS = "order_no, stage, account, delivery_date, delivery_windows, delivery_address, assigned_driver, pod_received_by";
+const PUBLIC_FIELDS = "order_no, order_code, stage, account, delivery_date, delivery_windows, delivery_address, assigned_driver, pod_received_by";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const id = params.id;

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useData } from "@/lib/data-provider";
-import { nowHHMM, orderOwner, todayISO } from "@/lib/utils";
+import { nowHHMM, orderLabel, orderOwner, todayISO } from "@/lib/utils";
 import type { NotifSeed } from "@/lib/notifications";
 
 const FIRED_KEY_PREFIX = "rtg_deadline_fired_";
@@ -57,7 +57,7 @@ export function PendingDeadlineWatcher() {
                 delivery_id: d.id,
                 order_no: d.order_no,
                 kind: "pending_deadline_manager",
-                message: `Order #${d.order_no} is still pending approval and needs immediate action`,
+                message: `Order #${orderLabel(d)} is still pending approval and needs immediate action`,
               }));
             markFired(key);
             if (seeds.length) pushNotifs(seeds);
@@ -74,7 +74,7 @@ export function PendingDeadlineWatcher() {
               delivery_id: d.id,
               order_no: d.order_no,
               kind: "pending_deadline_sales",
-              message: `Your order #${d.order_no} is still pending approval — follow up with your manager`,
+              message: `Your order #${orderLabel(d)} is still pending approval — follow up with your manager`,
             }]);
           }
         }

@@ -86,6 +86,7 @@ create table if not exists public.deliveries (
   status_temp        text,                     -- Status (Temp)
   order_type         text,                     -- Order Type
   store              text,                     -- Store (Sold From)
+  order_code         text,                     -- human-facing id, e.g. "FA100" (see lib/order-code)
   po2                text,                     -- PO #
   so_num             text,                     -- SO #
   invoice_num        text,                     -- Invoice #

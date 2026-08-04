@@ -14,6 +14,7 @@ import type { Delivery, DriverAvailability, DriverShift, OrderEvent, Profile, Se
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner, nextTrainingOrderNo, TRAINING_ORDER_BASE } from "@/lib/utils";
+import { nextOrderCode, codeBand } from "@/lib/order-code";
 
 const DEFAULT_SETTINGS: Settings = {
   id: 1,
@@ -260,7 +261,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // ---------------- Notification fan-out ----------------
   // Insert one row per recipient. Realtime pushes them to each user's bell.
   const emitStageNotifs = useCallback(
-    async (args: { stage: Stage; order_no: number | null; delivery_id: string; creatorId: string | null; reason?: string | null }) => {
+    async (args: { stage: Stage; order_no: number | null; order_code?: string | null; delivery_id: string; creatorId: string | null; reason?: string | null }) => {
       const seeds = notificationsForStage({ ...args, actorId: me?.id ?? null, users });
       if (!seeds.length) return;
       const { error } = await supabase.from("notifications").insert(seeds);
@@ -294,9 +295,36 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       if (teaching && payload.order_no == null) {
         payload.order_no = nextTrainingOrderNo(deliveries, TRAINING_ORDER_BASE);
       }
-      const { data, error } = await supabase.from("deliveries").insert(payload).select().single();
-      if (error) {
-        notify("Error: " + error.message);
+      // Assign the human-facing order code (split remainders pass one in). On a
+      // rare race two orders can compute the same code — a unique index rejects
+      // the second, so re-fetch the band's codes and retry a few times.
+      let data: Delivery | null = null;
+      let error: { code?: string; message: string } | null = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (payload.order_code == null) {
+          let codes = deliveries.filter((x) => !!x.is_training === teaching).map((x) => x.order_code);
+          if (attempt > 0) {
+            // Pull the freshest codes for this band straight from the DB.
+            const band = codeBand(new Date());
+            const { data: rows } = await supabase.from("deliveries")
+              .select("order_code").eq("is_training", teaching)
+              .gte("order_code", band.prefix + "100").lt("order_code", band.prefix + "999");
+            if (rows) codes = (rows as { order_code: string | null }[]).map((r) => r.order_code);
+          }
+          payload.order_code = nextOrderCode(codes, new Date());
+        }
+        const res = await supabase.from("deliveries").insert(payload).select().single();
+        data = res.data as Delivery | null;
+        error = res.error;
+        if (!error) break;
+        if (error.code === "23505" && (error.message || "").includes("order_code")) {
+          payload.order_code = null; // collision — recompute and retry
+          continue;
+        }
+        break;
+      }
+      if (error || !data) {
+        notify("Error: " + (error?.message ?? "insert failed"));
         return null;
       }
       const row = data as Delivery;
@@ -306,7 +334,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       // managers — but never in teaching mode, where it would ping real people
       // about a practice order.
       if (!teaching && row.stage && row.stage !== "draft") {
-        await emitStageNotifs({ stage: row.stage, order_no: row.order_no, delivery_id: row.id, creatorId: orderOwner(row) });
+        await emitStageNotifs({ stage: row.stage, order_no: row.order_no, order_code: row.order_code, delivery_id: row.id, creatorId: orderOwner(row) });
       }
       return row;
     },
@@ -361,7 +389,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       const order = deliveries.find((c) => c.id === id);
       // Never notify real people about a teaching-mode (sandbox) order.
       if (!teaching) {
-        await emitStageNotifs({ stage, order_no: order?.order_no ?? null, delivery_id: id, creatorId: order ? orderOwner(order) : null, reason: note });
+        await emitStageNotifs({ stage, order_no: order?.order_no ?? null, order_code: order?.order_code ?? null, delivery_id: id, creatorId: order ? orderOwner(order) : null, reason: note });
       }
       return true;
     },
