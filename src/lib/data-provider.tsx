@@ -26,7 +26,12 @@ const DEFAULT_SETTINGS: Settings = {
     { name: "Mission", address: "" },
     { name: "Edinburg", address: "" },
   ],
-  order_types: ["Delivery", "Transfer", "Intratienda"],
+  order_types: ["Customer", "Intertienda", "Transfer"],
+  order_type_rules: {
+    Customer:    { storeToStore: false, docRef: "invoice" },
+    Intertienda: { storeToStore: true,  docRef: "any" },
+    Transfer:    { storeToStore: true,  docRef: "none" },
+  },
   pickup_min_per_pallet: 4,
   delivery_min_per_pallet: 5,
   rc_calls_enabled: false,

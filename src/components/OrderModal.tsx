@@ -14,7 +14,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { LeafletMap } from "@/components/LeafletMap";
 import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
-import { isIntraStore as isIntraTienda, isPickupOrTransfer, missingFields, missingKeys, type MissingField } from "@/lib/required";
+import { isStoreToStore, missingFields, missingKeys, type MissingField } from "@/lib/required";
 import { captureLocation, geoAvailable, mapLink } from "@/lib/geo";
 import type { AccountRecord, Delivery, NamedLocation, Profile, Settings, Stage } from "@/lib/types";
 
@@ -140,21 +140,24 @@ export function OrderModal({
   // skip manager approval and are created already Approved, for any creator.
   const storeAutoApprove = !!settings.stores.find((s) => s.name === d.store)?.auto_approve;
 
+  // Store-to-store moves (Intertienda / Transfer) have no external customer, so
+  // no sales rep to credit. Only external-customer orders placed on someone's
+  // behalf need one.
   const needsSalesRep = isNew && (me.role === "manager" || me.role === "admin" || me.role === "driver")
-    && !isIntraTienda(d.order_type) && !isPickupOrTransfer(d.order_type);
+    && !isStoreToStore(d.order_type, settings.order_type_rules);
   const salesReps = useMemo(() => users.filter((u) => u.role === "sales"), [users]);
 
   // ---- Required fields (#31) — see lib/required.ts for the rules ----
   // Live list of what's still missing, used to highlight the empty fields.
   const computeMissing = (draft: Draft): MissingField[] => {
-    const base = missingFields(draft);
+    const base = missingFields(draft, settings.order_type_rules);
     if (needsSalesRep && !draft.assigned_sales_rep) {
       return [...base, { key: "assigned_sales_rep", en: "Sales Rep", es: "Vendedor" }];
     }
     return base;
   };
   const missing = computeMissing(d);
-  const missingSet = new Set(missingKeys(d));
+  const missingSet = new Set(missingKeys(d, settings.order_type_rules));
   if (needsSalesRep && !d.assigned_sales_rep) missingSet.add("assigned_sales_rep");
 
   // ---- Duplicate-order warning (#34): same account + date + PO already logged ----
@@ -318,13 +321,13 @@ export function OrderModal({
     }
   };
 
-  // Intra-store (store-to-store) transfer: the delivery destination is another
-  // known store, chosen from the dropdown. Matches order types named like
-  // "Transfer" or "Intra-Tienda" (admin-configurable, keyword-detected).
-  const isIntraStore = /transfer|intra/i.test(d.order_type || "");
-  // Intra-Tienda specifically (not Transfer): no external customer is
-  // involved, so account/contact/phone don't apply and are locked.
-  const intraTienda = isIntraTienda(d.order_type);
+  // Store-to-store move (Intertienda / Transfer): the destination is another
+  // known store chosen from the dropdown, and there's no external customer, so
+  // account/contact/phone don't apply and are locked. Driven by the order
+  // type's configured rule (Data → Order types), not the name.
+  const storeToStore = isStoreToStore(d.order_type, settings.order_type_rules);
+  const isIntraStore = storeToStore;
+  const intraTienda = storeToStore;
   // Which store the current delivery address belongs to (for the dropdown value).
   const deliveryStore = settings.stores.find((s) => s.address && s.address === d.delivery_address)?.name || "";
 

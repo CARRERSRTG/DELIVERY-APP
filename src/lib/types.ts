@@ -187,11 +187,27 @@ export interface AccountRecord {
   phone: string;
 }
 
+/** Explicit field-requirement rules for one order type. Replaces guessing the
+ * rules from the type's name. */
+export interface OrderTypeRule {
+  /** Store-to-store move (branch → branch): the destination is another store,
+   * so no external customer contact/phone is collected. */
+  storeToStore?: boolean;
+  /** Which document reference the type requires:
+   *  - "invoice": Customer Invoice # (and a delivery fee) required
+   *  - "any": any one of PO #2 / SO # / Invoice #
+   *  - "none": no document reference required */
+  docRef?: "invoice" | "any" | "none";
+}
+
 export interface Settings {
   id: number;
   app_name: string;
   stores: NamedLocation[];
   order_types: string[];
+  /** Per-type field rules, keyed by the order-type name. Types without an
+   * entry fall back to name-keyword defaults (see required.ts). */
+  order_type_rules?: Record<string, OrderTypeRule>;
   /** Saved pickup points (warehouses, yards, suppliers). Picking a name fills
    * the address; a new one typed on an order can be saved back here. */
   pickup_locations?: NamedLocation[];

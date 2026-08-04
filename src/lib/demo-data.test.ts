@@ -149,22 +149,22 @@ describe("required-field rules across real orders", () => {
     // Anything submitted for approval or beyond should be complete.
     const live = orders.filter((o) => !["draft", "canceled"].includes(o.stage));
     for (const o of live) {
-      expect(missingFields(o), `#${o.order_no} (${o.order_type}) is missing fields`).toEqual([]);
+      expect(missingFields(o, settings.order_type_rules), `#${o.order_no} (${o.order_type}) is missing fields`).toEqual([]);
     }
   });
 
-  it("accepts the Intratienda order on its SO # alone", () => {
-    const intra = orders.find((o) => o.order_type === "Intratienda")!;
+  it("accepts the Intertienda order on its SO # alone", () => {
+    const intra = orders.find((o) => o.order_type === "Intertienda")!;
     expect(intra.invoice_num).toBeNull();
     expect(intra.so_num).toBeTruthy();
-    expect(missingFields(intra)).toEqual([]);
+    expect(missingFields(intra, settings.order_type_rules)).toEqual([]);
   });
 
   it("accepts Transfer with no customer invoice", () => {
     for (const t of ["Transfer"]) {
       const o = orders.find((x) => x.order_type === t)!;
       expect(o.invoice_num).toBeNull();
-      expect(missingFields(o), `${t} should not need paperwork`).toEqual([]);
+      expect(missingFields(o, settings.order_type_rules), `${t} should not need paperwork`).toEqual([]);
     }
   });
 });

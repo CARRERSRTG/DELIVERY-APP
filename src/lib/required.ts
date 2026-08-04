@@ -1,4 +1,4 @@
-import type { Delivery } from "@/lib/types";
+import type { Delivery, OrderTypeRule } from "@/lib/types";
 
 // ============================================================
 // Required-field rules for an order.
@@ -28,16 +28,36 @@ export interface MissingField {
   es: string;
 }
 
-/** Store-to-store transfer between branches ("Intra-Tienda"). */
-export const isIntraStore = (orderType: string | null | undefined) => /intra|tienda/i.test(orderType || "");
+export type OrderTypeRules = Record<string, OrderTypeRule> | undefined;
 
-/** Transfers and customer self-pickups don't need customer paperwork. */
-export const isPickupOrTransfer = (orderType: string | null | undefined) =>
-  /pick\s*-?\s*up|will\s*call|customer|transfer|^\s*pu\s*$/i.test(orderType || "");
+/** Keyword-based fallback rule for a type that has no explicit rule configured
+ * (a legacy type, or one an admin added without setting rules). "Customer" is
+ * deliberately NOT treated as a pickup here — it's the standard delivery type. */
+function fallbackRule(orderType: string): OrderTypeRule {
+  const s = orderType.toLowerCase();
+  if (/intra|tienda/.test(s)) return { storeToStore: true, docRef: "any" };
+  if (/pick\s*-?\s*up|will\s*call|transfer|^\s*pu\s*$/.test(s)) return { storeToStore: true, docRef: "none" };
+  return { storeToStore: false, docRef: "invoice" };
+}
+
+/** The effective rule for an order type: the explicit configured rule if there
+ * is one, otherwise a sensible keyword-based default. */
+export function orderTypeRule(orderType: string | null | undefined, rules?: OrderTypeRules): OrderTypeRule {
+  const key = (orderType ?? "").trim();
+  if (!key) return { storeToStore: false, docRef: "invoice" };
+  const explicit = rules?.[key];
+  if (explicit) return explicit;
+  return fallbackRule(key);
+}
+
+/** Store-to-store move (branch → branch) — destination is another store and no
+ * external customer contact is collected. */
+export const isStoreToStore = (orderType: string | null | undefined, rules?: OrderTypeRules) =>
+  orderTypeRule(orderType, rules).storeToStore === true;
 
 const filled = (v: unknown) => !!String(v ?? "").trim();
 
-export function missingFields(d: Partial<Delivery>): MissingField[] {
+export function missingFields(d: Partial<Delivery>, rules?: OrderTypeRules): MissingField[] {
   const out: MissingField[] = [];
 
   if (!filled(d.order_type)) out.push({ key: "order_type", en: "Order Type", es: "Tipo de Orden" });
@@ -46,8 +66,8 @@ export function missingFields(d: Partial<Delivery>): MissingField[] {
   if (!filled(d.pickup_address)) out.push({ key: "pickup_address", en: "Pickup Address", es: "Dirección de Recolección" });
   // Dropoff Name is optional — the address is what matters for the delivery.
   if (!filled(d.delivery_address)) out.push({ key: "delivery_address", en: "Delivery Address (dropoff)", es: "Dirección de Entrega (destino)" });
-  // Intra-Tienda is store-to-store — no external customer, so no contact/phone to collect.
-  if (!isIntraStore(d.order_type)) {
+  // Store-to-store moves have no external customer, so no contact/phone to collect.
+  if (!isStoreToStore(d.order_type, rules)) {
     if (!filled(d.contact)) out.push({ key: "contact", en: "Contact name", es: "Nombre de Contacto" });
     // A usable phone: at least 7 digits once punctuation is stripped.
     if (String(d.delivery_phone ?? "").replace(/\D/g, "").length < 7) {
@@ -61,17 +81,18 @@ export function missingFields(d: Partial<Delivery>): MissingField[] {
   }
 
   // ---- Document reference, by order type ----
-  // Which paperwork is needed depends entirely on the order type, so until one
-  // is picked we only ask for the type itself rather than guessing.
+  // Which paperwork is needed is set explicitly per type (docRef rule), so
+  // until a type is picked we only ask for the type itself.
   const type = d.order_type;
   if (!filled(type)) return out;
 
-  if (isIntraStore(type)) {
-    // Any one of the three is enough for a store-to-store transfer.
+  const docRef = orderTypeRule(type, rules).docRef ?? "invoice";
+  if (docRef === "any") {
+    // Any one of the three is enough for a store-to-store move.
     if (!filled(d.po2) && !filled(d.so_num) && !filled(d.invoice_num)) {
       out.push({ key: "doc_ref", en: "PO #2, SO # or Invoice # (any one)", es: "PO #2, SO # o Factura # (cualquiera)" });
     }
-  } else if (!isPickupOrTransfer(type)) {
+  } else if (docRef === "invoice") {
     // Regular customer delivery — the customer invoice is required, and the
     // delivery fee charged to the customer is mandatory (0 is allowed for a
     // free delivery; only a blank field counts as missing).
@@ -82,13 +103,14 @@ export function missingFields(d: Partial<Delivery>): MissingField[] {
       out.push({ key: "delivery_fee", en: "Delivery Fee charged ($)", es: "Costo de Entrega cobrado ($)" });
     }
   }
+  // docRef === "none": no document reference required.
 
   return out;
 }
 
 /** Field keys to highlight in the form. */
-export function missingKeys(d: Partial<Delivery>): Set<string> {
-  const keys = new Set(missingFields(d).map((m) => m.key));
+export function missingKeys(d: Partial<Delivery>, rules?: OrderTypeRules): Set<string> {
+  const keys = new Set(missingFields(d, rules).map((m) => m.key));
   // "doc_ref" means all three reference fields should light up.
   if (keys.has("doc_ref")) { keys.add("po2"); keys.add("so_num"); keys.add("invoice_num"); }
   return keys;

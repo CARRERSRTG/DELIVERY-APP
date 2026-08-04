@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
 import { AddressInput } from "@/components/AddressInput";
-import type { Delivery, NamedLocation, Settings } from "@/lib/types";
+import type { Delivery, NamedLocation, OrderTypeRule, Settings } from "@/lib/types";
 
 // ============================================================
 // Data — the reusable reference lists behind the order form: pickup points,
@@ -66,15 +66,109 @@ export default function DataPage() {
         t={t}
       />
 
-      <TagTable
-        title={`🏷 ${t("Order types", "Tipos de orden")}`}
-        blurb={t("Drives which paperwork an order requires (Intra-Tienda, Pickup and Transfer are treated specially).", "Determina qué papeleo requiere una orden (Intra-Tienda, Pickup y Transfer son especiales).")}
-        items={settings.order_types}
-        deliveries={deliveries}
-        onChange={(v) => save({ order_types: v }, t("Order types saved", "Tipos de orden guardados"))}
-        t={t}
-      />
+      <OrderTypesRulesEditor settings={settings} deliveries={deliveries} save={save} t={t} />
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Order types + their field rules. Each type has an editable name, a
+// store-to-store flag (hides the external-customer fields), and a document-
+// reference requirement. Edits are staged locally and written on Save.
+// ---------------------------------------------------------------------------
+function OrderTypesRulesEditor({
+  settings, deliveries, save, t,
+}: {
+  settings: Settings;
+  deliveries: Delivery[];
+  save: (patch: Partial<Settings>, msg: string) => void;
+  t: (en: string, es: string) => string;
+}) {
+  type Row = { name: string; storeToStore: boolean; docRef: OrderTypeRule["docRef"] };
+  const build = (): Row[] =>
+    settings.order_types.map((name) => {
+      const r = settings.order_type_rules?.[name];
+      return { name, storeToStore: r?.storeToStore ?? false, docRef: r?.docRef ?? "invoice" };
+    });
+  const [rows, setRows] = useState<Row[]>(build);
+  const [dirty, setDirty] = useState(false);
+
+  const usage = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const d of deliveries) if (d.order_type) m.set(d.order_type, (m.get(d.order_type) ?? 0) + 1);
+    return m;
+  }, [deliveries]);
+
+  const update = (i: number, patch: Partial<Row>) => { setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r))); setDirty(true); };
+  const add = () => { setRows((rs) => [...rs, { name: "", storeToStore: false, docRef: "invoice" }]); setDirty(true); };
+  const remove = (i: number) => { setRows((rs) => rs.filter((_, idx) => idx !== i)); setDirty(true); };
+  const reset = () => { setRows(build()); setDirty(false); };
+
+  const commit = () => {
+    const names: string[] = [];
+    const rules: Record<string, OrderTypeRule> = {};
+    for (const r of rows) {
+      const name = r.name.trim();
+      if (!name || names.includes(name)) continue; // skip blanks + duplicates
+      names.push(name);
+      rules[name] = { storeToStore: r.storeToStore, docRef: r.docRef };
+    }
+    if (!names.length) return;
+    save({ order_types: names, order_type_rules: rules }, t("Order types saved", "Tipos de orden guardados"));
+    setDirty(false);
+  };
+
+  return (
+    <div className="card">
+      <h2>🏷 {t("Order types & rules", "Tipos de orden y reglas")}</h2>
+      <p className="hint" style={{ marginTop: -4, marginBottom: 12 }}>
+        {t(
+          "Rename types and set what each one requires. “Store-to-store” means a branch-to-branch move — the destination is another store and no customer contact/phone is collected. The document reference sets which paperwork is required.",
+          "Renombre los tipos y defina qué requiere cada uno. “Entre tiendas” es un movimiento sucursal a sucursal — el destino es otra tienda y no se pide contacto/teléfono del cliente. La referencia de documento define qué papeleo se requiere.",
+        )}
+      </p>
+      <div className="tbl-scroll" style={{ border: "none" }}>
+        <table className="orders" style={{ minWidth: 660 }}>
+          <thead>
+            <tr>
+              <th>{t("Name", "Nombre")}</th>
+              <th style={{ textAlign: "center" }}>{t("Store-to-store", "Entre tiendas")}</th>
+              <th>{t("Document reference", "Referencia de documento")}</th>
+              <th style={{ textAlign: "center" }}>{t("In use", "En uso")}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i}>
+                <td><input value={r.name} onChange={(e) => update(i, { name: e.target.value })} placeholder={t("Type name", "Nombre del tipo")} style={{ minWidth: 150 }} /></td>
+                <td style={{ textAlign: "center" }}>
+                  <input type="checkbox" checked={r.storeToStore} onChange={(e) => update(i, { storeToStore: e.target.checked })} aria-label={t("Store-to-store", "Entre tiendas")} />
+                </td>
+                <td>
+                  <select value={r.docRef} onChange={(e) => update(i, { docRef: e.target.value as OrderTypeRule["docRef"] })} style={{ width: "auto" }}>
+                    <option value="invoice">{t("Customer Invoice # required", "Factura del cliente # requerida")}</option>
+                    <option value="any">{t("Any one of PO#2 / SO# / Invoice#", "Cualquiera de PO#2 / SO# / Factura#")}</option>
+                    <option value="none">{t("No document required", "Sin documento requerido")}</option>
+                  </select>
+                </td>
+                <td style={{ textAlign: "center" }}>{usage.get(r.name.trim()) ?? 0}</td>
+                <td><button className="btn btn-ghost btn-sm" onClick={() => remove(i)} title={t("Remove", "Quitar")}>✕</button></td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={5} className="hint" style={{ padding: 12 }}>{t("No order types — add one below.", "Sin tipos de orden — agregue uno abajo.")}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+        <button className="btn btn-ghost" onClick={add}>+ {t("Add type", "Agregar tipo")}</button>
+        <button className="btn btn-primary" onClick={commit} disabled={!dirty}>{t("Save changes", "Guardar cambios")}</button>
+        {dirty && <button className="btn btn-ghost btn-sm" onClick={reset}>{t("Discard", "Descartar")}</button>}
+        {dirty && <span className="hint">{t("Unsaved changes", "Cambios sin guardar")}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -221,66 +315,6 @@ function LocationTable({
           + {t("Add", "Agregar")}
         </button>
       )}
-    </div>
-  );
-}
-
-/** Editable list of plain string tags (order types). */
-function TagTable({
-  title, blurb, items, deliveries, onChange, t,
-}: {
-  title: string;
-  blurb: string;
-  items: string[];
-  deliveries: Delivery[];
-  onChange: (v: string[]) => void;
-  t: (en: string, es: string) => string;
-}) {
-  const [val, setVal] = useState("");
-  const confirmAction = useConfirm();
-
-  const usage = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const d of deliveries) {
-      if (d.order_type) m.set(d.order_type, (m.get(d.order_type) ?? 0) + 1);
-    }
-    return m;
-  }, [deliveries]);
-
-  const add = () => {
-    const v = val.trim();
-    if (!v || items.some((i) => i.toLowerCase() === v.toLowerCase())) { setVal(""); return; }
-    onChange([...items, v]);
-    setVal("");
-  };
-
-  const remove = async (x: string) => {
-    const used = usage.get(x) ?? 0;
-    if (used && !(await confirmAction(t(
-      `"${x}" is used by ${used} order(s). They keep their type, but it won't be offered on new orders. Delete it?`,
-      `"${x}" se usa en ${used} orden(es). Conservan su tipo, pero no se ofrecerá en órdenes nuevas. ¿Eliminar?`,
-    ), { danger: true, confirmLabel: t("Delete", "Eliminar") }))) return;
-    onChange(items.filter((i) => i !== x));
-  };
-
-  return (
-    <div className="card">
-      <h2>{title} <span className="count-tag">{items.length}</span></h2>
-      <p className="hint" style={{ marginTop: -6, marginBottom: 12 }}>{blurb}</p>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, maxWidth: 460 }}>
-        <input value={val} placeholder={t("Add an order type", "Agregar tipo de orden")}
-          onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
-        <button className="btn btn-primary" onClick={add} disabled={!val.trim()}>{t("Add", "Agregar")}</button>
-      </div>
-      <div className="pill-list">
-        {items.map((x) => (
-          <span className="pill-item" key={x}>
-            {x}
-            {(usage.get(x) ?? 0) > 0 && <span style={{ color: "var(--gray)", fontWeight: 600 }}>· {usage.get(x)}</span>}
-            <button onClick={() => remove(x)} title={t("Remove", "Quitar")}>✕</button>
-          </span>
-        ))}
-      </div>
     </div>
   );
 }
