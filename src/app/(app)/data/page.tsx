@@ -67,7 +67,89 @@ export default function DataPage() {
       />
 
       <OrderTypesRulesEditor settings={settings} deliveries={deliveries} save={save} t={t} />
+
+      <AccountsEditor settings={settings} save={save} t={t} />
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Saved accounts: name + contact + phone, plus an "Intertienda" flag marking a
+// branch (internal) account. On the order form, picking an account auto-fills
+// the contact/phone and defaults the order type (Intertienda vs Customer).
+// ---------------------------------------------------------------------------
+function AccountsEditor({
+  settings, save, t,
+}: {
+  settings: Settings;
+  save: (patch: Partial<Settings>, msg: string) => void;
+  t: (en: string, es: string) => string;
+}) {
+  type Row = { name: string; contact: string; phone: string; intertienda: boolean };
+  const build = (): Row[] =>
+    (settings.accounts ?? []).map((a) => ({ name: a.name, contact: a.contact, phone: a.phone, intertienda: !!a.intertienda }));
+  const [rows, setRows] = useState<Row[]>(build);
+  const [dirty, setDirty] = useState(false);
+
+  const update = (i: number, patch: Partial<Row>) => { setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r))); setDirty(true); };
+  const add = () => { setRows((rs) => [...rs, { name: "", contact: "", phone: "", intertienda: false }]); setDirty(true); };
+  const remove = (i: number) => { setRows((rs) => rs.filter((_, idx) => idx !== i)); setDirty(true); };
+  const reset = () => { setRows(build()); setDirty(false); };
+
+  const commit = () => {
+    const seen = new Set<string>();
+    const accounts = rows
+      .map((r) => ({ name: r.name.trim(), contact: r.contact.trim(), phone: r.phone.trim(), intertienda: r.intertienda }))
+      .filter((r) => { const k = r.name.toLowerCase(); if (!r.name || seen.has(k)) return false; seen.add(k); return true; });
+    save({ accounts }, t("Accounts saved", "Cuentas guardadas"));
+    setDirty(false);
+  };
+
+  return (
+    <div className="card">
+      <h2>🏢 {t("Accounts", "Cuentas")} <span className="count-tag">{rows.length}</span></h2>
+      <p className="hint" style={{ marginTop: -4, marginBottom: 12 }}>
+        {t(
+          "Picking an account on an order auto-fills its contact + phone. Flag a branch (internal) account as “Intertienda” and the order type defaults to Intertienda — otherwise Customer. Always changeable on the order.",
+          "Elegir una cuenta en una orden autocompleta su contacto + teléfono. Marque una cuenta de sucursal (interna) como “Intertienda” y el tipo de orden será Intertienda por defecto — de lo contrario Customer. Siempre editable en la orden.",
+        )}
+      </p>
+      <div className="tbl-scroll" style={{ border: "none" }}>
+        <table className="orders" style={{ minWidth: 620 }}>
+          <thead>
+            <tr>
+              <th>{t("Account", "Cuenta")}</th>
+              <th>{t("Contact", "Contacto")}</th>
+              <th>{t("Phone", "Teléfono")}</th>
+              <th style={{ textAlign: "center" }}>{t("Intertienda", "Intertienda")}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i}>
+                <td><input value={r.name} onChange={(e) => update(i, { name: e.target.value })} placeholder={t("Account name", "Nombre de cuenta")} style={{ minWidth: 150 }} /></td>
+                <td><input value={r.contact} onChange={(e) => update(i, { contact: e.target.value })} placeholder={t("Contact name", "Contacto")} /></td>
+                <td><input value={r.phone} onChange={(e) => update(i, { phone: e.target.value })} placeholder={t("Phone", "Teléfono")} /></td>
+                <td style={{ textAlign: "center" }}>
+                  <input type="checkbox" checked={r.intertienda} onChange={(e) => update(i, { intertienda: e.target.checked })} aria-label={t("Intertienda branch account", "Cuenta de sucursal Intertienda")} />
+                </td>
+                <td><button className="btn btn-ghost btn-sm" onClick={() => remove(i)} title={t("Remove", "Quitar")}>✕</button></td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={5} className="hint" style={{ padding: 12 }}>{t("No saved accounts yet — add one, or save one from an order.", "Aún no hay cuentas — agregue una o guárdela desde una orden.")}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+        <button className="btn btn-ghost" onClick={add}>+ {t("Add account", "Agregar cuenta")}</button>
+        <button className="btn btn-primary" onClick={commit} disabled={!dirty}>{t("Save changes", "Guardar cambios")}</button>
+        {dirty && <button className="btn btn-ghost btn-sm" onClick={reset}>{t("Discard", "Descartar")}</button>}
+        {dirty && <span className="hint">{t("Unsaved changes", "Cambios sin guardar")}</span>}
+      </div>
+    </div>
   );
 }
 

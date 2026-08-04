@@ -185,6 +185,9 @@ export interface AccountRecord {
   name: string;
   contact: string;
   phone: string;
+  /** An internal branch account (store-to-store). Picking it on an order
+   * defaults the type to Intertienda; a customer account defaults to Customer. */
+  intertienda?: boolean;
 }
 
 /** Explicit field-requirement rules for one order type. Replaces guessing the

@@ -326,8 +326,9 @@ export function OrderModal({
   // account/contact/phone don't apply and are locked. Driven by the order
   // type's configured rule (Data → Order types), not the name.
   const storeToStore = isStoreToStore(d.order_type, settings.order_type_rules);
+  // Store-to-store still routes the DESTINATION to another store (dropdown
+  // instead of a free address); the customer/contact fields stay visible.
   const isIntraStore = storeToStore;
-  const intraTienda = storeToStore;
   // Which store the current delivery address belongs to (for the dropdown value).
   const deliveryStore = settings.stores.find((s) => s.address && s.address === d.delivery_address)?.name || "";
 
@@ -1027,25 +1028,40 @@ export function OrderModal({
               <AccountCombo
                 val={d.account}
                 on={(v) => {
-                  // Picking a saved account also fills who to contact there —
-                  // still editable after, for a one-off override.
+                  // Picking a saved account fills who to contact there (still
+                  // editable after) and defaults the order type: an internal
+                  // branch account → Intertienda, a customer account → Customer.
+                  // Only overrides an existing type name the workspace actually
+                  // has, and the rep can always change it manually.
                   const rec = savedAccounts.find((a) => a.name.toLowerCase() === v.toLowerCase());
-                  setD((p) => ({ ...p, account: v, contact: rec ? rec.contact : p.contact, delivery_phone: rec ? rec.phone : p.delivery_phone }));
+                  setD((p) => {
+                    // A named account defaults the type: branch account →
+                    // Intertienda, anything else → Customer. Clearing it leaves
+                    // the type as-is. Only applied if the type name exists.
+                    const wantType = !v.trim() ? null : (rec?.intertienda ? "Intertienda" : "Customer");
+                    return {
+                      ...p,
+                      account: v,
+                      contact: rec ? rec.contact : p.contact,
+                      delivery_phone: rec ? rec.phone : p.delivery_phone,
+                      order_type: wantType && settings.order_types.includes(wantType) ? wantType : p.order_type,
+                    };
+                  });
                 }}
                 options={accountOptions}
-                disabled={!salesFields || intraTienda}
+                disabled={!salesFields}
                 placeholder={t("Select account…", "Seleccione cuenta…")}
                 t={t}
               />
-              <Txt label={t("Contact name", "Nombre de Contacto")} val={d.contact} on={(v) => set("contact", v)} disabled={!salesFields || intraTienda} invalid={missingSet.has("contact")} />
-              <Txt label={t("Delivery Phone Number", "Teléfono de Entrega")} val={d.delivery_phone} on={(v) => set("delivery_phone", v)} disabled={!salesFields || intraTienda} invalid={missingSet.has("delivery_phone")} />
+              <Txt label={t("Contact name", "Nombre de Contacto")} val={d.contact} on={(v) => set("contact", v)} disabled={!salesFields} invalid={missingSet.has("contact")} />
+              <Txt label={t("Delivery Phone Number", "Teléfono de Entrega")} val={d.delivery_phone} on={(v) => set("delivery_phone", v)} disabled={!salesFields} invalid={missingSet.has("delivery_phone")} />
             </div>
-            {salesFields && !intraTienda && !!d.account?.trim() && !!d.contact?.trim() && !!d.delivery_phone?.trim() &&
+            {salesFields && !!d.account?.trim() && !!d.contact?.trim() && !!d.delivery_phone?.trim() &&
               !savedAccounts.some((a) => a.name.toLowerCase() === d.account!.trim().toLowerCase() && a.contact === d.contact && a.phone === d.delivery_phone) && (
                 <button
                   className="btn btn-ghost btn-sm"
                   style={{ marginTop: -6, marginBottom: 10 }}
-                  onClick={() => saveAccount({ name: d.account!.trim(), contact: d.contact!.trim(), phone: d.delivery_phone!.trim() })}
+                  onClick={() => saveAccount({ name: d.account!.trim(), contact: d.contact!.trim(), phone: d.delivery_phone!.trim(), intertienda: d.order_type === "Intertienda" })}
                 >
                   💾 {t("Save this contact for the account", "Guardar este contacto para la cuenta")}
                 </button>
