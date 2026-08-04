@@ -157,6 +157,9 @@ export default function RoutesPage() {
   const [poolFilter, setPoolFilter] = useState<"all" | "overdue" | "noloc" | "windowed">("all");
   // Cached pickup→dropoff geometry for selected unassigned loads (drawn on the map).
   const [selRouteCache, setSelRouteCache] = useState<Record<string, [number, number][]>>({});
+  // Geocoded pickup coords per selected load — lets us show a pickup "P" pin and
+  // a straight PU→DEL line immediately, before (or if) the road geometry loads.
+  const [selPickup, setSelPickup] = useState<Record<string, [number, number]>>({});
   const [err, setErr] = useState<string | null>(null);
   // Which panels are collapsed — the unassigned pool ("__unassigned__") and
   // each driver (by name), so a busy board can be folded down to just the
@@ -276,11 +279,14 @@ export default function RoutesPage() {
       const chosen = unassigned.filter((d) => selectedOrders.has(d.id) && d.delivery_lat != null && d.delivery_lng != null);
       for (const d of chosen) {
         if (cancelled) return;
-        if (selRouteCache[d.id]) continue;
         const addr = (d.pickup_address || settings.stores.find((s) => s.name === d.store)?.address || d.store || "").trim();
         const pk = await getDepotCoords(addr);
         if (cancelled) return;
         if (!pk) continue;
+        // Record the pickup point right away so the "P" pin + straight PU→DEL
+        // line appear on selection, even while the road geometry is still loading.
+        setSelPickup((p) => (p[d.id] && p[d.id][0] === pk[0] && p[d.id][1] === pk[1] ? p : { ...p, [d.id]: pk }));
+        if (selRouteCache[d.id]) continue;
         try {
           const res = await fetch("/api/optimize-route", {
             method: "POST",
@@ -721,7 +727,8 @@ export default function RoutesPage() {
           lat: d.delivery_lat,
           lng: d.delivery_lng,
           color: sel ? (selColorById.get(d.id) ?? "#2456c9") : UNASSIGNED_COLOR,
-          label: `#${d.order_no} — ${t("Unassigned", "Sin asignar")}`,
+          badge: sel ? "D" : undefined,
+          label: `#${d.order_no} — ${sel ? t("Delivery", "Entrega") : t("Unassigned", "Sin asignar")}`,
           dimmed: sel ? false : (focused || selActive),
         });
         continue;
@@ -739,9 +746,25 @@ export default function RoutesPage() {
         dimmed: isDim(d.assigned_driver) || selActive,
       });
     }
+    // Pickup ("P") pin for each selected unassigned load, in its own color, so
+    // the PU→DEL pairing is visible even before the road route resolves.
+    for (const d of unassigned) {
+      if (!selectedOrders.has(d.id)) continue;
+      const pk = selPickup[d.id];
+      if (!pk) continue;
+      pts.push({
+        id: `__selpk__${d.id}`,
+        lat: pk[0],
+        lng: pk[1],
+        color: selColorById.get(d.id) ?? "#2456c9",
+        badge: "P",
+        label: `#${d.order_no} — ${t("Pickup", "Recolección")}`,
+        dimmed: false,
+      });
+    }
     return pts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, selectedOrders, selColorById, depotCoords, drivers]);
+  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, selectedOrders, selColorById, selPickup, unassigned, depotCoords, drivers]);
 
   // Every optimized driver's routes are always drawn; a focus just dims the
   // others. Clicking a route focuses its driver (see onLineClick below).
@@ -778,18 +801,26 @@ export default function RoutesPage() {
     }
     // Selected unassigned loads: each in its own color — the "go" leg solid
     // (pickup→dropoff) and the "return" leg dashed (dropoff→pickup), offset so
-    // it sits beside the outbound line.
+    // it sits beside the outbound line. When the road geometry isn't ready (or
+    // fails to load), fall back to a straight pickup→dropoff line so the PU→DEL
+    // pairing is ALWAYS shown, never just the dot.
     for (const d of unassigned) {
       if (!selectedOrders.has(d.id)) continue;
-      const pos = selRouteCache[d.id];
-      if (!pos || !pos.length) continue;
       const color = selColorById.get(d.id) ?? "#2456c9";
-      out.push({ id: `sel:${d.id}`, color, positions: pos });
-      out.push({ id: `selret:${d.id}`, color, positions: [...pos].reverse(), dashed: true, offset: 6 });
+      const pos = selRouteCache[d.id];
+      if (pos && pos.length) {
+        out.push({ id: `sel:${d.id}`, color, positions: pos });
+        out.push({ id: `selret:${d.id}`, color, positions: [...pos].reverse(), dashed: true, offset: 6 });
+      } else {
+        const pk = selPickup[d.id];
+        if (pk && d.delivery_lat != null && d.delivery_lng != null) {
+          out.push({ id: `selstraight:${d.id}`, color, positions: [pk, [d.delivery_lat, d.delivery_lng]], dashed: true });
+        }
+      }
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeLines, selected, preview, settings.driver_colors, selectedOrders, selRouteCache, selColorById, unassigned]);
+  }, [routeLines, selected, preview, settings.driver_colors, selectedOrders, selRouteCache, selPickup, selColorById, unassigned]);
 
   const onLineClick = (id: string) => {
     const m = id.match(/^(?:line|ret):(.+)#\d+$/);
@@ -805,6 +836,8 @@ export default function RoutesPage() {
       for (const d of unassigned) {
         if (!selectedOrders.has(d.id)) continue;
         if (d.delivery_lat != null && d.delivery_lng != null) pts.push([d.delivery_lat, d.delivery_lng]);
+        const pk = selPickup[d.id];
+        if (pk) pts.push(pk); // keep the pickup end in frame too
         const pos = selRouteCache[d.id];
         if (pos) pts.push(...pos);
       }
@@ -819,7 +852,7 @@ export default function RoutesPage() {
     }
     return points.filter((p) => ids.has(p.id)).map((p) => [p.lat, p.lng] as [number, number]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, selected, selectedOrders, selRouteCache, unassigned]);
+  }, [points, selected, selectedOrders, selRouteCache, selPickup, unassigned]);
 
   if (!me) return null;
   if (!canPlanRoutes(me)) {
