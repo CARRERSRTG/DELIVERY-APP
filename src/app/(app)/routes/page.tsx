@@ -960,9 +960,10 @@ export default function RoutesPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{u.full_name}</div>
                       <div className="hint" style={{ marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <span>⏱ {info?.duration_text ?? "—"}</span>
                         <span>📦 {stops.length}</span>
-                        <span>⇥ {info ? `${info.miles} mi` : "—"}</span>
+                        {/* Travel time & miles only appear once a route has been calculated. */}
+                        {info && <span>⏱ {info.duration_text}</span>}
+                        {info && <span>⇥ {info.miles} mi</span>}
                       </div>
                     </div>
                   </div>
