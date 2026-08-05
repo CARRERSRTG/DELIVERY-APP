@@ -216,16 +216,56 @@ export default function RoutesPage() {
     [settings.route_buckets, drivers],
   );
   const isBucket = (name: string) => bucketNames.includes(name);
-  // Lanes = real drivers + bucket pseudo-drivers, used everywhere we DISPLAY or
-  // build routes (panel, per-lane cards, map, optimize). Auto-assign still uses
-  // `drivers` only — it never dumps work into a bucket automatically.
-  const lanes = useMemo<Profile[]>(
-    () => [
-      ...drivers,
-      ...bucketNames.map((n) => ({ id: `bucket:${n}`, full_name: n, role: "driver" as const, store: null })),
-    ],
-    [drivers, bucketNames],
-  );
+
+  // ---- Loads: a driver can run several routes in a day, each a separate
+  // truckload/trip. A "lane" is one such load (or a route bucket). Its KEY is
+  // the grouping id: the plain driver name for load 1 (unchanged), or
+  // "Driver#L2" for the 2nd load, etc. driverOf() strips it back to the name. ----
+  const LANE_SEP = "#L";
+  const driverOf = (key: string) => {
+    const i = key.lastIndexOf(LANE_SEP);
+    return i >= 0 && /^\d+$/.test(key.slice(i + LANE_SEP.length)) ? key.slice(0, i) : key;
+  };
+  const laneKeyFor = (driver: string, load: number) => (load > 1 ? `${driver}${LANE_SEP}${load}` : driver);
+  const loadNoOf = (d: Delivery) => (d.load_no && d.load_no > 1 ? d.load_no : 1);
+  const orderLaneKey = (d: Delivery): string | null => {
+    if (!d.assigned_driver) return null;
+    if (isBucket(d.assigned_driver)) return d.assigned_driver;
+    return laneKeyFor(d.assigned_driver, loadNoOf(d));
+  };
+
+  interface Lane { id: string; key: string; driver: string; load: number; label: string; isBucket: boolean; store: string | null; }
+  // Lanes = each real driver's load(s) + each bucket, used everywhere we DISPLAY
+  // or build routes. Auto-assign still uses `drivers` only.
+  const lanes = useMemo<Lane[]>(() => {
+    const out: Lane[] = [];
+    for (const dr of drivers) {
+      const loads = new Set<number>([1]);
+      for (const d of dayOrders) if (d.assigned_driver === dr.full_name) loads.add(loadNoOf(d));
+      [...loads].sort((a, b) => a - b).forEach((load) => out.push({
+        id: load > 1 ? `${dr.id}${LANE_SEP}${load}` : dr.id,
+        key: laneKeyFor(dr.full_name, load),
+        driver: dr.full_name,
+        load,
+        label: load > 1 ? `${dr.full_name} · ${t("Load", "Carga")} ${load}` : dr.full_name,
+        isBucket: false,
+        store: dr.store ?? null,
+      }));
+    }
+    for (const n of bucketNames) out.push({ id: `bucket:${n}`, key: n, driver: n, load: 1, label: n, isBucket: true, store: null });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drivers, dayOrders, bucketNames, t]);
+
+  // The next free load number for a driver: 1 if they have no work yet,
+  // otherwise one past their highest current load.
+  const nextLoadFor = (driver: string) => {
+    let max = 0;
+    for (const d of dayOrders) if (d.assigned_driver === driver) max = Math.max(max, loadNoOf(d));
+    return max === 0 ? 1 : max + 1;
+  };
+  // Friendly display name for a lane key (e.g. "José · Load 2").
+  const laneLabel = (key: string) => lanes.find((l) => l.key === key)?.label ?? key;
 
   const addBucket = (): string => {
     const existing = settings.route_buckets ?? [];
@@ -239,17 +279,19 @@ export default function RoutesPage() {
   const removeBucket = (name: string) => {
     saveSettings({ route_buckets: (settings.route_buckets ?? []).filter((b) => b !== name) });
   };
-  // Hand a whole bucket's route to a real driver: move every stop (keeping its
-  // optimized sequence) onto the driver, then retire the bucket.
+  // Hand a whole bucket's route to a real driver as a distinct LOAD (keeping its
+  // optimized sequence), then retire the bucket. If the driver already has
+  // work, this becomes their next load — so one driver can carry several routes.
   const assignRouteToDriver = async (bucket: string, driver: string) => {
     if (!driver) return;
     const stops = byDriver.get(bucket) ?? [];
+    const load = nextLoadFor(driver);
     for (const d of stops) {
-      await updateDelivery(d.id, { assigned_driver: driver });
-      addNote(d.id, `Route "${bucket}" assigned to ${driver}`);
+      await updateDelivery(d.id, { assigned_driver: driver, load_no: load });
+      addNote(d.id, `Route "${bucket}" assigned to ${driver} as load ${load}`);
     }
     removeBucket(bucket);
-    notify(t(`Route "${bucket}" (${stops.length} stop(s)) assigned to ${driver}`, `Ruta "${bucket}" (${stops.length} parada(s)) asignada a ${driver}`));
+    notify(t(`Route "${bucket}" (${stops.length} stop(s)) → ${driver}, load ${load}`, `Ruta "${bucket}" (${stops.length} parada(s)) → ${driver}, carga ${load}`));
   };
   // Drivers on vacation/sick/maintenance for the selected day — excluded from auto-assign.
   const unavailableToday = useMemo(
@@ -268,8 +310,9 @@ export default function RoutesPage() {
   // next truckload. The pickup is taken from the orders themselves (their
   // pickup_address / sold-from store), falling back to the driver's own
   // home store — whichever we can resolve.
-  const pickupAddressFor = (driver: string): string | null => {
-    const stops = byDriver.get(driver) ?? [];
+  const pickupAddressFor = (laneKey: string): string | null => {
+    const driver = driverOf(laneKey);
+    const stops = byDriver.get(laneKey) ?? [];
     const counts = new Map<string, number>();
     for (const d of stops) {
       const a = (d.pickup_address || "").trim();
@@ -386,13 +429,16 @@ export default function RoutesPage() {
 
   // Each driver's stops for the day, in their current sequence (optimized
   // order first, unsequenced ones after — same rule as the Driver page).
+  // Keyed by LANE (driver+load, or bucket), so each of a driver's loads is its
+  // own optimizable route.
   const byDriver = useMemo(() => {
     const map = new Map<string, Delivery[]>();
     for (const d of dayOrders) {
-      if (!d.assigned_driver) continue;
-      const list = map.get(d.assigned_driver) ?? [];
+      const key = orderLaneKey(d);
+      if (!key) continue;
+      const list = map.get(key) ?? [];
       list.push(d);
-      map.set(d.assigned_driver, list);
+      map.set(key, list);
     }
     for (const list of map.values()) {
       list.sort((a, b) => {
@@ -411,9 +457,9 @@ export default function RoutesPage() {
       { key: "__unassigned__", title: t("Unassigned", "Sin asignar"), color: UNASSIGNED_COLOR, orders: unassigned },
     ];
     for (const u of lanes) {
-      const orders = byDriver.get(u.full_name) ?? [];
+      const orders = byDriver.get(u.key) ?? [];
       const pallets = Math.round(orders.reduce((s, d) => s + Number(d.actual_pallets ?? d.est_pallets ?? 0), 0));
-      cols.push({ key: u.full_name, title: u.full_name, color: colorFor(u.full_name), orders, sub: `${pallets}/${capacityFor(u.full_name)}` });
+      cols.push({ key: u.key, title: u.label, color: colorFor(u.driver), orders, sub: `${pallets}/${capacityFor(u.driver)}` });
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -421,11 +467,12 @@ export default function RoutesPage() {
 
   // Print a driver's route for the selected day, in optimized stop sequence
   // (route_seq when planned, else by order number).
-  const printManifestFor = (driver: string) => {
-    const stops = [...(byDriver.get(driver) ?? [])].sort(
+  const printManifestFor = (laneKey: string) => {
+    const stops = [...(byDriver.get(laneKey) ?? [])].sort(
       (a, b) => (a.route_seq ?? 9999) - (b.route_seq ?? 9999) || a.order_no - b.order_no,
     );
-    printRouteManifest(driver, stops, settings, lang, fmtDate(date));
+    const label = lanes.find((l) => l.key === laneKey)?.label ?? driverOf(laneKey);
+    printRouteManifest(label, stops, settings, lang, fmtDate(date));
   };
 
   // Timeline rows: drivers that have stops, each drawn over the day axis.
@@ -447,12 +494,34 @@ export default function RoutesPage() {
   };
   const assignTo = (id: string, driver: string) => {
     clearRouteFor(driver);
-    return updateDelivery(id, { assigned_driver: driver || null, route_seq: null });
+    // A plain (dropdown / drag) assignment always lands on the driver's first
+    // load; multi-load assignment goes through assignRouteToDriver.
+    return updateDelivery(id, { assigned_driver: driver || null, route_seq: null, load_no: null });
   };
   const unassign = (id: string) => {
     const d = dayOrders.find((x) => x.id === id);
-    if (d?.assigned_driver) clearRouteFor(d.assigned_driver);
-    return updateDelivery(id, { assigned_driver: null, route_seq: null });
+    if (d) { const k = orderLaneKey(d); if (k) clearRouteFor(k); }
+    return updateDelivery(id, { assigned_driver: null, route_seq: null, load_no: null });
+  };
+
+  // Parse a lane key ("Driver#L2") back into its load number (1 if none).
+  const loadFromKey = (laneKey: string) => {
+    const i = laneKey.lastIndexOf(LANE_SEP);
+    const n = i >= 0 ? parseInt(laneKey.slice(i + LANE_SEP.length), 10) : NaN;
+    return Number.isFinite(n) ? n : 1;
+  };
+  // Assign an order onto a specific LANE (a driver's load, or a bucket) — used
+  // by the board's drag-and-drop onto a load column.
+  const assignToLane = async (id: string, laneKey: string) => {
+    const d = dayOrders.find((x) => x.id === id);
+    clearRouteFor(laneKey);
+    if (isBucket(laneKey)) {
+      await updateDelivery(id, { assigned_driver: laneKey, route_seq: null, load_no: null });
+    } else {
+      const load = loadFromKey(laneKey);
+      await updateDelivery(id, { assigned_driver: driverOf(laneKey), route_seq: null, load_no: load > 1 ? load : null });
+    }
+    addNote(id, `Moved to ${laneKey}${d?.assigned_driver ? ` (from ${orderLaneKey(d) ?? d.assigned_driver})` : ""}`);
   };
 
   // A single manual (re)assignment — assign + write an audit note.
@@ -473,7 +542,7 @@ export default function RoutesPage() {
     const d = dayOrders.find((x) => x.id === orderId);
     if (!d) return;
     if (columnKey === "__unassigned__") { if (d.assigned_driver) manualUnassign(orderId); }
-    else if (d.assigned_driver !== columnKey) manualAssign(orderId, columnKey);
+    else if (orderLaneKey(d) !== columnKey) assignToLane(orderId, columnKey);
   };
 
   /** Solve a driver's full day for the given stop list — capacity-split
@@ -481,7 +550,8 @@ export default function RoutesPage() {
    * anything. Both the real "Optimize route" and the add-order simulation
    * run through this. `extraStops` lets the simulation include an order
    * that isn't assigned to the driver yet, so its pickup counts too. */
-  const computeRoute = async (driver: string, stopList: Delivery[]): Promise<RoutePlan> => {
+  const computeRoute = async (laneKey: string, stopList: Delivery[]): Promise<RoutePlan> => {
+    const driver = driverOf(laneKey);
     // Earliest delivery window first (OSRM only supports a fixed start for
     // the trip solver — see /api/optimize-route); everything after that is
     // freely reordered within its trip for the shortest drive.
@@ -598,15 +668,15 @@ export default function RoutesPage() {
   // once. Sequential + gently throttled — the free OSRM server asks for no
   // more than ~1 request/second.
   const optimizeAll = async () => {
-    const withStops = lanes.filter((u) => (byDriver.get(u.full_name) ?? []).length > 0);
+    const withStops = lanes.filter((u) => (byDriver.get(u.key) ?? []).length > 0);
     if (!withStops.length) return;
     setOptimizingAll(true);
     setPreview(null);
     setErr(null);
     for (const u of withStops) {
-      setBusyDriver(u.full_name);
+      setBusyDriver(u.key);
       try {
-        await applyPlan(u.full_name, await computeRoute(u.full_name, byDriver.get(u.full_name) ?? []));
+        await applyPlan(u.key, await computeRoute(u.key, byDriver.get(u.key) ?? []));
       } catch (e) {
         setErr((e as Error).message);
       }
@@ -692,9 +762,14 @@ export default function RoutesPage() {
 
   const confirmPreview = async () => {
     if (!preview) return;
-    const { orderId, driver, plan } = preview;
+    const { orderId, driver, plan } = preview; // `driver` is a lane key
     setPreview(null);
-    await updateDelivery(orderId, { assigned_driver: driver });
+    if (isBucket(driver)) {
+      await updateDelivery(orderId, { assigned_driver: driver, load_no: null });
+    } else {
+      const load = loadFromKey(driver);
+      await updateDelivery(orderId, { assigned_driver: driverOf(driver), load_no: load > 1 ? load : null });
+    }
     await applyPlan(driver, plan);
   };
 
@@ -721,7 +796,7 @@ export default function RoutesPage() {
   // as its loop's start/end pin even before a route's been optimized.
   useEffect(() => {
     for (const u of lanes) {
-      if ((byDriver.get(u.full_name) ?? []).length) getDepotCoords(pickupAddressFor(u.full_name));
+      if ((byDriver.get(u.key) ?? []).length) getDepotCoords(pickupAddressFor(u.key));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byDriver, settings.stores]);
@@ -744,9 +819,9 @@ export default function RoutesPage() {
     // so the map groups stops into the same colors as their loop.
     const stopColor = new Map<string, string>();
     for (const u of lanes) {
-      const stops = byDriver.get(u.full_name) ?? [];
-      splitIntoTrips(stops, capacityFor(u.full_name)).forEach((batch, ti) => {
-        const c = tripColor(colorFor(u.full_name), ti);
+      const stops = byDriver.get(u.key) ?? [];
+      splitIntoTrips(stops, capacityFor(u.driver)).forEach((batch, ti) => {
+        const c = tripColor(colorFor(u.driver), ti);
         for (const d of batch) stopColor.set(d.id, c);
       });
     }
@@ -755,18 +830,18 @@ export default function RoutesPage() {
     // Pickup / base pins first, so a stop that sits right on the pickup still
     // draws on top of the "P" instead of being hidden behind it.
     for (const u of lanes) {
-      if (!(byDriver.get(u.full_name) ?? []).length) continue;
-      const addr = (pickupAddressFor(u.full_name) ?? "").trim();
+      if (!(byDriver.get(u.key) ?? []).length) continue;
+      const addr = (pickupAddressFor(u.key) ?? "").trim();
       const coords = addr ? depotCoords[addr] : undefined;
       if (!coords) continue;
       pts.push({
         id: `__depot__${u.id}`,
         lat: coords[0],
         lng: coords[1],
-        color: colorFor(u.full_name),
+        color: colorFor(u.driver),
         badge: "P",
-        label: `${t("Pickup / base", "Recolección / base")} (${u.full_name}) — ${addr}`,
-        dimmed: isDim(u.full_name) || selectedOrders.size > 0,
+        label: `${t("Pickup / base", "Recolección / base")} (${u.label}) — ${addr}`,
+        dimmed: isDim(u.key) || selectedOrders.size > 0,
       });
     }
     const selActive = selectedOrders.size > 0;
@@ -786,9 +861,11 @@ export default function RoutesPage() {
         continue;
       }
       const sel = selectedOrders.has(d.id);
-      const list = byDriver.get(d.assigned_driver) ?? [];
+      const laneKey = orderLaneKey(d)!;
+      const list = byDriver.get(laneKey) ?? [];
       const idx = list.findIndex((x) => x.id === d.id);
       const badge = d.route_seq != null ? String(idx + 1) : undefined;
+      const loadTag = !isBucket(d.assigned_driver) && loadNoOf(d) > 1 ? ` · ${t("Load", "Carga")} ${loadNoOf(d)}` : "";
       pts.push({
         id: d.id,
         lat: d.delivery_lat,
@@ -797,8 +874,8 @@ export default function RoutesPage() {
         // marked "D" so it pairs with its "P" pickup pin.
         color: sel ? (selColorById.get(d.id) ?? "#2456c9") : (stopColor.get(d.id) ?? colorFor(d.assigned_driver)),
         badge: sel ? "D" : badge,
-        label: `#${orderLabel(d)} — ${d.assigned_driver}${badge ? ` (${t("Stop", "Parada")} ${badge})` : ""}`,
-        dimmed: sel ? false : (isDim(d.assigned_driver) || selActive),
+        label: `#${orderLabel(d)} — ${d.assigned_driver}${loadTag}${badge ? ` (${t("Stop", "Parada")} ${badge})` : ""}`,
+        dimmed: sel ? false : (isDim(laneKey) || selActive),
       });
     }
     // Pickup ("P") pin for each selected load (assigned or pool), in its own
@@ -835,7 +912,7 @@ export default function RoutesPage() {
     let idx = 0;
     for (const [driver, trips] of entries) {
       trips.forEach((trace, i) => {
-        const color = tripColor(colorFor(driver), i);
+        const color = tripColor(colorFor(driverOf(driver)), i);
         const dimmed = isDim(driver);
         const offset = (idx - center) * spacing;
         // Delivery run: solid. Empty drive back to the pickup: dashed, and
@@ -848,7 +925,7 @@ export default function RoutesPage() {
       });
     }
     if (preview) {
-      const color = colorFor(preview.driver);
+      const color = colorFor(driverOf(preview.driver));
       preview.plan.traces.forEach((trace, i) => {
         out.push({ id: `preview:${i}`, color, positions: trace.delivery, dashed: true });
         if (trace.ret.length > 1) out.push({ id: `pret:${i}`, color, positions: trace.ret, dashed: true, offset: 7 });
@@ -900,10 +977,10 @@ export default function RoutesPage() {
     }
     if (!focused) return points.map((p) => [p.lat, p.lng] as [number, number]);
     const ids = new Set<string>();
-    for (const name of selected) {
-      for (const d of byDriver.get(name) ?? []) ids.add(d.id);
-      const prof = users.find((u) => u.full_name === name);
-      if (prof) ids.add(`__depot__${prof.id}`);
+    for (const key of selected) {
+      for (const d of byDriver.get(key) ?? []) ids.add(d.id);
+      const lane = lanes.find((l) => l.key === key);
+      if (lane) ids.add(`__depot__${lane.id}`);
     }
     return points.filter((p) => ids.has(p.id)).map((p) => [p.lat, p.lng] as [number, number]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -914,8 +991,8 @@ export default function RoutesPage() {
     return <div className="empty">{t("You don’t have access to route planning.", "No tienes acceso a la planificación de rutas.")}</div>;
   }
 
-  const withStops = drivers.filter((u) => (byDriver.get(u.full_name) ?? []).length > 0);
-  const shownDrivers = focused ? lanes.filter((u) => selected.has(u.full_name)) : withStops;
+  const withStops = lanes.filter((u) => (byDriver.get(u.key) ?? []).length > 0);
+  const shownDrivers = focused ? lanes.filter((u) => selected.has(u.key)) : withStops;
   // Simulating an add targets a driver, so it needs exactly one selected.
   const singleSel = selected.size === 1 ? [...selected][0] : null;
   const scheduledCount = dayOrders.length - unassigned.length;
@@ -943,7 +1020,7 @@ export default function RoutesPage() {
           </button>
           <button
             className="btn btn-primary btn-sm"
-            disabled={optimizingAll || autoAssigning || busyDriver != null || lanes.every((u) => (byDriver.get(u.full_name) ?? []).length === 0)}
+            disabled={optimizingAll || autoAssigning || busyDriver != null || lanes.every((u) => (byDriver.get(u.key) ?? []).length === 0)}
             onClick={optimizeAll}
           >
             {optimizingAll ? `… ${t("Optimizing", "Optimizando")} ${busyDriver ?? ""}` : `🧭 ${t("Optimize all routes", "Optimizar todas las rutas")}`}
@@ -991,31 +1068,32 @@ export default function RoutesPage() {
           ) : (
             <div style={{ maxHeight: 470, overflowY: "auto" }}>
               {lanes.map((u) => {
-                const stops = byDriver.get(u.full_name) ?? [];
-                const info = routeInfo[u.full_name];
-                const on = selected.has(u.full_name);
-                const bucket = isBucket(u.full_name);
+                const stops = byDriver.get(u.key) ?? [];
+                const info = routeInfo[u.key];
+                const on = selected.has(u.key);
+                const bucket = u.isBucket;
                 // Load vs truck capacity — a filled bar the dispatcher can read
                 // at a glance; over capacity turns red (the day needs a reload trip).
                 const pallets = stops.reduce((s, o) => s + Number(o.actual_pallets ?? o.est_pallets ?? 0), 0);
-                const cap = capacityFor(u.full_name);
+                const cap = capacityFor(u.driver);
                 const pct = cap > 0 ? Math.min(100, (pallets / cap) * 100) : 0;
                 const over = pallets > cap;
                 return (
                   <div
                     key={u.id}
-                    onClick={() => focusOnly(u.full_name)}
+                    onClick={() => focusOnly(u.key)}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderTop: "1px solid var(--line)", cursor: "pointer", background: on ? "var(--accent-soft)" : undefined }}
                   >
-                    <input type="checkbox" checked={on} onClick={(e) => e.stopPropagation()} onChange={() => toggleDriver(u.full_name)} style={{ width: 15, height: 15, flex: "0 0 auto" }} />
-                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: colorFor(u.full_name), flex: "0 0 auto", border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)" }} />
+                    <input type="checkbox" checked={on} onClick={(e) => e.stopPropagation()} onChange={() => toggleDriver(u.key)} style={{ width: 15, height: 15, flex: "0 0 auto" }} />
+                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: colorFor(u.driver), flex: "0 0 auto", border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)" }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-                        {u.full_name}
+                        {u.label}
                         {bucket && <span className="sema" style={{ background: "var(--accent)", color: "#fff", fontSize: 10 }}>🧭 {t("route", "ruta")}</span>}
+                        {u.load > 1 && <span className="sema" style={{ background: "var(--gray)", color: "#fff", fontSize: 10 }}>🚚 {t("load", "carga")} {u.load}</span>}
                         {bucket && stops.length === 0 && (
                           <button className="notif-clear" title={t("Remove empty route", "Quitar ruta vacía")}
-                            onClick={(e) => { e.stopPropagation(); removeBucket(u.full_name); }}>✕</button>
+                            onClick={(e) => { e.stopPropagation(); removeBucket(u.key); }}>✕</button>
                         )}
                       </div>
                       <div className="hint" style={{ marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -1057,12 +1135,12 @@ export default function RoutesPage() {
 
       {/* ---------- Simulation banner ---------- */}
       {preview && (
-        <div className="card" style={{ borderColor: colorFor(preview.driver) }}>
+        <div className="card" style={{ borderColor: colorFor(driverOf(preview.driver)) }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <b>
               🔮 {t(
-                `Adding #${preview.orderNo} to ${preview.driver}:`,
-                `Agregando #${preview.orderNo} a ${preview.driver}:`,
+                `Adding #${preview.orderNo} to ${laneLabel(preview.driver)}:`,
+                `Agregando #${preview.orderNo} a ${laneLabel(preview.driver)}:`,
               )}
             </b>
             <span>
@@ -1129,8 +1207,8 @@ export default function RoutesPage() {
         {singleSel && unassigned.length > 0 && (
           <p className="hint" style={{ marginTop: 8, marginBottom: 10 }}>
             {t(
-              `Simulate adds a stop to ${singleSel}'s day and shows the resulting route before anything is saved.`,
-              `Simular agrega una parada al día de ${singleSel} y muestra la ruta resultante antes de guardar nada.`,
+              `Simulate adds a stop to ${laneLabel(singleSel)}'s day and shows the resulting route before anything is saved.`,
+              `Simular agrega una parada al día de ${laneLabel(singleSel)} y muestra la ruta resultante antes de guardar nada.`,
             )}
           </p>
         )}
@@ -1266,19 +1344,19 @@ export default function RoutesPage() {
         </div>
       )}
       {shownDrivers.map((u) => {
-        const stops = byDriver.get(u.full_name) ?? [];
+        const stops = byDriver.get(u.key) ?? [];
         const sequenced = stops.length > 0 && stops.every((d) => d.route_seq != null);
         const missingPins = stops.filter((d) => d.delivery_lat == null).length;
-        const info = routeInfo[u.full_name];
-        const capacity = capacityFor(u.full_name);
+        const info = routeInfo[u.key];
+        const capacity = capacityFor(u.driver);
         const trips = splitIntoTrips(stops, capacity);
-        const isC = isCollapsed(u.full_name);
-        const bucket = isBucket(u.full_name);
+        const isC = isCollapsed(u.key);
+        const bucket = u.isBucket;
         // Stops whose optimized ETA lands after the delivery window closes —
         // surfaced as a banner so the dispatcher acts before dispatch, not just
         // as a red cell buried in the table.
         const lateStops = stops.filter((d) => {
-          const eta = routeEtas[u.full_name]?.[d.id];
+          const eta = routeEtas[u.key]?.[d.id];
           const win = parseWindow(d.delivery_windows);
           const etaMin = eta ? parseInt(eta.slice(0, 2), 10) * 60 + parseInt(eta.slice(3, 5), 10) : null;
           return etaMin != null && win != null && etaMin > win[1];
@@ -1286,9 +1364,9 @@ export default function RoutesPage() {
         return (
           <div className="card" key={u.id} style={{ margin: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
-              <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} onClick={() => toggleCollapse(u.full_name)} title={t("Collapse", "Contraer")}>{isC ? "▸" : "▾"}</button>
-              <span style={{ width: 14, height: 14, borderRadius: "50%", background: colorFor(u.full_name), border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)", flex: "0 0 auto" }} />
-              <h2 style={{ margin: 0 }}>{u.full_name}</h2>
+              <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} onClick={() => toggleCollapse(u.key)} title={t("Collapse", "Contraer")}>{isC ? "▸" : "▾"}</button>
+              <span style={{ width: 14, height: 14, borderRadius: "50%", background: colorFor(u.driver), border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)", flex: "0 0 auto" }} />
+              <h2 style={{ margin: 0 }}>{u.label}</h2>
               {bucket && <span className="sema" style={{ background: "var(--accent)", color: "#fff" }}>🧭 {t("route", "ruta")}</span>}
               <span className="count-tag">{stops.length} {t("stops", "paradas")}</span>
               {stops.length > 0 && trips.length > 1 && (
@@ -1300,20 +1378,20 @@ export default function RoutesPage() {
                 🚚 {t("Truck capacity", "Capacidad del camión")}
                 <input
                   type="number" min={1} value={capacity}
-                  onChange={(e) => { const v = Number(e.target.value); if (v > 0) setCapacity(u.full_name, v); }}
+                  onChange={(e) => { const v = Number(e.target.value); if (v > 0) setCapacity(u.driver, v); }}
                   style={{ width: 60 }}
                 />
                 {t("plt", "trm")}
               </label>
-              <button className="btn btn-primary btn-sm" disabled={stops.length < 2 || busyDriver === u.full_name} onClick={() => optimize(u.full_name)}>
-                {busyDriver === u.full_name ? "…" : `🧭 ${t("Optimize route", "Optimizar ruta")}`}
+              <button className="btn btn-primary btn-sm" disabled={stops.length < 2 || busyDriver === u.key} onClick={() => optimize(u.key)}>
+                {busyDriver === u.key ? "…" : `🧭 ${t("Optimize route", "Optimizar ruta")}`}
               </button>
               {bucket && (
                 <select
                   defaultValue=""
                   disabled={stops.length === 0 || drivers.length === 0}
                   title={t("Hand this whole route to a driver", "Entregar toda esta ruta a un chofer")}
-                  onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v) assignRouteToDriver(u.full_name, v); }}
+                  onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v) assignRouteToDriver(u.key, v); }}
                   style={{ width: "auto" }}
                 >
                   <option value="">👤 {t("Assign route to…", "Asignar ruta a…")}</option>
@@ -1379,7 +1457,7 @@ export default function RoutesPage() {
                       const startIdx = trips.slice(0, ti).reduce((n, b) => n + b.length, 0);
                       const load = batch.reduce((n, d) => n + (d.actual_pallets ?? d.est_pallets ?? 0), 0);
                       const free = Math.max(0, capacity - load);
-                      const tColor = tripColor(colorFor(u.full_name), ti);
+                      const tColor = tripColor(colorFor(u.driver), ti);
                       return (
                         <Fragment key={ti}>
                           <tr>
@@ -1392,7 +1470,7 @@ export default function RoutesPage() {
                           {batch.map((d, bi) => {
                             const i = startIdx + bi;
                             // Flag a stop whose optimized ETA lands after its window closes.
-                            const eta = routeEtas[u.full_name]?.[d.id];
+                            const eta = routeEtas[u.key]?.[d.id];
                             const win = parseWindow(d.delivery_windows);
                             const etaMin = eta ? parseInt(eta.slice(0, 2), 10) * 60 + parseInt(eta.slice(3, 5), 10) : null;
                             const late = etaMin != null && win != null && etaMin > win[1];
@@ -1409,8 +1487,8 @@ export default function RoutesPage() {
                                 <td style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                                   {sequenced && (
                                     <>
-                                      <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => move(u.full_name, i, -1)} title={t("Move up", "Subir")}>↑</button>
-                                      <button className="btn btn-ghost btn-sm" disabled={i === stops.length - 1} onClick={() => move(u.full_name, i, 1)} title={t("Move down", "Bajar")}>↓</button>
+                                      <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => move(u.key, i, -1)} title={t("Move up", "Subir")}>↑</button>
+                                      <button className="btn btn-ghost btn-sm" disabled={i === stops.length - 1} onClick={() => move(u.key, i, 1)} title={t("Move down", "Bajar")}>↓</button>
                                     </>
                                   )}
                                   <button className="btn btn-ghost btn-sm" onClick={() => unassign(d.id)} title={t("Unassign", "Quitar asignación")}>✕</button>

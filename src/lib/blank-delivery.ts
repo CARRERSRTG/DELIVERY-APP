@@ -32,6 +32,7 @@ export function blankDelivery(over: Partial<Delivery> = {}): Delivery {
     actual_pallets: null,
     assigned_driver: null,
     route_seq: null,
+    load_no: null,
     delivery_duration: null,
     delivery_name: null,
     delivery_address: null,

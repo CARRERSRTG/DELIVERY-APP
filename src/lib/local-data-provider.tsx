@@ -311,7 +311,7 @@ function seedRow(n: number): Delivery {
     pickup_lat: null, pickup_lng: null, pickup_gps_at: null,
     pod_lat: null, pod_lng: null, pod_accuracy: null,
     delivery_lat: null, delivery_lng: null, delivery_pin_source: null,
-    route_seq: null,
+    route_seq: null, load_no: null,
     created_by: null, assigned_sales_rep: null, approved_by: null, approved_at: null, created_at: now, updated_at: now,
   };
 }

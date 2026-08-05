@@ -78,6 +78,10 @@ export interface Delivery {
    * set by the Logistics Manager's route optimizer. null = not sequenced yet
    * (newly assigned, or the driver's route hasn't been optimized/reordered). */
   route_seq: number | null;
+  /** Which load/trip of the driver's day this order rides on. A driver can run
+   * several routes in a day, each a separate truckload out from the pickup and
+   * back. null or 1 = the first load. route_seq is sequenced within the load. */
+  load_no: number | null;
   delivery_duration: string | null;
   /** Named dropoff point (saved site name), paired with delivery_address. */
   delivery_name: string | null;
