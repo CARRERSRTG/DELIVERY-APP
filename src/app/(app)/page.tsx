@@ -9,6 +9,7 @@ import { canCreate, driverNames, filterStagesFor, ROLE_DEFAULT_COLUMNS, STAGES, 
 import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/OrdersTable";
 import { OrdersBoard } from "@/components/OrdersBoard";
 import { OrderModal } from "@/components/OrderModal";
+import { ImportOrdersModal } from "@/components/ImportOrdersModal";
 import { deliveryColumns, downloadCSV, orderLabel, isOverdue, isPendingUrgent, isToday, orderOwner, toCSV, todayISO, yesterdayISO } from "@/lib/utils";
 import { exportExcelByEmployee, exportPDFByEmployee } from "@/lib/export";
 import type { Delivery, Stage, UserRole } from "@/lib/types";
@@ -38,6 +39,7 @@ export default function OrdersPage() {
   const [view, setView] = useState<"table" | "board">("table");
   const [open, setOpen] = useState<Delivery | null>(null);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   // Bulk selection (#1) + user-chosen columns (#13, persisted per browser).
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -289,6 +291,9 @@ export default function OrdersPage() {
               )}
             </div>
           )}
+          {me.role === "admin" && (
+            <button className="btn btn-ghost" onClick={() => setImporting(true)} title={t("Bulk-create orders from a CSV file", "Crear órdenes en masa desde un archivo CSV")}>⬆ {t("Import", "Importar")}</button>
+          )}
           {canCreate(me) && (
             <button className="btn btn-primary" onClick={() => setCreating(true)}>+ {t("New order", "Nueva orden")}</button>
           )}
@@ -395,6 +400,7 @@ export default function OrdersPage() {
 
       {open && <OrderModal me={me} existing={open} startEditing={false} onClose={() => setOpen(null)} />}
       {creating && <OrderModal me={me} existing={null} startEditing onClose={() => setCreating(false)} />}
+      {importing && <ImportOrdersModal onClose={() => setImporting(false)} />}
     </>
   );
 }
