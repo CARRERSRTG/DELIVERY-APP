@@ -11,7 +11,7 @@ import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
 import { fallbackDriverColor, fmtDate, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
-import type { Delivery } from "@/lib/types";
+import type { Delivery, Profile } from "@/lib/types";
 
 // ============================================================
 // Logistics Manager tool: assign the day's approved-but-undelivered orders
@@ -207,6 +207,50 @@ export default function RoutesPage() {
   const geocoding = useAutoGeocode(dayOrders, updateDelivery);
 
   const drivers = useMemo(() => users.filter((u) => u.role === "driver"), [users]);
+
+  // "Route buckets" — build routes before a real driver exists. Each bucket is a
+  // pseudo-driver (its name lives in assigned_driver) so the whole route/optimize
+  // machinery works on it; later the route is handed to an actual driver.
+  const bucketNames = useMemo(
+    () => (settings.route_buckets ?? []).filter((n) => !drivers.some((d) => d.full_name === n)),
+    [settings.route_buckets, drivers],
+  );
+  const isBucket = (name: string) => bucketNames.includes(name);
+  // Lanes = real drivers + bucket pseudo-drivers, used everywhere we DISPLAY or
+  // build routes (panel, per-lane cards, map, optimize). Auto-assign still uses
+  // `drivers` only — it never dumps work into a bucket automatically.
+  const lanes = useMemo<Profile[]>(
+    () => [
+      ...drivers,
+      ...bucketNames.map((n) => ({ id: `bucket:${n}`, full_name: n, role: "driver" as const, store: null })),
+    ],
+    [drivers, bucketNames],
+  );
+
+  const addBucket = (): string => {
+    const existing = settings.route_buckets ?? [];
+    let n = 1;
+    while (existing.includes(`Route ${n}`) || drivers.some((d) => d.full_name === `Route ${n}`)) n++;
+    const name = `Route ${n}`;
+    saveSettings({ route_buckets: [...existing, name] });
+    notify(t(`Added ${name}`, `${name} agregada`));
+    return name;
+  };
+  const removeBucket = (name: string) => {
+    saveSettings({ route_buckets: (settings.route_buckets ?? []).filter((b) => b !== name) });
+  };
+  // Hand a whole bucket's route to a real driver: move every stop (keeping its
+  // optimized sequence) onto the driver, then retire the bucket.
+  const assignRouteToDriver = async (bucket: string, driver: string) => {
+    if (!driver) return;
+    const stops = byDriver.get(bucket) ?? [];
+    for (const d of stops) {
+      await updateDelivery(d.id, { assigned_driver: driver });
+      addNote(d.id, `Route "${bucket}" assigned to ${driver}`);
+    }
+    removeBucket(bucket);
+    notify(t(`Route "${bucket}" (${stops.length} stop(s)) assigned to ${driver}`, `Ruta "${bucket}" (${stops.length} parada(s)) asignada a ${driver}`));
+  };
   // Drivers on vacation/sick/maintenance for the selected day — excluded from auto-assign.
   const unavailableToday = useMemo(
     () => unavailableDriverNames(availability, new Map(users.map((u) => [u.id, u.full_name])), date),
@@ -366,14 +410,14 @@ export default function RoutesPage() {
     const cols: BoardColumn[] = [
       { key: "__unassigned__", title: t("Unassigned", "Sin asignar"), color: UNASSIGNED_COLOR, orders: unassigned },
     ];
-    for (const u of drivers) {
+    for (const u of lanes) {
       const orders = byDriver.get(u.full_name) ?? [];
       const pallets = Math.round(orders.reduce((s, d) => s + Number(d.actual_pallets ?? d.est_pallets ?? 0), 0));
       cols.push({ key: u.full_name, title: u.full_name, color: colorFor(u.full_name), orders, sub: `${pallets}/${capacityFor(u.full_name)}` });
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unassigned, drivers, byDriver, settings.driver_colors, settings.driver_capacity, lang]);
+  }, [unassigned, lanes, byDriver, settings.driver_colors, settings.driver_capacity, lang]);
 
   // Print a driver's route for the selected day, in optimized stop sequence
   // (route_seq when planned, else by order number).
@@ -554,7 +598,7 @@ export default function RoutesPage() {
   // once. Sequential + gently throttled — the free OSRM server asks for no
   // more than ~1 request/second.
   const optimizeAll = async () => {
-    const withStops = drivers.filter((u) => (byDriver.get(u.full_name) ?? []).length > 0);
+    const withStops = lanes.filter((u) => (byDriver.get(u.full_name) ?? []).length > 0);
     if (!withStops.length) return;
     setOptimizingAll(true);
     setPreview(null);
@@ -676,7 +720,7 @@ export default function RoutesPage() {
   // Resolve every driver's pickup point up front, so the map can show each
   // as its loop's start/end pin even before a route's been optimized.
   useEffect(() => {
-    for (const u of drivers) {
+    for (const u of lanes) {
       if ((byDriver.get(u.full_name) ?? []).length) getDepotCoords(pickupAddressFor(u.full_name));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -699,7 +743,7 @@ export default function RoutesPage() {
     // Color each assigned stop by its TRUCKLOAD (matching the route line),
     // so the map groups stops into the same colors as their loop.
     const stopColor = new Map<string, string>();
-    for (const u of drivers) {
+    for (const u of lanes) {
       const stops = byDriver.get(u.full_name) ?? [];
       splitIntoTrips(stops, capacityFor(u.full_name)).forEach((batch, ti) => {
         const c = tripColor(colorFor(u.full_name), ti);
@@ -710,7 +754,7 @@ export default function RoutesPage() {
     const pts: MapPoint[] = [];
     // Pickup / base pins first, so a stop that sits right on the pickup still
     // draws on top of the "P" instead of being hidden behind it.
-    for (const u of drivers) {
+    for (const u of lanes) {
       if (!(byDriver.get(u.full_name) ?? []).length) continue;
       const addr = (pickupAddressFor(u.full_name) ?? "").trim();
       const coords = addr ? depotCoords[addr] : undefined;
@@ -775,7 +819,7 @@ export default function RoutesPage() {
     }
     return pts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, selectedOrders, selColorById, selPickup, depotCoords, drivers]);
+  }, [dayOrders, byDriver, settings.driver_colors, settings.driver_capacity, selected, selectedOrders, selColorById, selPickup, depotCoords, lanes]);
 
   // Every optimized driver's routes are always drawn; a focus just dims the
   // others. Clicking a route focuses its driver (see onLineClick below).
@@ -871,7 +915,7 @@ export default function RoutesPage() {
   }
 
   const withStops = drivers.filter((u) => (byDriver.get(u.full_name) ?? []).length > 0);
-  const shownDrivers = focused ? drivers.filter((u) => selected.has(u.full_name)) : withStops;
+  const shownDrivers = focused ? lanes.filter((u) => selected.has(u.full_name)) : withStops;
   // Simulating an add targets a driver, so it needs exactly one selected.
   const singleSel = selected.size === 1 ? [...selected][0] : null;
   const scheduledCount = dayOrders.length - unassigned.length;
@@ -899,7 +943,7 @@ export default function RoutesPage() {
           </button>
           <button
             className="btn btn-primary btn-sm"
-            disabled={optimizingAll || autoAssigning || busyDriver != null || drivers.every((u) => (byDriver.get(u.full_name) ?? []).length === 0)}
+            disabled={optimizingAll || autoAssigning || busyDriver != null || lanes.every((u) => (byDriver.get(u.full_name) ?? []).length === 0)}
             onClick={optimizeAll}
           >
             {optimizingAll ? `… ${t("Optimizing", "Optimizando")} ${busyDriver ?? ""}` : `🧭 ${t("Optimize all routes", "Optimizar todas las rutas")}`}
@@ -938,17 +982,19 @@ export default function RoutesPage() {
       <div style={{ display: "flex", gap: 14, alignItems: "stretch", flexWrap: "wrap", marginBottom: 8 }}>
         <div className="card" style={{ flex: "1 1 250px", maxWidth: 340, margin: 0, padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid var(--line)" }}>
-            <b style={{ flex: 1 }}>🚚 {t("Drivers", "Choferes")}</b>
+            <b style={{ flex: 1 }}>🚚 {t("Drivers & routes", "Choferes y rutas")}</b>
+            <button className="btn btn-ghost btn-sm" onClick={addBucket} title={t("Build a route with no driver yet, then assign it later", "Arma una ruta sin chofer todavía, y asígnala después")}>＋ {t("Route", "Ruta")}</button>
             {focused && <button className="notif-clear" onClick={() => setSelected(new Set())}>{t("Show all", "Mostrar todos")}</button>}
           </div>
-          {drivers.length === 0 ? (
-            <div className="empty">{t("No one has the Driver role yet.", "Nadie tiene el rol de Chofer todavía.")}</div>
+          {lanes.length === 0 ? (
+            <div className="empty">{t("No drivers yet — tap “＋ Route” to build a route without one.", "Aún sin choferes — toca “＋ Ruta” para armar una ruta sin uno.")}</div>
           ) : (
             <div style={{ maxHeight: 470, overflowY: "auto" }}>
-              {drivers.map((u) => {
+              {lanes.map((u) => {
                 const stops = byDriver.get(u.full_name) ?? [];
                 const info = routeInfo[u.full_name];
                 const on = selected.has(u.full_name);
+                const bucket = isBucket(u.full_name);
                 // Load vs truck capacity — a filled bar the dispatcher can read
                 // at a glance; over capacity turns red (the day needs a reload trip).
                 const pallets = stops.reduce((s, o) => s + Number(o.actual_pallets ?? o.est_pallets ?? 0), 0);
@@ -964,7 +1010,14 @@ export default function RoutesPage() {
                     <input type="checkbox" checked={on} onClick={(e) => e.stopPropagation()} onChange={() => toggleDriver(u.full_name)} style={{ width: 15, height: 15, flex: "0 0 auto" }} />
                     <span style={{ width: 12, height: 12, borderRadius: "50%", background: colorFor(u.full_name), flex: "0 0 auto", border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)" }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13 }}>{u.full_name}</div>
+                      <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+                        {u.full_name}
+                        {bucket && <span className="sema" style={{ background: "var(--accent)", color: "#fff", fontSize: 10 }}>🧭 {t("route", "ruta")}</span>}
+                        {bucket && stops.length === 0 && (
+                          <button className="notif-clear" title={t("Remove empty route", "Quitar ruta vacía")}
+                            onClick={(e) => { e.stopPropagation(); removeBucket(u.full_name); }}>✕</button>
+                        )}
+                      </div>
                       <div className="hint" style={{ marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
                         <span>📦 {stops.length}</span>
                         {/* Travel time & miles only appear once a route has been calculated. */}
@@ -1106,9 +1159,15 @@ export default function RoutesPage() {
               {poolSelectedCount > 0 && (
                 <>
                   <select defaultValue="" disabled={autoAssigning} style={{ width: "auto" }}
-                    onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v) bulkAssign(v); }}>
+                    onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v === "__newroute__") { bulkAssign(addBucket()); } else if (v) bulkAssign(v); }}>
                     <option value="">{t("Assign selected to…", "Asignar selección a…")}</option>
-                    {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
+                    <optgroup label={t("Drivers", "Choferes")}>
+                      {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
+                    </optgroup>
+                    <optgroup label={t("Routes (no driver yet)", "Rutas (sin chofer)")}>
+                      {bucketNames.map((n) => <option key={n} value={n}>🧭 {n}</option>)}
+                      <option value="__newroute__">＋ {t("New route…", "Nueva ruta…")}</option>
+                    </optgroup>
                   </select>
                   <button className="btn btn-amber btn-sm" onClick={bulkAutoAssign} disabled={autoAssigning}>✨ {t("Auto-assign selected", "Auto-asignar selección")}</button>
                 </>
@@ -1175,9 +1234,15 @@ export default function RoutesPage() {
                             {previewBusy === d.id ? "…" : `🔮 ${t("Simulate add", "Simular")}`}
                           </button>
                         ) : (
-                          <select defaultValue="" onChange={(e) => { if (e.target.value) manualAssign(d.id, e.target.value); }} style={{ width: "auto" }}>
-                            <option value="">{t("Select driver…", "Seleccione chofer…")}</option>
-                            {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
+                          <select defaultValue="" onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v === "__newroute__") { manualAssign(d.id, addBucket()); } else if (v) manualAssign(d.id, v); }} style={{ width: "auto" }}>
+                            <option value="">{t("Assign to…", "Asignar a…")}</option>
+                            <optgroup label={t("Drivers", "Choferes")}>
+                              {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
+                            </optgroup>
+                            <optgroup label={t("Routes (no driver yet)", "Rutas (sin chofer)")}>
+                              {bucketNames.map((n) => <option key={n} value={n}>🧭 {n}</option>)}
+                              <option value="__newroute__">＋ {t("New route…", "Nueva ruta…")}</option>
+                            </optgroup>
                           </select>
                         )}
                       </td>
@@ -1208,6 +1273,7 @@ export default function RoutesPage() {
         const capacity = capacityFor(u.full_name);
         const trips = splitIntoTrips(stops, capacity);
         const isC = isCollapsed(u.full_name);
+        const bucket = isBucket(u.full_name);
         // Stops whose optimized ETA lands after the delivery window closes —
         // surfaced as a banner so the dispatcher acts before dispatch, not just
         // as a red cell buried in the table.
@@ -1223,6 +1289,7 @@ export default function RoutesPage() {
               <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} onClick={() => toggleCollapse(u.full_name)} title={t("Collapse", "Contraer")}>{isC ? "▸" : "▾"}</button>
               <span style={{ width: 14, height: 14, borderRadius: "50%", background: colorFor(u.full_name), border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)", flex: "0 0 auto" }} />
               <h2 style={{ margin: 0 }}>{u.full_name}</h2>
+              {bucket && <span className="sema" style={{ background: "var(--accent)", color: "#fff" }}>🧭 {t("route", "ruta")}</span>}
               <span className="count-tag">{stops.length} {t("stops", "paradas")}</span>
               {stops.length > 0 && trips.length > 1 && (
                 <span className="sema" style={{ background: "var(--amber)", color: "#fff" }}>{trips.length} {t("truckloads", "viajes")}</span>
@@ -1241,6 +1308,18 @@ export default function RoutesPage() {
               <button className="btn btn-primary btn-sm" disabled={stops.length < 2 || busyDriver === u.full_name} onClick={() => optimize(u.full_name)}>
                 {busyDriver === u.full_name ? "…" : `🧭 ${t("Optimize route", "Optimizar ruta")}`}
               </button>
+              {bucket && (
+                <select
+                  defaultValue=""
+                  disabled={stops.length === 0 || drivers.length === 0}
+                  title={t("Hand this whole route to a driver", "Entregar toda esta ruta a un chofer")}
+                  onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v) assignRouteToDriver(u.full_name, v); }}
+                  style={{ width: "auto" }}
+                >
+                  <option value="">👤 {t("Assign route to…", "Asignar ruta a…")}</option>
+                  {drivers.map((dv) => <option key={dv.id} value={dv.full_name}>{dv.full_name}</option>)}
+                </select>
+              )}
             </div>
             {!isC && <>
             {lateStops.length > 0 && (

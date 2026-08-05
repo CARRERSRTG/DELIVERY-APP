@@ -272,6 +272,12 @@ export interface Settings {
    * store to reload. Driver full name → pallet count. */
   driver_capacity?: Record<string, number>;
 
+  /** Named "route buckets" (e.g. "Route 1", "Route 2") used to build routes in
+   * the Routes Manager before a real driver exists. Orders assigned to a bucket
+   * park under its name (assigned_driver) until the whole route is handed off to
+   * an actual driver. Just the bucket names; the orders live on the deliveries. */
+  route_buckets?: string[];
+
   /** Fixed Orders-table columns for the Sales role, set by an admin in Settings.
    * Sales reps get no "Columns" picker of their own — this is the one list
    * they see, company-wide. Falls back to ROLE_DEFAULT_COLUMNS.sales if unset. */
