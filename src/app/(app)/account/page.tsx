@@ -17,13 +17,20 @@ import { avatarColor, initials } from "@/lib/utils";
 const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 
 export default function AccountPage() {
-  const { me, settings, users, updateUserName, notify } = useData();
+  const { me, settings, users, updateUserName, notify, teaching, setTeaching, clearTrainingData } = useData();
   const { lang, theme, setLang, setTheme, t } = usePrefs();
   const [name, setName] = useState(me?.full_name ?? "");
   const [saving, setSaving] = useState(false);
 
   if (!me) return null;
   const role = ROLE_INFO[me.role];
+
+  const clearTraining = async () => {
+    if (confirm(t("Permanently delete ALL practice orders? This resets the shared training sandbox for everyone.",
+                  "¿Eliminar permanentemente TODAS las órdenes de práctica? Esto reinicia el entorno de práctica compartido para todos."))) {
+      await clearTrainingData();
+    }
+  };
 
   const saveName = async () => {
     const v = name.trim();
@@ -55,15 +62,43 @@ export default function AccountPage() {
         </div>
       </div>
 
-      {/* ---------- Settings entry point (replaces the old Settings tab) ---------- */}
+      {/* ---------- Settings entry point (admin only — everyone else's options
+           live right here in the account view). ---------- */}
+      {me.role === "admin" && (
+        <div className="card">
+          <h2>⚙️ {t("Settings", "Ajustes")}</h2>
+          <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+            {t("Workspace configuration, stores, and app options.", "Configuración del espacio, tiendas y opciones de la app.")}
+          </p>
+          <Link href="/settings" className="btn btn-primary" style={{ textDecoration: "none" }}>
+            ⚙️ {t("Open settings", "Abrir ajustes")}
+          </Link>
+        </div>
+      )}
+
+      {/* ---------- Teaching / practice mode (everyone) ---------- */}
       <div className="card">
-        <h2>⚙️ {t("Settings", "Ajustes")}</h2>
+        <h2>🎓 {t("Teaching / practice mode", "Modo enseñanza / práctica")}</h2>
         <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
-          {t("Workspace configuration, stores, and app options.", "Configuración del espacio, tiendas y opciones de la app.")}
+          {t(
+            "A shared training sandbox. Orders created here are saved in the database and visible to EVERY user who turns teaching mode on, so the whole team can practice together. They never mix with real orders and are never deleted when you exit.",
+            "Un entorno de práctica compartido. Las órdenes creadas aquí se guardan en la base de datos y son visibles para TODOS los usuarios que activen el modo enseñanza, para que todo el equipo practique. Nunca se mezclan con las órdenes reales ni se borran al salir.",
+          )}
         </p>
-        <Link href="/settings" className="btn btn-primary" style={{ textDecoration: "none" }}>
-          ⚙️ {t("Open settings", "Abrir ajustes")}
-        </Link>
+        <div className="toggle-group">
+          <button className={"toggle-btn " + (!teaching ? "on" : "")} onClick={() => setTeaching(false)}>{t("Live", "Real")}</button>
+          <button className={"toggle-btn " + (teaching ? "on" : "")} onClick={() => setTeaching(true)}
+            style={teaching ? { background: "#7c3aed", borderColor: "#7c3aed" } : undefined}>
+            🎓 {t("Teaching", "Enseñanza")}
+          </button>
+        </div>
+        {teaching && <div className="hint" style={{ color: "#7c3aed", fontWeight: 700 }}>{t("Teaching mode is ON — you are working with practice orders.", "El modo enseñanza está ACTIVO — estás trabajando con órdenes de práctica.")}</div>}
+        {me.role === "admin" && (
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+            <button className="btn btn-danger btn-sm" onClick={clearTraining}>🗑 {t("Clear all training data", "Borrar todos los datos de práctica")}</button>
+            <div className="hint">{t("Deletes every practice order for the whole team. Real orders are never affected.", "Elimina todas las órdenes de práctica de todo el equipo. Las órdenes reales nunca se ven afectadas.")}</div>
+          </div>
+        )}
       </div>
 
       {/* ---------- Profile + preferences ---------- */}

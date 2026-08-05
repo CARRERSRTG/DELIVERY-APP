@@ -9,17 +9,12 @@ import { DEFAULT_COLUMNS, ORDER_COLUMNS } from "@/components/OrdersTable";
 import type { Settings, UserRole } from "@/lib/types";
 
 export default function SettingsPage() {
-  const { me, users, settings, saveSettings, notify, teaching, setTeaching, clearTrainingData } = useData();
-  const clearTraining = async () => {
-    if (confirm(t("Permanently delete ALL practice orders? This resets the shared training sandbox for everyone.",
-                  "¿Eliminar permanentemente TODAS las órdenes de práctica? Esto reinicia el entorno de práctica compartido para todos."))) {
-      await clearTrainingData();
-    }
-  };
+  const { me, users, settings, saveSettings, notify } = useData();
   const { lang, t } = usePrefs();
   if (!me) return null;
 
-  // Non-admins get a slim Settings page: appearance + the shared Teaching mode.
+  // Settings is admin-only now — everyone else's options (language, theme,
+  // teaching mode) live in their account view.
   if (me.role !== "admin") {
     return (
       <>
@@ -27,8 +22,7 @@ export default function SettingsPage() {
           <h2>{t("Settings", "Ajustes")}</h2>
           <Link href="/account" className="btn btn-primary btn-back-account">← {t("Back to account", "Volver a la cuenta")}</Link>
         </div>
-        <p className="hint">{t("Language and theme are in your account (click your name).", "El idioma y el tema están en tu cuenta (haz clic en tu nombre).")}</p>
-        <TeachingCard teaching={teaching} setTeaching={setTeaching} t={t} />
+        <div className="empty">{t("Everything you can change is in your account — language, theme, and teaching mode.", "Todo lo que puedes cambiar está en tu cuenta — idioma, tema y modo enseñanza.")}</div>
       </>
     );
   }
@@ -42,8 +36,6 @@ export default function SettingsPage() {
         <h2>{t("Settings", "Ajustes")}</h2>
         <Link href="/account" className="btn btn-primary btn-back-account">← {t("Back to account", "Volver a la cuenta")}</Link>
       </div>
-
-      <TeachingCard teaching={teaching} setTeaching={setTeaching} t={t} isAdmin onClear={clearTraining} />
 
       <div className="card">
         <h2>{t("Workspace name", "Nombre del espacio")}</h2>
@@ -475,35 +467,3 @@ function RateInput({ label, value, onSave }: { label: string; value: number; onS
 
 
 
-function TeachingCard({ teaching, setTeaching, t, isAdmin, onClear }: {
-  teaching: boolean; setTeaching: (v: boolean) => void; t: (en: string, es: string) => string;
-  isAdmin?: boolean; onClear?: () => void;
-}) {
-  return (
-    <div className="card">
-      <h2>🎓 {t("Teaching / practice mode", "Modo enseñanza / práctica")}</h2>
-      <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
-        {t(
-          "A shared training sandbox. Orders created here are saved in the database and visible to EVERY user who turns teaching mode on, so the whole team can practice together. They never mix with real orders and are never deleted when you exit.",
-          "Un entorno de práctica compartido. Las órdenes creadas aquí se guardan en la base de datos y son visibles para TODOS los usuarios que activen el modo enseñanza, para que todo el equipo practique. Nunca se mezclan con las órdenes reales ni se borran al salir.",
-        )}
-      </p>
-      <div className="toggle-group">
-        <button className={"toggle-btn " + (!teaching ? "on" : "")} onClick={() => setTeaching(false)}>
-          {t("Live", "Real")}
-        </button>
-        <button className={"toggle-btn " + (teaching ? "on" : "")} onClick={() => setTeaching(true)}
-          style={teaching ? { background: "#7c3aed", borderColor: "#7c3aed" } : undefined}>
-          🎓 {t("Teaching", "Enseñanza")}
-        </button>
-      </div>
-      {teaching && <div className="hint" style={{ color: "#7c3aed", fontWeight: 700 }}>{t("Teaching mode is ON — you are working with practice orders.", "El modo enseñanza está ACTIVO — estás trabajando con órdenes de práctica.")}</div>}
-      {isAdmin && onClear && (
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
-          <button className="btn btn-danger btn-sm" onClick={onClear}>🗑 {t("Clear all training data", "Borrar todos los datos de práctica")}</button>
-          <div className="hint">{t("Deletes every practice order for the whole team. Real orders are never affected.", "Elimina todas las órdenes de práctica de todo el equipo. Las órdenes reales nunca se ven afectadas.")}</div>
-        </div>
-      )}
-    </div>
-  );
-}
