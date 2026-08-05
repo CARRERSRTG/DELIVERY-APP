@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import Link from "next/link";
-import { DEFAULT_HELP_EMAIL, ROLE_DEFAULT_COLUMNS, ROLE_INFO, ROLE_ORDER, defaultPermissions, driverNames, roleLabel } from "@/lib/constants";
+import { DEFAULT_HELP_EMAIL, ROLE_DEFAULT_COLUMNS, ROLE_INFO, ROLE_ORDER, allDefaultPermissions, defaultPermissions, driverNames, roleLabel } from "@/lib/constants";
 import { DEFAULT_COLUMNS, ORDER_COLUMNS } from "@/components/OrdersTable";
 import type { Settings, UserRole } from "@/lib/types";
 
@@ -361,14 +361,16 @@ function PermissionEditor({
   t: (en: string, es: string) => string;
 }) {
   const [val, setVal] = useState("");
-  const add = () => {
-    const v = val.trim();
-    if (!v || items.includes(v)) { setVal(""); return; }
-    onChange([...items, v]);
-    setVal("");
+  const addValue = (v: string) => {
+    const s = v.trim();
+    if (!s || items.includes(s)) return;
+    onChange([...items, s]);
   };
+  const add = () => { addValue(val); setVal(""); };
   const remove = (x: string) => onChange(items.filter((i) => i !== x));
   const info = ROLE_INFO[role];
+  // Known capabilities across all roles, minus ones already granted here.
+  const options = allDefaultPermissions(lang).filter((o) => !items.includes(o));
 
   return (
     <div className="perm-block">
@@ -378,14 +380,26 @@ function PermissionEditor({
           ? <button className="notif-clear" onClick={onReset}>{t("Reset to defaults", "Restablecer")}</button>
           : <span className="hint">{t("(defaults)", "(por defecto)")}</span>}
       </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8, maxWidth: 460, flexWrap: "wrap" }}>
+        {options.length > 0 && (
+          <select
+            defaultValue=""
+            style={{ flex: 1, minWidth: 200 }}
+            onChange={(e) => { if (e.target.value) { addValue(e.target.value); e.currentTarget.value = ""; } }}
+          >
+            <option value="">{t("Add a capability…", "Agregar una capacidad…")}</option>
+            {options.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        )}
+      </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 10, maxWidth: 460 }}>
         <input
           value={val}
-          placeholder={t("Add a capability…", "Agregar una capacidad…")}
+          placeholder={t("…or type a custom one", "…o escriba una personalizada")}
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
         />
-        <button className="btn btn-primary" onClick={add} disabled={!val.trim()}>{t("Add", "Agregar")}</button>
+        <button className="btn btn-ghost" onClick={add} disabled={!val.trim()}>{t("Add", "Agregar")}</button>
       </div>
       <div className="pill-list">
         {items.length === 0 && <span className="hint">{t("Nothing listed for this role.", "Nada listado para este rol.")}</span>}

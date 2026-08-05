@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.4.2";
+export const APP_VERSION = "0.4.3";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
@@ -212,7 +212,19 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, { en: string; es: string }[]>
 
 /** The default capability list for a role, in the given language. */
 export const defaultPermissions = (role: UserRole, lang: Lang): string[] =>
-  DEFAULT_PERMISSIONS[role].map((p) => (lang === "es" ? p.es : p.en));
+  (DEFAULT_PERMISSIONS[role] ?? []).map((p) => (lang === "es" ? p.es : p.en));
+
+/** Every distinct capability across all roles (deduped), for the "add" picker. */
+export const allDefaultPermissions = (lang: Lang): string[] => {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const role of ROLE_ORDER) {
+    for (const s of defaultPermissions(role, lang)) {
+      if (!seen.has(s)) { seen.add(s); out.push(s); }
+    }
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+};
 
 /** The capability list to display: admin overrides win, else the defaults. */
 export function permissionsFor(
