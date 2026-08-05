@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
-import { fmtDate, fmtMilitary, fmtMoney, fmtWindows, isOverdue, orderLabel } from "@/lib/utils";
+import { fmtDate, fmtMilitary, fmtMoney, fmtWindows, isOverdue, orderLabel, palletVariance } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 type Ctx = { lang: "en" | "es"; t: (en: string, es: string) => string };
@@ -52,7 +52,17 @@ export const ORDER_COLUMNS: OrderColumn[] = [
     },
   },
   { key: "windows", en: "Windows", es: "Ventanas", value: (d) => d.delivery_windows, cell: (d) => fmtWindows(d.delivery_windows) },
-  { key: "pallets", en: "Pallets", es: "Tarimas", value: (d) => d.actual_pallets ?? d.est_pallets ?? null, cell: (d) => d.actual_pallets ?? d.est_pallets ?? "—" },
+  { key: "pallets", en: "Pallets", es: "Tarimas", value: (d) => d.actual_pallets ?? d.est_pallets ?? null, cell: (d, { t }) => {
+      const v = palletVariance(d);
+      const val = d.actual_pallets ?? d.est_pallets ?? "—";
+      if (!v) return <>{val}</>;
+      return (
+        <span style={{ color: "var(--amber)", fontWeight: 700 }}
+          title={t(`Actual ${v.actual} vs estimated ${v.est} (${v.diff > 0 ? "+" : ""}${v.diff})`, `Real ${v.actual} vs estimado ${v.est} (${v.diff > 0 ? "+" : ""}${v.diff})`)}>
+          {val} ⚠
+        </span>
+      );
+    } },
   {
     key: "fee", en: "Fee", es: "Costo",
     value: (d) => d.delivery_fee,

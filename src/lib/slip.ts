@@ -143,3 +143,96 @@ export function printDeliverySlip(d: Delivery, settings: Settings, users: Profil
   w.document.write(html);
   w.document.close();
 }
+
+// ============================================================
+// Printable DAILY LOAD SHEETS — one page per driver, listing that driver's
+// stops for the day (in route order) so the warehouse can stage and load each
+// truck. Opens a print window like the slip above.
+// ============================================================
+
+export function printLoadSheets(orders: Delivery[], settings: Settings, lang: Lang, dateISO: string) {
+  const T = (en: string, es: string) => (lang === "es" ? es : en);
+  const esc = (s: unknown) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
+
+  // Group by driver; unassigned goes last. Within a driver, order by route
+  // sequence when set, then by delivery window.
+  const groups = new Map<string, Delivery[]>();
+  for (const o of orders) {
+    const key = (o.assigned_driver || "").trim() || " "; // sentinel sorts unassigned last
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(o);
+  }
+  const winStart = (o: Delivery) => {
+    const m = String(o.delivery_windows ?? "").match(/(\d{2})(\d{2})/);
+    return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : 9999;
+  };
+  const orderedKeys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+
+  const pages = orderedKeys.map((key) => {
+    const list = groups.get(key)!.sort((a, b) => {
+      const ra = a.route_seq ?? 1e9, rb = b.route_seq ?? 1e9;
+      return ra !== rb ? ra - rb : winStart(a) - winStart(b);
+    });
+    const driver = key === " " ? T("Unassigned", "Sin asignar") : key;
+    const pallets = list.reduce((s, o) => s + Number(o.actual_pallets ?? o.est_pallets ?? 0), 0);
+    const rows = list.map((o, i) => `
+      <tr>
+        <td class="num">${i + 1}</td>
+        <td><b>#${esc(orderLabel(o))}</b></td>
+        <td>${esc(o.account || o.delivery_name || "—")}</td>
+        <td>${esc(o.delivery_address || "—")}</td>
+        <td>${esc(fmtWindows(o.delivery_windows))}</td>
+        <td class="num">${esc(o.actual_pallets ?? o.est_pallets ?? "—")}</td>
+        <td>${esc(o.invoice_num || o.po2 || o.so_num || o.estimate_num || "—")}</td>
+        <td>${esc(o.delivery_notes || "")}</td>
+      </tr>`).join("");
+    return `
+      <section class="sheet">
+        <div class="head">
+          <div>
+            <div class="brand">${esc(settings.app_name)}</div>
+            <div class="sub">${T("Load sheet", "Hoja de carga")} · ${esc(fmtDate(dateISO))}</div>
+          </div>
+          <div class="drv">
+            <div class="drv-name">🚚 ${esc(driver)}</div>
+            <div class="drv-tot">${list.length} ${T("stops", "paradas")} · ${pallets} ${T("pallets", "tarimas")}</div>
+          </div>
+        </div>
+        <table class="loads">
+          <thead><tr>
+            <th class="num">#</th><th>${T("Order", "Orden")}</th><th>${T("Account", "Cuenta")}</th>
+            <th>${T("Address", "Dirección")}</th><th>${T("Window", "Ventana")}</th>
+            <th class="num">${T("Pallets", "Tarimas")}</th><th>${T("Ref", "Ref")}</th><th>${T("Notes", "Notas")}</th>
+          </tr></thead>
+          <tbody>${rows || `<tr><td colspan="8" class="empty">${T("No stops.", "Sin paradas.")}</td></tr>`}</tbody>
+        </table>
+        <div class="sign"><div>${T("Loaded by", "Cargado por")}</div><div>${T("Checked by", "Verificado por")}</div></div>
+      </section>`;
+  }).join("");
+
+  const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">
+    <title>${esc(settings.app_name)} — ${T("Load sheets", "Hojas de carga")} ${esc(dateISO)}</title>
+    <style>
+      *{box-sizing:border-box;} body{font-family:Inter,Arial,sans-serif;color:#152238;margin:0;padding:0;}
+      .sheet{padding:26px 28px;page-break-after:always;}
+      .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #152238;padding-bottom:12px;margin-bottom:14px;}
+      .brand{font-size:20px;font-weight:800;} .sub{font-size:12px;color:#6b7686;margin-top:3px;}
+      .drv{text-align:right;} .drv-name{font-size:22px;font-weight:800;font-family:Archivo,Arial,sans-serif;}
+      .drv-tot{font-size:12px;color:#6b7686;margin-top:3px;}
+      table.loads{width:100%;border-collapse:collapse;}
+      table.loads th{background:#f4f6fa;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7686;padding:6px 8px;border-bottom:2px solid #dfe5ee;}
+      table.loads td{font-size:12.5px;padding:7px 8px;border-bottom:1px solid #eef1f6;vertical-align:top;}
+      td.num,th.num{text-align:center;width:34px;}
+      .empty{text-align:center;color:#9aa3b0;padding:16px;}
+      .sign{display:flex;gap:30px;margin-top:34px;}
+      .sign>div{flex:1;border-top:1px solid #152238;padding-top:6px;font-size:12px;color:#6b7686;}
+      @media print{.sheet{padding:12px;}}
+    </style></head><body>
+    ${pages || `<section class="sheet"><div class="empty">${T("No orders for this day.", "No hay órdenes para este día.")}</div></section>`}
+    <script>window.onload=function(){setTimeout(function(){window.print();},200);};</script>
+    </body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+}

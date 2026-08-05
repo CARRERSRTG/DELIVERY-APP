@@ -72,6 +72,25 @@ export default function SettingsPage() {
       </div>
 
       <div className="card">
+        <h2>✅ {t("Delivery proof", "Comprobante de entrega")}</h2>
+        <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+          {t(
+            "Require drivers to capture proof (a signature or at least one material photo) before an order can be marked delivered.",
+            "Exigir a los choferes capturar un comprobante (una firma o al menos una foto del material) antes de marcar una orden como entregada.",
+          )}
+        </p>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 14 }}>
+          <input
+            type="checkbox"
+            checked={!!settings.require_pod}
+            onChange={(e) => { saveSettings({ require_pod: e.target.checked } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
+            style={{ width: 16, height: 16 }}
+          />
+          {t("Require proof of delivery", "Requerir comprobante de entrega")}
+        </label>
+      </div>
+
+      <div className="card">
         <h2>⏱ {t("Duration rates", "Tarifas de duración")}</h2>
         <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
           {t("Pickup and delivery durations are calculated automatically as", "Las duraciones de recolección y entrega se calculan automáticamente como")}

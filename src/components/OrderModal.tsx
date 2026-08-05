@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
 import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, DELIVERY_WINDOW_PRESETS, driverNames, ROLE_INFO, roleLabel, SATURDAY_WINDOW, stageInfo, stageLabel, WEEKDAY_ALL_DAY_WINDOW } from "@/lib/constants";
-import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, fmtWindows, nowMilitary, orderLabel, palletDuration, telClean, todayISO } from "@/lib/utils";
+import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, fmtWindows, nowMilitary, orderLabel, palletDuration, palletVariance, telClean, todayISO } from "@/lib/utils";
 import { printDeliverySlip } from "@/lib/slip";
 import { AddressInput } from "@/components/AddressInput";
 import { LocationCombo } from "@/components/LocationCombo";
@@ -538,6 +538,12 @@ export function OrderModal({
   const deliverWithPod = async () => {
     if (!existing) return;
     if (!podName.trim()) { notify(t("Enter who received the delivery.", "Ingrese quién recibió la entrega.")); return; }
+    // Optional proof-of-delivery gate (admin setting): require a signature or at
+    // least one material photo before an order can be marked delivered.
+    if (settings.require_pod && !podSig && !(existing.photos?.length)) {
+      notify(t("Proof required: capture a signature or add a material photo before delivering.", "Comprobante requerido: capture una firma o agregue una foto del material antes de entregar."));
+      return;
+    }
     setBusy(true);
     // Stamp where the driver actually is. Never blocks: resolves to null if the
     // device refuses, has no signal, or the page isn't served over HTTPS.
@@ -1246,6 +1252,17 @@ export function OrderModal({
                   <Txt label={t("Actual Pallets (warehouse)", "Tarimas Reales (almacén)")} type="number" val={d.actual_pallets ?? ""} on={(v) => set("actual_pallets", v === "" ? null : Number(v))} disabled={!whFields} placeholder={d.est_pallets != null ? t(`est. ${d.est_pallets}`, `est. ${d.est_pallets}`) : ""} />
                   <Sel label={t("Assigned Driver", "Chofer Asignado")} val={d.assigned_driver} opts={driverNames(users)} on={(v) => set("assigned_driver", v)} disabled={!adminFields} placeholder={t("Unassigned", "Sin asignar")} />
                 </div>
+                {(() => {
+                  const v = palletVariance(d);
+                  return v ? (
+                    <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 4 }}>
+                      ⚠ {t(
+                        `Actual pallets (${v.actual}) differ from the sales estimate (${v.est}) by ${v.diff > 0 ? "+" : ""}${v.diff}.`,
+                        `Las tarimas reales (${v.actual}) difieren del estimado de ventas (${v.est}) por ${v.diff > 0 ? "+" : ""}${v.diff}.`,
+                      )}
+                    </div>
+                  ) : null;
+                })()}
                 {adminFields && (
                   <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <button className="btn btn-ghost btn-sm" onClick={suggestAndSet}>✨ {t("Suggest least-busy driver", "Sugerir chofer menos ocupado")}</button>

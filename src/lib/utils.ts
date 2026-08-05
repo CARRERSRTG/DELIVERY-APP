@@ -213,6 +213,17 @@ export function isOverdue(d: Delivery): boolean {
   return due.getTime() < Date.now();
 }
 
+/** How far the warehouse's actual pallet count landed from the sales estimate.
+ * Returns null unless BOTH are set and the gap is material (≥2 pallets), so a
+ * 1-off rounding never flags. `diff` is actual − estimate (positive = more than
+ * estimated). Feeds the warehouse variance flag so sales can calibrate. */
+export function palletVariance(d: { est_pallets?: number | null; actual_pallets?: number | null }): { diff: number; est: number; actual: number } | null {
+  if (d.est_pallets == null || d.actual_pallets == null) return null;
+  const est = Number(d.est_pallets), actual = Number(d.actual_pallets);
+  const diff = actual - est;
+  return Math.abs(diff) >= 2 ? { diff, est, actual } : null;
+}
+
 export type DeliveryRisk = "overdue" | "at_risk" | null;
 
 /** Minutes before a delivery window closes that an undelivered order becomes

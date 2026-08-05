@@ -6,7 +6,8 @@ import { usePrefs } from "@/lib/prefs";
 import { canFulfill, ROLE_DEFAULT_COLUMNS } from "@/lib/constants";
 import { OrdersTable } from "@/components/OrdersTable";
 import { OrderModal } from "@/components/OrderModal";
-import { yesterdayISO } from "@/lib/utils";
+import { printLoadSheets } from "@/lib/slip";
+import { todayISO, yesterdayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 const TABS = [
@@ -28,6 +29,7 @@ export default function WarehousePage() {
   // Admin can browse any store; a warehouse worker is locked to their own
   // (PU = pickup store). Falls back to "every store" only if unassigned.
   const [storeFilter, setStoreFilter] = useState<string>("");
+  const [loadDate, setLoadDate] = useState<string>(todayISO());
   const lockedToOwnStore = me?.role === "warehouse";
   const effectiveStore = lockedToOwnStore ? (me?.store ?? "") : storeFilter;
 
@@ -79,15 +81,36 @@ export default function WarehousePage() {
     <>
       <div className="page-head">
         <h2>{t("Warehouse", "Almacén")} <span className="count-tag">{rows.length}</span></h2>
-        {!lockedToOwnStore && (
-          <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, display: "flex", alignItems: "center", gap: 8 }}>
-            {t("Store", "Tienda")}
-            <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} style={{ width: "auto" }}>
-              <option value="">{t("All stores", "Todas las tiendas")}</option>
-              {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-            </select>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          {!lockedToOwnStore && (
+            <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              {t("Store", "Tienda")}
+              <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} style={{ width: "auto" }}>
+                <option value="">{t("All stores", "Todas las tiendas")}</option>
+                {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+              </select>
+            </label>
+          )}
+          {/* Print the day's load sheets (one page per driver) for the scoped store. */}
+          <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, display: "flex", alignItems: "center", gap: 6 }}>
+            📅 <input type="date" value={loadDate} onChange={(e) => setLoadDate(e.target.value)} style={{ width: "auto", padding: "5px 7px" }} />
           </label>
-        )}
+          <button
+            className="btn btn-ghost"
+            title={t("Print one load sheet per driver for the chosen day", "Imprimir una hoja de carga por chofer para el día elegido")}
+            onClick={() => {
+              const ACTIVE = ["approved", "fulfilling", "ready", "picked_up"];
+              const loads = deliveries.filter((d) =>
+                d.delivery_date === loadDate &&
+                ACTIVE.includes(d.stage) &&
+                (!effectiveStore || atStore(d)),
+              );
+              printLoadSheets(loads, settings, lang, loadDate);
+            }}
+          >
+            🖨 {t("Load sheets", "Hojas de carga")}
+          </button>
+        </div>
       </div>
 
       {lockedToOwnStore && !me.store && (

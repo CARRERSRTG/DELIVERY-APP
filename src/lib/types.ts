@@ -286,6 +286,10 @@ export interface Settings {
    * link that opens the user's phone dialer (tel:) with this number. */
   help_phone?: string;
 
+  /** When true, a driver can't mark an order Delivered until proof exists — at
+   * least one material photo OR a captured signature. Off by default. */
+  require_pod?: boolean;
+
   /** Per-user customer visibility on the Accounts page, set by an admin on the
    * Users page. "all" = sees every customer (with a Mine/All toggle); "own" =
    * only customers from orders they own. User id → scope. Missing = "all"
