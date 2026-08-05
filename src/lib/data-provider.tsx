@@ -13,8 +13,9 @@ import { createClient } from "@/lib/supabase/client";
 import type { Delivery, DriverAvailability, DriverShift, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
-import { orderOwner, nextTrainingOrderNo, TRAINING_ORDER_BASE } from "@/lib/utils";
+import { orderOwner } from "@/lib/utils";
 import { nextOrderCode, codeBand } from "@/lib/order-code";
+import { blankDelivery } from "@/lib/blank-delivery";
 
 const DEFAULT_SETTINGS: Settings = {
   id: 1,
@@ -52,13 +53,14 @@ export interface DataState {
   /** Which role an admin is previewing as, or null when viewing as themselves. */
   viewAs: UserRole | null;
   setViewAs: (r: UserRole | null) => void;
-  /** Teaching (training) mode: when on, the app reads/writes only training
-   * orders (is_training = true). They persist in the DB and never mix with
-   * real orders. */
+  /** Teaching (training) mode: a purely LOCAL sandbox layered over the live
+   * data. Creates/edits/deletes go to an in-memory overlay and never touch the
+   * DB; the real rows keep updating underneath, so others' live changes still
+   * appear. Turning it off discards the overlay. */
   teaching: boolean;
   setTeaching: (v: boolean) => void;
-  /** Permanently delete every training order (is_training) — resets the
-   * shared practice sandbox. Admin action. */
+  /** Discard the local practice overlay and reset the sandbox to the current
+   * real data. Nothing in the DB is touched. */
   clearTrainingData: () => Promise<void>;
   settings: Settings;
   users: Profile[];
@@ -111,6 +113,12 @@ export interface DataState {
   clockOut: (driverId: string) => Promise<void>;
 }
 
+// Teaching-mode sandbox: a local diff over the live data. `created` are orders
+// that exist only in the sandbox; `updated` are field patches keyed by real id;
+// `deleted` are real ids hidden while practising. None of this ever hits the DB.
+type Overlay = { created: Delivery[]; updated: Record<string, Partial<Delivery>>; deleted: Set<string>; events: OrderEvent[] };
+const emptyOverlay = (): Overlay => ({ created: [], updated: {}, deleted: new Set(), events: [] });
+
 export const Ctx = createContext<DataState | null>(null);
 
 export function useData(): DataState {
@@ -143,7 +151,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const effectiveMe: Profile | null =
     me && realRole === "admin" && viewAs ? { ...me, role: viewAs } : me;
 
-  // ---- Teaching / training mode: scopes all data to is_training rows. ----
+  // ---- Teaching mode: local sandbox overlay on the live data (see Overlay). ----
   const [teaching, setTeachingState] = useState(false);
   useEffect(() => {
     try { setTeachingState(localStorage.getItem("rtg_teaching") === "1"); } catch { /* ignore */ }
@@ -156,6 +164,16 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [users, setUsers] = useState<Profile[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  // ---- Teaching-mode sandbox ----
+  // Teaching mode is a purely LOCAL overlay on top of the real, live data:
+  // creations, edits and deletions are recorded here and NEVER written to the
+  // database, so nothing a user does in teaching mode is visible to anyone else
+  // or survives leaving the mode. Because the real `deliveries` keep updating
+  // from realtime, changes other people make to the LIVE data still flow in
+  // underneath the sandbox while you practice. Turning teaching off discards
+  // the overlay and you're back to exactly the real state.
+  const [overlay, setOverlay] = useState<Overlay>(emptyOverlay);
+  useEffect(() => { if (!teaching) setOverlay(emptyOverlay()); }, [teaching]);
   const [events, setEvents] = useState<OrderEvent[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [availability, setAvailability] = useState<DriverAvailability[]>([]);
@@ -169,11 +187,24 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     toastTimer.current = setTimeout(() => setToast(""), 2600);
   }, []);
 
+  // What the app actually renders. In live mode that's just the real rows; in
+  // teaching mode it's the real rows with the local sandbox diff applied on top
+  // (hide deleted, patch updated, prepend sandbox-created).
+  const effectiveDeliveries = useMemo(() => {
+    if (!teaching) return deliveries;
+    const base = deliveries
+      .filter((c) => !overlay.deleted.has(c.id))
+      .map((c) => (overlay.updated[c.id] ? { ...c, ...overlay.updated[c.id] } : c));
+    return [...overlay.created, ...base];
+  }, [teaching, deliveries, overlay]);
+
   const reloadAll = useCallback(async () => {
     const [s, p, d, e, n, av, sh] = await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("profiles").select("id, full_name, role, store, avatar_url").order("full_name"),
-      supabase.from("deliveries").select("*").eq("is_training", teaching).order("order_no", { ascending: false }),
+      // Teaching mode never loads from the DB — the live (non-training) rows are
+      // always the base, and the sandbox lives only in the local overlay.
+      supabase.from("deliveries").select("*").eq("is_training", false).order("order_no", { ascending: false }),
       supabase.from("order_events").select("*").order("created_at", { ascending: false }),
       me
         ? supabase.from("notifications").select("*").eq("user_id", me.id).order("created_at", { ascending: false }).limit(50)
@@ -189,14 +220,14 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (av.data) setAvailability(av.data as DriverAvailability[]);
     if (sh.data) setShifts(sh.data as DriverShift[]);
     setReady(true);
-  }, [supabase, me, teaching]);
+  }, [supabase, me]);
 
+  // In the overlay model there's nothing in the DB to clear — the sandbox is
+  // purely local — so "clear" just resets the local overlay back to empty.
   const clearTrainingData = useCallback(async () => {
-    const { error } = await supabase.from("deliveries").delete().eq("is_training", true);
-    if (error) { notify("Error: " + error.message); return; }
-    await reloadAll();
-    notify("Training data cleared");
-  }, [supabase, notify, reloadAll]);
+    setOverlay(emptyOverlay());
+    notify("Practice sandbox reset");
+  }, [notify]);
 
   // ---- Single-device sessions ----
   // On load, claim the account by stamping THIS session's id on the profile.
@@ -282,19 +313,28 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // ---------------- Delivery CRUD ----------------
   const addDelivery = useCallback<DataState["addDelivery"]>(
     async (d) => {
+      // Teaching mode: build the order entirely client-side and keep it in the
+      // local overlay. It never touches the DB, so no order number/code is
+      // consumed, no events are logged, and nobody else is notified.
+      if (teaching) {
+        const nowIso = new Date().toISOString();
+        const row = blankDelivery({
+          ...d,
+          id: d.id && d.id.length ? d.id : `teach-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          order_code: d.order_code ?? nextOrderCode(effectiveDeliveries.map((x) => x.order_code), new Date()),
+          order_no: d.order_no ?? (effectiveDeliveries.reduce((m, x) => Math.max(m, x.order_no || 0), 900000) + 1),
+          is_training: true,
+          created_by: me?.id ?? null,
+          created_at: nowIso,
+          updated_at: nowIso,
+        });
+        setOverlay((o) => ({ ...o, created: [row, ...o.created] }));
+        return row;
+      }
       // created_by is always the actual actor — a non-sales creator assigning
       // the order to a rep (OrderModal's Sales Rep picker) sets assigned_sales_rep
       // instead, which is what orderOwner() resolves for own-orders visibility.
-      const payload: Partial<Delivery> = { ...d, created_by: me?.id ?? null, is_training: teaching };
-      // Teaching mode is a parallel sandbox: practice orders must NOT consume a
-      // real order number. order_no is a shared "by default" identity sequence,
-      // so we assign training orders their own high number range explicitly —
-      // Postgres keeps the identity value we pass without advancing the real
-      // sequence, so real orders stay contiguous. (A pre-set order_no, e.g. a
-      // split remainder, is respected.)
-      if (teaching && payload.order_no == null) {
-        payload.order_no = nextTrainingOrderNo(deliveries, TRAINING_ORDER_BASE);
-      }
+      const payload: Partial<Delivery> = { ...d, created_by: me?.id ?? null, is_training: false };
       // Assign the human-facing order code (split remainders pass one in). On a
       // rare race two orders can compute the same code — a unique index rejects
       // the second, so re-fetch the band's codes and retry a few times.
@@ -302,12 +342,12 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       let error: { code?: string; message: string } | null = null;
       for (let attempt = 0; attempt < 5; attempt++) {
         if (payload.order_code == null) {
-          let codes = deliveries.filter((x) => !!x.is_training === teaching).map((x) => x.order_code);
+          let codes = deliveries.filter((x) => !x.is_training).map((x) => x.order_code);
           if (attempt > 0) {
             // Pull the freshest codes for this band straight from the DB.
             const band = codeBand(new Date());
             const { data: rows } = await supabase.from("deliveries")
-              .select("order_code").eq("is_training", teaching)
+              .select("order_code").eq("is_training", false)
               .gte("order_code", band.prefix + "100").lt("order_code", band.prefix + "999");
             if (rows) codes = (rows as { order_code: string | null }[]).map((r) => r.order_code);
           }
@@ -330,19 +370,27 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       const row = data as Delivery;
       setDeliveries((prev) => [row, ...prev]);
       await logEvent(row.id, "created");
-      // An order created straight into "pending" (Submit for approval) alerts
-      // managers — but never in teaching mode, where it would ping real people
-      // about a practice order.
-      if (!teaching && row.stage && row.stage !== "draft") {
+      // An order created straight into "pending" (Submit for approval) alerts managers.
+      if (row.stage && row.stage !== "draft") {
         await emitStageNotifs({ stage: row.stage, order_no: row.order_no, order_code: row.order_code, delivery_id: row.id, creatorId: orderOwner(row) });
       }
       return row;
     },
-    [supabase, me, notify, logEvent, emitStageNotifs, teaching, deliveries],
+    [supabase, me, notify, logEvent, emitStageNotifs, teaching, deliveries, effectiveDeliveries],
   );
 
   const updateDelivery = useCallback<DataState["updateDelivery"]>(
     async (id, patch) => {
+      // Teaching mode: record the edit in the local overlay only.
+      if (teaching) {
+        setOverlay((o) => {
+          if (o.created.some((c) => c.id === id)) {
+            return { ...o, created: o.created.map((c) => (c.id === id ? { ...c, ...patch } : c)) };
+          }
+          return { ...o, updated: { ...o.updated, [id]: { ...o.updated[id], ...patch } } };
+        });
+        return true;
+      }
       const { error } = await supabase.from("deliveries").update(patch).eq("id", id);
       if (error) {
         notify("Error: " + error.message);
@@ -352,23 +400,36 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       await logEvent(id, "edited");
       return true;
     },
-    [supabase, notify, logEvent],
+    [supabase, notify, logEvent, teaching],
   );
 
   const deleteDelivery = useCallback<DataState["deleteDelivery"]>(
     async (id) => {
+      // Teaching mode: hide the row locally — drop it if it was sandbox-created,
+      // otherwise mark the real id deleted in the overlay. The DB is untouched.
+      if (teaching) {
+        setOverlay((o) => {
+          if (o.created.some((c) => c.id === id)) {
+            return { ...o, created: o.created.filter((c) => c.id !== id) };
+          }
+          const deleted = new Set(o.deleted); deleted.add(id);
+          const updated = { ...o.updated }; delete updated[id];
+          return { ...o, deleted, updated };
+        });
+        return;
+      }
       setDeliveries((prev) => prev.filter((c) => c.id !== id));
       const { error } = await supabase.from("deliveries").delete().eq("id", id);
       if (error) notify("Error: " + error.message);
     },
-    [supabase, notify],
+    [supabase, notify, teaching],
   );
 
   const setStage = useCallback<DataState["setStage"]>(
     async (id, stage, note, extra) => {
       // Hard guard: reject illegal workflow moves (e.g. straight to fulfilling
       // without manager approval). Admins may override to any status.
-      const current = deliveries.find((c) => c.id === id);
+      const current = effectiveDeliveries.find((c) => c.id === id);
       if (current && me?.role !== "admin" && !canTransition(current.stage, stage)) {
         notify("This order must be approved by a manager first.");
         return false;
@@ -379,6 +440,16 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         patch.approved_at = new Date().toISOString();
       }
       if (stage === "rejected") patch.rejected_reason = note ?? null;
+      // Teaching mode: apply the stage change to the local overlay only.
+      if (teaching) {
+        setOverlay((o) => {
+          if (o.created.some((c) => c.id === id)) {
+            return { ...o, created: o.created.map((c) => (c.id === id ? { ...c, ...patch } : c)) };
+          }
+          return { ...o, updated: { ...o.updated, [id]: { ...o.updated[id], ...patch } } };
+        });
+        return true;
+      }
       const { error } = await supabase.from("deliveries").update(patch).eq("id", id);
       if (error) {
         notify(error.message);
@@ -387,24 +458,41 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       setDeliveries((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
       await logEvent(id, stage, note);
       const order = deliveries.find((c) => c.id === id);
-      // Never notify real people about a teaching-mode (sandbox) order.
-      if (!teaching) {
-        await emitStageNotifs({ stage, order_no: order?.order_no ?? null, order_code: order?.order_code ?? null, delivery_id: id, creatorId: order ? orderOwner(order) : null, reason: note });
-      }
+      await emitStageNotifs({ stage, order_no: order?.order_no ?? null, order_code: order?.order_code ?? null, delivery_id: id, creatorId: order ? orderOwner(order) : null, reason: note });
       return true;
     },
-    [supabase, me, notify, logEvent, deliveries, emitStageNotifs, teaching],
+    [supabase, me, notify, logEvent, deliveries, effectiveDeliveries, emitStageNotifs, teaching],
   );
 
   const eventsFor = useCallback(
-    (deliveryId: string) => events.filter((e) => e.delivery_id === deliveryId),
-    [events],
+    (deliveryId: string) => {
+      const real = events.filter((e) => e.delivery_id === deliveryId);
+      if (!teaching) return real;
+      // Fold in sandbox-only notes for this order (newest first).
+      const local = overlay.events.filter((e) => e.delivery_id === deliveryId);
+      return [...local, ...real];
+    },
+    [events, teaching, overlay.events],
   );
 
   const addNote = useCallback<DataState["addNote"]>(
     async (deliveryId, text) => {
       const body = text.trim();
       if (!body) return;
+      // Teaching mode: keep the note in the local overlay — never write to DB
+      // (a sandbox order id doesn't exist in the DB, which would error anyway).
+      if (teaching) {
+        const ev: OrderEvent = {
+          id: `teach-ev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          delivery_id: deliveryId,
+          kind: "note",
+          note: body,
+          created_by: me?.id ?? null,
+          created_at: new Date().toISOString(),
+        };
+        setOverlay((o) => ({ ...o, events: [ev, ...o.events] }));
+        return;
+      }
       const { data, error } = await supabase
         .from("order_events")
         .insert({ delivery_id: deliveryId, kind: "note", note: body, created_by: me?.id ?? null })
@@ -413,7 +501,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       if (error) { notify("Error: " + error.message); return; }
       setEvents((prev) => [data as OrderEvent, ...prev]);
     },
-    [supabase, me, notify],
+    [supabase, me, notify, teaching],
   );
 
   // ---------------- Notifications ----------------
@@ -539,7 +627,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   }, [supabase, shifts, notify, reloadAll]);
 
   const value: DataState = {
-    ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, clearTrainingData, settings, users, deliveries, events, notifications, toast, notify,
+    ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, clearTrainingData, settings, users, deliveries: effectiveDeliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,

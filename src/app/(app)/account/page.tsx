@@ -26,8 +26,8 @@ export default function AccountPage() {
   const role = ROLE_INFO[me.role];
 
   const clearTraining = async () => {
-    if (confirm(t("Permanently delete ALL practice orders? This resets the shared training sandbox for everyone.",
-                  "¿Eliminar permanentemente TODAS las órdenes de práctica? Esto reinicia el entorno de práctica compartido para todos."))) {
+    if (confirm(t("Discard all practice changes and reset the sandbox to the current real data?",
+                  "¿Descartar todos los cambios de práctica y reiniciar el entorno con los datos reales actuales?"))) {
       await clearTrainingData();
     }
   };
@@ -81,8 +81,8 @@ export default function AccountPage() {
         <h2>🎓 {t("Teaching / practice mode", "Modo enseñanza / práctica")}</h2>
         <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
           {t(
-            "A shared training sandbox. Orders created here are saved in the database and visible to EVERY user who turns teaching mode on, so the whole team can practice together. They never mix with real orders and are never deleted when you exit.",
-            "Un entorno de práctica compartido. Las órdenes creadas aquí se guardan en la base de datos y son visibles para TODOS los usuarios que activen el modo enseñanza, para que todo el equipo practique. Nunca se mezclan con las órdenes reales ni se borran al salir.",
+            "A private practice sandbox on top of the real orders. Create, edit or delete anything you like — none of it is saved to the database or seen by anyone else, and it all disappears the moment you turn teaching off. Meanwhile real changes other people make still flow in live underneath, so you always practice against the current data.",
+            "Un entorno de práctica privado sobre las órdenes reales. Crea, edita o elimina lo que quieras — nada se guarda en la base de datos ni lo ve nadie más, y todo desaparece en cuanto desactivas el modo enseñanza. Mientras tanto, los cambios reales de otras personas siguen llegando en vivo por debajo, así que siempre practicas con los datos actuales.",
           )}
         </p>
         <div className="toggle-group">
@@ -93,10 +93,10 @@ export default function AccountPage() {
           </button>
         </div>
         {teaching && <div className="hint" style={{ color: "#7c3aed", fontWeight: 700 }}>{t("Teaching mode is ON — you are working with practice orders.", "El modo enseñanza está ACTIVO — estás trabajando con órdenes de práctica.")}</div>}
-        {me.role === "admin" && (
+        {teaching && (
           <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
-            <button className="btn btn-danger btn-sm" onClick={clearTraining}>🗑 {t("Clear all training data", "Borrar todos los datos de práctica")}</button>
-            <div className="hint">{t("Deletes every practice order for the whole team. Real orders are never affected.", "Elimina todas las órdenes de práctica de todo el equipo. Las órdenes reales nunca se ven afectadas.")}</div>
+            <button className="btn btn-danger btn-sm" onClick={clearTraining}>🗑 {t("Reset sandbox", "Reiniciar práctica")}</button>
+            <div className="hint">{t("Throws away your practice changes and starts fresh from the current real data. Nothing real is affected.", "Descarta tus cambios de práctica y empieza de nuevo con los datos reales actuales. Nada real se ve afectado.")}</div>
           </div>
         )}
       </div>
