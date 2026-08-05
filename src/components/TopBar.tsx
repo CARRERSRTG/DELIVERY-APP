@@ -14,11 +14,27 @@ import type { Profile, UserRole } from "@/lib/types";
 export function TopBar({ me: propMe }: { me: Profile }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { settings, me: ctxMe, realRole, viewAs, setViewAs, teaching, setTeaching } = useData();
+  const { settings, deliveries, me: ctxMe, realRole, viewAs, setViewAs, teaching, setTeaching } = useData();
   const { lang, t } = usePrefs();
   // `me` is the EFFECTIVE user — its role follows the admin "view as" preview.
   const me = ctxMe ?? propMe;
   const role = ROLE_INFO[me.role];
+
+  // Dispatch nudge (#29): how many orders due today/tomorrow still have no
+  // driver — shown as a badge on the Map tab for the roles that assign drivers.
+  const dispatchRole = me.role === "admin" || me.role === "manager" || me.role === "logistics";
+  const unassignedDue = (() => {
+    if (!dispatchRole) return 0;
+    const now = new Date();
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const today = iso(now);
+    const tomorrow = iso(new Date(now.getTime() + 86400000));
+    return deliveries.filter((d) =>
+      !d.assigned_driver &&
+      (d.delivery_date === today || d.delivery_date === tomorrow) &&
+      !["delivered", "canceled", "rejected"].includes(d.stage),
+    ).length;
+  })();
 
   return (
     <>
@@ -53,8 +69,16 @@ export function TopBar({ me: propMe }: { me: Profile }) {
               ? pathname === "/"
               : pathname === tb.href || pathname.startsWith(tb.href + "/");
             return (
-              <Link key={tb.id} href={tb.href} className={"tab " + (active ? "active" : "")}>
+              <Link key={tb.id} href={tb.href} className={"tab " + (active ? "active" : "")} style={{ position: "relative" }}>
                 {lang === "es" ? tb.label_es : tb.label}
+                {tb.id === "map" && unassignedDue > 0 && (
+                  <span
+                    title={t(`${unassignedDue} order(s) due today/tomorrow with no driver`, `${unassignedDue} orden(es) para hoy/mañana sin chofer`)}
+                    style={{ marginLeft: 6, background: "var(--amber, #e9a13b)", color: "#fff", borderRadius: 999, padding: "0 6px", fontSize: 11, fontWeight: 800, lineHeight: "16px", display: "inline-block", minWidth: 16, textAlign: "center" }}
+                  >
+                    {unassignedDue}
+                  </span>
+                )}
               </Link>
             );
           })}

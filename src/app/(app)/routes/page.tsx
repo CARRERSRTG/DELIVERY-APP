@@ -949,6 +949,12 @@ export default function RoutesPage() {
                 const stops = byDriver.get(u.full_name) ?? [];
                 const info = routeInfo[u.full_name];
                 const on = selected.has(u.full_name);
+                // Load vs truck capacity — a filled bar the dispatcher can read
+                // at a glance; over capacity turns red (the day needs a reload trip).
+                const pallets = stops.reduce((s, o) => s + Number(o.actual_pallets ?? o.est_pallets ?? 0), 0);
+                const cap = capacityFor(u.full_name);
+                const pct = cap > 0 ? Math.min(100, (pallets / cap) * 100) : 0;
+                const over = pallets > cap;
                 return (
                   <div
                     key={u.id}
@@ -964,6 +970,15 @@ export default function RoutesPage() {
                         {/* Travel time & miles only appear once a route has been calculated. */}
                         {info && <span>⏱ {info.duration_text}</span>}
                         {info && <span>⇥ {info.miles} mi</span>}
+                      </div>
+                      {/* Capacity meter: pallets loaded vs the truck's capacity. */}
+                      <div style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ flex: 1, height: 6, borderRadius: 999, background: "var(--line)", overflow: "hidden" }}>
+                          <div style={{ width: `${pct}%`, height: "100%", background: over ? "var(--red)" : "var(--green)" }} />
+                        </div>
+                        <span className="hint" style={{ fontSize: 11, fontWeight: 700, color: over ? "var(--red)" : undefined }}>
+                          {pallets}/{cap}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1193,6 +1208,15 @@ export default function RoutesPage() {
         const capacity = capacityFor(u.full_name);
         const trips = splitIntoTrips(stops, capacity);
         const isC = isCollapsed(u.full_name);
+        // Stops whose optimized ETA lands after the delivery window closes —
+        // surfaced as a banner so the dispatcher acts before dispatch, not just
+        // as a red cell buried in the table.
+        const lateStops = stops.filter((d) => {
+          const eta = routeEtas[u.full_name]?.[d.id];
+          const win = parseWindow(d.delivery_windows);
+          const etaMin = eta ? parseInt(eta.slice(0, 2), 10) * 60 + parseInt(eta.slice(3, 5), 10) : null;
+          return etaMin != null && win != null && etaMin > win[1];
+        });
         return (
           <div className="card" key={u.id} style={{ margin: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
@@ -1219,6 +1243,15 @@ export default function RoutesPage() {
               </button>
             </div>
             {!isC && <>
+            {lateStops.length > 0 && (
+              <div className="card" style={{ marginBottom: 8, background: "#fef6f6", borderColor: "var(--red)" }}>
+                <b style={{ color: "var(--red)" }}>⚠️ {t(`${lateStops.length} stop(s) will miss their delivery window`, `${lateStops.length} parada(s) no llegarán a tiempo a su ventana`)}</b>
+                <div className="hint" style={{ marginTop: 2 }}>
+                  {lateStops.slice(0, 6).map((d) => `#${orderLabel(d)}${d.account ? ` (${d.account})` : ""}`).join(", ")}{lateStops.length > 6 ? "…" : ""}
+                  {" — "}{t("reorder the stops or move some to another driver.", "reordene las paradas o mueva algunas a otro chofer.")}
+                </div>
+              </div>
+            )}
             {info && (
               <div className="hint" style={{ marginBottom: 8 }}>
                 {t("Total (loop from pickup and back)", "Total (ciclo desde recolección y regreso)")}: <b>{info.miles} mi</b> · {info.duration_text}
