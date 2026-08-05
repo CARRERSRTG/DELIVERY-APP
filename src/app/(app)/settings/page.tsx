@@ -16,7 +16,7 @@ export default function SettingsPage() {
       await clearTrainingData();
     }
   };
-  const { lang, theme, setLang, setTheme, t } = usePrefs();
+  const { lang, t } = usePrefs();
   if (!me) return null;
 
   // Non-admins get a slim Settings page: appearance + the shared Teaching mode.
@@ -27,7 +27,7 @@ export default function SettingsPage() {
           <h2>{t("Settings", "Ajustes")}</h2>
           <Link href="/account" className="btn btn-primary btn-back-account">← {t("Back to account", "Volver a la cuenta")}</Link>
         </div>
-        <AppearanceCard lang={lang} theme={theme} setLang={setLang} setTheme={setTheme} t={t} />
+        <p className="hint">{t("Language and theme are in your account (click your name).", "El idioma y el tema están en tu cuenta (haz clic en tu nombre).")}</p>
         <TeachingCard teaching={teaching} setTeaching={setTeaching} t={t} />
       </>
     );
@@ -43,7 +43,6 @@ export default function SettingsPage() {
         <Link href="/account" className="btn btn-primary btn-back-account">← {t("Back to account", "Volver a la cuenta")}</Link>
       </div>
 
-      <AppearanceCard lang={lang} theme={theme} setLang={setLang} setTheme={setTheme} t={t} />
       <TeachingCard teaching={teaching} setTeaching={setTeaching} t={t} isAdmin onClear={clearTraining} />
 
       <div className="card">
@@ -461,35 +460,6 @@ function RateInput({ label, value, onSave }: { label: string; value: number; onS
 }
 
 
-// ---- Shared cards, available to every role (not just admin) ----------------
-function AppearanceCard({ lang, theme, setLang, setTheme, t }: {
-  lang: string; theme: string;
-  setLang: (l: "en" | "es") => void; setTheme: (v: "light" | "dark") => void;
-  t: (en: string, es: string) => string;
-}) {
-  return (
-    <div className="card">
-      <h2>🌐 {t("Language & appearance", "Idioma y apariencia")}</h2>
-      <div className="grid g2" style={{ maxWidth: 520 }}>
-        <div className="field">
-          <label>{t("Language", "Idioma")}</label>
-          <div className="toggle-group">
-            <button className={"toggle-btn " + (lang === "en" ? "on" : "")} onClick={() => setLang("en")}>🇬🇧 English</button>
-            <button className={"toggle-btn " + (lang === "es" ? "on" : "")} onClick={() => setLang("es")}>🇪🇸 Español</button>
-          </div>
-        </div>
-        <div className="field">
-          <label>{t("Theme", "Tema")}</label>
-          <div className="toggle-group">
-            <button className={"toggle-btn " + (theme === "light" ? "on" : "")} onClick={() => setTheme("light")}>☀️ {t("Light", "Claro")}</button>
-            <button className={"toggle-btn " + (theme === "dark" ? "on" : "")} onClick={() => setTheme("dark")}>🌙 {t("Dark", "Oscuro")}</button>
-          </div>
-        </div>
-      </div>
-      <div className="hint">{t("You can also switch these anytime from the buttons in the top bar.", "También puedes cambiarlos desde los botones en la barra superior.")}</div>
-    </div>
-  );
-}
 
 function TeachingCard({ teaching, setTeaching, t, isAdmin, onClear }: {
   teaching: boolean; setTeaching: (v: boolean) => void; t: (en: string, es: string) => string;
