@@ -663,6 +663,20 @@ export function OrderModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliveries, settings.accounts]);
 
+  // Account names (lowercased) that already have at least one Intertienda order
+  // in their history — picking such an account defaults the new order to
+  // Intertienda, even if it was never saved with the branch flag.
+  const intertiendaAccounts = useMemo(() => {
+    const s = new Set<string>();
+    for (const x of deliveries) {
+      if (x.order_type === "Intertienda") {
+        const a = (x.account || "").trim().toLowerCase();
+        if (a) s.add(a);
+      }
+    }
+    return s;
+  }, [deliveries]);
+
   const saveAccount = (rec: AccountRecord) => {
     const next = [...savedAccounts.filter((a) => a.name.toLowerCase() !== rec.name.toLowerCase()), rec];
     saveSettings({ accounts: next });
@@ -956,7 +970,10 @@ export function OrderModal({
                   // Picking a saved account fills who to contact there (still
                   // editable after) and defaults the order type: an internal
                   // branch account → Intertienda, a customer account → Customer.
+                  // An account that has ANY Intertienda order in its history also
+                  // defaults to Intertienda, even if never saved with the flag.
                   const rec = savedAccounts.find((a) => a.name.toLowerCase() === v.toLowerCase());
+                  const isIntertienda = rec?.intertienda || intertiendaAccounts.has(v.trim().toLowerCase());
                   setD((p) => {
                     const withAcct: Draft = {
                       ...p,
@@ -964,7 +981,7 @@ export function OrderModal({
                       contact: rec ? rec.contact : p.contact,
                       delivery_phone: rec ? rec.phone : p.delivery_phone,
                     };
-                    const wantType = !v.trim() ? null : (rec?.intertienda ? "Intertienda" : "Customer");
+                    const wantType = !v.trim() ? null : (isIntertienda ? "Intertienda" : "Customer");
                     return wantType && settings.order_types.includes(wantType)
                       ? withTypeDefaults(withAcct, wantType)
                       : withAcct;
