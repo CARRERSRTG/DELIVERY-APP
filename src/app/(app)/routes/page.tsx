@@ -299,7 +299,8 @@ export default function RoutesPage() {
     [availability, users, date],
   );
   const colorFor = (driver: string | null) => (driver ? settings.driver_colors?.[driver] || fallbackDriverColor(driver) : UNASSIGNED_COLOR);
-  const capacityFor = (driver: string) => settings.driver_capacity?.[driver] ?? DEFAULT_CAPACITY;
+  // A driver's own capacity, else the fleet-wide default, else the built-in.
+  const capacityFor = (driver: string) => settings.driver_capacity?.[driver] ?? settings.default_truck_capacity ?? DEFAULT_CAPACITY;
   const setCapacity = (driver: string, capacity: number) => {
     clearRouteFor(driver);
     saveSettings({ driver_capacity: { ...(settings.driver_capacity ?? {}), [driver]: capacity } });
@@ -1415,6 +1416,17 @@ export default function RoutesPage() {
                 {info.trips > 1 && ` · ${info.trips} ${t("round trips back to pickup to reload", "viajes de ida y vuelta a recolección para recargar")}`}
               </div>
             )}
+            {trips.length > 1 && (() => {
+              const load = stops.reduce((s, d) => s + Number(d.actual_pallets ?? d.est_pallets ?? 0), 0);
+              return (
+                <div className="hint" style={{ marginBottom: 8, color: "var(--accent)" }}>
+                  💡 {t(
+                    `This is over the ${capacity}-pallet truck capacity (${load} on board), so it reloads at the pickup between loads. Raise the truck capacity to ${load} or more to carry it all in one trip (drop → drop).`,
+                    `Supera la capacidad de ${capacity} tarimas del camión (${load} a bordo), por eso recarga en la recolección entre cargas. Sube la capacidad a ${load} o más para llevar todo en un solo viaje (parada → parada).`,
+                  )}
+                </div>
+              );
+            })()}
             {stops.length === 0 && (
               <div className="empty">
                 {t("No stops yet — pick this driver and use “Simulate add” on an unassigned order above.", "Aún sin paradas — con este chofer seleccionado use “Simular” en una orden sin asignar arriba.")}

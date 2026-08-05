@@ -262,7 +262,7 @@ export default function MapPage() {
 
   // Smart-assist for the selected order: a recommended driver, plus warnings
   // (window conflict / over capacity) for whoever is currently assigned.
-  const capacityOf = (n: string) => settings.driver_capacity?.[n] ?? DEFAULT_CAPACITY;
+  const capacityOf = (n: string) => settings.driver_capacity?.[n] ?? settings.default_truck_capacity ?? DEFAULT_CAPACITY;
   const recommendation = useMemo(
     () => (selected ? recommendDriver(selected, drivers, deliveries, capacityOf) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps

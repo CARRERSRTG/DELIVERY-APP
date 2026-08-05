@@ -112,6 +112,23 @@ export default function SettingsPage() {
       </div>
 
       <div className="card">
+        <h2>🚚 {t("Truck capacity", "Capacidad del camión")}</h2>
+        <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+          {t(
+            "Pallets a truck carries per load. A route keeps stops on the truck and delivers them one after another (drop → drop); it only drives back to the pickup to reload when a load goes over this. Raise it so a truck carries several orders in one trip. Each driver can still be given their own capacity on the Routes screen.",
+            "Tarimas que un camión lleva por carga. Una ruta mantiene las paradas en el camión y las entrega una tras otra (parada → parada); solo regresa a la recolección a recargar cuando una carga supera esto. Súbelo para que un camión lleve varias órdenes en un viaje. Cada chofer puede tener su propia capacidad en la pantalla de Rutas.",
+          )}
+        </p>
+        <div style={{ maxWidth: 240 }}>
+          <RateInput
+            label={t("Default truck capacity (pallets)", "Capacidad predeterminada (tarimas)")}
+            value={settings.default_truck_capacity ?? 12}
+            onSave={(v) => { saveSettings({ default_truck_capacity: v || null } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
+          />
+        </div>
+      </div>
+
+      <div className="card">
         <h2>⛽ {t("Delivery cost model", "Modelo de costos de entrega")}</h2>
         <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
           {t(

@@ -276,6 +276,11 @@ export interface Settings {
    * store to reload. Driver full name → pallet count. */
   driver_capacity?: Record<string, number>;
 
+  /** Fleet-wide default truck capacity in pallets — used for any driver who
+   * doesn't have their own capacity set. Raise it so a truck carries several
+   * orders in one trip (drop → drop) instead of reloading between them. */
+  default_truck_capacity?: number;
+
   /** Named "route buckets" (e.g. "Route 1", "Route 2") used to build routes in
    * the Routes Manager before a real driver exists. Orders assigned to a bucket
    * park under its name (assigned_driver) until the whole route is handed off to
