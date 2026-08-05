@@ -9,7 +9,7 @@ import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap
 import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
-import { fallbackDriverColor, fmtDate, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
+import { fallbackDriverColor, fmtDate, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery } from "@/lib/types";
 
@@ -1148,7 +1148,7 @@ export default function RoutesPage() {
                       <td>{d.store || "—"}</td>
                       <td>{d.actual_pallets ?? d.est_pallets ?? "—"}</td>
                       <td onClick={(e) => e.stopPropagation()}><DateCell d={d} date={date} onChange={reschedule} t={t} /></td>
-                      <td>{d.delivery_windows || "—"}</td>
+                      <td>{fmtWindows(d.delivery_windows)}</td>
                       <td><span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span></td>
                       <td onClick={(e) => e.stopPropagation()}>
                         {singleSel ? (
@@ -1293,7 +1293,7 @@ export default function RoutesPage() {
                                 <td style={{ fontWeight: 600, color: late ? "var(--red)" : undefined }} title={late ? t("ETA is after the delivery window", "La llegada es después de la ventana") : undefined}>
                                   {eta ?? "—"}{late ? " ⚠️" : ""}
                                 </td>
-                                <td>{d.delivery_windows || "—"}</td>
+                                <td>{fmtWindows(d.delivery_windows)}</td>
                                 <td style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                                   {sequenced && (
                                     <>

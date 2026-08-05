@@ -140,11 +140,14 @@ export function fmtDateTime(iso: string | null): string {
   );
 }
 
-/** Normalize free-typed military time to 4 digits, e.g. "830" → "0830". "" if empty. */
+/** Display a free-typed military time as HH:MM, e.g. "1000" → "10:00",
+ * "830" → "08:30", "10" → "10:00". "—" if empty. A 1–2 digit value is read as
+ * a bare hour (so "10" is 10:00, not 00:10); 3–4 digits are HMM/HHMM. */
 export function fmtMilitary(t: string | null): string {
   const s = (t || "").replace(/[^0-9]/g, "");
   if (!s) return "—";
-  return s.padStart(4, "0").slice(0, 4);
+  const four = (s.length <= 2 ? s.padStart(2, "0") + "00" : s.padStart(4, "0")).slice(0, 4);
+  return `${four.slice(0, 2)}:${four.slice(2)}`;
 }
 
 /** Delivery time window "0830-1730" → "08:30-17:30" for display (inserts the

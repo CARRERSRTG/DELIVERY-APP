@@ -6,7 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { driverNames, stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
 import { LeafletMap, type MapPoint, type MapLine } from "@/components/LeafletMap";
-import { cityFromAddress, deliveryRisk, fallbackDriverColor, fmtDate, orderLabel, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
+import { cityFromAddress, deliveryRisk, fallbackDriverColor, fmtDate, fmtWindows, orderLabel, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import { assignmentWarnings, autoAssign, recommendDriver, type AssignWarning } from "@/lib/dispatch";
 import type { Delivery } from "@/lib/types";
@@ -165,7 +165,7 @@ export default function MapPage() {
       addNote(d.id, driver
         ? `Assigned to ${driver}${prev && prev !== driver ? ` (from ${prev})` : ""}`
         : `Unassigned${prev ? ` (was ${prev})` : ""}`);
-      if (du) notifs.push({ user_id: du.id, delivery_id: d.id, order_no: d.order_no, kind: "assigned", message: `Order #${orderLabel(d)} was assigned to you${d.delivery_windows ? ` (${d.delivery_windows})` : ""}` });
+      if (du) notifs.push({ user_id: du.id, delivery_id: d.id, order_no: d.order_no, kind: "assigned", message: `Order #${orderLabel(d)} was assigned to you${d.delivery_windows ? ` (${fmtWindows(d.delivery_windows)})` : ""}` });
     }
     if (notifs.length) await pushNotifs(notifs);
     setAssignBusy(false);
@@ -191,7 +191,7 @@ export default function MapPage() {
       if (!ok) continue;
       addNote(a.orderId, `Assigned to ${a.driver}`);
       const u = byName.get(a.driver);
-      if (u) notifs.push({ user_id: u.id, delivery_id: a.orderId, order_no: d.order_no, kind: "assigned", message: `Order #${orderLabel(d)} was assigned to you${d.delivery_windows ? ` (${d.delivery_windows})` : ""}` });
+      if (u) notifs.push({ user_id: u.id, delivery_id: a.orderId, order_no: d.order_no, kind: "assigned", message: `Order #${orderLabel(d)} was assigned to you${d.delivery_windows ? ` (${fmtWindows(d.delivery_windows)})` : ""}` });
     }
     if (notifs.length) await pushNotifs(notifs);
     setAssignBusy(false);
@@ -276,8 +276,8 @@ export default function MapPage() {
   const warnText = (w: AssignWarning) =>
     w.kind === "conflict"
       ? t(
-          `Overlaps ${w.conflicts!.map((c) => `#${orderLabel(c)} (${c.delivery_windows || "?"})`).join(", ")}`,
-          `Se traslapa con ${w.conflicts!.map((c) => `#${orderLabel(c)} (${c.delivery_windows || "?"})`).join(", ")}`,
+          `Overlaps ${w.conflicts!.map((c) => `#${orderLabel(c)} (${fmtWindows(c.delivery_windows)})`).join(", ")}`,
+          `Se traslapa con ${w.conflicts!.map((c) => `#${orderLabel(c)} (${fmtWindows(c.delivery_windows)})`).join(", ")}`,
         )
       : t(
           `Over capacity: ${w.used} + ${w.adding} > ${w.capacity} pallets`,
@@ -367,7 +367,7 @@ export default function MapPage() {
             <button className="btn btn-ghost btn-sm" onClick={clearSelection}>✕ {t("Close", "Cerrar")}</button>
           </div>
           <div className="detail-row"><span className="dk">{t("Route", "Ruta")}</span><span className="dv">{selected.store || "—"} → {cityFromAddress(selected.delivery_address, cityNames) || selected.delivery_address || "—"}</span></div>
-          <div className="detail-row"><span className="dk">{t("Window", "Ventana")}</span><span className="dv">{selected.delivery_windows || "—"}</span></div>
+          <div className="detail-row"><span className="dk">{t("Window", "Ventana")}</span><span className="dv">{fmtWindows(selected.delivery_windows)}</span></div>
           <div className="detail-row"><span className="dk">{t("Pallets", "Tarimas")}</span><span className="dv">{selected.actual_pallets ?? selected.est_pallets ?? "—"}</span></div>
           <div className="detail-row">
             <span className="dk">{t("Pickup → Dropoff", "Recolección → Entrega")}</span>

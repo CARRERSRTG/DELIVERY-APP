@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
 import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, DELIVERY_WINDOW_PRESETS, driverNames, ROLE_INFO, roleLabel, SATURDAY_WINDOW, stageInfo, stageLabel, WEEKDAY_ALL_DAY_WINDOW } from "@/lib/constants";
-import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, nowMilitary, orderLabel, palletDuration, telClean, todayISO } from "@/lib/utils";
+import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, fmtWindows, nowMilitary, orderLabel, palletDuration, telClean, todayISO } from "@/lib/utils";
 import { printDeliverySlip } from "@/lib/slip";
 import { AddressInput } from "@/components/AddressInput";
 import { LocationCombo } from "@/components/LocationCombo";
@@ -269,7 +269,7 @@ export function OrderModal({
     const url = `${location.origin}/track/${row.id}`;
     const who = row.contact ? `${row.contact}, ` : "";
     const date = row.delivery_date ? fmtDate(row.delivery_date) : "";
-    const win = row.delivery_windows ? ` ${row.delivery_windows}` : "";
+    const win = row.delivery_windows ? ` ${fmtWindows(row.delivery_windows)}` : "";
     const message = t(
       `Hi ${who}your RDZ delivery #${orderLabel(row)} is scheduled${date ? ` for ${date}${win}` : ""}. Track it live here: ${url}`,
       `Hola ${who}su entrega RDZ #${orderLabel(row)} está programada${date ? ` para el ${date}${win}` : ""}. Siga su estado aquí: ${url}`,
@@ -1246,7 +1246,7 @@ export function OrderModal({
                         `${d.assigned_driver} already has an overlapping window this day:`,
                         `${d.assigned_driver} ya tiene una ventana que se traslapa ese día:`,
                       )}{" "}
-                      {conflicts.map((c) => `#${orderLabel(c)} (${c.delivery_windows || "—"})`).join(", ")}
+                      {conflicts.map((c) => `#${orderLabel(c)} (${fmtWindows(c.delivery_windows)})`).join(", ")}
                     </div>
                   </div>
                 )}
@@ -1737,7 +1737,7 @@ function DriverDeliveryScreen({
         </div>
         <div className="drv-block">
           <div className="drv-k">⏰ {t("Time window", "Ventana")}</div>
-          <div className="drv-v">{order.delivery_windows || "—"}</div>
+          <div className="drv-v">{fmtWindows(order.delivery_windows)}</div>
         </div>
         <div className="drv-block">
           <div className="drv-k">📦 {t("Pallets", "Tarimas")}</div>
@@ -1822,7 +1822,7 @@ function ShareTracking({
     const who = order.contact ? `${order.contact}, ` : "";
     // Include the estimated delivery date + time window when we have them.
     const date = order.delivery_date ? fmtDate(order.delivery_date) : "";
-    const win = order.delivery_windows ? ` ${order.delivery_windows}` : "";
+    const win = order.delivery_windows ? ` ${fmtWindows(order.delivery_windows)}` : "";
     const whenEn = date ? ` for ${date}${win}` : "";
     const whenEs = date ? ` para el ${date}${win}` : "";
     return t(

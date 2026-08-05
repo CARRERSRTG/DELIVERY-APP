@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { stageInfo, stageLabel } from "@/lib/constants";
+import { fmtWindows } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 export interface BoardColumn {
@@ -79,7 +80,7 @@ export function DispatchBoard({
                   {d.account || t("(no account)", "(sin cuenta)")}
                 </div>
                 <div className="hint" style={{ marginTop: 2 }}>
-                  {(d.actual_pallets ?? d.est_pallets ?? "—")} {t("pallets", "tarimas")}{d.delivery_windows ? ` · ${d.delivery_windows}` : ""}
+                  {(d.actual_pallets ?? d.est_pallets ?? "—")} {t("pallets", "tarimas")}{d.delivery_windows ? ` · ${fmtWindows(d.delivery_windows)}` : ""}
                 </div>
               </div>
             ))}

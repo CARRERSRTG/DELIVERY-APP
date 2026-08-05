@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { stageInfo } from "@/lib/constants";
-import { fmtDate } from "@/lib/utils";
+import { fmtDate, fmtWindows } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 // ============================================================
@@ -109,7 +109,7 @@ export default function TrackPage({ params }: { params: { id: string } }) {
 
             <div style={{ marginTop: 20 }}>
               {order.delivery_date && <Row k="Delivery date" v={fmtDate(order.delivery_date)} />}
-              {order.delivery_windows && <Row k="Time window" v={order.delivery_windows} />}
+              {order.delivery_windows && <Row k="Time window" v={fmtWindows(order.delivery_windows)} />}
               {order.delivery_address && <Row k="Delivery to" v={order.delivery_address} />}
               {order.assigned_driver && <Row k="Driver" v={order.assigned_driver} />}
               {order.pod_received_by && <Row k="Received by" v={order.pod_received_by} />}
