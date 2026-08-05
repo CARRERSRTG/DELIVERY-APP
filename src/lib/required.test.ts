@@ -119,10 +119,10 @@ describe("missingFields — document reference by rule", () => {
 });
 
 describe("missingKeys", () => {
-  it("lights up all three reference fields when doc_ref is missing", () => {
+  it("lights up PO and Invoice (but not the optional SO) when doc_ref is missing", () => {
     const k = missingKeys({ ...complete, order_type: "Intertienda", invoice_num: "", so_num: "", po2: "" }, RULES);
     expect(k.has("po2")).toBe(true);
-    expect(k.has("so_num")).toBe(true);
+    expect(k.has("so_num")).toBe(false);
     expect(k.has("invoice_num")).toBe(true);
   });
 

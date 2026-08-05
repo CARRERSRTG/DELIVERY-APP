@@ -88,9 +88,10 @@ export function missingFields(d: Partial<Delivery>, rules?: OrderTypeRules): Mis
 
   const docRef = orderTypeRule(type, rules).docRef ?? "invoice";
   if (docRef === "any") {
-    // Any one of the three is enough for a store-to-store move.
+    // Any one of the three is enough for a store-to-store move. SO # is not
+    // required (and never flagged) — a PO # or Invoice # is what we ask for.
     if (!filled(d.po2) && !filled(d.so_num) && !filled(d.invoice_num)) {
-      out.push({ key: "doc_ref", en: "PO #, SO # or Invoice # (any one)", es: "PO #, SO # o Factura # (cualquiera)" });
+      out.push({ key: "doc_ref", en: "PO # or Invoice # (any one)", es: "PO # o Factura # (cualquiera)" });
     }
   } else if (docRef === "invoice") {
     // Regular customer delivery — the customer invoice is required, and the
@@ -111,7 +112,8 @@ export function missingFields(d: Partial<Delivery>, rules?: OrderTypeRules): Mis
 /** Field keys to highlight in the form. */
 export function missingKeys(d: Partial<Delivery>, rules?: OrderTypeRules): Set<string> {
   const keys = new Set(missingFields(d, rules).map((m) => m.key));
-  // "doc_ref" means all three reference fields should light up.
-  if (keys.has("doc_ref")) { keys.add("po2"); keys.add("so_num"); keys.add("invoice_num"); }
+  // "doc_ref" means a PO # or Invoice # is needed — light those up. SO # is
+  // optional for these (Intertienda) orders, so it's never flagged.
+  if (keys.has("doc_ref")) { keys.add("po2"); keys.add("invoice_num"); }
   return keys;
 }
