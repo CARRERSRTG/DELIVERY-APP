@@ -31,17 +31,35 @@ export default function WarehousePage() {
   const lockedToOwnStore = me?.role === "warehouse";
   const effectiveStore = lockedToOwnStore ? (me?.store ?? "") : storeFilter;
 
+  // An order is "at" a warehouse store if it's sold from there OR physically
+  // picked up there — so a warehouse worker also sees pickup orders staged at
+  // their store even when the order was sold from another branch (e.g. an
+  // Intertienda picked up from their warehouse).
+  const storeAddr = useMemo(
+    () => settings.stores.find((s) => s.name === effectiveStore)?.address?.trim() || "",
+    [settings.stores, effectiveStore],
+  );
+  const atStore = useMemo(
+    () => (d: Delivery) => {
+      if (d.store === effectiveStore) return true;
+      if ((d.pickup_name || "").trim() === effectiveStore) return true;
+      if (storeAddr && (d.pickup_address || "").trim() === storeAddr) return true;
+      return false;
+    },
+    [effectiveStore, storeAddr],
+  );
+
   const scoped = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return deliveries.filter((d) => {
-      if (effectiveStore && d.store !== effectiveStore) return false;
+      if (effectiveStore && !atStore(d)) return false;
       // Searching matches by invoice # specifically and bypasses the date
       // window below — that's the one way to reach older history here.
       if (needle) return (d.invoice_num || "").toLowerCase().includes(needle);
       if (d.delivery_date && d.delivery_date < yesterdayISO()) return false;
       return true;
     });
-  }, [deliveries, effectiveStore, q]);
+  }, [deliveries, effectiveStore, atStore, q]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
