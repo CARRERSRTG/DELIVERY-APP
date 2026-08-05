@@ -195,6 +195,15 @@ export default function OrdersPage() {
     setSelected(new Set());
   };
 
+  const bulkSetDate = async (date: string) => {
+    if (!date || !chosen.length) return;
+    setBulkBusy(true);
+    for (const d of chosen) await updateDelivery(d.id, { delivery_date: date });
+    setBulkBusy(false);
+    notify(t(`Set delivery date on ${chosen.length} order(s)`, `Fecha de entrega fijada en ${chosen.length} orden(es)`));
+    setSelected(new Set());
+  };
+
   const bulkStage = async (to: "pending" | "approved") => {
     if (!chosen.length) return;
     setBulkBusy(true);
@@ -347,6 +356,12 @@ export default function OrdersPage() {
           )}
           {(me.role === "manager" || me.role === "admin") && (
             <button className="btn btn-green btn-sm" disabled={bulkBusy} onClick={() => bulkStage("approved")}>{t("Approve", "Aprobar")}</button>
+          )}
+          {(me.role === "manager" || me.role === "admin" || me.role === "logistics") && (
+            <label style={{ margin: 0, display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }} title={t("Set delivery date on all selected", "Fijar fecha de entrega en las seleccionadas")}>
+              📅
+              <input type="date" disabled={bulkBusy} onChange={(e) => { if (e.target.value) bulkSetDate(e.target.value); e.target.value = ""; }} style={{ width: "auto", padding: "4px 6px" }} />
+            </label>
           )}
           <button className="btn btn-ghost btn-sm" disabled={bulkBusy} onClick={exportSelected}>⬇ {t("Export", "Exportar")}</button>
           <button className="btn btn-sm" onClick={() => setSelected(new Set())}>✕</button>

@@ -980,6 +980,10 @@ export function OrderModal({
                       account: v,
                       contact: rec ? rec.contact : p.contact,
                       delivery_phone: rec ? rec.phone : p.delivery_phone,
+                      // Fill the account's usual delivery address too — but never
+                      // for a store-to-store move, where the destination is a
+                      // store chosen from the dropdown, not the customer's site.
+                      delivery_address: rec?.address && !isIntertienda ? rec.address : p.delivery_address,
                     };
                     const wantType = !v.trim() ? null : (isIntertienda ? "Intertienda" : "Customer");
                     return wantType && settings.order_types.includes(wantType)
@@ -996,13 +1000,22 @@ export function OrderModal({
               <Txt label={t("Number", "Número")} val={d.delivery_phone} on={(v) => set("delivery_phone", v)} disabled={!salesFields} invalid={missingSet.has("delivery_phone")} />
             </div>
             {salesFields && !!d.account?.trim() && !!d.contact?.trim() && !!d.delivery_phone?.trim() &&
-              !savedAccounts.some((a) => a.name.toLowerCase() === d.account!.trim().toLowerCase() && a.contact === d.contact && a.phone === d.delivery_phone) && (
+              !savedAccounts.some((a) => a.name.toLowerCase() === d.account!.trim().toLowerCase() && a.contact === d.contact && a.phone === d.delivery_phone
+                && (a.address ?? "") === (storeToStore ? (a.address ?? "") : (d.delivery_address ?? ""))) && (
                 <button
                   className="btn btn-ghost btn-sm"
                   style={{ marginTop: -6, marginBottom: 10 }}
-                  onClick={() => saveAccount({ name: d.account!.trim(), contact: d.contact!.trim(), phone: d.delivery_phone!.trim(), intertienda: d.order_type === "Intertienda" })}
+                  onClick={() => saveAccount({
+                    name: d.account!.trim(),
+                    contact: d.contact!.trim(),
+                    phone: d.delivery_phone!.trim(),
+                    // Remember the delivery site for customer accounts (not for
+                    // store-to-store, where the "address" is a store).
+                    address: storeToStore ? undefined : (d.delivery_address?.trim() || undefined),
+                    intertienda: d.order_type === "Intertienda",
+                  })}
                 >
-                  💾 {t("Save this contact for the account", "Guardar este contacto para la cuenta")}
+                  💾 {t("Save this contact + address for the account", "Guardar contacto + dirección de la cuenta")}
                 </button>
             )}
 

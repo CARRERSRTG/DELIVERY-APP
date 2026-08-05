@@ -318,6 +318,34 @@ export function colLabel(key: string, lang: "en" | "es"): string {
   return lang === "es" ? COLUMN_ES[key] ?? key : key;
 }
 
+// Friendly labels for Delivery field KEYS (as they appear in an update patch),
+// used to describe an edit in the activity log. Derived/auto fields are left
+// out on purpose so a routine save doesn't spam the history with them.
+const FIELD_LABELS: Record<string, string> = {
+  order_type: "Order Type", store: "Store", po2: "PO #", so_num: "SO #",
+  invoice_num: "Invoice #", estimate_num: "Estimate #", delivery_date: "Delivery Date",
+  pickup_name: "Pickup Name", pickup_address: "Pickup Address", delivery_fee: "Delivery Fee",
+  est_pallets: "Est. Pallets", actual_pallets: "Actual Pallets", assigned_driver: "Assigned Driver",
+  delivery_address: "Delivery Address", delivery_name: "Dropoff Name", delivery_windows: "Time Window",
+  account: "Account", contact: "Contact", delivery_phone: "Phone", delivery_notes: "Notes",
+  redelivery_reason: "Re-delivery reason", assigned_sales_rep: "Sales Rep", route_seq: "Route order",
+};
+// Keys that change on nearly every save (recomputed/auto), never worth logging.
+const NOISY_KEYS = new Set(["pickup_duration", "delivery_duration", "input_date", "input_time", "updated_at", "route_miles", "route_duration", "route_provider", "route_traffic"]);
+
+/** Human summary of which meaningful fields an update patch actually changes,
+ * e.g. "Delivery Date, Assigned Driver". "" if nothing notable changed. */
+export function changedFieldsNote(before: Record<string, unknown>, patch: Record<string, unknown>): string {
+  const norm = (v: unknown) => (v == null ? "" : String(v));
+  const names: string[] = [];
+  for (const k of Object.keys(patch)) {
+    if (NOISY_KEYS.has(k)) continue;
+    if (norm(before?.[k]) === norm(patch[k])) continue;
+    names.push(FIELD_LABELS[k] ?? k);
+  }
+  return names.length ? `Changed: ${names.join(", ")}` : "";
+}
+
 export function deliveryColumns(d: Delivery): [string, string][] {
   return [
     ["ID", orderLabel(d)],

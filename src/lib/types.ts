@@ -191,6 +191,10 @@ export interface AccountRecord {
   name: string;
   contact: string;
   phone: string;
+  /** The account's usual delivery site — filled in (along with contact/phone)
+   * when the account is picked on a customer order, so recurring customers
+   * don't get re-typed. Optional; older saved accounts won't have it. */
+  address?: string;
   /** An internal branch account (store-to-store). Picking it on an order
    * defaults the type to Intertienda; a customer account defaults to Customer. */
   intertienda?: boolean;

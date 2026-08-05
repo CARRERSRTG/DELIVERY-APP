@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Delivery, DriverAvailability, DriverShift, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
-import { orderOwner } from "@/lib/utils";
+import { orderOwner, changedFieldsNote } from "@/lib/utils";
 import { nextOrderCode, codeBand } from "@/lib/order-code";
 import { blankDelivery } from "@/lib/blank-delivery";
 
@@ -391,16 +391,18 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         });
         return true;
       }
+      const before = deliveries.find((c) => c.id === id);
       const { error } = await supabase.from("deliveries").update(patch).eq("id", id);
       if (error) {
         notify("Error: " + error.message);
         return false;
       }
       setDeliveries((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-      await logEvent(id, "edited");
+      // Record WHICH fields changed, so the activity log / audit is field-level.
+      await logEvent(id, "edited", before ? (changedFieldsNote(before as unknown as Record<string, unknown>, patch as Record<string, unknown>) || undefined) : undefined);
       return true;
     },
-    [supabase, notify, logEvent, teaching],
+    [supabase, notify, logEvent, teaching, deliveries],
   );
 
   const deleteDelivery = useCallback<DataState["deleteDelivery"]>(
