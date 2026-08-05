@@ -55,6 +55,17 @@ export default function AccountPage() {
         </div>
       </div>
 
+      {/* ---------- Settings entry point (replaces the old Settings tab) ---------- */}
+      <div className="card">
+        <h2>⚙️ {t("Settings", "Ajustes")}</h2>
+        <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+          {t("Workspace configuration, stores, and app options.", "Configuración del espacio, tiendas y opciones de la app.")}
+        </p>
+        <Link href="/settings" className="btn btn-primary" style={{ textDecoration: "none" }}>
+          ⚙️ {t("Open settings", "Abrir ajustes")}
+        </Link>
+      </div>
+
       {/* ---------- Profile + preferences ---------- */}
       <div className="card">
         <h2>👤 {t("Profile", "Perfil")}</h2>
@@ -91,17 +102,6 @@ export default function AccountPage() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* ---------- Settings entry point (replaces the old Settings tab) ---------- */}
-      <div className="card">
-        <h2>⚙️ {t("Settings", "Ajustes")}</h2>
-        <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
-          {t("Workspace configuration, stores, and app options.", "Configuración del espacio, tiendas y opciones de la app.")}
-        </p>
-        <Link href="/settings" className="btn btn-primary" style={{ textDecoration: "none" }}>
-          ⚙️ {t("Open settings", "Abrir ajustes")}
-        </Link>
       </div>
 
       {/* ---------- Change password ---------- */}
