@@ -13,8 +13,6 @@ export function mkDelivery(over: Partial<Delivery> = {}): Delivery {
     is_training: false,
     redelivery_of: null,
     redelivery_reason: null,
-    prepared_status: null,
-    status_temp: null,
     order_type: "Delivery",
     store: "McAllen",
     po2: null,

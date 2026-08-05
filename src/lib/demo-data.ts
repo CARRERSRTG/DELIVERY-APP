@@ -120,8 +120,6 @@ export function demoDeliveries(settings: Settings): Delivery[] {
     is_training: false,
     redelivery_of: null,
     redelivery_reason: null,
-    prepared_status: null,
-    status_temp: null,
     order_type: "Customer",
     store: "McAllen",
     po2: null,
@@ -243,30 +241,30 @@ export function demoDeliveries(settings: Settings): Delivery[] {
 
     // ---- In the warehouse ----
     mk(1010, 2, 6.4, { stage: "fulfilling", store: "Brownsville", account: "Coastal Homes", so_num: "SO-1003",
-      invoice_num: "INV-3007", prepared_status: "Staging", status_temp: "Ambient", assigned_driver: "Fleet Truck 3",
+      invoice_num: "INV-3007", assigned_driver: "Fleet Truck 3",
       delivery_address: "77 Palm Dr, Brownsville TX", delivery_windows: "0900-1100", delivery_fee: 65,
       approved_by: "u-mgr", approved_at: stamp(240),
       delivery_lat: 25.9050, delivery_lng: -97.4950, delivery_pin_source: "geocoded" }),
     // Late-afternoon slot — Carlos already runs #1014 at 1300-1500 today.
     mk(1011, 7, 8.2, { stage: "fulfilling", store: "Weslaco", account: "Mid-Valley Supply", invoice_num: "INV-3008",
-      prepared_status: "Picking", assigned_driver: "Carlos R.", delivery_fee: 95,
+      assigned_driver: "Carlos R.", delivery_fee: 95,
       delivery_address: "1200 S Texas Blvd, Weslaco TX", delivery_windows: "1530-1730",
       approved_by: "u-mgr", approved_at: stamp(300),
       delivery_lat: 26.1610, delivery_lng: -97.9880, delivery_pin_source: "geocoded" }),
     mk(1012, 4, 5.5, { stage: "ready", store: "McAllen", account: "Sunrise Flooring", invoice_num: "INV-3009",
-      prepared_status: "Loaded", status_temp: "Ambient", assigned_driver: "Diego Driver", delivery_fee: 85,
+      assigned_driver: "Diego Driver", delivery_fee: 85,
       delivery_address: "4500 N 23rd St, McAllen TX", delivery_windows: "0800-1000",
       approved_by: "u-mgr", approved_at: stamp(360),
       delivery_lat: 26.2350, delivery_lng: -98.2250, delivery_pin_source: "geocoded" }),
     mk(1013, 6, 11.0, { stage: "ready", store: "Mission", account: "Sharyland Job Site", delivery_name: "Sharyland Job Site",
-      invoice_num: "INV-3010", prepared_status: "Loaded", assigned_driver: "Diego Driver", delivery_fee: 130,
+      invoice_num: "INV-3010", assigned_driver: "Diego Driver", delivery_fee: 130,
       delivery_address: "3300 Shary Rd, Mission TX", delivery_windows: "1100-1300",
       approved_by: "u-mgr", approved_at: stamp(400),
       delivery_lat: 26.2080, delivery_lng: -98.3010, delivery_pin_source: "geocoded" }),
 
     // ---- Out for delivery (GPS stamped at pickup) ----
     mk(1014, 5, 7.7, { stage: "picked_up", store: "McAllen", account: "Vista Kitchens", invoice_num: "INV-3011",
-      prepared_status: "Loaded", assigned_driver: "Carlos R.", delivery_fee: 100,
+      assigned_driver: "Carlos R.", delivery_fee: 100,
       delivery_address: "2100 Trenton Rd, McAllen TX", delivery_windows: "1300-1500",
       approved_by: "u-mgr", approved_at: stamp(500), contact: "Hector", delivery_phone: "9565550110",
       pickup_lat: 26.2034, pickup_lng: -98.23, pickup_gps_at: stamp(45) }),
@@ -277,7 +275,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
 
     // ---- Delivered (full proof of delivery) ----
     mk(1016, 5, 4.0, { stage: "delivered", store: "Mission", account: "Mission Remodel", so_num: "SO-1004",
-      invoice_num: "INV-3013", prepared_status: "Loaded", status_temp: "Ambient", assigned_driver: "Fleet Truck 3",
+      invoice_num: "INV-3013", assigned_driver: "Fleet Truck 3",
       delivery_address: "9 Conway Ave, Mission TX", delivery_windows: "0900-1100", delivery_fee: 90,
       approved_by: "u-mgr", approved_at: stamp(1500), delivery_date: iso(-1), updated_at: stamp(1400),
       pod_received_by: "Rosa Martinez", pod_signature: TINY_PNG, pod_delivered_at: stamp(1400),
@@ -336,11 +334,11 @@ export function demoDeliveries(settings: Settings): Delivery[] {
       delivery_lat: 26.1490, delivery_lng: -97.9200, delivery_pin_source: "geocoded" }),
 
     mk(1029, 6, 3.4, { stage: "fulfilling", store: "Pharr", account: "Rio Tile Co.", invoice_num: "INV-3023",
-      prepared_status: "Picking", delivery_fee: 80, delivery_address: "1000 W Sam Houston Blvd, Pharr TX",
+      delivery_fee: 80, delivery_address: "1000 W Sam Houston Blvd, Pharr TX",
       delivery_windows: "1700-1900", assigned_driver: "Miguel A.", approved_by: "u-mgr", approved_at: stamp(220),
       delivery_lat: 26.2000, delivery_lng: -98.1900, delivery_pin_source: "geocoded" }),
     mk(1030, 4, 2.8, { stage: "ready", store: "Pharr", account: "Sunrise Flooring", invoice_num: "INV-3024",
-      prepared_status: "Loaded", delivery_fee: 65, delivery_address: "600 E Kelly Ave, Pharr TX",
+      delivery_fee: 65, delivery_address: "600 E Kelly Ave, Pharr TX",
       delivery_windows: "1100-1300", assigned_driver: "Miguel A.", approved_by: "u-mgr", approved_at: stamp(260),
       delivery_lat: 26.1750, delivery_lng: -98.1700, delivery_pin_source: "geocoded" }),
     mk(1031, 7, 9.0, { stage: "approved", store: "Pharr", account: "Hidalgo Interiors", invoice_num: "INV-3025",
@@ -353,12 +351,12 @@ export function demoDeliveries(settings: Settings): Delivery[] {
       assigned_driver: "Fleet Truck 3", approved_by: "u-mgr", approved_at: stamp(170),
       delivery_lat: 25.9300, delivery_lng: -97.4800, delivery_pin_source: "geocoded" }),
     mk(1033, 3, 4.1, { stage: "ready", store: "Brownsville", account: "Mid-Valley Supply", invoice_num: "INV-3027",
-      prepared_status: "Loaded", delivery_fee: 60, delivery_address: "500 Ruben Torres Blvd, Brownsville TX",
+      delivery_fee: 60, delivery_address: "500 Ruben Torres Blvd, Brownsville TX",
       delivery_windows: "1300-1500", assigned_driver: "Fleet Truck 3", approved_by: "u-mgr", approved_at: stamp(140),
       delivery_lat: 25.8800, delivery_lng: -97.5100, delivery_pin_source: "geocoded" }),
 
     mk(1034, 5, 3.9, { stage: "fulfilling", store: "McAllen", account: "Casa Bella", invoice_num: "INV-3028",
-      prepared_status: "Staging", delivery_fee: 80, delivery_address: "1600 S 23rd St, McAllen TX",
+      delivery_fee: 80, delivery_address: "1600 S 23rd St, McAllen TX",
       delivery_windows: "1000-1100", assigned_driver: "Diego Driver", approved_by: "u-mgr", approved_at: stamp(160),
       delivery_lat: 26.1900, delivery_lng: -98.2450, delivery_pin_source: "geocoded" }),
 
@@ -372,7 +370,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
       approved_by: "u-mgr", approved_at: stamp(100),
       delivery_lat: 26.1650, delivery_lng: -98.1950, delivery_pin_source: "geocoded" }),
     mk(1037, 3, null, { stage: "ready", store: "Edinburg", account: "Rio Tile Co.", invoice_num: "INV-3031",
-      prepared_status: "Loaded", delivery_fee: 55, delivery_address: "2100 Sugar Rd, Edinburg TX",
+      delivery_fee: 55, delivery_address: "2100 Sugar Rd, Edinburg TX",
       delivery_windows: "1400-1600", approved_by: "u-mgr", approved_at: stamp(90),
       delivery_lat: 26.3100, delivery_lng: -98.1450, delivery_pin_source: "geocoded" }),
     mk(1038, 5, null, { stage: "approved", store: "Mission", account: "Sunrise Flooring", invoice_num: "INV-3032",
@@ -380,7 +378,7 @@ export function demoDeliveries(settings: Settings): Delivery[] {
       approved_by: "u-mgr", approved_at: stamp(80),
       delivery_lat: 26.2250, delivery_lng: -98.3400, delivery_pin_source: "geocoded" }),
     mk(1039, 4, null, { stage: "fulfilling", store: "Weslaco", account: "Coastal Homes", invoice_num: "INV-3033",
-      prepared_status: "Picking", delivery_fee: 65, delivery_address: "900 N Kansas Ave, Weslaco TX",
+      delivery_fee: 65, delivery_address: "900 N Kansas Ave, Weslaco TX",
       delivery_windows: "1000-1200", approved_by: "u-mgr", approved_at: stamp(70),
       delivery_lat: 26.1500, delivery_lng: -98.0050, delivery_pin_source: "geocoded" }),
 
@@ -483,9 +481,6 @@ export function demoDeliveries(settings: Settings): Delivery[] {
       delivery_lat: lat + ((i % 7) - 3) * 0.011,
       delivery_lng: lng + ((i % 5) - 2) * 0.011,
       delivery_pin_source: "geocoded",
-      ...(stage === "fulfilling" || stage === "ready"
-        ? { prepared_status: stage === "ready" ? "Loaded" : "Staging", status_temp: "Ambient" }
-        : {}),
       ...(stage !== "pending" ? { approved_by: "u-mgr", approved_at: stamp(30 + i * 4) } : {}),
     }));
   });

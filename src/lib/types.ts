@@ -55,8 +55,6 @@ export interface Delivery {
   redelivery_reason: string | null;
 
   // Data columns (from the spec)
-  prepared_status: string | null;
-  status_temp: string | null;
   order_type: string | null;
   store: string | null;
   po2: string | null;

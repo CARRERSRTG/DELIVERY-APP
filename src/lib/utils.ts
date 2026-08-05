@@ -282,8 +282,6 @@ export function downloadCSV(filename: string, csv: string): void {
 // grid. CSV export keeps the English keys as headers.
 const COLUMN_ES: Record<string, string> = {
   "ID": "ID",
-  "Prepared Status": "Estado de Preparación",
-  "Status (Temp)": "Estado (Temp)",
   "Order Type": "Tipo de Orden",
   "Store (Sold From)": "Tienda (Vendido Desde)",
   "PO #": "PO #",
@@ -320,8 +318,6 @@ export function colLabel(key: string, lang: "en" | "es"): string {
 export function deliveryColumns(d: Delivery): [string, string][] {
   return [
     ["ID", orderLabel(d)],
-    ["Prepared Status", d.prepared_status ?? ""],
-    ["Status (Temp)", d.status_temp ?? ""],
     ["Order Type", d.order_type ?? ""],
     ["Store (Sold From)", d.store ?? ""],
     ["PO #", d.po2 ?? ""],

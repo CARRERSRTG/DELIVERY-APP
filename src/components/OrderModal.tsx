@@ -603,7 +603,7 @@ export function OrderModal({
       route_miles: src.route_miles, route_duration: src.route_duration,
       route_provider: src.route_provider, route_traffic: src.route_traffic,
       // warehouse redoes these
-      prepared_status: null, status_temp: null, actual_pallets: null, assigned_driver: src.assigned_driver,
+      actual_pallets: null, assigned_driver: src.assigned_driver,
       // re-delivery linkage
       stage: "approved", redelivery_of: src.id, redelivery_reason: redeliverReason.trim(),
     };

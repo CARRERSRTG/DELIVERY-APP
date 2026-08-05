@@ -82,8 +82,6 @@ create table if not exists public.deliveries (
   redelivery_reason  text,
 
   -- Data columns (from the spec)
-  prepared_status    text,                     -- Prepared Status
-  status_temp        text,                     -- Status (Temp)
   order_type         text,                     -- Order Type
   store              text,                     -- Store (Sold From)
   order_code         text,                     -- human-facing id, e.g. "FA100" (see lib/order-code)
