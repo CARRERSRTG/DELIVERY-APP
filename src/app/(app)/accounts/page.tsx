@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
-import { deliveryColumns, downloadCSV, fmtDate, fmtMoney, isOverdue, orderOwner, toCSV, todayISO } from "@/lib/utils";
+import { deliveryColumns, downloadCSV, fmtDate, fmtMoney, isOverdue, orderLabel, orderOwner, toCSV, todayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 // ============================================================
@@ -111,7 +111,8 @@ export default function AccountsPage() {
           <div className="bar-list">
             {current.orders.map((d) => (
               <button key={d.id} className="acct-row" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => setOpen(d)}>
-                <span className="ordno">#{d.order_no}</span>
+                <span className="ordno">{orderLabel(d)}</span>
+                {d.order_type && <span className="sema" style={{ background: "var(--gray)", color: "#fff" }}>{d.order_type}</span>}
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {d.delivery_address || d.store || "—"}
                 </span>
