@@ -238,12 +238,14 @@ export default function RoutesPage() {
   // or build routes. Auto-assign still uses `drivers` only.
   const lanes = useMemo<Lane[]>(() => {
     const out: Lane[] = [];
+    const seen = new Set<string>();
+    const add = (l: Lane) => { if (!seen.has(l.key)) { seen.add(l.key); out.push(l); } };
     for (const dr of drivers) {
       // Show loads 1..N contiguously, where N covers any load that has orders
       // AND any empty load the dispatcher added with "＋ Load".
       let maxLoad = extraLoads[dr.full_name] ?? 1;
       for (const d of dayOrders) if (d.assigned_driver === dr.full_name) maxLoad = Math.max(maxLoad, loadNoOf(d));
-      for (let load = 1; load <= maxLoad; load++) out.push({
+      for (let load = 1; load <= maxLoad; load++) add({
         id: load > 1 ? `${dr.id}${LANE_SEP}${load}` : dr.id,
         key: laneKeyFor(dr.full_name, load),
         driver: dr.full_name,
@@ -253,7 +255,23 @@ export default function RoutesPage() {
         store: dr.store ?? null,
       });
     }
-    for (const n of bucketNames) out.push({ id: `bucket:${n}`, key: n, driver: n, load: 1, label: n, isBucket: true, store: null });
+    for (const n of bucketNames) add({ id: `bucket:${n}`, key: n, driver: n, load: 1, label: n, isBucket: true, store: null });
+    // Safety net: any assigned group in the day's orders that DIDN'T match a
+    // current driver or bucket above still gets a lane — so its route always
+    // shows and is counted (e.g. a retired bucket, a removed driver, or a load
+    // whose driver isn't in the list). Never silently drop assigned work.
+    for (const d of dayOrders) {
+      const key = orderLaneKey(d);
+      if (!key || seen.has(key)) continue;
+      const bucket = isBucket(d.assigned_driver || "");
+      const drv = driverOf(key);
+      const load = loadFromKey(key);
+      add({
+        id: `orphan:${key}`, key, driver: drv, load,
+        label: bucket ? key : (load > 1 ? `${drv} · ${t("Load", "Carga")} ${load}` : drv),
+        isBucket: bucket, store: null,
+      });
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drivers, dayOrders, bucketNames, extraLoads, t]);
