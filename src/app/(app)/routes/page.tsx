@@ -10,6 +10,7 @@ import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
 import { fallbackDriverColor, fmtDate, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
+import { LANE_SEP, driverOf, laneKeyFor, loadFromKey, loadNoOf, nextLoadFor as nextLoadForPure, orderLaneKey as orderLaneKeyPure, planMerge } from "@/lib/route-lanes";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery, Profile } from "@/lib/types";
 
@@ -218,21 +219,10 @@ export default function RoutesPage() {
   const isBucket = (name: string) => bucketNames.includes(name);
 
   // ---- Loads: a driver can run several routes in a day, each a separate
-  // truckload/trip. A "lane" is one such load (or a route bucket). Its KEY is
-  // the grouping id: the plain driver name for load 1 (unchanged), or
-  // "Driver#L2" for the 2nd load, etc. driverOf() strips it back to the name. ----
-  const LANE_SEP = "#L";
-  const driverOf = (key: string) => {
-    const i = key.lastIndexOf(LANE_SEP);
-    return i >= 0 && /^\d+$/.test(key.slice(i + LANE_SEP.length)) ? key.slice(0, i) : key;
-  };
-  const laneKeyFor = (driver: string, load: number) => (load > 1 ? `${driver}${LANE_SEP}${load}` : driver);
-  const loadNoOf = (d: Delivery) => (d.load_no && d.load_no > 1 ? d.load_no : 1);
-  const orderLaneKey = (d: Delivery): string | null => {
-    if (!d.assigned_driver) return null;
-    if (isBucket(d.assigned_driver)) return d.assigned_driver;
-    return laneKeyFor(d.assigned_driver, loadNoOf(d));
-  };
+  // truckload/trip. A "lane" is one such load (or a route bucket). The pure
+  // lane logic (keys, grouping, merge) lives in lib/route-lanes for testing;
+  // these thin wrappers bind it to this page's `isBucket` / `dayOrders`. ----
+  const orderLaneKey = (d: Delivery) => orderLaneKeyPure(d, isBucket);
 
   interface Lane { id: string; key: string; driver: string; load: number; label: string; isBucket: boolean; store: string | null; }
   // Lanes = each real driver's load(s) + each bucket, used everywhere we DISPLAY
@@ -257,13 +247,8 @@ export default function RoutesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drivers, dayOrders, bucketNames, t]);
 
-  // The next free load number for a driver: 1 if they have no work yet,
-  // otherwise one past their highest current load.
-  const nextLoadFor = (driver: string) => {
-    let max = 0;
-    for (const d of dayOrders) if (d.assigned_driver === driver) max = Math.max(max, loadNoOf(d));
-    return max === 0 ? 1 : max + 1;
-  };
+  // The next free load number for a driver (1 if they have no work yet).
+  const nextLoadFor = (driver: string) => nextLoadForPure(dayOrders, driver);
   // Friendly display name for a lane key (e.g. "José · Load 2").
   const laneLabel = (key: string) => lanes.find((l) => l.key === key)?.label ?? key;
 
@@ -272,22 +257,13 @@ export default function RoutesPage() {
   // (driver + load, or bucket); emptied buckets are removed and the sequence is
   // cleared so the combined route can be re-optimized as one.
   const mergeSelectedLanes = async () => {
-    const keys = lanes.filter((l) => selected.has(l.key)).map((l) => l.key);
-    if (keys.length < 2) return;
-    const targetKey = keys[0];
-    const target = lanes.find((l) => l.key === targetKey);
-    if (!target) return;
-    const patch: Partial<Delivery> = target.isBucket
-      ? { assigned_driver: target.driver, load_no: null, route_seq: null }
-      : { assigned_driver: target.driver, load_no: target.load > 1 ? target.load : null, route_seq: null };
-    let moved = 0;
-    for (const src of keys.slice(1)) {
-      for (const d of byDriver.get(src) ?? []) { await updateDelivery(d.id, patch); moved++; }
-      if (isBucket(src)) removeBucket(src);
-    }
-    clearRouteFor(targetKey);
-    setSelected(new Set([targetKey]));
-    notify(t(`Merged ${moved} stop(s) into ${laneLabel(targetKey)}`, `${moved} parada(s) unidas en ${laneLabel(targetKey)}`));
+    const plan = planMerge(lanes, selected, byDriver);
+    if (!plan) return;
+    for (const id of plan.moveIds) await updateDelivery(id, plan.patch);
+    for (const b of plan.removeBuckets) removeBucket(b);
+    clearRouteFor(plan.targetKey);
+    setSelected(new Set([plan.targetKey]));
+    notify(t(`Merged ${plan.moveIds.length} stop(s) into ${laneLabel(plan.targetKey)}`, `${plan.moveIds.length} parada(s) unidas en ${laneLabel(plan.targetKey)}`));
   };
 
   const addBucket = (): string => {
@@ -528,12 +504,6 @@ export default function RoutesPage() {
     return updateDelivery(id, { assigned_driver: null, route_seq: null, load_no: null });
   };
 
-  // Parse a lane key ("Driver#L2") back into its load number (1 if none).
-  const loadFromKey = (laneKey: string) => {
-    const i = laneKey.lastIndexOf(LANE_SEP);
-    const n = i >= 0 ? parseInt(laneKey.slice(i + LANE_SEP.length), 10) : NaN;
-    return Number.isFinite(n) ? n : 1;
-  };
   // Assign an order onto a specific LANE (a driver's load, or a bucket) — used
   // by the board's drag-and-drop onto a load column.
   const assignToLane = async (id: string, laneKey: string) => {
