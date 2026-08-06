@@ -1050,6 +1050,25 @@ export default function RoutesPage() {
         </div>
       </div>
 
+      {/* ---------- Why-is-it-empty helper ---------- */}
+      {dayOrders.length === 0 && (() => {
+        const preApproval = deliveries.filter((d) => d.delivery_date === date && ["draft", "pending"].includes(d.stage)).length;
+        const otherDates = deliveries.filter((d) => ROUTE_STAGES.includes(d.stage) && !d.assigned_driver && d.delivery_date !== date).length;
+        return (
+          <div className="card" style={{ marginBottom: 14, background: "#fff7ec", borderColor: "var(--amber)" }}>
+            <b style={{ color: "#b9791a" }}>⚠ {t("No routable orders for this date.", "No hay órdenes para rutas en esta fecha.")}</b>
+            <div className="hint" style={{ marginTop: 4 }}>
+              {t(`Orders appear here only once they're Approved (Programmed) and their delivery date is ${fmtDate(date)}.`,
+                 `Las órdenes aparecen aquí solo cuando están Aprobadas (Programadas) y su fecha de entrega es ${fmtDate(date)}.`)}
+              {preApproval > 0 && " " + t(`${preApproval} order(s) on this date are still awaiting approval — approve them first.`,
+                                          `${preApproval} orden(es) en esta fecha aún esperan aprobación — apruébelas primero.`)}
+              {otherDates > 0 && " " + t(`${otherDates} approved order(s) sit on other dates — use the ◀ ▶ date arrows.`,
+                                         `${otherDates} orden(es) aprobadas están en otras fechas — use las flechas ◀ ▶.`)}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ---------- Stats strip ---------- */}
       <div className="card" style={{ display: "flex", padding: 0, overflow: "hidden", marginBottom: 14 }}>
         {[
