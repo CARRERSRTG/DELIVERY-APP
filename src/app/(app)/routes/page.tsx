@@ -267,6 +267,29 @@ export default function RoutesPage() {
   // Friendly display name for a lane key (e.g. "José · Load 2").
   const laneLabel = (key: string) => lanes.find((l) => l.key === key)?.label ?? key;
 
+  // Merge every checked lane's stops into ONE route (the first checked lane, in
+  // panel order). The other lanes' orders take on the target's identity
+  // (driver + load, or bucket); emptied buckets are removed and the sequence is
+  // cleared so the combined route can be re-optimized as one.
+  const mergeSelectedLanes = async () => {
+    const keys = lanes.filter((l) => selected.has(l.key)).map((l) => l.key);
+    if (keys.length < 2) return;
+    const targetKey = keys[0];
+    const target = lanes.find((l) => l.key === targetKey);
+    if (!target) return;
+    const patch: Partial<Delivery> = target.isBucket
+      ? { assigned_driver: target.driver, load_no: null, route_seq: null }
+      : { assigned_driver: target.driver, load_no: target.load > 1 ? target.load : null, route_seq: null };
+    let moved = 0;
+    for (const src of keys.slice(1)) {
+      for (const d of byDriver.get(src) ?? []) { await updateDelivery(d.id, patch); moved++; }
+      if (isBucket(src)) removeBucket(src);
+    }
+    clearRouteFor(targetKey);
+    setSelected(new Set([targetKey]));
+    notify(t(`Merged ${moved} stop(s) into ${laneLabel(targetKey)}`, `${moved} parada(s) unidas en ${laneLabel(targetKey)}`));
+  };
+
   const addBucket = (): string => {
     const existing = settings.route_buckets ?? [];
     let n = 1;
@@ -1061,6 +1084,12 @@ export default function RoutesPage() {
         <div className="card" style={{ flex: "1 1 250px", maxWidth: 340, margin: 0, padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid var(--line)" }}>
             <b style={{ flex: 1 }}>🚚 {t("Drivers & routes", "Choferes y rutas")}</b>
+            {selected.size >= 2 && (
+              <button className="btn btn-primary btn-sm" onClick={mergeSelectedLanes}
+                title={t("Combine the checked routes into one (merges into the top-most checked one)", "Combinar las rutas marcadas en una (se unen en la primera marcada)")}>
+                🔀 {t("Merge", "Unir")} ({selected.size})
+              </button>
+            )}
             <button className="btn btn-ghost btn-sm" onClick={addBucket} title={t("Build a route with no driver yet, then assign it later", "Arma una ruta sin chofer todavía, y asígnala después")}>＋ {t("Route", "Ruta")}</button>
             {focused && <button className="notif-clear" onClick={() => setSelected(new Set())}>{t("Show all", "Mostrar todos")}</button>}
           </div>
