@@ -1010,7 +1010,10 @@ export default function RoutesPage() {
   }
 
   const withStops = lanes.filter((u) => (byDriver.get(u.key) ?? []).length > 0);
-  const shownDrivers = focused ? lanes.filter((u) => selected.has(u.key)) : withStops;
+  // Route cards always show every route that has stops, PLUS any lane you've
+  // checked (even an empty one you're filling). Checking loads to merge, or
+  // focusing a driver on the map, never makes the other routes disappear.
+  const shownDrivers = lanes.filter((u) => (byDriver.get(u.key) ?? []).length > 0 || selected.has(u.key));
   // Simulating an add targets a driver, so it needs exactly one selected.
   const singleSel = selected.size === 1 ? [...selected][0] : null;
   const scheduledCount = dayOrders.length - unassigned.length;
