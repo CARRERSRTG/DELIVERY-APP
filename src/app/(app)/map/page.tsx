@@ -304,6 +304,7 @@ export default function MapPage() {
         .map((d) => ({
           id: d.id,
           order_no: d.order_no,
+          label: orderLabel(d),
           from: d.store || "—",
           to: cityFromAddress(d.delivery_address, cityNames),
           pallets: d.actual_pallets ?? d.est_pallets ?? null,
@@ -360,7 +361,7 @@ export default function MapPage() {
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <h2 style={{ margin: 0 }}>
-              #{selected.order_no} — {selected.account || t("(no account)", "(sin cuenta)")}{" "}
+              #{orderLabel(selected)} — {selected.account || t("(no account)", "(sin cuenta)")}{" "}
               <span className="sema" style={{ background: stageInfo(selected.stage).color, color: "#fff" }}>{stageLabel(selected.stage, lang)}</span>
               {riskChip(deliveryRisk(selected))}
             </h2>
@@ -475,7 +476,7 @@ export default function MapPage() {
                       className={me.role === "sales" ? "" : "clickable"}
                       onClick={() => { const d = dayOrders.find((x) => x.id === r.id); if (d) openPoint(d); }}
                     >
-                      <td className="ordno">#{r.order_no}</td>
+                      <td className="ordno">#{r.label}</td>
                       <td>{r.from}</td>
                       <td>{r.to}</td>
                       <td>{r.windows || "—"}</td>

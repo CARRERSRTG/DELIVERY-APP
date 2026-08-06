@@ -15,7 +15,7 @@ import { Sparkline } from "@/components/Sparkline";
 const DEFAULT_CAPACITY = 12;
 import {
   daysBetween, downloadCSV, endOfMonthISO, endOfWeekISO, fmtDate, fmtDuration, fmtMoney,
-  shiftDateISO, shiftMonthISO, startOfMonthISO, startOfWeekISO, toCSV, todayISO, deliveryColumns,
+  shiftDateISO, shiftMonthISO, startOfMonthISO, startOfWeekISO, toCSV, todayISO, deliveryColumns, orderLabel,
 } from "@/lib/utils";
 import type { Stage } from "@/lib/types";
 
@@ -535,7 +535,7 @@ export default function DashboardPage() {
                 <div className="bar-list">
                   {overdue.slice(0, 8).map((d) => (
                     <button key={d.id} className="overdue-row" onClick={() => openOrder(d.id)}>
-                      <span className="ordno">#{d.order_no}</span>
+                      <span className="ordno">#{orderLabel(d)}</span>
                       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.account || t("(no account)", "(sin cuenta)")}</span>
                       <span className="sema" style={{ background: stageInfo(d.stage).color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>
                       <span style={{ color: "var(--red)", fontWeight: 700 }}>{fmtDate(d.delivery_date)}</span>

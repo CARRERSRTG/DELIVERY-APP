@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { stageInfo, stageLabel } from "@/lib/constants";
-import { fmtWindows } from "@/lib/utils";
+import { fmtWindows, orderLabel } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 export interface BoardColumn {
@@ -73,7 +73,7 @@ export function DispatchBoard({
                 onDragEnd={() => { setDragId(null); setOver(null); }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
-                  <b className="ordno">#{d.order_no}</b>
+                  <b className="ordno">#{orderLabel(d)}</b>
                   <span className="sema" style={{ background: stageInfo(d.stage).color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>
                 </div>
                 <div style={{ fontSize: 13, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

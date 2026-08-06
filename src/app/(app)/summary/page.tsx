@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
-import { fmtDate, fmtMoney, isOverdue, orderOwner } from "@/lib/utils";
+import { fmtDate, fmtMoney, isOverdue, orderLabel, orderOwner } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 // ============================================================
@@ -71,7 +71,7 @@ export default function SummaryPage() {
           <div className="bar-list">
             {recent.map((d) => (
               <button key={d.id} className="acct-row" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => setOpen(d)}>
-                <span className="ordno">#{d.order_no}</span>
+                <span className="ordno">#{orderLabel(d)}</span>
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {d.account || t("(no account)", "(sin cuenta)")}
                 </span>

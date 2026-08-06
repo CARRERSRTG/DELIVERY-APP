@@ -152,7 +152,7 @@ export default function RoutesPage() {
   const [depotCoords, setDepotCoords] = useState<Record<string, [number, number]>>({});
   // A simulated "what if we add this order to this driver" plan, shown as a
   // dashed trace + totals until it's either confirmed (saved) or dismissed.
-  const [preview, setPreview] = useState<{ orderId: string; orderNo: number; driver: string; plan: RoutePlan } | null>(null);
+  const [preview, setPreview] = useState<{ orderId: string; code: string; driver: string; plan: RoutePlan } | null>(null);
   const [previewBusy, setPreviewBusy] = useState<string | null>(null);
   const [optimizingAll, setOptimizingAll] = useState(false);
   const [autoAssigning, setAutoAssigning] = useState(false);
@@ -217,6 +217,8 @@ export default function RoutesPage() {
   const geocoding = useAutoGeocode(dayOrders, updateDelivery);
 
   const drivers = useMemo(() => users.filter((u) => u.role === "driver"), [users]);
+  const realDriverNames = useMemo(() => new Set(drivers.map((d) => d.full_name)), [drivers]);
+  const isRealDriver = (name: string) => realDriverNames.has(name);
 
   // "Route buckets" — build routes before a real driver exists. Each bucket is a
   // pseudo-driver (its name lives in assigned_driver) so the whole route/optimize
@@ -328,6 +330,14 @@ export default function RoutesPage() {
     }
     removeBucket(bucket);
     notify(t(`Route "${bucket}" (${stops.length} stop(s)) → ${driver}, load ${load}`, `Ruta "${bucket}" (${stops.length} parada(s)) → ${driver}, carga ${load}`));
+  };
+  // Delete a whole route/load: unassign every stop (back to the pool) and, if
+  // it was a bucket, retire it.
+  const clearLane = async (laneKey: string) => {
+    const stops = [...(byDriver.get(laneKey) ?? [])];
+    for (const d of stops) await manualUnassign(d.id);
+    if (isBucket(laneKey)) removeBucket(laneKey);
+    notify(t(`Cleared ${stops.length} stop(s) from ${laneLabel(laneKey)}`, `${stops.length} parada(s) quitadas de ${laneLabel(laneKey)}`));
   };
   // Drivers on vacation/sick/maintenance for the selected day — excluded from auto-assign.
   const unavailableToday = useMemo(
@@ -803,7 +813,7 @@ export default function RoutesPage() {
     setErr(null);
     try {
       const plan = await computeRoute(driver, [...(byDriver.get(driver) ?? []), d]);
-      setPreview({ orderId: d.id, orderNo: d.order_no, driver, plan });
+      setPreview({ orderId: d.id, code: orderLabel(d), driver, plan });
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -1170,6 +1180,7 @@ export default function RoutesPage() {
                 const info = routeInfo[u.key];
                 const on = selected.has(u.key);
                 const bucket = u.isBucket;
+                const needsDriver = !isRealDriver(u.driver);
                 // Load vs truck capacity — a filled bar the dispatcher can read
                 // at a glance; over capacity turns red (the day needs a reload trip).
                 const pallets = stops.reduce((s, o) => s + Number(o.actual_pallets ?? o.est_pallets ?? 0), 0);
@@ -1187,9 +1198,9 @@ export default function RoutesPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
                         {u.label}
-                        {bucket && <span className="sema" style={{ background: "var(--accent)", color: "#fff", fontSize: 10 }}>🧭 {t("route", "ruta")}</span>}
+                        {needsDriver && <span className="sema" style={{ background: "var(--accent)", color: "#fff", fontSize: 10 }}>🧭 {t("route", "ruta")}</span>}
                         {u.load > 1 && <span className="sema" style={{ background: "var(--gray)", color: "#fff", fontSize: 10 }}>🚚 {t("load", "carga")} {u.load}</span>}
-                        {!bucket && u.load === 1 && (
+                        {!needsDriver && u.load === 1 && (
                           <button className="notif-clear" style={{ fontWeight: 700 }} title={t("Add another load (a separate trip) to this driver", "Agregar otra carga (viaje aparte) a este chofer")}
                             onClick={(e) => { e.stopPropagation(); addLoadFor(u.driver); }}>＋ {t("load", "carga")}</button>
                         )}
@@ -1241,8 +1252,8 @@ export default function RoutesPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <b>
               🔮 {t(
-                `Adding #${preview.orderNo} to ${laneLabel(preview.driver)}:`,
-                `Agregando #${preview.orderNo} a ${laneLabel(preview.driver)}:`,
+                `Adding #${preview.code} to ${laneLabel(preview.driver)}:`,
+                `Agregando #${preview.code} a ${laneLabel(preview.driver)}:`,
               )}
             </b>
             <span>
@@ -1457,7 +1468,7 @@ export default function RoutesPage() {
                         <input type="checkbox" checked={selectedOrders.has(d.id)} readOnly aria-label={`#${orderLabel(d)}`} />
                         {selectedOrders.has(d.id) && <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: selColorById.get(d.id), marginLeft: 5, verticalAlign: "middle", boxShadow: "0 0 0 1px var(--line)" }} />}
                       </td>
-                      <td className="ordno">#{d.order_no}</td>
+                      <td className="ordno">#{orderLabel(d)}</td>
                       <td>{d.account || "—"}</td>
                       <td>{d.store || "—"}</td>
                       <td>{d.actual_pallets ?? d.est_pallets ?? "—"}</td>
@@ -1519,6 +1530,9 @@ export default function RoutesPage() {
         const trips = splitIntoTrips(stops, capacity);
         const isC = isCollapsed(u.key);
         const bucket = u.isBucket;
+        // A route that isn't on a real driver (a bucket, or one recovered under
+        // a stale name) can be handed to a driver.
+        const needsDriver = !isRealDriver(u.driver);
         // Stops whose optimized ETA lands after the delivery window closes —
         // surfaced as a banner so the dispatcher acts before dispatch, not just
         // as a red cell buried in the table.
@@ -1534,7 +1548,7 @@ export default function RoutesPage() {
               <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} onClick={() => toggleCollapse(u.key)} title={t("Collapse", "Contraer")}>{isC ? "▸" : "▾"}</button>
               <span style={{ width: 14, height: 14, borderRadius: "50%", background: colorFor(u.driver), border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)", flex: "0 0 auto" }} />
               <h2 style={{ margin: 0 }}>{u.label}</h2>
-              {bucket && <span className="sema" style={{ background: "var(--accent)", color: "#fff" }}>🧭 {t("route", "ruta")}</span>}
+              {needsDriver && <span className="sema" style={{ background: "var(--accent)", color: "#fff" }}>🧭 {t("route (no driver)", "ruta (sin chofer)")}</span>}
               <span className="count-tag">{stops.length} {t("stops", "paradas")}</span>
               {stops.length > 0 && trips.length > 1 && (
                 <span className="sema" style={{ background: "var(--amber)", color: "#fff" }}>{trips.length} {t("truckloads", "viajes")}</span>
@@ -1553,7 +1567,7 @@ export default function RoutesPage() {
               <button className="btn btn-primary btn-sm" disabled={stops.length < 2 || busyDriver === u.key} onClick={() => optimize(u.key)}>
                 {busyDriver === u.key ? "…" : `🧭 ${t("Optimize route", "Optimizar ruta")}`}
               </button>
-              {bucket && (
+              {needsDriver && (
                 <select
                   defaultValue=""
                   disabled={stops.length === 0 || drivers.length === 0}
@@ -1564,6 +1578,10 @@ export default function RoutesPage() {
                   <option value="">👤 {t("Assign route to…", "Asignar ruta a…")}</option>
                   {drivers.map((dv) => <option key={dv.id} value={dv.full_name}>{dv.full_name}</option>)}
                 </select>
+              )}
+              {stops.length > 0 && (
+                <button className="btn btn-danger btn-sm" title={t("Clear this route — send every stop back to Unassigned", "Vaciar esta ruta — devolver todas las paradas a Sin asignar")}
+                  onClick={() => clearLane(u.key)}>🗑 {t("Clear", "Vaciar")}</button>
               )}
             </div>
             {!isC && <>
@@ -1655,7 +1673,7 @@ export default function RoutesPage() {
                             return (
                               <tr key={d.id}>
                                 <td style={{ borderLeft: `4px solid ${tColor}` }}>{d.route_seq != null ? i + 1 : "—"}</td>
-                                <td className="ordno">#{d.order_no}</td>
+                                <td className="ordno">#{orderLabel(d)}</td>
                                 <td>{d.account || "—"}</td>
                                 <td>{d.delivery_address || "—"}</td>
                                 <td style={{ fontWeight: 600, color: late ? "var(--red)" : undefined }} title={late ? t("ETA is after the delivery window", "La llegada es después de la ventana") : undefined}>
