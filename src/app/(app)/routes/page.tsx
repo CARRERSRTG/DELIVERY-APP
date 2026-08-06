@@ -140,7 +140,7 @@ export default function RoutesPage() {
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<"routes" | "orders" | "board" | "timeline">("routes");
+  const [tab, setTab] = useState<"routes" | "orders" | "board" | "timeline" | "scheduled">("routes");
   const [busyDriver, setBusyDriver] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number }>>({});
   const [routeLines, setRouteLines] = useState<Record<string, TripTrace[]>>({});
@@ -369,6 +369,16 @@ export default function RoutesPage() {
 
   const unassigned = useMemo(
     () => dayOrders.filter((d) => !d.assigned_driver).sort((a, b) => a.order_no - b.order_no),
+    [dayOrders],
+  );
+  // Every assigned order for the day, grouped view for the "Scheduled" list —
+  // sorted by driver, then load, then optimized sequence.
+  const scheduled = useMemo(
+    () => dayOrders.filter((d) => !!d.assigned_driver).sort((a, b) =>
+      (a.assigned_driver ?? "").localeCompare(b.assigned_driver ?? "") ||
+      loadNoOf(a) - loadNoOf(b) ||
+      (a.route_seq ?? 9999) - (b.route_seq ?? 9999) ||
+      a.order_no - b.order_no),
     [dayOrders],
   );
 
@@ -1072,7 +1082,7 @@ export default function RoutesPage() {
       {/* ---------- Stats strip (each tile jumps to the matching view) ---------- */}
       <div className="card" style={{ display: "flex", padding: 0, overflow: "hidden", marginBottom: 14 }}>
         {([
-          { n: scheduledCount, label: t("Scheduled", "Programadas"), target: "board" as const },
+          { n: scheduledCount, label: t("Scheduled", "Programadas"), target: "scheduled" as const },
           { n: unassigned.length, label: t("Unscheduled", "Sin programar"), accent: true, target: "orders" as const },
           { n: dayOrders.length, label: t("Total", "Total"), target: "board" as const },
           { n: withStops.length, label: t("Routes", "Rutas"), target: "routes" as const },
@@ -1229,9 +1239,64 @@ export default function RoutesPage() {
       <div className="viewtoggle" style={{ marginBottom: 12 }}>
         <button className={"vt " + (tab === "routes" ? "on" : "")} onClick={() => setTab("routes")}>🧭 {t("Routes", "Rutas")} ({withStops.length})</button>
         <button className={"vt " + (tab === "orders" ? "on" : "")} onClick={() => setTab("orders")}>📦 {t("Unassigned", "Sin asignar")} ({unassigned.length})</button>
+        <button className={"vt " + (tab === "scheduled" ? "on" : "")} onClick={() => setTab("scheduled")}>✅ {t("Scheduled", "Programadas")} ({scheduled.length})</button>
         <button className={"vt " + (tab === "board" ? "on" : "")} onClick={() => setTab("board")}>🗂 {t("Board", "Tablero")}</button>
         <button className={"vt " + (tab === "timeline" ? "on" : "")} onClick={() => setTab("timeline")}>📅 {t("Timeline", "Horario")}</button>
       </div>
+
+      {/* ---------- Scheduled (assigned) orders list ---------- */}
+      {tab === "scheduled" && (
+        <div className="card" style={{ margin: 0 }}>
+          <div className="page-head" style={{ marginBottom: 8 }}>
+            <h2 style={{ margin: 0 }}>✅ {t("Scheduled orders", "Órdenes programadas")} <span className="count-tag">{scheduled.length}</span></h2>
+          </div>
+          {scheduled.length === 0 ? (
+            <div className="empty">{t("No orders are assigned to a driver or route yet for this date.", "Aún no hay órdenes asignadas a un chofer o ruta en esta fecha.")}</div>
+          ) : (
+            <div className="tbl-scroll">
+              <table className="orders">
+                <thead>
+                  <tr>
+                    <th>{t("ID", "ID")}</th>
+                    <th>{t("Account", "Cuenta")}</th>
+                    <th>{t("Driver / Route", "Chofer / Ruta")}</th>
+                    <th>{t("Load", "Carga")}</th>
+                    <th>{t("Stop", "Parada")}</th>
+                    <th>{t("Windows", "Ventanas")}</th>
+                    <th>{t("Pallets", "Tarimas")}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduled.map((d) => {
+                    const laneKey = orderLaneKey(d)!;
+                    const seqList = byDriver.get(laneKey) ?? [];
+                    const idx = seqList.findIndex((x) => x.id === d.id);
+                    const bucket = isBucket(d.assigned_driver || "");
+                    return (
+                      <tr key={d.id}>
+                        <td className="ordno">#{orderLabel(d)}</td>
+                        <td>{d.account || "—"}</td>
+                        <td>
+                          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: colorFor(d.assigned_driver), marginRight: 6, verticalAlign: "-1px", boxShadow: "0 0 0 1px var(--line)" }} />
+                          {d.assigned_driver}{bucket ? ` 🧭` : ""}
+                        </td>
+                        <td>{!bucket && loadNoOf(d) > 1 ? loadNoOf(d) : (bucket ? "—" : 1)}</td>
+                        <td>{d.route_seq != null ? idx + 1 : "—"}</td>
+                        <td>{fmtWindows(d.delivery_windows)}</td>
+                        <td>{d.actual_pallets ?? d.est_pallets ?? "—"}</td>
+                        <td style={{ textAlign: "right" }}>
+                          <button className="btn btn-ghost btn-sm" title={t("Unassign", "Quitar asignación")} onClick={() => manualUnassign(d.id)}>✕</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ---------- Day timeline (Gantt) ---------- */}
       {tab === "timeline" && (
