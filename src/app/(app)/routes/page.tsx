@@ -836,18 +836,18 @@ export default function RoutesPage() {
 
   // Manual nudge — only offered once every stop already has a computed
   // sequence, so swapping two positions can't collide with an unset one.
-  const move = async (driver: string, index: number, dir: -1 | 1) => {
-    const list = byDriver.get(driver) ?? [];
+  const move = async (laneKey: string, index: number, dir: -1 | 1) => {
+    const list = [...(byDriver.get(laneKey) ?? [])];
     const j = index + dir;
     if (j < 0 || j >= list.length) return;
-    const a = list[index], b = list[j];
+    // Reorder the whole list and renumber it 0..n-1. Works whether or not the
+    // route was optimized yet, so the arrows let you hand-arrange any load.
+    const [item] = list.splice(index, 1);
+    list.splice(j, 0, item);
     // The traced path/distance were computed for the old order — a manual
-    // nudge no longer matches them, so drop both rather than mislead.
-    clearRouteFor(driver);
-    await Promise.all([
-      updateDelivery(a.id, { route_seq: b.route_seq }),
-      updateDelivery(b.id, { route_seq: a.route_seq }),
-    ]);
+    // nudge no longer matches them, so drop them rather than mislead.
+    clearRouteFor(laneKey);
+    await Promise.all(list.map((d, i) => updateDelivery(d.id, { route_seq: i })));
   };
 
   const focused = selected.size > 0;
@@ -1546,8 +1546,15 @@ export default function RoutesPage() {
           <div className="card" key={u.id} style={{ margin: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
               <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} onClick={() => toggleCollapse(u.key)} title={t("Collapse", "Contraer")}>{isC ? "▸" : "▾"}</button>
-              <span style={{ width: 14, height: 14, borderRadius: "50%", background: colorFor(u.driver), border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)", flex: "0 0 auto" }} />
-              <h2 style={{ margin: 0 }}>{u.label}</h2>
+              <span
+                onClick={() => focusOnly(u.key)}
+                title={t("Show this route on the map", "Mostrar esta ruta en el mapa")}
+                style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+              >
+                <span style={{ width: 14, height: 14, borderRadius: "50%", background: colorFor(u.driver), border: "2px solid #fff", boxShadow: "0 0 0 1px var(--line)", flex: "0 0 auto" }} />
+                <h2 style={{ margin: 0 }}>{u.label}</h2>
+                <span className="hint" style={{ fontSize: 12 }}>🗺</span>
+              </span>
               {needsDriver && <span className="sema" style={{ background: "var(--accent)", color: "#fff" }}>🧭 {t("route (no driver)", "ruta (sin chofer)")}</span>}
               <span className="count-tag">{stops.length} {t("stops", "paradas")}</span>
               {stops.length > 0 && trips.length > 1 && (
@@ -1681,12 +1688,9 @@ export default function RoutesPage() {
                                 </td>
                                 <td>{fmtWindows(d.delivery_windows)}</td>
                                 <td style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                                  {sequenced && (
-                                    <>
-                                      <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => move(u.key, i, -1)} title={t("Move up", "Subir")}>↑</button>
-                                      <button className="btn btn-ghost btn-sm" disabled={i === stops.length - 1} onClick={() => move(u.key, i, 1)} title={t("Move down", "Bajar")}>↓</button>
-                                    </>
-                                  )}
+                                  {/* Hand-arrange the stops — works even before the route is optimized. */}
+                                  <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => move(u.key, i, -1)} title={t("Move up", "Subir")}>↑</button>
+                                  <button className="btn btn-ghost btn-sm" disabled={i === stops.length - 1} onClick={() => move(u.key, i, 1)} title={t("Move down", "Bajar")}>↓</button>
                                   <button className="btn btn-ghost btn-sm" onClick={() => unassign(d.id)} title={t("Unassign", "Quitar asignación")}>✕</button>
                                 </td>
                               </tr>
