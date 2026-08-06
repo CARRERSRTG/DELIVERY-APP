@@ -1069,18 +1069,28 @@ export default function RoutesPage() {
         );
       })()}
 
-      {/* ---------- Stats strip ---------- */}
+      {/* ---------- Stats strip (each tile jumps to the matching view) ---------- */}
       <div className="card" style={{ display: "flex", padding: 0, overflow: "hidden", marginBottom: 14 }}>
-        {[
-          { n: scheduledCount, label: t("Scheduled", "Programadas") },
-          { n: unassigned.length, label: t("Unscheduled", "Sin programar"), accent: true },
-          { n: dayOrders.length, label: t("Total", "Total") },
-          { n: withStops.length, label: t("Routes", "Rutas") },
-        ].map((s, i) => (
-          <div key={i} style={{ flex: 1, textAlign: "center", padding: "12px 8px", borderLeft: i ? "1px solid var(--line)" : undefined }}>
+        {([
+          { n: scheduledCount, label: t("Scheduled", "Programadas"), target: "board" as const },
+          { n: unassigned.length, label: t("Unscheduled", "Sin programar"), accent: true, target: "orders" as const },
+          { n: dayOrders.length, label: t("Total", "Total"), target: "board" as const },
+          { n: withStops.length, label: t("Routes", "Rutas"), target: "routes" as const },
+        ]).map((s, i) => (
+          <button
+            key={i}
+            onClick={() => setTab(s.target)}
+            title={t("Show", "Mostrar") + " " + s.label}
+            style={{
+              flex: 1, textAlign: "center", padding: "12px 8px", cursor: "pointer",
+              border: "none", borderLeft: i ? "1px solid var(--line)" : undefined,
+              background: tab === s.target ? "var(--accent-soft)" : "transparent",
+              borderBottom: tab === s.target ? "3px solid var(--accent)" : "3px solid transparent",
+            }}
+          >
             <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 22, fontWeight: 800, color: s.accent && s.n > 0 ? "var(--amber)" : "var(--text)" }}>{s.n}</div>
             <div className="hint" style={{ marginTop: 0 }}>{s.label}</div>
-          </div>
+          </button>
         ))}
       </div>
 
