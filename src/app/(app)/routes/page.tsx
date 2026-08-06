@@ -136,6 +136,10 @@ export default function RoutesPage() {
   const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, availability, ready } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
+  // "All dates" ignores the date filter so every routable order (and the routes
+  // built on them) shows regardless of delivery date — handy when a route was
+  // built for another day and seems to have vanished.
+  const [allDates, setAllDates] = useState(false);
   // Which drivers are highlighted on the map / focused in the tables. Empty
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
@@ -199,10 +203,11 @@ export default function RoutesPage() {
     () =>
       deliveries.filter((d) => {
         if (!ROUTE_STAGES.includes(d.stage)) return false;
+        if (allDates) return true;               // ignore the date filter entirely
         if (d.delivery_date === date) return true;
         return viewingToday && isOverdue(d);
       }),
-    [deliveries, date, viewingToday],
+    [deliveries, date, viewingToday, allDates],
   );
 
   // The one thing logistics can change on a carried-forward order: push its
@@ -1034,13 +1039,20 @@ export default function RoutesPage() {
         <h2>{t("Routes Manager", "Gestor de Rutas")} <span className="count-tag">{dayOrders.length}</span></h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div className="viewtoggle">
-            <button className="vt" onClick={() => setDate((d) => shiftDateISO(d, -1))} title={t("Previous day", "Día anterior")}>◀</button>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "auto" }} />
-            <button className="vt" onClick={() => setDate((d) => shiftDateISO(d, 1))} title={t("Next day", "Día siguiente")}>▶</button>
+            <button className="vt" disabled={allDates} onClick={() => setDate((d) => shiftDateISO(d, -1))} title={t("Previous day", "Día anterior")}>◀</button>
+            <input type="date" value={date} disabled={allDates} onChange={(e) => setDate(e.target.value)} style={{ width: "auto" }} />
+            <button className="vt" disabled={allDates} onClick={() => setDate((d) => shiftDateISO(d, 1))} title={t("Next day", "Día siguiente")}>▶</button>
           </div>
-          {date !== todayISO() && (
+          {date !== todayISO() && !allDates && (
             <button className="btn btn-ghost btn-sm" onClick={() => setDate(todayISO())}>{t("Today", "Hoy")}</button>
           )}
+          <button
+            className={"btn btn-sm " + (allDates ? "btn-primary" : "btn-ghost")}
+            onClick={() => setAllDates((v) => !v)}
+            title={t("Show routable orders from every date, not just the selected day", "Mostrar órdenes de todas las fechas, no solo el día elegido")}
+          >
+            🗓 {allDates ? t("All dates ✓", "Todas ✓") : t("All dates", "Todas")}
+          </button>
           <button
             className="btn btn-amber btn-sm"
             disabled={autoAssigning || optimizingAll || busyDriver != null || unassigned.length === 0 || drivers.length === 0}
@@ -1062,18 +1074,20 @@ export default function RoutesPage() {
 
       {/* ---------- Why-is-it-empty helper ---------- */}
       {dayOrders.length === 0 && (() => {
-        const preApproval = deliveries.filter((d) => d.delivery_date === date && ["draft", "pending"].includes(d.stage)).length;
-        const otherDates = deliveries.filter((d) => ROUTE_STAGES.includes(d.stage) && !d.assigned_driver && d.delivery_date !== date).length;
+        const preApprovalAll = deliveries.filter((d) => ["draft", "pending"].includes(d.stage)).length;
+        const otherDates = deliveries.filter((d) => ROUTE_STAGES.includes(d.stage) && d.delivery_date !== date).length;
         return (
           <div className="card" style={{ marginBottom: 14, background: "#fff7ec", borderColor: "var(--amber)" }}>
-            <b style={{ color: "#b9791a" }}>⚠ {t("No routable orders for this date.", "No hay órdenes para rutas en esta fecha.")}</b>
+            <b style={{ color: "#b9791a" }}>⚠ {allDates ? t("No routable orders at all.", "No hay órdenes para rutas.") : t("No routable orders for this date.", "No hay órdenes para rutas en esta fecha.")}</b>
             <div className="hint" style={{ marginTop: 4 }}>
-              {t(`Orders appear here only once they're Approved (Programmed) and their delivery date is ${fmtDate(date)}.`,
-                 `Las órdenes aparecen aquí solo cuando están Aprobadas (Programadas) y su fecha de entrega es ${fmtDate(date)}.`)}
-              {preApproval > 0 && " " + t(`${preApproval} order(s) on this date are still awaiting approval — approve them first.`,
-                                          `${preApproval} orden(es) en esta fecha aún esperan aprobación — apruébelas primero.`)}
-              {otherDates > 0 && " " + t(`${otherDates} approved order(s) sit on other dates — use the ◀ ▶ date arrows.`,
-                                         `${otherDates} orden(es) aprobadas están en otras fechas — use las flechas ◀ ▶.`)}
+              {allDates
+                ? t("Orders appear here only once they're Approved (Programmed).", "Las órdenes aparecen aquí solo cuando están Aprobadas (Programadas).")
+                : t(`Orders appear here only once they're Approved (Programmed) and their delivery date is ${fmtDate(date)}.`,
+                    `Las órdenes aparecen aquí solo cuando están Aprobadas (Programadas) y su fecha de entrega es ${fmtDate(date)}.`)}
+              {preApprovalAll > 0 && " " + t(`${preApprovalAll} order(s) are still awaiting approval — approve them first.`,
+                                             `${preApprovalAll} orden(es) aún esperan aprobación — apruébelas primero.`)}
+              {!allDates && otherDates > 0 && " " + t(`${otherDates} approved order(s) sit on other dates — tap "All dates" or use the ◀ ▶ arrows.`,
+                                                      `${otherDates} orden(es) aprobadas están en otras fechas — toque "Todas" o use las flechas ◀ ▶.`)}
             </div>
           </div>
         );
