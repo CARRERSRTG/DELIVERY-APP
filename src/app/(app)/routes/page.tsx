@@ -140,6 +140,10 @@ export default function RoutesPage() {
   // built on them) shows regardless of delivery date — handy when a route was
   // built for another day and seems to have vanished.
   const [allDates, setAllDates] = useState(false);
+  // Layout: full-width route cards (see all info) and a collapsible map/driver
+  // panel so the route detail can use the whole screen.
+  const [wideRoutes, setWideRoutes] = useState(true);
+  const [showTop, setShowTop] = useState(true);
   // Which drivers are highlighted on the map / focused in the tables. Empty
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
@@ -1157,7 +1161,22 @@ export default function RoutesPage() {
 
       {err && <div className="hint" style={{ color: "var(--red)", marginBottom: 8 }}>⚠ {err}</div>}
 
+      {/* ---------- Layout toolbar ---------- */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+        <button className={"btn btn-sm " + (showTop ? "btn-ghost" : "btn-primary")} onClick={() => setShowTop((v) => !v)}
+          title={t("Show or hide the map + driver panel to free up space", "Mostrar u ocultar el mapa y el panel para ganar espacio")}>
+          🗺 {showTop ? t("Hide map & drivers", "Ocultar mapa y choferes") : t("Show map & drivers", "Mostrar mapa y choferes")}
+        </button>
+        {tab === "routes" && (
+          <button className="btn btn-ghost btn-sm" onClick={() => setWideRoutes((v) => !v)}
+            title={t("Toggle full-width route cards vs a compact grid", "Alternar tarjetas de ruta a ancho completo o cuadrícula compacta")}>
+            {wideRoutes ? "▦ " + t("Grid", "Cuadrícula") : "▭ " + t("Wide", "Ancho")}
+          </button>
+        )}
+      </div>
+
       {/* ---------- Driver panel + map ---------- */}
+      {showTop && (<>
       <div style={{ display: "flex", gap: 14, alignItems: "stretch", flexWrap: "wrap", marginBottom: 8 }}>
         <div className="card" style={{ flex: "1 1 250px", maxWidth: 340, margin: 0, padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid var(--line)" }}>
@@ -1232,7 +1251,7 @@ export default function RoutesPage() {
           )}
         </div>
         <div className="card" style={{ flex: "3 1 460px", margin: 0, padding: 0, overflow: "hidden" }}>
-          <LeafletMap points={points} lines={lines} onLineClick={onLineClick} fitTo={fitTo} height={520} onPointClick={(id) => {
+          <LeafletMap points={points} lines={lines} onLineClick={onLineClick} fitTo={fitTo} height={430} onPointClick={(id) => {
             // Click any order pin (assigned or pool) to toggle its PU→DEL view.
             const d = dayOrders.find((x) => x.id === id);
             if (d) toggleOrder(d.id);
@@ -1245,6 +1264,7 @@ export default function RoutesPage() {
           "Todas las rutas están en el mapa a la vez. Haz clic en una ruta o un chofer para resaltarla (el resto se atenúa y el mapa hace zoom); marca varios choferes para comparar. Cada ruta hace un ciclo desde el punto de recolección (P) y regresa. Una línea punteada es una simulación sin guardar.",
         )}
       </div>
+      </>)}
 
       {/* ---------- Simulation banner ---------- */}
       {preview && (
@@ -1515,7 +1535,7 @@ export default function RoutesPage() {
 
       {/* ---------- Per-driver routes ---------- */}
       {tab === "routes" && (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: 14, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: wideRoutes ? "minmax(0, 1fr)" : "repeat(auto-fit, minmax(440px, 1fr))", gap: 14, alignItems: "start" }}>
       {shownDrivers.length === 0 && (
         <div className="card" style={{ margin: 0 }}>
           <div className="empty">{t("No routes yet — assign orders to drivers in the Unassigned tab, or select drivers on the left.", "Aún sin rutas — asigna órdenes a los choferes en la pestaña Sin asignar, o selecciona choferes a la izquierda.")}</div>
