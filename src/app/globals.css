@@ -149,6 +149,21 @@ label { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: bloc
   background-attachment: local, local, scroll, scroll;
 }
 table.orders { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 820px; }
+
+/* Excel-style resizable columns (see lib/use-col-widths). Fixed layout so the
+   per-column widths are respected; cells clip with an ellipsis. */
+table.tbl-resize { table-layout: fixed; min-width: 0; width: max-content; }
+table.tbl-resize th { position: relative; overflow: hidden; text-overflow: ellipsis; }
+table.tbl-resize td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-resizer {
+  position: absolute; top: 0; right: 0; width: 8px; height: 100%;
+  cursor: col-resize; user-select: none; touch-action: none;
+}
+.col-resizer::after {
+  content: ""; position: absolute; top: 4px; bottom: 4px; right: 3px; width: 2px;
+  background: var(--line); border-radius: 2px;
+}
+.col-resizer:hover::after { background: var(--accent); }
 table.orders th, table.orders td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
 table.orders th { background: var(--paper); font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-soft); position: sticky; top: 0; }
 table.orders tr:last-child td { border-bottom: none; }

@@ -11,6 +11,7 @@ import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
 import { fallbackDriverColor, fmtDate, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
 import { LANE_SEP, driverOf, laneKeyFor, loadFromKey, loadNoOf, nextLoadFor as nextLoadForPure, orderLaneKey as orderLaneKeyPure, planMerge } from "@/lib/route-lanes";
+import { useColWidths } from "@/lib/use-col-widths";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery, Profile } from "@/lib/types";
 
@@ -144,6 +145,10 @@ export default function RoutesPage() {
   // panel so the route detail can use the whole screen.
   const [wideRoutes, setWideRoutes] = useState(true);
   const [showTop, setShowTop] = useState(true);
+  // Excel-style resizable columns, remembered per table.
+  const schedCols = useColWidths("rtg_routes_sched", [96, 190, 170, 70, 70, 130, 84, 60]);
+  const poolCols = useColWidths("rtg_routes_pool", [36, 96, 180, 130, 84, 140, 130, 120, 160]);
+  const stopCols = useColWidths("rtg_routes_stops", [46, 96, 180, 260, 84, 130, 120]);
   // Which drivers are highlighted on the map / focused in the tables. Empty
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
@@ -1312,21 +1317,23 @@ export default function RoutesPage() {
         <div className="card" style={{ margin: 0 }}>
           <div className="page-head" style={{ marginBottom: 8 }}>
             <h2 style={{ margin: 0 }}>✅ {t("Scheduled orders", "Órdenes programadas")} <span className="count-tag">{scheduled.length}</span></h2>
+            <button className="btn btn-ghost btn-sm" onClick={schedCols.reset} title={t("Reset column widths", "Restablecer anchos")}>↔ {t("Reset columns", "Restablecer columnas")}</button>
           </div>
           {scheduled.length === 0 ? (
             <div className="empty">{t("No orders are assigned to a driver or route yet for this date.", "Aún no hay órdenes asignadas a un chofer o ruta en esta fecha.")}</div>
           ) : (
             <div className="tbl-scroll">
-              <table className="orders">
+              <table className="orders tbl-resize">
+                <colgroup>{schedCols.widths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
                 <thead>
                   <tr>
-                    <th>{t("ID", "ID")}</th>
-                    <th>{t("Account", "Cuenta")}</th>
-                    <th>{t("Driver / Route", "Chofer / Ruta")}</th>
-                    <th>{t("Load", "Carga")}</th>
-                    <th>{t("Stop", "Parada")}</th>
-                    <th>{t("Windows", "Ventanas")}</th>
-                    <th>{t("Pallets", "Tarimas")}</th>
+                    <th>{t("ID", "ID")}<span className="col-resizer" onMouseDown={schedCols.startResize(0)} /></th>
+                    <th>{t("Account", "Cuenta")}<span className="col-resizer" onMouseDown={schedCols.startResize(1)} /></th>
+                    <th>{t("Driver / Route", "Chofer / Ruta")}<span className="col-resizer" onMouseDown={schedCols.startResize(2)} /></th>
+                    <th>{t("Load", "Carga")}<span className="col-resizer" onMouseDown={schedCols.startResize(3)} /></th>
+                    <th>{t("Stop", "Parada")}<span className="col-resizer" onMouseDown={schedCols.startResize(4)} /></th>
+                    <th>{t("Windows", "Ventanas")}<span className="col-resizer" onMouseDown={schedCols.startResize(5)} /></th>
+                    <th>{t("Pallets", "Tarimas")}<span className="col-resizer" onMouseDown={schedCols.startResize(6)} /></th>
                     <th></th>
                   </tr>
                 </thead>
@@ -1453,10 +1460,11 @@ export default function RoutesPage() {
           <div className="empty">{t("No unassigned orders match your search.", "Ninguna orden sin asignar coincide con la búsqueda.")}</div>
         ) : (
           <div className="tbl-scroll" style={{ border: "none" }}>
-            <table className="orders" style={{ minWidth: 560 }}>
+            <table className="orders tbl-resize">
+              <colgroup>{poolCols.widths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
               <thead>
                 <tr>
-                  <th style={{ width: 28 }}>
+                  <th>
                     <input
                       type="checkbox"
                       aria-label={t("Select all", "Seleccionar todo")}
@@ -1469,13 +1477,13 @@ export default function RoutesPage() {
                       })}
                     />
                   </th>
-                  <th>{t("ID", "ID")}</th>
-                  <th>{t("Account", "Cuenta")}</th>
-                  <th>{t("Store", "Tienda")}</th>
-                  <th>{t("Pallets", "Tarimas")}</th>
-                  <th>{t("Delivery Date", "Fecha de Entrega")}</th>
-                  <th>{t("Windows", "Ventanas")}</th>
-                  <th>{t("Status", "Estado")}</th>
+                  <th>{t("ID", "ID")}<span className="col-resizer" onMouseDown={poolCols.startResize(1)} /></th>
+                  <th>{t("Account", "Cuenta")}<span className="col-resizer" onMouseDown={poolCols.startResize(2)} /></th>
+                  <th>{t("Store", "Tienda")}<span className="col-resizer" onMouseDown={poolCols.startResize(3)} /></th>
+                  <th>{t("Pallets", "Tarimas")}<span className="col-resizer" onMouseDown={poolCols.startResize(4)} /></th>
+                  <th>{t("Delivery Date", "Fecha de Entrega")}<span className="col-resizer" onMouseDown={poolCols.startResize(5)} /></th>
+                  <th>{t("Windows", "Ventanas")}<span className="col-resizer" onMouseDown={poolCols.startResize(6)} /></th>
+                  <th>{t("Status", "Estado")}<span className="col-resizer" onMouseDown={poolCols.startResize(7)} /></th>
                   <th>{singleSel ? t("Add to", "Agregar a") : t("Assign to", "Asignar a")}</th>
                 </tr>
               </thead>
@@ -1663,15 +1671,16 @@ export default function RoutesPage() {
             )}
             {stops.length > 0 && (
               <div className="tbl-scroll" style={{ border: "none" }}>
-                <table className="orders" style={{ minWidth: 480 }}>
+                <table className="orders tbl-resize">
+                  <colgroup>{stopCols.widths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
                   <thead>
                     <tr>
-                      <th>#</th>
-                      <th>{t("ID", "ID")}</th>
-                      <th>{t("Account", "Cuenta")}</th>
-                      <th>{t("Address", "Dirección")}</th>
-                      <th>{t("ETA", "Llegada")}</th>
-                      <th>{t("Windows", "Ventanas")}</th>
+                      <th>#<span className="col-resizer" onMouseDown={stopCols.startResize(0)} /></th>
+                      <th>{t("ID", "ID")}<span className="col-resizer" onMouseDown={stopCols.startResize(1)} /></th>
+                      <th>{t("Account", "Cuenta")}<span className="col-resizer" onMouseDown={stopCols.startResize(2)} /></th>
+                      <th>{t("Address", "Dirección")}<span className="col-resizer" onMouseDown={stopCols.startResize(3)} /></th>
+                      <th>{t("ETA", "Llegada")}<span className="col-resizer" onMouseDown={stopCols.startResize(4)} /></th>
+                      <th>{t("Windows", "Ventanas")}<span className="col-resizer" onMouseDown={stopCols.startResize(5)} /></th>
                       <th></th>
                     </tr>
                   </thead>
