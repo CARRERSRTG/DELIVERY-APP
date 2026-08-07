@@ -6,6 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
 import { deliveryColumns, downloadCSV, fmtDate, fmtMoney, isOverdue, orderLabel, orderOwner, toCSV, todayISO } from "@/lib/utils";
+import { useColWidths } from "@/lib/use-col-widths";
 import type { Delivery } from "@/lib/types";
 
 // ============================================================
@@ -36,6 +37,8 @@ export default function AccountsPage() {
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [open, setOpen] = useState<Delivery | null>(null);
+  // Excel-style resizable columns for the accounts list.
+  const acctCols = useColWidths("rtg_accounts", [220, 90, 80, 110, 90, 90, 100, 140]);
 
   // Per-user customer visibility (set on the Users page). Admin always "all".
   const myScope: "all" | "own" = me?.role === "admin" ? "all" : (settings.customer_scope?.[me?.id ?? ""] ?? "all");
@@ -134,6 +137,7 @@ export default function AccountsPage() {
     <>
       <div className="page-head">
         <h2>{t("Accounts", "Cuentas")} <span className="count-tag">{rows.length}</span></h2>
+        <button className="btn btn-ghost btn-sm" onClick={acctCols.reset} title={t("Reset column widths", "Restablecer anchos")}>↔ {t("Reset columns", "Restablecer columnas")}</button>
       </div>
 
       <div className="filters">
@@ -163,16 +167,17 @@ export default function AccountsPage() {
         <div className="empty">{t("No accounts match.", "No hay cuentas que coincidan.")}</div>
       ) : (
         <div className="tbl-scroll">
-          <table className="orders">
+          <table className="orders tbl-resize">
+            <colgroup>{acctCols.widths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
             <thead>
               <tr>
-                <th>{t("Account", "Cuenta")}</th>
-                <th>{t("Orders", "Órdenes")}</th>
-                <th>{t("Open", "Abiertas")}</th>
-                <th>{t("Delivered", "Entregadas")}</th>
-                <th>{t("Overdue", "Atrasadas")}</th>
-                <th>{t("Pallets", "Tarimas")}</th>
-                <th>{t("Fees", "Cobros")}</th>
+                <th>{t("Account", "Cuenta")}<span className="col-resizer" onMouseDown={acctCols.startResize(0)} /></th>
+                <th>{t("Orders", "Órdenes")}<span className="col-resizer" onMouseDown={acctCols.startResize(1)} /></th>
+                <th>{t("Open", "Abiertas")}<span className="col-resizer" onMouseDown={acctCols.startResize(2)} /></th>
+                <th>{t("Delivered", "Entregadas")}<span className="col-resizer" onMouseDown={acctCols.startResize(3)} /></th>
+                <th>{t("Overdue", "Atrasadas")}<span className="col-resizer" onMouseDown={acctCols.startResize(4)} /></th>
+                <th>{t("Pallets", "Tarimas")}<span className="col-resizer" onMouseDown={acctCols.startResize(5)} /></th>
+                <th>{t("Fees", "Cobros")}<span className="col-resizer" onMouseDown={acctCols.startResize(6)} /></th>
                 <th>{t("Last delivery", "Última entrega")}</th>
               </tr>
             </thead>
