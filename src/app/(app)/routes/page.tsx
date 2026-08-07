@@ -314,17 +314,46 @@ export default function RoutesPage() {
     notify(t(`Merged ${plan.moveIds.length} stop(s) into ${laneLabel(plan.targetKey)}`, `${plan.moveIds.length} parada(s) unidas en ${laneLabel(plan.targetKey)}`));
   };
 
-  const addBucket = (): string => {
+  // Create a fake driver / route bucket. An optional custom name is used as-is
+  // (de-duplicated); otherwise auto-names "Route N".
+  const addBucket = (customName?: string): string => {
     const existing = settings.route_buckets ?? [];
-    let n = 1;
-    while (existing.includes(`Route ${n}`) || drivers.some((d) => d.full_name === `Route ${n}`)) n++;
-    const name = `Route ${n}`;
+    const taken = (nm: string) => existing.includes(nm) || drivers.some((d) => d.full_name === nm);
+    let name = (customName ?? "").trim();
+    if (name) {
+      let base = name, k = 2;
+      while (taken(name)) { name = `${base} ${k++}`; }
+    } else {
+      let n = 1;
+      while (taken(`Route ${n}`)) n++;
+      name = `Route ${n}`;
+    }
     saveSettings({ route_buckets: [...existing, name] });
     notify(t(`Added ${name}`, `${name} agregada`));
     return name;
   };
+  // Ask for a name, then create the fake driver.
+  const promptAddBucket = () => {
+    const nm = window.prompt(t("Name this fake driver (leave blank for “Route N”):", "Nombre del chofer falso (vacío para “Ruta N”):"), "");
+    if (nm === null) return; // cancelled
+    addBucket(nm);
+  };
   const removeBucket = (name: string) => {
     saveSettings({ route_buckets: (settings.route_buckets ?? []).filter((b) => b !== name) });
+  };
+  // Rename a fake driver: move its orders onto the new name and update the list.
+  const renameBucket = async (oldName: string) => {
+    const nm = window.prompt(t("Rename fake driver:", "Renombrar chofer falso:"), oldName);
+    if (nm === null) return;
+    const newName = nm.trim();
+    if (!newName || newName === oldName) return;
+    if ((settings.route_buckets ?? []).includes(newName) || drivers.some((d) => d.full_name === newName)) {
+      notify(t("That name is already taken.", "Ese nombre ya está en uso."));
+      return;
+    }
+    for (const d of [...(byDriver.get(oldName) ?? [])]) await updateDelivery(d.id, { assigned_driver: newName });
+    saveSettings({ route_buckets: (settings.route_buckets ?? []).map((b) => (b === oldName ? newName : b)) });
+    notify(t(`Renamed to ${newName}`, `Renombrado a ${newName}`));
   };
   // Hand a whole bucket's route to a real driver as a distinct LOAD (keeping its
   // optimized sequence), then retire the bucket. If the driver already has
@@ -1192,7 +1221,7 @@ export default function RoutesPage() {
                 🔀 {t("Merge", "Unir")} ({selected.size})
               </button>
             )}
-            <button className="btn btn-ghost btn-sm" onClick={addBucket} title={t("Build a route with no driver yet, then assign it later", "Arma una ruta sin chofer todavía, y asígnala después")}>＋ {t("Route", "Ruta")}</button>
+            <button className="btn btn-ghost btn-sm" onClick={promptAddBucket} title={t("Create a fake driver to build a route on, then hand it to a real driver later", "Crea un chofer falso para armar una ruta, y entrégala a un chofer real después")}>＋ {t("Fake driver", "Chofer falso")}</button>
             {focused && <button className="notif-clear" onClick={() => setSelected(new Set())}>{t("Show all", "Mostrar todos")}</button>}
           </div>
           {lanes.length === 0 ? (
@@ -1227,6 +1256,10 @@ export default function RoutesPage() {
                         {!needsDriver && u.load === 1 && (
                           <button className="notif-clear" style={{ fontWeight: 700 }} title={t("Add another load (a separate trip) to this driver", "Agregar otra carga (viaje aparte) a este chofer")}
                             onClick={(e) => { e.stopPropagation(); addLoadFor(u.driver); }}>＋ {t("load", "carga")}</button>
+                        )}
+                        {bucket && (
+                          <button className="notif-clear" title={t("Rename fake driver", "Renombrar chofer falso")}
+                            onClick={(e) => { e.stopPropagation(); renameBucket(u.key); }}>✏</button>
                         )}
                         {bucket && stops.length === 0 && (
                           <button className="notif-clear" title={t("Remove empty route", "Quitar ruta vacía")}
@@ -1442,9 +1475,9 @@ export default function RoutesPage() {
                         {lanes.filter((l) => !l.isBucket && l.load > 1).map((l) => <option key={l.key} value={l.key}>🚚 {l.label}</option>)}
                       </optgroup>
                     )}
-                    <optgroup label={t("Routes (no driver yet)", "Rutas (sin chofer)")}>
+                    <optgroup label={t("Fake drivers / routes", "Choferes falsos / rutas")}>
                       {bucketNames.map((n) => <option key={n} value={n}>🧭 {n}</option>)}
-                      <option value="__newroute__">＋ {t("New route…", "Nueva ruta…")}</option>
+                      <option value="__newroute__">＋ {t("New fake driver…", "Nuevo chofer falso…")}</option>
                     </optgroup>
                   </select>
                   <button className="btn btn-amber btn-sm" onClick={bulkAutoAssign} disabled={autoAssigning}>✨ {t("Auto-assign selected", "Auto-asignar selección")}</button>
@@ -1504,31 +1537,36 @@ export default function RoutesPage() {
                       <td>{fmtWindows(d.delivery_windows)}</td>
                       <td><span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span></td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        {singleSel ? (
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            disabled={previewBusy === d.id || busyDriver != null}
-                            onClick={() => previewAdd(d, singleSel)}
-                          >
-                            {previewBusy === d.id ? "…" : `🔮 ${t("Simulate add", "Simular")}`}
-                          </button>
-                        ) : (
+                        <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+                          {/* Assign is ALWAYS available; Simulate is an extra when one lane is focused. */}
                           <select defaultValue="" onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v === "__newroute__") { assignToLane(d.id, addBucket()); } else if (v.includes(LANE_SEP)) { assignToLane(d.id, v); } else if (v) manualAssign(d.id, v); }} style={{ width: "auto" }}>
                             <option value="">{t("Assign to…", "Asignar a…")}</option>
-                            <optgroup label={t("Drivers", "Choferes")}>
-                              {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
-                            </optgroup>
+                            {drivers.length > 0 && (
+                              <optgroup label={t("Drivers", "Choferes")}>
+                                {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
+                              </optgroup>
+                            )}
                             {lanes.some((l) => !l.isBucket && l.load > 1) && (
                               <optgroup label={t("Extra loads", "Cargas extra")}>
                                 {lanes.filter((l) => !l.isBucket && l.load > 1).map((l) => <option key={l.key} value={l.key}>🚚 {l.label}</option>)}
                               </optgroup>
                             )}
-                            <optgroup label={t("Routes (no driver yet)", "Rutas (sin chofer)")}>
+                            <optgroup label={t("Fake drivers / routes", "Choferes falsos / rutas")}>
                               {bucketNames.map((n) => <option key={n} value={n}>🧭 {n}</option>)}
-                              <option value="__newroute__">＋ {t("New route…", "Nueva ruta…")}</option>
+                              <option value="__newroute__">＋ {t("New fake driver…", "Nuevo chofer falso…")}</option>
                             </optgroup>
                           </select>
-                        )}
+                          {singleSel && (
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              disabled={previewBusy === d.id || busyDriver != null}
+                              title={t(`Preview adding this stop to ${laneLabel(singleSel)}`, `Previsualizar agregar esta parada a ${laneLabel(singleSel)}`)}
+                              onClick={() => previewAdd(d, singleSel)}
+                            >
+                              {previewBusy === d.id ? "…" : "🔮"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1584,6 +1622,7 @@ export default function RoutesPage() {
                 <span className="hint" style={{ fontSize: 12 }}>🗺</span>
               </span>
               {needsDriver && <span className="sema" style={{ background: "var(--accent)", color: "#fff" }}>🧭 {t("route (no driver)", "ruta (sin chofer)")}</span>}
+              {bucket && <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} title={t("Rename fake driver", "Renombrar chofer falso")} onClick={() => renameBucket(u.key)}>✏</button>}
               <span className="count-tag">{stops.length} {t("stops", "paradas")}</span>
               {stops.length > 0 && trips.length > 1 && (
                 <span className="sema" style={{ background: "var(--amber)", color: "#fff" }}>{trips.length} {t("truckloads", "viajes")}</span>
