@@ -1668,11 +1668,18 @@ export default function RoutesPage() {
                 {t("Not optimized yet — run “Optimize route” to get a sequence.", "Aún no optimizada — ejecute “Optimizar ruta” para obtener una secuencia.")}
               </div>
             )}
-            {missingPins > 0 && (
-              <div className="hint" style={{ marginBottom: 8 }}>
-                {t(`${missingPins} stop(s) have no address pin yet, so they're left out of optimization.`, `${missingPins} parada(s) aún no tienen pin de dirección, así que se excluyen de la optimización.`)}
-              </div>
-            )}
+            {missingPins > 0 && (() => {
+              const noPin = stops.filter((d) => d.delivery_lat == null);
+              return (
+                <div className="card" style={{ marginBottom: 8, background: "#fff7ec", borderColor: "var(--amber)" }}>
+                  <b style={{ color: "#b9791a" }}>📍 {t(`${missingPins} stop(s) aren't on the map yet, so the route skips them.`, `${missingPins} parada(s) aún no están en el mapa, así que la ruta las omite.`)}</b>
+                  <div className="hint" style={{ marginTop: 2 }}>
+                    {noPin.map((d) => `#${orderLabel(d)}${d.account ? ` (${d.account})` : ""}${d.delivery_address ? "" : " — " + t("no delivery address", "sin dirección de entrega")}`).join(", ")}
+                    {" — "}{t("give each a valid delivery address (or drop a map pin) on the Orders page so it geocodes, then re-optimize.", "dé a cada una una dirección de entrega válida (o coloque un pin) en Órdenes para que se ubique, y vuelva a optimizar.")}
+                  </div>
+                </div>
+              );
+            })()}
             {stops.length > 0 && (
               <div className="tbl-scroll" style={{ border: "none" }}>
                 <table className="orders tbl-resize">
