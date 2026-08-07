@@ -379,6 +379,7 @@ export default function OrdersPage() {
         ) : (
           <OrdersTable
             rows={rows}
+            resizeKey={`orders_${me.role}`}
             onOpen={setOpen}
             empty={t("No orders match this view.", "No hay órdenes en esta vista.")}
             visible={cols}

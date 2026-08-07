@@ -134,7 +134,7 @@ export default function WarehousePage() {
       </div>
 
       {ready ? (
-        <OrdersTable rows={rows} onOpen={setOpen} visible={ROLE_DEFAULT_COLUMNS.warehouse} empty={t("Nothing in this queue.", "Nada en esta cola.")} />
+        <OrdersTable rows={rows} resizeKey="warehouse" onOpen={setOpen} visible={ROLE_DEFAULT_COLUMNS.warehouse} empty={t("Nothing in this queue.", "Nada en esta cola.")} />
       ) : (
         <div className="empty">{t("Loading…", "Cargando…")}</div>
       )}

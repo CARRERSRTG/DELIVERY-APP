@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
 import { fmtDate, fmtMilitary, fmtMoney, fmtWindows, isOverdue, orderLabel, palletVariance } from "@/lib/utils";
+import { useColWidthMap } from "@/lib/use-col-widths";
 import type { Delivery } from "@/lib/types";
 
 type Ctx = { lang: "en" | "es"; t: (en: string, es: string) => string };
@@ -174,6 +175,7 @@ export function OrdersTable({
   onToggle,
   onToggleAll,
   isUrgent,
+  resizeKey = "orders",
 }: {
   rows: Delivery[];
   onOpen: (d: Delivery) => void;
@@ -186,8 +188,11 @@ export function OrdersTable({
   /** Rows this returns true for get a red "needs immediate action" highlight
    * (e.g. still pending approval past today's cutoff). */
   isUrgent?: (d: Delivery) => boolean;
+  /** Namespaces the per-column widths in localStorage (e.g. per view/role). */
+  resizeKey?: string;
 }) {
   const { lang, t } = usePrefs();
+  const colw = useColWidthMap(`rtg_colw_${resizeKey}`);
   const ctx: Ctx = { lang, t };
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);
@@ -294,11 +299,15 @@ export function OrdersTable({
   return (
     <>
     <div className="tbl-scroll">
-      <table className="orders">
+      <table className="orders tbl-resize">
+        <colgroup>
+          {selectable && <col style={{ width: 34 }} />}
+          {cols.map((c) => <col key={c.key} style={{ width: colw.widthOf(c.key) }} />)}
+        </colgroup>
         <thead>
           <tr>
             {selectable && (
-              <th style={{ width: 34 }}>
+              <th>
                 <input type="checkbox" checked={allChecked} onChange={onToggleAll} style={{ width: 15, height: 15 }} />
               </th>
             )}
@@ -321,6 +330,8 @@ export function OrdersTable({
                       ▾
                     </button>
                   </div>
+                  {/* Drag to resize; double-click to reset this column. */}
+                  <span className="col-resizer" onMouseDown={colw.startResize(c.key)} onDoubleClick={() => colw.resetCol(c.key)} />
                 </th>
               );
             })}

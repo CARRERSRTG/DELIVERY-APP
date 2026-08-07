@@ -42,3 +42,39 @@ export function useColWidths(storageKey: string, defaults: number[]) {
 
   return { widths, startResize, reset };
 }
+
+// Same idea, but keyed by column KEY instead of index — for tables whose column
+// set is dynamic (e.g. the Orders table's user-toggled columns).
+export function useColWidthMap(storageKey: string, defaultWidth = 150) {
+  const [widths, setWidths] = useState<Record<string, number>>(() => {
+    try { const raw = localStorage.getItem(storageKey); if (raw) return JSON.parse(raw); } catch { /* ignore */ }
+    return {};
+  });
+  const widthOf = (key: string) => widths[key] ?? defaultWidth;
+
+  const startResize = (key: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const base = widths[key] ?? defaultWidth;
+    const onMove = (ev: MouseEvent) => {
+      setWidths((w) => ({ ...w, [key]: Math.max(48, base + (ev.clientX - startX)) }));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      setWidths((w) => { try { localStorage.setItem(storageKey, JSON.stringify(w)); } catch { /* ignore */ } return w; });
+    };
+    document.body.style.cursor = "col-resize";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  // Double-click a grip to reset just that column to the default width.
+  const resetCol = (key: string) => {
+    setWidths((w) => { const n = { ...w }; delete n[key]; try { localStorage.setItem(storageKey, JSON.stringify(n)); } catch { /* ignore */ } return n; });
+  };
+
+  return { widthOf, startResize, resetCol };
+}
