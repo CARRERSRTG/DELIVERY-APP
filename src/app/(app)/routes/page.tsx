@@ -10,7 +10,7 @@ import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
 import { fallbackDriverColor, fmtDate, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
-import { LANE_SEP, driverOf, laneKeyFor, loadFromKey, loadNoOf, nextLoadFor as nextLoadForPure, orderLaneKey as orderLaneKeyPure, planMerge } from "@/lib/route-lanes";
+import { driverOf, groupIntoLoads, hasManualLoads, loadNoOf, nextLoadFor as nextLoadForPure, orderLaneKey as orderLaneKeyPure, planMerge } from "@/lib/route-lanes";
 import { useColWidths } from "@/lib/use-col-widths";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import type { Delivery, Profile } from "@/lib/types";
@@ -179,10 +179,6 @@ export default function RoutesPage() {
   // each driver (by name), so a busy board can be folded down to just the
   // one being worked on.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  // Extra (empty) load lanes the dispatcher has added directly to a driver, so
-  // they can build several loads on one driver without going through a bucket.
-  // Driver name → highest load number to show even when it has no orders yet.
-  const [extraLoads, setExtraLoads] = useState<Record<string, number>>({});
   const isCollapsed = (id: string) => collapsed.has(id);
   const toggleCollapse = (id: string) =>
     setCollapsed((prev) => {
@@ -192,7 +188,7 @@ export default function RoutesPage() {
     });
 
   // A newly-viewed date invalidates any optimize summary/trace from before.
-  useEffect(() => { setRouteInfo({}); setRouteLines({}); setRouteEtas({}); setPreview(null); setErr(null); setExtraLoads({}); }, [date]);
+  useEffect(() => { setRouteInfo({}); setRouteLines({}); setRouteEtas({}); setPreview(null); setErr(null); }, [date]);
   // Changing the driver selection drops any half-finished simulation.
   useEffect(() => { setPreview(null); }, [selected]);
 
@@ -251,68 +247,43 @@ export default function RoutesPage() {
     const out: Lane[] = [];
     const seen = new Set<string>();
     const add = (l: Lane) => { if (!seen.has(l.key)) { seen.add(l.key); out.push(l); } };
-    // One entry per driver/temp-driver, expanded into their load(s). Loads
-    // 1..N are shown contiguously — N covers any load that has orders plus any
-    // empty load added with "＋ load". Real drivers and temp drivers both.
-    const addLanesFor = (name: string, opts: { isBucket: boolean; store: string | null; baseId: string }) => {
-      let maxLoad = extraLoads[name] ?? 1;
-      for (const d of dayOrders) if (d.assigned_driver === name) maxLoad = Math.max(maxLoad, loadNoOf(d));
-      for (let load = 1; load <= maxLoad; load++) add({
-        id: load > 1 ? `${opts.baseId}${LANE_SEP}${load}` : opts.baseId,
-        key: laneKeyFor(name, load),
-        driver: name,
-        load,
-        label: load > 1 ? `${name} · ${t("Load", "Carga")} ${load}` : name,
-        isBucket: opts.isBucket,
-        store: opts.store,
-      });
-    };
-    for (const dr of drivers) addLanesFor(dr.full_name, { isBucket: false, store: dr.store ?? null, baseId: dr.id });
-    for (const n of bucketNames) addLanesFor(n, { isBucket: true, store: null, baseId: `bucket:${n}` });
+    // One lane / card per driver and per temp driver. Loads are truckload
+    // sections INSIDE the card (see groupIntoLoads), not separate lanes.
+    for (const dr of drivers) add({ id: dr.id, key: dr.full_name, driver: dr.full_name, load: 1, label: dr.full_name, isBucket: false, store: dr.store ?? null });
+    for (const n of bucketNames) add({ id: `bucket:${n}`, key: n, driver: n, load: 1, label: n, isBucket: true, store: null });
     // Safety net: any assigned group in the day's orders that DIDN'T match a
-    // current driver or bucket above still gets a lane — so its route always
-    // shows and is counted (e.g. a retired bucket, a removed driver, or a load
-    // whose driver isn't in the list). Never silently drop assigned work.
+    // current driver or temp driver still gets a lane — so its route always
+    // shows and is counted (e.g. a retired temp driver, or a removed driver).
     for (const d of dayOrders) {
       const key = orderLaneKey(d);
       if (!key || seen.has(key)) continue;
       const bucket = isBucket(d.assigned_driver || "");
-      const drv = driverOf(key);
-      const load = loadFromKey(key);
-      add({
-        id: `orphan:${key}`, key, driver: drv, load,
-        label: bucket ? key : (load > 1 ? `${drv} · ${t("Load", "Carga")} ${load}` : drv),
-        isBucket: bucket, store: null,
-      });
+      add({ id: `orphan:${key}`, key, driver: key, load: 1, label: key, isBucket: bucket, store: null });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drivers, dayOrders, bucketNames, extraLoads, t]);
+  }, [drivers, dayOrders, bucketNames, t]);
 
   // The next free load number for a driver (1 if they have no work yet).
   const nextLoadFor = (driver: string) => nextLoadForPure(dayOrders, driver);
-  // Add an empty load lane to a driver so orders can be dropped straight into it.
-  const addLoadFor = (driver: string) => {
-    let maxLoad = 1;
-    for (const d of dayOrders) if (d.assigned_driver === driver) maxLoad = Math.max(maxLoad, loadNoOf(d));
-    const next = Math.max(extraLoads[driver] ?? 1, maxLoad) + 1;
-    setExtraLoads((prev) => ({ ...prev, [driver]: next }));
-    notify(t(`Added load ${next} to ${driver}`, `Carga ${next} agregada a ${driver}`));
-  };
-  // Highest load number currently shown for a driver/temp driver.
+  // Highest truckload number a driver currently has (1 if none set).
   const maxLoadForDriver = (name: string) => {
-    let m = extraLoads[name] ?? 1;
+    let m = 1;
     for (const d of dayOrders) if (d.assigned_driver === name) m = Math.max(m, loadNoOf(d));
     return m;
   };
-  // Move one already-assigned stop to a different load/truckload of the same
+  // Move one already-assigned stop to a different truckload/pickup of the same
   // driver (keeps the driver, changes the load number, resets its sequence).
   const moveStopToLoad = async (d: Delivery, load: number) => {
-    const cur = orderLaneKey(d); if (cur) clearRouteFor(cur);
-    clearRouteFor(laneKeyFor(d.assigned_driver || "", load));
+    if (d.assigned_driver) clearRouteFor(d.assigned_driver);
     await updateDelivery(d.id, { load_no: load > 1 ? load : null, route_seq: null });
+    notify(t(`Moved to truckload ${load}`, `Movido al viaje ${load}`));
   };
-  // Friendly display name for a lane key (e.g. "José · Load 2").
+  // Split a lane's stops into truckloads: by the dispatcher's manual load
+  // numbers when set, otherwise automatically by truck capacity.
+  const buildTrips = (stops: Delivery[], capacity: number): Delivery[][] =>
+    hasManualLoads(stops) ? groupIntoLoads(stops) : splitIntoTrips(stops, capacity);
+  // Friendly display name for a lane key.
   const laneLabel = (key: string) => lanes.find((l) => l.key === key)?.label ?? key;
 
   // Merge every checked lane's stops into ONE route (the first checked lane, in
@@ -614,18 +585,13 @@ export default function RoutesPage() {
     return updateDelivery(id, { assigned_driver: null, route_seq: null, load_no: null });
   };
 
-  // Assign an order onto a specific LANE (a driver's load, or a bucket) — used
-  // by the board's drag-and-drop onto a load column.
+  // Assign an order onto a lane (a driver or temp driver) — used by the board's
+  // drag-and-drop onto a column. Lands on the lane's first truckload.
   const assignToLane = async (id: string, laneKey: string) => {
     const d = dayOrders.find((x) => x.id === id);
     clearRouteFor(laneKey);
-    if (isBucket(laneKey)) {
-      await updateDelivery(id, { assigned_driver: laneKey, route_seq: null, load_no: null });
-    } else {
-      const load = loadFromKey(laneKey);
-      await updateDelivery(id, { assigned_driver: driverOf(laneKey), route_seq: null, load_no: load > 1 ? load : null });
-    }
-    addNote(id, `Moved to ${laneKey}${d?.assigned_driver ? ` (from ${orderLaneKey(d) ?? d.assigned_driver})` : ""}`);
+    await updateDelivery(id, { assigned_driver: laneKey, route_seq: null, load_no: null });
+    addNote(id, `Moved to ${laneKey}${d?.assigned_driver ? ` (from ${d.assigned_driver})` : ""}`);
   };
 
   // A single manual (re)assignment — assign + write an audit note.
@@ -676,7 +642,7 @@ export default function RoutesPage() {
     })();
     const depot = await getDepotCoords(pickupAddr);
     // No pickup we can geocode — fall back to one open (one-way) route.
-    const batches = depot ? splitIntoTrips(sorted, capacityFor(driver)) : [sorted];
+    const batches = depot ? buildTrips(sorted, capacityFor(driver)) : [sorted];
     const byId = new Map(sorted.map((d) => [d.id, d]));
 
     let miles = 0;
@@ -829,16 +795,6 @@ export default function RoutesPage() {
     notify(t(`Assigned ${ids.length} order(s) to ${driver}`, `Asignadas ${ids.length} orden(es) a ${driver}`));
   };
 
-  // Assign every checked order onto a specific lane (a driver's Nth load).
-  const bulkAssignLane = async (laneKey: string) => {
-    const ids = unassigned.filter((d) => selectedOrders.has(d.id)).map((d) => d.id);
-    if (!ids.length || !laneKey) return;
-    setAutoAssigning(true);
-    try { for (const id of ids) await assignToLane(id, laneKey); } finally { setAutoAssigning(false); }
-    clearSelection();
-    notify(t(`Assigned ${ids.length} order(s) to ${laneLabel(laneKey)}`, `Asignadas ${ids.length} orden(es) a ${laneLabel(laneKey)}`));
-  };
-
   // Auto-assign only the checked orders across the drivers.
   const bulkAutoAssign = async () => {
     const chosen = unassigned.filter((d) => selectedOrders.has(d.id));
@@ -876,14 +832,9 @@ export default function RoutesPage() {
 
   const confirmPreview = async () => {
     if (!preview) return;
-    const { orderId, driver, plan } = preview; // `driver` is a lane key
+    const { orderId, driver, plan } = preview; // `driver` is a lane key (driver / temp driver)
     setPreview(null);
-    if (isBucket(driver)) {
-      await updateDelivery(orderId, { assigned_driver: driver, load_no: null });
-    } else {
-      const load = loadFromKey(driver);
-      await updateDelivery(orderId, { assigned_driver: driverOf(driver), load_no: load > 1 ? load : null });
-    }
+    await updateDelivery(orderId, { assigned_driver: driver, load_no: null });
     await applyPlan(driver, plan);
   };
 
@@ -934,7 +885,7 @@ export default function RoutesPage() {
     const stopColor = new Map<string, string>();
     for (const u of lanes) {
       const stops = byDriver.get(u.key) ?? [];
-      splitIntoTrips(stops, capacityFor(u.driver)).forEach((batch, ti) => {
+      buildTrips(stops, capacityFor(u.driver)).forEach((batch, ti) => {
         const c = tripColor(colorFor(u.driver), ti);
         for (const d of batch) stopColor.set(d.id, c);
       });
@@ -1267,11 +1218,6 @@ export default function RoutesPage() {
                       <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
                         {u.label}
                         {needsDriver && <span className="sema" style={{ background: "var(--accent)", color: "#fff", fontSize: 10 }}>🧭 {t("route", "ruta")}</span>}
-                        {u.load > 1 && <span className="sema" style={{ background: "var(--gray)", color: "#fff", fontSize: 10 }}>🚚 {t("load", "carga")} {u.load}</span>}
-                        {u.load === 1 && (isRealDriver(u.driver) || bucket) && (
-                          <button className="notif-clear" style={{ fontWeight: 700 }} title={t("Add another load / truckload (a separate pickup) to this driver", "Agregar otra carga / viaje (recolección aparte) a este chofer")}
-                            onClick={(e) => { e.stopPropagation(); addLoadFor(u.driver); }}>＋ {t("load", "carga")}</button>
-                        )}
                         {bucket && (
                           <button className="notif-clear" title={t("Rename temp driver", "Renombrar chofer temp")}
                             onClick={(e) => { e.stopPropagation(); renameBucket(u.key); }}>✏</button>
@@ -1480,14 +1426,11 @@ export default function RoutesPage() {
               {poolSelectedCount > 0 && (
                 <>
                   <select defaultValue="" disabled={autoAssigning} style={{ width: "auto" }}
-                    onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v === "__newroute__") { bulkAssignLane(addBucket()); } else if (v.includes(LANE_SEP)) { bulkAssignLane(v); } else if (v) bulkAssign(v); }}>
+                    onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v === "__newroute__") { bulkAssign(addBucket()); } else if (v) bulkAssign(v); }}>
                     <option value="">{t("Assign selected to…", "Asignar selección a…")}</option>
-                    <optgroup label={t("Drivers", "Choferes")}>
-                      {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
-                    </optgroup>
-                    {lanes.some((l) => l.load > 1) && (
-                      <optgroup label={t("Extra loads", "Cargas extra")}>
-                        {lanes.filter((l) => l.load > 1).map((l) => <option key={l.key} value={l.key}>🚚 {l.label}</option>)}
+                    {drivers.length > 0 && (
+                      <optgroup label={t("Drivers", "Choferes")}>
+                        {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                       </optgroup>
                     )}
                     <optgroup label={t("Temp drivers / routes", "Choferes temp / rutas")}>
@@ -1554,16 +1497,11 @@ export default function RoutesPage() {
                       <td onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
                           {/* Assign is ALWAYS available; Simulate is an extra when one lane is focused. */}
-                          <select defaultValue="" onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v === "__newroute__") { assignToLane(d.id, addBucket()); } else if (v.includes(LANE_SEP)) { assignToLane(d.id, v); } else if (v) manualAssign(d.id, v); }} style={{ width: "auto" }}>
+                          <select defaultValue="" onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v === "__newroute__") { manualAssign(d.id, addBucket()); } else if (v) manualAssign(d.id, v); }} style={{ width: "auto" }}>
                             <option value="">{t("Assign to…", "Asignar a…")}</option>
                             {drivers.length > 0 && (
                               <optgroup label={t("Drivers", "Choferes")}>
                                 {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
-                              </optgroup>
-                            )}
-                            {lanes.some((l) => l.load > 1) && (
-                              <optgroup label={t("Extra loads", "Cargas extra")}>
-                                {lanes.filter((l) => l.load > 1).map((l) => <option key={l.key} value={l.key}>🚚 {l.label}</option>)}
                               </optgroup>
                             )}
                             <optgroup label={t("Temp drivers / routes", "Choferes temp / rutas")}>
@@ -1608,7 +1546,7 @@ export default function RoutesPage() {
         const missingPins = stops.filter((d) => d.delivery_lat == null).length;
         const info = routeInfo[u.key];
         const capacity = capacityFor(u.driver);
-        const trips = splitIntoTrips(stops, capacity);
+        const trips = buildTrips(stops, capacity);
         const isC = isCollapsed(u.key);
         const bucket = u.isBucket;
         // A route that isn't on a real driver (a bucket, or one recovered under

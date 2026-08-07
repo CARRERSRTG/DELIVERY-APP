@@ -35,13 +35,29 @@ export function loadNoOf(d: Pick<Delivery, "load_no">): number {
   return d.load_no && d.load_no > 1 ? d.load_no : 1;
 }
 
-/** Which lane an order belongs to — assigned_driver (a real driver OR a temp
- * driver/bucket) plus its load number. Load 1 keeps the bare name, so this is
- * backward compatible; loads apply equally to real and temp drivers. The
- * `isBucket` arg is accepted for signature stability but no longer needed. */
+/** Which lane an order belongs to — one lane per driver / temp driver. The load
+ * number is NOT part of the key: a driver is a single route CARD, and loads are
+ * truckload sections inside it (see groupIntoLoads). The `isBucket` arg is
+ * accepted for signature stability but no longer needed. */
 export function orderLaneKey(d: OrderLite, _isBucket?: (name: string) => boolean): string | null {
-  if (!d.assigned_driver) return null;
-  return laneKeyFor(d.assigned_driver, loadNoOf(d));
+  return d.assigned_driver || null;
+}
+
+/** Split a lane's stops into truckloads by their load number — each distinct
+ * load is one truckload/pickup, in ascending order. Used when the dispatcher
+ * has manually assigned loads (otherwise the route splits by truck capacity). */
+export function groupIntoLoads<T extends { load_no?: number | null }>(stops: T[]): T[][] {
+  const byLoad = new Map<number, T[]>();
+  for (const d of stops) {
+    const L = d.load_no && d.load_no > 1 ? d.load_no : 1;
+    (byLoad.get(L) ?? byLoad.set(L, []).get(L)!).push(d);
+  }
+  return [...byLoad.keys()].sort((a, b) => a - b).map((L) => byLoad.get(L)!);
+}
+
+/** True when a lane's stops carry manual load assignments (any load ≥ 2). */
+export function hasManualLoads(stops: { load_no?: number | null }[]): boolean {
+  return stops.some((d) => (d.load_no ?? 1) > 1);
 }
 
 /** Next free load number for a driver: 1 if they have no work yet, else one
