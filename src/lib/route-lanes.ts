@@ -35,11 +35,12 @@ export function loadNoOf(d: Pick<Delivery, "load_no">): number {
   return d.load_no && d.load_no > 1 ? d.load_no : 1;
 }
 
-/** Which lane an order belongs to — its bucket name, or driver+load key.
- * `isBucket` decides whether assigned_driver is a route bucket vs a real name. */
-export function orderLaneKey(d: OrderLite, isBucket: (name: string) => boolean): string | null {
+/** Which lane an order belongs to — assigned_driver (a real driver OR a temp
+ * driver/bucket) plus its load number. Load 1 keeps the bare name, so this is
+ * backward compatible; loads apply equally to real and temp drivers. The
+ * `isBucket` arg is accepted for signature stability but no longer needed. */
+export function orderLaneKey(d: OrderLite, _isBucket?: (name: string) => boolean): string | null {
   if (!d.assigned_driver) return null;
-  if (isBucket(d.assigned_driver)) return d.assigned_driver;
   return laneKeyFor(d.assigned_driver, loadNoOf(d));
 }
 

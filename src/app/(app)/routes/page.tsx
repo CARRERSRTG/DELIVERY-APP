@@ -148,7 +148,7 @@ export default function RoutesPage() {
   // Excel-style resizable columns, remembered per table.
   const schedCols = useColWidths("rtg_routes_sched", [96, 190, 170, 70, 70, 130, 84, 60]);
   const poolCols = useColWidths("rtg_routes_pool", [36, 96, 180, 130, 84, 140, 130, 120, 160]);
-  const stopCols = useColWidths("rtg_routes_stops", [46, 96, 180, 260, 84, 130, 120]);
+  const stopCols = useColWidths("rtg_routes_stops2", [46, 96, 170, 230, 84, 120, 220]);
   // Which drivers are highlighted on the map / focused in the tables. Empty
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
@@ -251,22 +251,24 @@ export default function RoutesPage() {
     const out: Lane[] = [];
     const seen = new Set<string>();
     const add = (l: Lane) => { if (!seen.has(l.key)) { seen.add(l.key); out.push(l); } };
-    for (const dr of drivers) {
-      // Show loads 1..N contiguously, where N covers any load that has orders
-      // AND any empty load the dispatcher added with "＋ Load".
-      let maxLoad = extraLoads[dr.full_name] ?? 1;
-      for (const d of dayOrders) if (d.assigned_driver === dr.full_name) maxLoad = Math.max(maxLoad, loadNoOf(d));
+    // One entry per driver/temp-driver, expanded into their load(s). Loads
+    // 1..N are shown contiguously — N covers any load that has orders plus any
+    // empty load added with "＋ load". Real drivers and temp drivers both.
+    const addLanesFor = (name: string, opts: { isBucket: boolean; store: string | null; baseId: string }) => {
+      let maxLoad = extraLoads[name] ?? 1;
+      for (const d of dayOrders) if (d.assigned_driver === name) maxLoad = Math.max(maxLoad, loadNoOf(d));
       for (let load = 1; load <= maxLoad; load++) add({
-        id: load > 1 ? `${dr.id}${LANE_SEP}${load}` : dr.id,
-        key: laneKeyFor(dr.full_name, load),
-        driver: dr.full_name,
+        id: load > 1 ? `${opts.baseId}${LANE_SEP}${load}` : opts.baseId,
+        key: laneKeyFor(name, load),
+        driver: name,
         load,
-        label: load > 1 ? `${dr.full_name} · ${t("Load", "Carga")} ${load}` : dr.full_name,
-        isBucket: false,
-        store: dr.store ?? null,
+        label: load > 1 ? `${name} · ${t("Load", "Carga")} ${load}` : name,
+        isBucket: opts.isBucket,
+        store: opts.store,
       });
-    }
-    for (const n of bucketNames) add({ id: `bucket:${n}`, key: n, driver: n, load: 1, label: n, isBucket: true, store: null });
+    };
+    for (const dr of drivers) addLanesFor(dr.full_name, { isBucket: false, store: dr.store ?? null, baseId: dr.id });
+    for (const n of bucketNames) addLanesFor(n, { isBucket: true, store: null, baseId: `bucket:${n}` });
     // Safety net: any assigned group in the day's orders that DIDN'T match a
     // current driver or bucket above still gets a lane — so its route always
     // shows and is counted (e.g. a retired bucket, a removed driver, or a load
@@ -296,6 +298,19 @@ export default function RoutesPage() {
     const next = Math.max(extraLoads[driver] ?? 1, maxLoad) + 1;
     setExtraLoads((prev) => ({ ...prev, [driver]: next }));
     notify(t(`Added load ${next} to ${driver}`, `Carga ${next} agregada a ${driver}`));
+  };
+  // Highest load number currently shown for a driver/temp driver.
+  const maxLoadForDriver = (name: string) => {
+    let m = extraLoads[name] ?? 1;
+    for (const d of dayOrders) if (d.assigned_driver === name) m = Math.max(m, loadNoOf(d));
+    return m;
+  };
+  // Move one already-assigned stop to a different load/truckload of the same
+  // driver (keeps the driver, changes the load number, resets its sequence).
+  const moveStopToLoad = async (d: Delivery, load: number) => {
+    const cur = orderLaneKey(d); if (cur) clearRouteFor(cur);
+    clearRouteFor(laneKeyFor(d.assigned_driver || "", load));
+    await updateDelivery(d.id, { load_no: load > 1 ? load : null, route_seq: null });
   };
   // Friendly display name for a lane key (e.g. "José · Load 2").
   const laneLabel = (key: string) => lanes.find((l) => l.key === key)?.label ?? key;
@@ -1253,8 +1268,8 @@ export default function RoutesPage() {
                         {u.label}
                         {needsDriver && <span className="sema" style={{ background: "var(--accent)", color: "#fff", fontSize: 10 }}>🧭 {t("route", "ruta")}</span>}
                         {u.load > 1 && <span className="sema" style={{ background: "var(--gray)", color: "#fff", fontSize: 10 }}>🚚 {t("load", "carga")} {u.load}</span>}
-                        {!needsDriver && u.load === 1 && (
-                          <button className="notif-clear" style={{ fontWeight: 700 }} title={t("Add another load (a separate trip) to this driver", "Agregar otra carga (viaje aparte) a este chofer")}
+                        {u.load === 1 && (isRealDriver(u.driver) || bucket) && (
+                          <button className="notif-clear" style={{ fontWeight: 700 }} title={t("Add another load / truckload (a separate pickup) to this driver", "Agregar otra carga / viaje (recolección aparte) a este chofer")}
                             onClick={(e) => { e.stopPropagation(); addLoadFor(u.driver); }}>＋ {t("load", "carga")}</button>
                         )}
                         {bucket && (
@@ -1470,9 +1485,9 @@ export default function RoutesPage() {
                     <optgroup label={t("Drivers", "Choferes")}>
                       {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                     </optgroup>
-                    {lanes.some((l) => !l.isBucket && l.load > 1) && (
+                    {lanes.some((l) => l.load > 1) && (
                       <optgroup label={t("Extra loads", "Cargas extra")}>
-                        {lanes.filter((l) => !l.isBucket && l.load > 1).map((l) => <option key={l.key} value={l.key}>🚚 {l.label}</option>)}
+                        {lanes.filter((l) => l.load > 1).map((l) => <option key={l.key} value={l.key}>🚚 {l.label}</option>)}
                       </optgroup>
                     )}
                     <optgroup label={t("Temp drivers / routes", "Choferes temp / rutas")}>
@@ -1546,9 +1561,9 @@ export default function RoutesPage() {
                                 {drivers.map((u) => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                               </optgroup>
                             )}
-                            {lanes.some((l) => !l.isBucket && l.load > 1) && (
+                            {lanes.some((l) => l.load > 1) && (
                               <optgroup label={t("Extra loads", "Cargas extra")}>
-                                {lanes.filter((l) => !l.isBucket && l.load > 1).map((l) => <option key={l.key} value={l.key}>🚚 {l.label}</option>)}
+                                {lanes.filter((l) => l.load > 1).map((l) => <option key={l.key} value={l.key}>🚚 {l.label}</option>)}
                               </optgroup>
                             )}
                             <optgroup label={t("Temp drivers / routes", "Choferes temp / rutas")}>
@@ -1755,10 +1770,22 @@ export default function RoutesPage() {
                                   {eta ?? "—"}{late ? " ⚠️" : ""}
                                 </td>
                                 <td>{fmtWindows(d.delivery_windows)}</td>
-                                <td style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                                <td style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center" }}>
                                   {/* Hand-arrange the stops — works even before the route is optimized. */}
                                   <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => move(u.key, i, -1)} title={t("Move up", "Subir")}>↑</button>
                                   <button className="btn btn-ghost btn-sm" disabled={i === stops.length - 1} onClick={() => move(u.key, i, 1)} title={t("Move down", "Bajar")}>↓</button>
+                                  {/* Move this stop to another truckload/pickup of the same driver. */}
+                                  <select
+                                    value={loadNoOf(d)}
+                                    title={t("Move to another load / truckload", "Mover a otra carga / viaje")}
+                                    onChange={(e) => { const v = e.target.value; moveStopToLoad(d, v === "__new__" ? maxLoadForDriver(u.driver) + 1 : Number(v)); }}
+                                    style={{ width: "auto", padding: "2px 4px", fontSize: 12 }}
+                                  >
+                                    {Array.from({ length: maxLoadForDriver(u.driver) }, (_, k) => k + 1).map((n) => (
+                                      <option key={n} value={n}>{t("Load", "Carga")} {n}</option>
+                                    ))}
+                                    <option value="__new__">＋ {t("New load", "Nueva carga")}</option>
+                                  </select>
                                   <button className="btn btn-ghost btn-sm" onClick={() => unassign(d.id)} title={t("Unassign", "Quitar asignación")}>✕</button>
                                 </td>
                               </tr>
