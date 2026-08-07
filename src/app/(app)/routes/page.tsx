@@ -283,6 +283,14 @@ export default function RoutesPage() {
   // numbers when set, otherwise automatically by truck capacity.
   const buildTrips = (stops: Delivery[], capacity: number): Delivery[][] =>
     hasManualLoads(stops) ? groupIntoLoads(stops) : splitIntoTrips(stops, capacity);
+  // Clear all manual load numbers on a route so its stops collapse back into a
+  // single truckload (capacity permitting).
+  const combineLoads = async (laneKey: string) => {
+    const stops = byDriver.get(laneKey) ?? [];
+    for (const d of stops) if ((d.load_no ?? 1) > 1) await updateDelivery(d.id, { load_no: null, route_seq: null });
+    clearRouteFor(laneKey);
+    notify(t("Combined into one truckload", "Unido en un solo viaje"));
+  };
   // Friendly display name for a lane key.
   const laneLabel = (key: string) => lanes.find((l) => l.key === key)?.label ?? key;
 
@@ -1605,6 +1613,10 @@ export default function RoutesPage() {
                   <option value="">👤 {t("Assign route to…", "Asignar ruta a…")}</option>
                   {drivers.map((dv) => <option key={dv.id} value={dv.full_name}>{dv.full_name}</option>)}
                 </select>
+              )}
+              {hasManualLoads(stops) && (
+                <button className="btn btn-ghost btn-sm" title={t("Merge all truckloads back into one", "Unir todos los viajes en uno")}
+                  onClick={() => combineLoads(u.key)}>🔗 {t("Combine loads", "Unir viajes")}</button>
               )}
               {stops.length > 0 && (
                 <button className="btn btn-danger btn-sm" title={t("Clear this route — send every stop back to Unassigned", "Vaciar esta ruta — devolver todas las paradas a Sin asignar")}
