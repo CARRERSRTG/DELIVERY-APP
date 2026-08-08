@@ -850,7 +850,7 @@ export function OrderModal({
                 <div className="hint" style={{ marginTop: 6 }}>{t("Your RingCentral line rings first, then connects to", "Su línea RingCentral suena primero y luego conecta con")} {existing.contact || existing.account || t("the customer", "el cliente")} ({existing.delivery_phone}).</div>
               </div>
             )}
-            <ShareTracking order={existing} notify={notify} t={t} />
+            <ShareTracking order={existing} enabled={!!settings.rc_auto_sms_enabled} notify={notify} t={t} />
             <div style={{ marginTop: 10 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => {
                 const url = `${location.origin}/track/${existing.id}`;
@@ -1857,9 +1857,12 @@ function DriverDeliveryScreen({
 //  • Auto SMS — sends server-side via /api/notify (Twilio). No-op with a clear
 //    hint until TWILIO_* env vars are set.
 function ShareTracking({
-  order, notify, t,
+  order, enabled, notify, t,
 }: {
   order: Delivery;
+  /** Whether sending live tracking to the customer is turned on in Settings.
+   * When off, no send buttons show — only the parent's "Copy tracking link". */
+  enabled: boolean;
   notify: (m: string) => void;
   t: (en: string, es: string) => string;
 }) {
@@ -1923,6 +1926,10 @@ function ShareTracking({
   };
 
   const configured = smsProvider != null;
+
+  // Live-tracking sending turned off in Settings → hide the whole send section
+  // (Send SMS / WhatsApp / SMS app). The parent still offers "Copy tracking link".
+  if (!enabled) return null;
 
   return (
     <div style={{ marginTop: 14 }}>

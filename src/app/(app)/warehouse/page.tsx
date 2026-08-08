@@ -20,7 +20,7 @@ const TABS = [
 ] as const;
 
 export default function WarehousePage() {
-  const { me, deliveries, settings, ready } = useData();
+  const { me, deliveries, settings, ready, realRole } = useData();
   const { lang, t } = usePrefs();
   const [open, setOpen] = useState<Delivery | null>(null);
   // Warehouse starts on the Approved (new) queue — the orders waiting to be
@@ -31,7 +31,10 @@ export default function WarehousePage() {
   // (PU = pickup store). Falls back to "every store" only if unassigned.
   const [storeFilter, setStoreFilter] = useState<string>("");
   const [loadDate, setLoadDate] = useState<string>(todayISO());
-  const lockedToOwnStore = me?.role === "warehouse";
+  // A real warehouse worker is locked to their own store. An ADMIN previewing
+  // the warehouse role is NOT locked — they get the store picker (defaulting to
+  // all stores) so they can try each store and see every order.
+  const lockedToOwnStore = me?.role === "warehouse" && realRole !== "admin";
   const effectiveStore = lockedToOwnStore ? (me?.store ?? "") : storeFilter;
 
   // An order is "at" a warehouse store if it's sold from there OR physically
