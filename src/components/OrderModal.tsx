@@ -86,6 +86,7 @@ export function OrderModal({
   const [cancelReason, setCancelReason] = useState("");
   const [showCancel, setShowCancel] = useState(false);
   const [redeliverReason, setRedeliverReason] = useState("");
+  const [redeliverCharge, setRedeliverCharge] = useState("");
   const [showRedeliver, setShowRedeliver] = useState(false);
   const [routing, setRouting] = useState(false);
   const [routeErr, setRouteErr] = useState("");
@@ -622,12 +623,21 @@ export function OrderModal({
       route_provider: src.route_provider, route_traffic: src.route_traffic,
       // warehouse redoes these
       actual_pallets: null, assigned_driver: src.assigned_driver,
+      // The additional charge (if any) for redoing the delivery becomes the new
+      // order's delivery fee — blank/empty means a free re-delivery ($0).
+      delivery_fee: redeliverCharge.trim() === "" ? 0 : Number(redeliverCharge),
       // re-delivery linkage
       stage: "approved", redelivery_of: src.id, redelivery_reason: redeliverReason.trim(),
     };
     const row = await addDelivery(payload);
     setBusy(false);
-    if (row) { notify(t(`Re-delivery logged as #${orderLabel(row)}`, `Reentrega registrada como #${orderLabel(row)}`)); onClose(); }
+    if (row) {
+      const chg = Number(redeliverCharge);
+      if (chg > 0) await addNote(row.id, `Re-delivery additional charge: $${chg.toFixed(2)}`);
+      notify(t(`Re-delivery logged as #${orderLabel(row)}`, `Reentrega registrada como #${orderLabel(row)}`));
+      setRedeliverCharge(""); setRedeliverReason("");
+      onClose();
+    }
   };
 
   // Clone this order into a fresh draft (repeat customers, standing orders).
@@ -1391,8 +1401,11 @@ export function OrderModal({
             <div className="field" style={{ marginTop: 14 }}>
               <label>{t("Why does this order need to be delivered again?", "¿Por qué debe entregarse esta orden de nuevo?")}</label>
               <textarea rows={2} value={redeliverReason} onChange={(e) => setRedeliverReason(e.target.value)} placeholder={t("e.g. wrong pallet loaded, damaged in transit…", "ej. tarima equivocada, dañado en tránsito…")} />
+              <label style={{ marginTop: 10 }}>{t("Was there an additional charge to the customer for this re-delivery? ($)", "¿Hubo un cargo adicional al cliente por esta reentrega? ($)")}</label>
+              <input type="number" min={0} step="0.01" value={redeliverCharge} onChange={(e) => setRedeliverCharge(e.target.value)} placeholder={t("0 = no extra charge", "0 = sin cargo adicional")} style={{ maxWidth: 200 }} />
+              <div className="hint">{t("Leave 0 (or blank) if the re-delivery is free. This becomes the delivery fee on the new linked order.", "Deje 0 (o vacío) si la reentrega es gratis. Esto será el costo de entrega en la nueva orden vinculada.")}</div>
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => { setShowRedeliver(false); setRedeliverReason(""); }} disabled={busy}>{t("Cancel", "Cancelar")}</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setShowRedeliver(false); setRedeliverReason(""); setRedeliverCharge(""); }} disabled={busy}>{t("Cancel", "Cancelar")}</button>
                 <button className="btn btn-amber btn-sm" disabled={busy || !redeliverReason.trim()} onClick={recordRedelivery}>{t("Create re-delivery", "Crear reentrega")}</button>
               </div>
             </div>
