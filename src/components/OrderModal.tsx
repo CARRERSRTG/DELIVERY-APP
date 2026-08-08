@@ -1273,15 +1273,12 @@ export function OrderModal({
               <button className="btn btn-ghost" onClick={calcRoute} disabled={routing}>
                 {routing ? t("Calculating…", "Calculando…") : t("🚚 Auto-calculate distance & ETA", "🚚 Calcular distancia y tiempo")}
               </button>
+              {/* Miles are auto-calculated only — read-only, never hand-typed. */}
               <div style={{ width: 110 }}>
-                <Txt
-                  label={t("Miles (editable)", "Millas (editable)")}
-                  type="number"
-                  val={d.route_miles ?? ""}
-                  on={(v) => set("route_miles", v === "" ? null : Number(v))}
-                  disabled={!salesFields}
-                  placeholder="0"
-                />
+                <div className="hint" style={{ marginBottom: 2 }}>{t("Miles", "Millas")}</div>
+                <div style={{ fontFamily: "Archivo", fontSize: 18, fontWeight: 700 }}>
+                  {d.route_miles != null ? `${d.route_miles} mi` : "—"}
+                </div>
               </div>
               {d.route_duration && (
                 <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
@@ -1292,7 +1289,7 @@ export function OrderModal({
                 </div>
               )}
             </div>
-            <div className="hint">{t("Auto-calculate fills this in from a live routing service; you can also type the miles directly.", "El cálculo automático llena esto con un servicio de ruteo en vivo; también puede escribir las millas directamente.")}</div>
+            <div className="hint">{t("Miles come from the live routing service — press Auto-calculate to fill them in.", "Las millas provienen del servicio de ruteo en vivo — presione Calcular para llenarlas.")}</div>
             {routeErr && <div className="hint" style={{ color: "var(--red)" }}>{routeErr}</div>}
             {!routing && !routeErr && (d.delivery_address || "").trim() && d.route_miles == null && (
               <div className="hint" style={{ color: "var(--amber)" }}>⚠ {t("Delivery address not verified yet — recalculate to confirm it maps to a real location.", "Dirección de entrega no verificada — recalcule para confirmar que corresponde a una ubicación real.")}</div>
