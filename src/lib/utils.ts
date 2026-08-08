@@ -381,33 +381,40 @@ export function changedFieldsNote(before: Record<string, unknown>, patch: Record
 }
 
 export function deliveryColumns(d: Delivery): [string, string][] {
+  // Order matters: the read view renders these row-major into two columns, so
+  // each adjacent pair below is one left/right row in the order form.
   return [
     ["ID", orderLabel(d)],
+    // — header / order identity —
+    ["Input Date", d.input_date ?? ""],
+    ["Input Military Time", fmtMilitary(d.input_time)],
     ["Order Type", d.order_type ?? ""],
     ["Store (Sold From)", d.store ?? ""],
     ["PO #", d.po2 ?? ""],
     ["SO #", d.so_num ?? ""],
     ["Invoice #", d.invoice_num ?? ""],
     ["Estimate #", d.estimate_num ?? ""],
-    ["Input Date", d.input_date ?? ""],
-    ["Input Military Time", fmtMilitary(d.input_time)],
-    ["Delivery Date", d.delivery_date ?? ""],
-    ["Pickup Name", d.pickup_name ?? ""],
-    ["Pickup Address", d.pickup_address ?? ""],
-    ["Pickup Duration", d.pickup_duration ?? ""],
-    ["Delivery Fee", d.delivery_fee == null ? "" : fmtMoney(d.delivery_fee)],
     ["Est. Pallets (sales)", d.est_pallets == null ? "" : String(d.est_pallets)],
     ["Actual Pallets (warehouse)", d.actual_pallets == null ? "" : String(d.actual_pallets)],
-    ["Assigned Driver", d.assigned_driver ?? ""],
+    // — pickup —
+    ["Delivery Date", d.delivery_date ?? ""],
+    ["Pickup Address", d.pickup_address ?? ""],
+    ["Pickup Name", d.pickup_name ?? ""],
+    ["Pickup Duration", d.pickup_duration ?? ""],
+    // — route / delivery —
+    ["Route Miles", d.route_miles == null ? "" : `${d.route_miles} mi`],
+    ["Est. Travel Time", d.route_duration ?? ""],
+    ["Delivery Fee", d.delivery_fee == null ? "" : fmtMoney(d.delivery_fee)],
     ["Delivery Duration", d.delivery_duration ?? ""],
-    ["Delivery Address", d.delivery_address ?? ""],
     ["Delivery Military Time Windows", fmtWindows(d.delivery_windows)],
+    ["Delivery Address", d.delivery_address ?? ""],
+    // — customer —
     ["Account", d.account ?? ""],
     ["Contact", d.contact ?? ""],
     ["Delivery Phone Number", d.delivery_phone ?? ""],
     ["Delivery Notes", d.delivery_notes ?? ""],
-    ["Route Miles", d.route_miles == null ? "" : `${d.route_miles} mi`],
-    ["Est. Travel Time", d.route_duration ?? ""],
+    // — hide-when-empty extras kept last so they never break the pairing above —
+    ["Assigned Driver", d.assigned_driver ?? ""],
     ["Re-delivery reason", d.redelivery_reason ?? ""],
   ];
 }
