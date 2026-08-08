@@ -187,6 +187,12 @@ export interface NamedLocation {
   /** Stores only: when true, orders sold from this store skip manager approval
    * and are created already Approved. Undefined/false = normal approval flow. */
   auto_approve?: boolean;
+  /** Confirmed geocoded pinpoint, saved when an admin taps "Verify" and the
+   * address is found. Its presence means the address is verified; routing can
+   * use this exact point instead of re-geocoding. Cleared when the address is
+   * edited (so it always reflects a real confirmation). */
+  lat?: number | null;
+  lng?: number | null;
 }
 
 /** A saved customer/site account — picking it on an order auto-fills who to

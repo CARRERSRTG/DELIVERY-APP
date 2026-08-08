@@ -302,6 +302,12 @@ function LocationTable({
     const next = [...items];
     const rec: NamedLocation = { name, address: draft.address.trim() };
     if (autoApprove) rec.auto_approve = !!draft.auto_approve;
+    // Keep the verified pin only if the address itself didn't change; editing
+    // the address requires a fresh verify.
+    const prev = editing != null ? items[editing] : undefined;
+    if (prev && prev.address === rec.address && prev.lat != null && prev.lng != null) {
+      rec.lat = prev.lat; rec.lng = prev.lng;
+    }
     if (adding) next.push(rec);
     else if (editing != null) next[editing] = rec;
     onChange(next);
@@ -389,7 +395,16 @@ function LocationTable({
                     {usage.get(it.name)} {t("used", "usos")}
                   </span>
                 )}
-                <VerifyAddress address={it.address} t={t} />
+                <VerifyAddress
+                  address={it.address}
+                  confirmed={it.lat != null && it.lng != null ? { lat: it.lat, lng: it.lng } : null}
+                  onConfirm={(coords) => {
+                    const next = [...items];
+                    next[i] = { ...items[i], lat: coords.lat, lng: coords.lng };
+                    onChange(next);
+                  }}
+                  t={t}
+                />
                 <button className="btn btn-ghost btn-sm" onClick={() => startEdit(i)}>{t("Edit", "Editar")}</button>
                 <button className="btn btn-danger btn-sm" onClick={() => remove(i)}>✕</button>
               </div>
@@ -407,11 +422,18 @@ function LocationTable({
   );
 }
 
-/** "Verify" a saved address: geocode it and confirm exactly where it lands, so
- * you can trust the pickup/delivery distances that route from it. On success it
- * shows a "view pin" link (opens the exact coordinates in Google Maps). */
-function VerifyAddress({ address, t }: { address: string; t: (en: string, es: string) => string }) {
-  const [state, setState] = useState<"idle" | "loading" | "notfound" | { lat: number; lng: number }>("idle");
+/** "Verify" a saved address: geocode it, confirm exactly where it lands, and
+ * SAVE the pin. Once confirmed it shows a persistent "✓ Verified" badge (green)
+ * that links to the pin; it stays verified until the address is edited. */
+function VerifyAddress({
+  address, confirmed, onConfirm, t,
+}: {
+  address: string;
+  confirmed: { lat: number; lng: number } | null;
+  onConfirm: (coords: { lat: number; lng: number }) => void;
+  t: (en: string, es: string) => string;
+}) {
+  const [state, setState] = useState<"idle" | "loading" | "notfound">("idle");
   const verify = async () => {
     if (!address.trim()) return;
     setState("loading");
@@ -423,24 +445,28 @@ function VerifyAddress({ address, t }: { address: string; t: (en: string, es: st
       });
       if (!res.ok) { setState("notfound"); return; }
       const p = await res.json();
-      setState(typeof p?.lat === "number" && typeof p?.lng === "number" ? { lat: p.lat, lng: p.lng } : "notfound");
+      if (typeof p?.lat === "number" && typeof p?.lng === "number") { onConfirm({ lat: p.lat, lng: p.lng }); setState("idle"); }
+      else setState("notfound");
     } catch { setState("notfound"); }
   };
   if (!address.trim()) return null;
+  // Already verified → persistent green badge that links to the saved pin.
+  if (confirmed) {
+    return (
+      <a className="sema" style={{ background: "var(--green)", color: "#fff", textDecoration: "none" }}
+        href={`https://www.google.com/maps/search/?api=1&query=${confirmed.lat},${confirmed.lng}`}
+        target="_blank" rel="noopener noreferrer"
+        title={t("Verified — click to view the saved pin. Edit the address to re-verify.", "Verificada — clic para ver el pin guardado. Edita la dirección para volver a verificar.")}>
+        ✓ {t("Verified", "Verificada")}
+      </a>
+    );
+  }
   return (
     <>
       <button className="btn btn-ghost btn-sm" onClick={verify} disabled={state === "loading"}
-        title={t("Check exactly where this address lands on the map", "Verifica exactamente dónde cae esta dirección en el mapa")}>
+        title={t("Check where this address lands, then lock in the pin", "Verifica dónde cae esta dirección y fija el pin")}>
         📍 {state === "loading" ? "…" : t("Verify", "Verificar")}
       </button>
-      {typeof state === "object" && (
-        <a className="sema" style={{ background: "var(--green)", color: "#fff", textDecoration: "none" }}
-          href={`https://www.google.com/maps/search/?api=1&query=${state.lat},${state.lng}`}
-          target="_blank" rel="noopener noreferrer"
-          title={t("Open the pinpoint in Google Maps", "Abrir la ubicación en Google Maps")}>
-          ✓ {t("Found — view pin", "Ubicada — ver pin")}
-        </a>
-      )}
       {state === "notfound" && (
         <span className="sema" style={{ background: "var(--red)", color: "#fff" }}
           title={t("Couldn't place this address — make it more complete (street, city, state, ZIP).", "No se pudo ubicar — hágala más completa (calle, ciudad, estado, ZIP).")}>
