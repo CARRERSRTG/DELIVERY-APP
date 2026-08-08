@@ -496,20 +496,26 @@ export function OrderModal({
   };
 
   // --- Role-targeted notes (add on demand, everyone sees them tagged) ---
+  const makeNote = (role: NoteRole, text: string): RoleNote => ({
+    id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    role, text: text.trim(), by: me.id, by_name: me.full_name ?? null, at: new Date().toISOString(),
+  });
+  // View mode: an existing order — persist the note straight to the DB.
   const addRoleNote = async (role: NoteRole, text: string) => {
-    if (!existing) return;
-    const clean = text.trim();
-    if (!clean) return;
-    const note: RoleNote = {
-      id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      role, text: clean, by: me.id, by_name: me.full_name ?? null, at: new Date().toISOString(),
-    };
-    await updateDelivery(existing.id, { role_notes: [...(existing.role_notes ?? []), note] });
+    if (!existing || !text.trim()) return;
+    await updateDelivery(existing.id, { role_notes: [...(existing.role_notes ?? []), makeNote(role, text)] });
   };
   const removeRoleNote = async (id: string) => {
     if (!existing) return;
     await updateDelivery(existing.id, { role_notes: (existing.role_notes ?? []).filter((x) => x.id !== id) });
   };
+  // Create / edit mode: the order may not exist yet, so notes live in the draft
+  // and get saved together with the order.
+  const addDraftNote = (role: NoteRole, text: string) => {
+    if (!text.trim()) return;
+    set("role_notes", [...(d.role_notes ?? []), makeNote(role, text)]);
+  };
+  const removeDraftNote = (id: string) => set("role_notes", (d.role_notes ?? []).filter((x) => x.id !== id));
 
   // Driver confirms what actually fit on the truck. A short load splits the
   // order: this one becomes #Na (loaded part, out for delivery) and the
@@ -984,6 +990,10 @@ export function OrderModal({
         {/* ---------- EDIT MODE ---------- */}
         {editing && (
           <>
+            {/* Notes are addable right here while creating/editing (saved with the
+                order). "＋ Add note" sits at the top-right of this block. */}
+            <RoleNotes notes={d.role_notes ?? []} me={me} onAdd={addDraftNote} onRemove={removeDraftNote} t={t} lang={lang} />
+
             <div className="section-label">{t("Order", "Orden")}</div>
             {needsSalesRep && (
               <div className="grid g2">
