@@ -12,7 +12,7 @@ import type { Delivery } from "@/lib/types";
 
 const TABS = [
   { key: "approved", label: "Approved (new)", label_es: "Aprobado (nuevo)" },
-  { key: "fulfilling", label: "Fulfilling", label_es: "Preparando" },
+  { key: "fulfilling", label: "Preparing", label_es: "Preparando" },
   { key: "ready", label: "Ready", label_es: "Listo" },
   { key: "picked_up", label: "Out for delivery", label_es: "En reparto" },
   { key: "delivered", label: "Delivered", label_es: "Entregado" },
@@ -23,8 +23,9 @@ export default function WarehousePage() {
   const { me, deliveries, settings, ready } = useData();
   const { lang, t } = usePrefs();
   const [open, setOpen] = useState<Delivery | null>(null);
-  // Warehouse starts on All — the full day's board — and narrows as needed.
-  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("all");
+  // Warehouse starts on the Approved (new) queue — the orders waiting to be
+  // prepared — and narrows/expands from there.
+  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("approved");
   const [q, setQ] = useState("");
   // Admin can browse any store; a warehouse worker is locked to their own
   // (PU = pickup store). Falls back to "every store" only if unassigned.

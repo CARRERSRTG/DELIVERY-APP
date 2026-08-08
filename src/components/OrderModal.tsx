@@ -166,6 +166,10 @@ export function OrderModal({
   const missingSet = new Set(missingKeys(d, settings.order_type_rules));
   if (needsSalesRep && !d.assigned_sales_rep) missingSet.add("assigned_sales_rep");
 
+  // Pickup and delivery can't be the same place — an order that "goes" nowhere.
+  const normAddr = (s: string | null | undefined) => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const pickupEqualsDropoff = !!normAddr(d.pickup_address) && normAddr(d.pickup_address) === normAddr(d.delivery_address);
+
   // ---- Duplicate-order warning (#34): same account + date + PO already logged ----
   const duplicateOf = (draft: Draft): Delivery | undefined =>
     deliveries.find((x) =>
@@ -290,6 +294,11 @@ export function OrderModal({
 
   const save = async () => {
     const payload = withDurations(d);
+    // Hard rule: pickup and delivery address may never be identical.
+    if (pickupEqualsDropoff) {
+      notify(t("Pickup and delivery address can't be the same.", "La dirección de recolección y de entrega no pueden ser iguales."));
+      return;
+    }
     // Enforce required fields once an order is past the draft stage.
     if ((payload.stage ?? "draft") !== "draft" && !(await passesChecks(payload))) return;
     setBusy(true);
@@ -1209,6 +1218,12 @@ export function OrderModal({
                   )}
                   <button className="btn btn-ghost btn-sm" onClick={() => setShowPinPicker(false)}>{t("Cancel", "Cancelar")}</button>
                 </div>
+              </div>
+            )}
+
+            {pickupEqualsDropoff && (
+              <div className="hint" style={{ color: "var(--red)", fontWeight: 600, marginBottom: 10 }}>
+                ⚠ {t("Pickup and delivery address are the same — they must be different.", "La dirección de recolección y de entrega son iguales — deben ser diferentes.")}
               </div>
             )}
 
