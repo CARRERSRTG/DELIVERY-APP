@@ -65,15 +65,18 @@ export function OrderModal({
   // A rep assigned to a store starts new orders there (still changeable).
   const [d, setD] = useState<Draft>(existing ?? { ...EMPTY, ...(me.store ? { store: me.store } : {}) });
 
-  // Saturday deliveries run a shorter all-day window (8:30–3:30) in every
-  // location — auto-select it when the delivery date lands on a Saturday.
-  // Only overrides an empty field or the weekday all-day default, so a
-  // manually-chosen window is never fought.
+  // Delivery-window default follows the weekday: Saturdays run the shorter
+  // all-day window (8:30–3:30), every other day runs the full weekday all-day
+  // window (8:30–5:30). Switching the date between a Saturday and a weekday
+  // flips the default BOTH ways — but only when the field is empty or on the
+  // other day's default, so a manually-chosen custom window is never fought.
   useEffect(() => {
     if (!editing || !d.delivery_date) return;
     const isSat = new Date(d.delivery_date + "T12:00:00").getDay() === 6;
-    if (isSat && (!d.delivery_windows || d.delivery_windows === WEEKDAY_ALL_DAY_WINDOW)) {
-      setD((p) => (p.delivery_windows === SATURDAY_WINDOW ? p : { ...p, delivery_windows: SATURDAY_WINDOW }));
+    const want = isSat ? SATURDAY_WINDOW : WEEKDAY_ALL_DAY_WINDOW;
+    const other = isSat ? WEEKDAY_ALL_DAY_WINDOW : SATURDAY_WINDOW;
+    if (!d.delivery_windows || d.delivery_windows === other) {
+      setD((p) => (p.delivery_windows === want ? p : { ...p, delivery_windows: want }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d.delivery_date, editing]);
