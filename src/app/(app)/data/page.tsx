@@ -389,6 +389,7 @@ function LocationTable({
                     {usage.get(it.name)} {t("used", "usos")}
                   </span>
                 )}
+                <VerifyAddress address={it.address} t={t} />
                 <button className="btn btn-ghost btn-sm" onClick={() => startEdit(i)}>{t("Edit", "Editar")}</button>
                 <button className="btn btn-danger btn-sm" onClick={() => remove(i)}>✕</button>
               </div>
@@ -403,5 +404,49 @@ function LocationTable({
         </button>
       )}
     </div>
+  );
+}
+
+/** "Verify" a saved address: geocode it and confirm exactly where it lands, so
+ * you can trust the pickup/delivery distances that route from it. On success it
+ * shows a "view pin" link (opens the exact coordinates in Google Maps). */
+function VerifyAddress({ address, t }: { address: string; t: (en: string, es: string) => string }) {
+  const [state, setState] = useState<"idle" | "loading" | "notfound" | { lat: number; lng: number }>("idle");
+  const verify = async () => {
+    if (!address.trim()) return;
+    setState("loading");
+    try {
+      const res = await fetch("/api/geocode-point", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      if (!res.ok) { setState("notfound"); return; }
+      const p = await res.json();
+      setState(typeof p?.lat === "number" && typeof p?.lng === "number" ? { lat: p.lat, lng: p.lng } : "notfound");
+    } catch { setState("notfound"); }
+  };
+  if (!address.trim()) return null;
+  return (
+    <>
+      <button className="btn btn-ghost btn-sm" onClick={verify} disabled={state === "loading"}
+        title={t("Check exactly where this address lands on the map", "Verifica exactamente dónde cae esta dirección en el mapa")}>
+        📍 {state === "loading" ? "…" : t("Verify", "Verificar")}
+      </button>
+      {typeof state === "object" && (
+        <a className="sema" style={{ background: "var(--green)", color: "#fff", textDecoration: "none" }}
+          href={`https://www.google.com/maps/search/?api=1&query=${state.lat},${state.lng}`}
+          target="_blank" rel="noopener noreferrer"
+          title={t("Open the pinpoint in Google Maps", "Abrir la ubicación en Google Maps")}>
+          ✓ {t("Found — view pin", "Ubicada — ver pin")}
+        </a>
+      )}
+      {state === "notfound" && (
+        <span className="sema" style={{ background: "var(--red)", color: "#fff" }}
+          title={t("Couldn't place this address — make it more complete (street, city, state, ZIP).", "No se pudo ubicar — hágala más completa (calle, ciudad, estado, ZIP).")}>
+          ✗ {t("Not found", "No encontrada")}
+        </span>
+      )}
+    </>
   );
 }
