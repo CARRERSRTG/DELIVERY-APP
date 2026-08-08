@@ -991,8 +991,10 @@ export function OrderModal({
         {editing && (
           <>
             <div className="section-label">{t("Order", "Orden")}</div>
-            {/* Sales Rep with the same-invoice acknowledgement beside it (top-right). */}
-            {(needsSalesRep || (salesFields && invoiceDup)) && (
+            {/* Sales Rep with the "same invoice as a past order" toggle beside it
+                (top-right). Ticking the box reveals a searchable picker of past
+                invoices; picking one fills the invoice # and marks it shared. */}
+            {(needsSalesRep || salesFields) && (
               <div className="grid g2">
                 {needsSalesRep ? (
                   <div className="field">
@@ -1007,18 +1009,32 @@ export function OrderModal({
                     </select>
                   </div>
                 ) : <div />}
-                {/* Same invoice as a past order — confirm here to clear the guard. */}
-                {salesFields && invoiceDup && (
+                {salesFields && (
                   <div className="field" style={{ alignSelf: "flex-end" }}>
                     <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>
-                      <input type="checkbox" style={{ width: "auto", margin: 0 }} checked={sharedInvoice} onChange={(e) => setSharedInvoice(e.target.checked)} />
-                      🔗 {t(`Same invoice as a past order (#${orderLabel(invoiceDup)})`, `Misma factura que una orden anterior (#${orderLabel(invoiceDup)})`)}
+                      <input
+                        type="checkbox"
+                        style={{ width: "auto", margin: 0 }}
+                        checked={sharedInvoice}
+                        onChange={(e) => setSharedInvoice(e.target.checked)}
+                      />
+                      🔗 {t("Same invoice as a past order", "Misma factura que una orden anterior")}
                     </label>
-                    <div className="hint" style={{ color: sharedInvoice ? "var(--green)" : "var(--red)", fontWeight: 600, marginTop: 4 }}>
-                      {sharedInvoice
-                        ? t(`Sharing invoice #${invoiceDup.invoice_num} with order #${orderLabel(invoiceDup)}.`, `Compartiendo la factura #${invoiceDup.invoice_num} con la orden #${orderLabel(invoiceDup)}.`)
-                        : t(`Duplicate — order #${orderLabel(invoiceDup)} already uses #${invoiceDup.invoice_num}.`, `Duplicada — la orden #${orderLabel(invoiceDup)} ya usa #${invoiceDup.invoice_num}.`)}
-                    </div>
+                    {sharedInvoice && pastInvoiceOptions.length > 0 && (
+                      <PastInvoicePicker
+                        options={pastInvoiceOptions}
+                        current={d.invoice_num ?? ""}
+                        onPick={(inv) => setD((p) => ({ ...p, invoice_num: inv }))}
+                        t={t}
+                      />
+                    )}
+                    {invoiceDup && (
+                      <div className="hint" style={{ color: sharedInvoice ? "var(--green)" : "var(--red)", fontWeight: 600, marginTop: 4 }}>
+                        {sharedInvoice
+                          ? t(`Sharing invoice #${invoiceDup.invoice_num} with order #${orderLabel(invoiceDup)}.`, `Compartiendo la factura #${invoiceDup.invoice_num} con la orden #${orderLabel(invoiceDup)}.`)
+                          : t(`Duplicate — order #${orderLabel(invoiceDup)} already uses #${invoiceDup.invoice_num}.`, `Duplicada — la orden #${orderLabel(invoiceDup)} ya usa #${invoiceDup.invoice_num}.`)}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1115,28 +1131,6 @@ export function OrderModal({
                   <Txt label="PO #" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
                   <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
                 </div>
-                {/* Optional: attach this delivery to a past order's invoice (one
-                    invoice, several drops). Picking one fills the invoice # and
-                    marks it shared — the acknowledgement checkbox up by Sales Rep
-                    then shows as confirmed. */}
-                {salesFields && pastInvoiceOptions.length > 0 && (
-                  <div className="field" style={{ maxWidth: 460, marginTop: -4, marginBottom: 10 }}>
-                    <label>🔗 {t("Same invoice as a past order (optional)", "Misma factura que una orden anterior (opcional)")}</label>
-                    <select
-                      value=""
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!v) return;
-                        setD((p) => ({ ...p, invoice_num: v }));
-                        setSharedInvoice(true);
-                        e.currentTarget.value = "";
-                      }}
-                    >
-                      <option value="">{t("Pick a past invoice to share…", "Elija una factura anterior a compartir…")}</option>
-                      {pastInvoiceOptions.map((o) => <option key={o.invoice} value={o.invoice}>{o.label}</option>)}
-                    </select>
-                  </div>
-                )}
               </>
             )}
 
@@ -1557,6 +1551,51 @@ export function OrderModal({
       </div>
     )}
     </>
+  );
+}
+
+/** Searchable picker of past orders' invoices. Type to filter by invoice #,
+ * order id or account; click a match to attach this delivery to that invoice. */
+function PastInvoicePicker({ options, current, onPick, t }: {
+  options: { invoice: string; label: string }[];
+  current: string;
+  onPick: (invoice: string) => void;
+  t: (en: string, es: string) => string;
+}) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const filtered = needle ? options.filter((o) => o.label.toLowerCase().includes(needle)) : options;
+  return (
+    <div style={{ marginTop: 6 }}>
+      <input
+        placeholder={t("Search invoice, order or account…", "Buscar factura, orden o cuenta…")}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      <div style={{ maxHeight: 170, overflowY: "auto", border: "1px solid #dfe3ea", borderRadius: 8, marginTop: 6 }}>
+        {filtered.length === 0 ? (
+          <div className="hint" style={{ padding: 8 }}>{t("No matching past invoices.", "Sin facturas anteriores coincidentes.")}</div>
+        ) : (
+          filtered.slice(0, 50).map((o) => {
+            const picked = o.invoice === current;
+            return (
+              <button
+                key={o.invoice}
+                type="button"
+                onClick={() => onPick(o.invoice)}
+                style={{
+                  display: "block", width: "100%", textAlign: "left", padding: "7px 10px",
+                  background: picked ? "var(--accent)" : "transparent", color: picked ? "#fff" : "inherit",
+                  border: "none", borderBottom: "1px solid #eef1f5", cursor: "pointer", fontWeight: picked ? 700 : 400,
+                }}
+              >
+                {picked ? "✓ " : ""}{o.label}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
   );
 }
 
