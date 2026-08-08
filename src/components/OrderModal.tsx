@@ -787,9 +787,10 @@ export function OrderModal({
   }
 
   return (
-    // Viewing an existing order: clicking the backdrop closes it. While EDITING
-    // (or creating), a backdrop click does nothing — the only way out is the ✕
-    // or a button, so a stray click can't discard in-progress edits.
+    <>
+    {/* Viewing an existing order: clicking the backdrop closes it. While EDITING
+        (or creating), a backdrop click does nothing — the only way out is the ✕
+        or a button, so a stray click can't discard in-progress edits. */}
     <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget && !isNew && !editing) requestClose(); }}>
       <div className="modal">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
@@ -1324,15 +1325,7 @@ export function OrderModal({
           </div>
         )}
 
-        {/* ---------- PALLET CONFIRMATIONS (ready / pickup) ---------- */}
-        {showReadyConfirm && existing && (
-          <div className="field" style={{ marginTop: 14 }}>
-            <label>{t("Confirm pallet count to mark ready", "Confirme la cantidad de tarimas para marcar listo")}</label>
-            <input type="number" min={1} value={readyPallets} onChange={(e) => setReadyPallets(e.target.value)}
-              placeholder={existing.est_pallets != null ? t(`est. ${existing.est_pallets}`, `est. ${existing.est_pallets}`) : ""} />
-            <div className="hint">{t("Original order amount:", "Cantidad original de la orden:")} {existing.est_pallets ?? "—"}</div>
-          </div>
-        )}
+        {/* ---------- PALLET CONFIRMATION (pickup) — "ready" is a popup, see below ---------- */}
         {showPickupConfirm && existing && (
           <div className="field" style={{ marginTop: 14 }}>
             <label>{t("How many pallets did you load?", "¿Cuántas tarimas cargó?")}</label>
@@ -1510,6 +1503,27 @@ export function OrderModal({
         </div>
       </div>
     </div>
+
+    {/* CONFIRM-PALLETS POPUP — opens after pressing "Mark ready". The only way
+        out is Confirm or Discard; a backdrop click does nothing on purpose. */}
+    {showReadyConfirm && existing && (
+      <div className="overlay" style={{ zIndex: 60 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal" style={{ maxWidth: 420 }}>
+          <h3 style={{ marginTop: 0 }}>{t("Confirm pallets", "Confirmar tarimas")}</h3>
+          <div className="field">
+            <label>{t("How many pallets are ready?", "¿Cuántas tarimas están listas?")}</label>
+            <input type="number" min={1} autoFocus value={readyPallets} onChange={(e) => setReadyPallets(e.target.value)}
+              placeholder={existing.est_pallets != null ? `est. ${existing.est_pallets}` : ""} />
+            <div className="hint">{t("Original order amount:", "Cantidad original de la orden:")} {existing.est_pallets ?? "—"}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+            <button className="btn btn-ghost" onClick={() => setShowReadyConfirm(false)} disabled={busy}>{t("Discard", "Descartar")}</button>
+            <button className="btn btn-green" onClick={confirmReady} disabled={busy}>{t("Confirm & mark ready", "Confirmar y marcar listo")}</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -1574,12 +1588,8 @@ function StageActions({
   if (canFulfill(me)) {
     if (stage === "approved") btns.push(<button key="start" className="btn btn-primary" onClick={() => onMove("fulfilling")} disabled={busy}>{t("Start preparing", "Comenzar preparación")}</button>);
     if (stage === "fulfilling") {
-      if (!readyConfirmOpen) {
-        btns.push(<button key="ready" className="btn btn-green" onClick={onRequestReady} disabled={busy}>{t("Mark ready", "Marcar listo")}</button>);
-      } else {
-        btns.push(<button key="readyback" className="btn btn-ghost" onClick={onCancelReady} disabled={busy}>{t("Back", "Atrás")}</button>);
-        btns.push(<button key="doready" className="btn btn-green" onClick={onConfirmReady} disabled={busy}>{t("Confirm pallets & mark ready", "Confirmar tarimas y marcar listo")}</button>);
-      }
+      // Opens the confirm-pallets popup (the actual confirm/discard lives there).
+      btns.push(<button key="ready" className="btn btn-green" onClick={onRequestReady} disabled={busy}>{t("Mark ready", "Marcar listo")}</button>);
     }
   }
 
