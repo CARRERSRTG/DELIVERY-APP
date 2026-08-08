@@ -979,24 +979,37 @@ export function OrderModal({
         {/* ---------- EDIT MODE ---------- */}
         {editing && (
           <>
-            {/* Notes are addable right here while creating/editing (saved with the
-                order). "＋ Add note" sits at the top-right of this block. */}
-            <RoleNotes notes={d.role_notes ?? []} me={me} onAdd={addDraftNote} onRemove={removeDraftNote} t={t} lang={lang} />
-
             <div className="section-label">{t("Order", "Orden")}</div>
-            {needsSalesRep && (
+            {/* Sales Rep with the same-invoice acknowledgement beside it (top-right). */}
+            {(needsSalesRep || (salesFields && invoiceDup)) && (
               <div className="grid g2">
-                <div className="field">
-                  <label>{t("Sales Rep", "Vendedor")}{missingSet.has("assigned_sales_rep") && <span className="req-star"> *</span>}</label>
-                  <select
-                    className={missingSet.has("assigned_sales_rep") ? "invalid" : ""}
-                    value={d.assigned_sales_rep ?? ""}
-                    onChange={(e) => set("assigned_sales_rep", e.target.value || null)}
-                  >
-                    <option value="">{t("Select sales rep…", "Seleccione vendedor…")}</option>
-                    {salesReps.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                  </select>
-                </div>
+                {needsSalesRep ? (
+                  <div className="field">
+                    <label>{t("Sales Rep", "Vendedor")}{missingSet.has("assigned_sales_rep") && <span className="req-star"> *</span>}</label>
+                    <select
+                      className={missingSet.has("assigned_sales_rep") ? "invalid" : ""}
+                      value={d.assigned_sales_rep ?? ""}
+                      onChange={(e) => set("assigned_sales_rep", e.target.value || null)}
+                    >
+                      <option value="">{t("Select sales rep…", "Seleccione vendedor…")}</option>
+                      {salesReps.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                    </select>
+                  </div>
+                ) : <div />}
+                {/* Same invoice as a past order — confirm here to clear the guard. */}
+                {salesFields && invoiceDup && (
+                  <div className="field" style={{ alignSelf: "flex-end" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>
+                      <input type="checkbox" style={{ width: "auto", margin: 0 }} checked={sharedInvoice} onChange={(e) => setSharedInvoice(e.target.checked)} />
+                      🔗 {t(`Same invoice as a past order (#${orderLabel(invoiceDup)})`, `Misma factura que una orden anterior (#${orderLabel(invoiceDup)})`)}
+                    </label>
+                    <div className="hint" style={{ color: sharedInvoice ? "var(--green)" : "var(--red)", fontWeight: 600, marginTop: 4 }}>
+                      {sharedInvoice
+                        ? t(`Sharing invoice #${invoiceDup.invoice_num} with order #${orderLabel(invoiceDup)}.`, `Compartiendo la factura #${invoiceDup.invoice_num} con la orden #${orderLabel(invoiceDup)}.`)
+                        : t(`Duplicate — order #${orderLabel(invoiceDup)} already uses #${invoiceDup.invoice_num}.`, `Duplicada — la orden #${orderLabel(invoiceDup)} ya usa #${invoiceDup.invoice_num}.`)}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             {/* ---- Schedule ---- */}
@@ -1091,41 +1104,7 @@ export function OrderModal({
                   <Txt label="PO #" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
                   <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
                 </div>
-                {/* When the typed invoice matches a past order, the rep confirms
-                    it's an intentional shared invoice (one invoice, several
-                    drops) by ticking this checkbox — that clears the duplicate
-                    guard. */}
-                {salesFields && invoiceDup && (
-                  <label
-                    className="field"
-                    style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 520, marginTop: -4, marginBottom: 10, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}
-                  >
-                    <input
-                      type="checkbox"
-                      style={{ width: "auto", margin: 0 }}
-                      checked={sharedInvoice}
-                      onChange={(e) => setSharedInvoice(e.target.checked)}
-                    />
-                    🔗 {t(`Same invoice as a past order (#${orderLabel(invoiceDup)})`, `Misma factura que una orden anterior (#${orderLabel(invoiceDup)})`)}
-                  </label>
-                )}
               </>
-            )}
-            {invoiceDup && sharedInvoice && (
-              <div className="hint" style={{ color: "var(--green)", fontWeight: 600, marginTop: -6, marginBottom: 10 }}>
-                🔗 {t(
-                  `Sharing invoice #${invoiceDup.invoice_num} with order #${orderLabel(invoiceDup)}.`,
-                  `Compartiendo la factura #${invoiceDup.invoice_num} con la orden #${orderLabel(invoiceDup)}.`,
-                )}
-              </div>
-            )}
-            {invoiceDup && !sharedInvoice && (
-              <div className="hint" style={{ color: "var(--red)", fontWeight: 600, marginTop: -6, marginBottom: 10 }}>
-                ⚠ {t(
-                  `Duplicate invoice — order #${orderLabel(invoiceDup)} already uses invoice #${invoiceDup.invoice_num}.`,
-                  `Factura duplicada — la orden #${orderLabel(invoiceDup)} ya usa la factura #${invoiceDup.invoice_num}.`,
-                )}
-              </div>
             )}
 
             {/* ---- Store (Sold From) + its address ---- */}
@@ -1264,6 +1243,9 @@ export function OrderModal({
               <label>{t("Delivery Notes", "Notas de Entrega")}</label>
               <textarea rows={2} value={d.delivery_notes ?? ""} disabled={!salesFields} onChange={(e) => set("delivery_notes", e.target.value)} />
             </div>
+
+            {/* Role-targeted notes sit right beside Delivery Notes; saved with the order. */}
+            <RoleNotes notes={d.role_notes ?? []} me={me} onAdd={addDraftNote} onRemove={removeDraftNote} t={t} lang={lang} />
 
             <div className="section-label">{t("Route", "Ruta")}</div>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
