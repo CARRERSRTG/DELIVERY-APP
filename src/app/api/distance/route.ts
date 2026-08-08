@@ -84,21 +84,41 @@ async function viaMapbox(origin: string, destination: string, token: string): Pr
   };
 }
 
-// ---------- OpenStreetMap (Nominatim + OSRM, no key) ----------
-async function osmGeocode(q: string): Promise<[number, number]> {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": "RDZ-Deliveries/1.0 (internal logistics tool)" },
-  });
+// ---------- Accurate geocode + free OSRM routing ----------
+// Geocode each endpoint with the BEST available geocoder — Google Geocoding
+// (accurate, and usually enabled even when Distance Matrix isn't), then Mapbox,
+// then Nominatim as a last resort — and route between the resulting coordinates
+// with the free OSRM road router. This is what fixes wildly wrong distances
+// (e.g. a Brownsville→Brownsville pair coming back as 1600 mi) caused by
+// Nominatim mis-locating a street address.
+async function googleGeocode(q: string, key: string): Promise<[number, number] | null> {
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&region=us&key=${key}`;
+  const res = await fetch(url);
   const data = await res.json();
-  if (!Array.isArray(data) || !data[0]) throw new Error(`Could not find location: "${q}"`);
+  const loc = data.results?.[0]?.geometry?.location;
+  return loc ? [loc.lng, loc.lat] : null; // [lon, lat]
+}
+
+async function osmGeocode(q: string): Promise<[number, number] | null> {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us`;
+  const res = await fetch(url, { headers: { "User-Agent": "RDZ-Deliveries/1.0 (internal logistics tool)" } });
+  const data = await res.json();
+  if (!Array.isArray(data) || !data[0]) return null;
   return [parseFloat(data[0].lon), parseFloat(data[0].lat)]; // [lon, lat]
 }
 
-async function viaOSM(origin: string, destination: string): Promise<Result> {
-  // Nominatim asks for <=1 req/sec, so geocode sequentially.
-  const o = await osmGeocode(origin);
-  const d = await osmGeocode(destination);
+async function geocodeBest(q: string, google?: string, mapbox?: string): Promise<[number, number]> {
+  const safe = async (fn: () => Promise<[number, number] | null>) => { try { return await fn(); } catch { return null; } };
+  let p: [number, number] | null = null;
+  if (google) p = await safe(() => googleGeocode(q, google));
+  if (!p && mapbox) p = await safe(() => mapboxGeocode(q, mapbox));
+  if (!p) p = await safe(() => osmGeocode(q));
+  if (!p) throw new Error(`Could not find location: "${q}"`);
+  return p;
+}
+
+async function viaGeocodeOSRM(origin: string, destination: string, google?: string, mapbox?: string): Promise<Result> {
+  const [o, d] = await Promise.all([geocodeBest(origin, google, mapbox), geocodeBest(destination, google, mapbox)]);
   const url = `https://router.project-osrm.org/route/v1/driving/${o[0]},${o[1]};${d[0]},${d[1]}?overview=false`;
   const res = await fetch(url);
   const data = await res.json();
@@ -108,7 +128,7 @@ async function viaOSM(origin: string, destination: string): Promise<Result> {
     miles: route.distance / METERS_PER_MILE,
     duration_text: fmtDuration(route.duration),
     duration_min: Math.round(route.duration / 60),
-    provider: "OpenStreetMap",
+    provider: google ? "Google + OSRM" : "OpenStreetMap",
     traffic: false,
   };
 }
@@ -136,7 +156,8 @@ export async function POST(req: Request) {
     let result: Result | null = null;
     if (google) result = await safe(() => viaGoogle(origin, destination, google));
     if (!result && mapbox) result = await safe(() => viaMapbox(origin, destination, mapbox));
-    if (!result) result = await viaOSM(origin, destination); // free fallback (may throw → caught below)
+    // Fallback: accurate geocode (Google/Mapbox/OSM) + free OSRM routing.
+    if (!result) result = await viaGeocodeOSRM(origin, destination, google, mapbox);
     return NextResponse.json({
       ...result,
       miles: Math.round(result.miles * 10) / 10,
