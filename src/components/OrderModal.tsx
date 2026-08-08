@@ -851,7 +851,11 @@ export function OrderModal({
                 <div className="hint" style={{ marginTop: 6 }}>{t("Your RingCentral line rings first, then connects to", "Su línea RingCentral suena primero y luego conecta con")} {existing.contact || existing.account || t("the customer", "el cliente")} ({existing.delivery_phone}).</div>
               </div>
             )}
-            <ShareTracking order={existing} enabled={!!settings.rc_auto_sms_enabled} notify={notify} t={t} />
+            {/* Sending live tracking is limited to office (manager), logistics,
+                admin and drivers — sales & warehouse only get "Copy link" below. */}
+            {me.role !== "sales" && me.role !== "warehouse" && (
+              <ShareTracking order={existing} enabled={!!settings.rc_auto_sms_enabled} notify={notify} t={t} />
+            )}
             <div style={{ marginTop: 10 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => {
                 const url = `${location.origin}/track/${existing.id}`;

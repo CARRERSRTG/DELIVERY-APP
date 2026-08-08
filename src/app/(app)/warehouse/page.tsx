@@ -7,7 +7,7 @@ import { canFulfill, ROLE_DEFAULT_COLUMNS } from "@/lib/constants";
 import { OrdersTable } from "@/components/OrdersTable";
 import { OrderModal } from "@/components/OrderModal";
 import { printLoadSheets } from "@/lib/slip";
-import { todayISO, yesterdayISO } from "@/lib/utils";
+import { todayISO, withinRetention } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 const TABS = [
@@ -62,7 +62,9 @@ export default function WarehousePage() {
       // Searching matches by invoice # specifically and bypasses the date
       // window below — that's the one way to reach older history here.
       if (needle) return (d.invoice_num || "").toLowerCase().includes(needle);
-      if (d.delivery_date && d.delivery_date < yesterdayISO()) return false;
+      // Yesterday / today / future only; a late order lingers a couple of days
+      // then drops off unless it's reprogrammed. Older history via search above.
+      if (!withinRetention(d)) return false;
       return true;
     });
   }, [deliveries, effectiveStore, atStore, q]);

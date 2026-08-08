@@ -10,7 +10,7 @@ import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/Orders
 import { OrdersBoard } from "@/components/OrdersBoard";
 import { OrderModal } from "@/components/OrderModal";
 import { ImportOrdersModal } from "@/components/ImportOrdersModal";
-import { deliveryColumns, downloadCSV, orderLabel, isOverdue, isPendingUrgent, isToday, orderOwner, toCSV, todayISO, yesterdayISO } from "@/lib/utils";
+import { deliveryColumns, downloadCSV, orderLabel, isOverdue, isPendingUrgent, isToday, orderOwner, toCSV, todayISO, withinRetention } from "@/lib/utils";
 import { exportExcelByEmployee, exportPDFByEmployee } from "@/lib/export";
 import type { Delivery, Stage, UserRole } from "@/lib/types";
 
@@ -139,10 +139,11 @@ export default function OrdersPage() {
         if (me?.role === "warehouse" && !["approved", "fulfilling", "ready", "picked_up", "delivered"].includes(d.stage)) return false;
       }
       if (!needle) {
-        // Sales' default view is scoped to yesterday/today/future — older
+        // Sales' default view is scoped to yesterday/today/future (a late order
+        // lingers a couple of days, then drops off unless reprogrammed). Older
         // history is still there, just reached by searching (e.g. an invoice #)
         // rather than scrolled to, so the list stays focused on active work.
-        if (!teaching && me?.role === "sales" && d.delivery_date && d.delivery_date < yesterdayISO()) return false;
+        if (!teaching && me?.role === "sales" && !withinRetention(d)) return false;
         return true;
       }
       const hay = [d.order_code, d.order_no, d.account, d.so_num, d.po2, d.invoice_num, d.store, d.delivery_address, d.contact, d.assigned_driver, d.delivery_phone]

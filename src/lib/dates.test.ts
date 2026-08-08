@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { localISO, todayISO, isToday, isOverdue, deliveryRisk } from "@/lib/utils";
+import { localISO, todayISO, isToday, isOverdue, deliveryRisk, withinRetention } from "@/lib/utils";
 import { mkDelivery } from "@/lib/__fixtures";
 
 // Regression cover for a real bug: dates were derived with toISOString(), which
@@ -80,5 +80,38 @@ describe("deliveryRisk", () => {
     const now = new Date(); now.setHours(8, 0, 0, 0);
     const d = mkDelivery({ stage: "ready", delivery_date: todayISO(), delivery_windows: "1400-1600" });
     expect(deliveryRisk(d, now)).toBeNull();
+  });
+});
+
+describe("withinRetention — yesterday/today/future, plus a 2-day late grace", () => {
+  const TODAY = "2026-07-15";
+
+  it("shows today and future orders", () => {
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-15" }), TODAY)).toBe(true);
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-20" }), TODAY)).toBe(true);
+  });
+
+  it("shows yesterday for both open and delivered orders", () => {
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-14" }), TODAY)).toBe(true);
+    expect(withinRetention(mkDelivery({ stage: "delivered", delivery_date: "2026-07-14" }), TODAY)).toBe(true);
+  });
+
+  it("lets a late (undelivered) order linger through 2 days past, then drops it", () => {
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-13" }), TODAY)).toBe(true);  // 2 days late
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-12" }), TODAY)).toBe(false); // 3 days late → gone
+  });
+
+  it("drops delivered/canceled history the day after yesterday (no grace)", () => {
+    expect(withinRetention(mkDelivery({ stage: "delivered", delivery_date: "2026-07-13" }), TODAY)).toBe(false);
+    expect(withinRetention(mkDelivery({ stage: "canceled", delivery_date: "2026-07-13" }), TODAY)).toBe(false);
+  });
+
+  it("brings a late order back once it's reprogrammed to a future date", () => {
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-12" }), TODAY)).toBe(false);
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-18" }), TODAY)).toBe(true);
+  });
+
+  it("always keeps an undated draft visible", () => {
+    expect(withinRetention(mkDelivery({ stage: "draft", delivery_date: null }), TODAY)).toBe(true);
   });
 });

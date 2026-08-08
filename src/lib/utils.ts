@@ -252,6 +252,29 @@ export function daysBetween(aISO: string, bISO: string): number {
   return Math.floor((new Date(aISO).getTime() - new Date(bISO).getTime()) / 86_400_000);
 }
 
+/** How long a late order lingers on the queues after its delivery date before
+ * it drops off (unless it's reprogrammed to a future date). */
+export const LATE_GRACE_DAYS = 2;
+
+/** What the working queues (sales board, warehouse, driver) show by default:
+ * yesterday, today, and future. A past-due order that hasn't been delivered or
+ * canceled gets a short grace — it lingers up to LATE_GRACE_DAYS days late so a
+ * slipped delivery can still be worked or reprogrammed — then it disappears
+ * from the lists. Moving its delivery date forward (reprogramming) brings it
+ * straight back. Undated drafts always stay visible. */
+export function withinRetention(
+  d: { delivery_date?: string | null; stage?: string | null },
+  today: string = todayISO(),
+): boolean {
+  if (!d.delivery_date) return true;            // undated draft — still being scheduled
+  if (d.delivery_date >= today) return true;    // today or the future
+  const daysLate = daysBetween(today, d.delivery_date);      // ≥1 for past dates
+  const done = d.stage === "delivered" || d.stage === "canceled";
+  // Delivered/canceled history only lingers through yesterday; a still-open
+  // (late) order gets the extra grace days before it drops off.
+  return daysLate <= (done ? 1 : LATE_GRACE_DAYS);
+}
+
 /** Human "2 h 5 min" from a millisecond span (drops zero parts). "—" if invalid. */
 export function fmtDuration(ms: number | null): string {
   if (ms == null || !isFinite(ms) || ms < 0) return "—";

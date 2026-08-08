@@ -9,7 +9,7 @@ import { OrdersTable } from "@/components/OrdersTable";
 import { OrderModal } from "@/components/OrderModal";
 import { ShiftClock } from "@/components/ShiftClock";
 import { printRouteManifest } from "@/lib/manifest";
-import { fmtDate, todayISO, yesterdayISO } from "@/lib/utils";
+import { fmtDate, todayISO, withinRetention } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 // Full workflow visible to drivers now, in order: an order is approved but
@@ -47,7 +47,9 @@ export default function DriverPage() {
       // Searching matches by invoice # specifically and bypasses the date
       // window below — that's the one way to reach older history here.
       if (needle) return (d.invoice_num || "").toLowerCase().includes(needle);
-      if (d.delivery_date && d.delivery_date < yesterdayISO() && d.assigned_driver !== me.full_name) return false;
+      // Yesterday / today / future only; a late order lingers a couple of days
+      // then drops off unless it's reprogrammed. Older history via search above.
+      if (!withinRetention(d)) return false;
       return true;
     });
   }, [deliveries, me, storeFilter, q]);
