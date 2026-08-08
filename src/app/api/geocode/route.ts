@@ -14,18 +14,20 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-// Google Places Autocomplete — best for as-you-type suggestions, but needs the
-// Places API enabled (separate from Geocoding).
+// Google Places Autocomplete (NEW API) — best for as-you-type suggestions.
+// Uses the current places.googleapis.com endpoint (the legacy
+// maps/api/place/autocomplete one is off for projects on the new Places API).
 async function viaGoogle(q: string, key: string): Promise<string[]> {
-  const url =
-    "https://maps.googleapis.com/maps/api/place/autocomplete/json" +
-    `?input=${encodeURIComponent(q)}&components=country:us&key=${key}`;
-  const res = await fetch(url);
+  const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key },
+    body: JSON.stringify({ input: q, includedRegionCodes: ["us"] }),
+  });
   const data = await res.json();
-  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-    throw new Error(data.error_message || data.status || "Google autocomplete failed");
-  }
-  return (data.predictions || []).map((p: { description: string }) => p.description);
+  if (!res.ok) throw new Error(data?.error?.message || "Google autocomplete failed");
+  return (data.suggestions || [])
+    .map((s: { placePrediction?: { text?: { text?: string } } }) => s.placePrediction?.text?.text)
+    .filter((t: string | undefined): t is string => !!t);
 }
 
 // Google Geocoding fallback — used when the Places API isn't enabled. Not true
