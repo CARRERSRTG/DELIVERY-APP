@@ -28,6 +28,23 @@ export type Stage =
   | "delivered"
   | "canceled";
 
+// ---- Role-targeted notes --------------------------------------------------
+/** Who a note is primarily meant for. Everyone still sees every note; the tag
+ * just says whose attention it wants. "everyone" is a general note. */
+export type NoteRole = "everyone" | "sales" | "warehouse" | "logistics" | "driver";
+
+/** A short heads-up left on an order and tagged with the role it's for — e.g.
+ * "Warehouse: double-wrap this one". Added on demand so an order with no notes
+ * shows nothing, keeping the form uncluttered. */
+export interface RoleNote {
+  id: string;
+  role: NoteRole;
+  text: string;
+  by: string | null;        // author user id
+  by_name: string | null;   // author display name (denormalized for display)
+  at: string;               // ISO timestamp
+}
+
 // ---- Delivery order -------------------------------------------------------
 export interface Delivery {
   id: string;
@@ -91,6 +108,9 @@ export interface Delivery {
   contact: string | null;
   delivery_phone: string | null;
   delivery_notes: string | null;
+  /** Role-targeted notes added on demand (see RoleNote). Optional so existing
+   * rows / constructors don't need it; read defensively with `?? []`. */
+  role_notes?: RoleNote[] | null;
 
   // Auto-computed route (pickup → delivery) from the routing service.
   route_miles: number | null;

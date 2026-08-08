@@ -16,7 +16,7 @@ import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
 import { isStoreToStore, orderTypeRule, missingFields, missingKeys, type MissingField } from "@/lib/required";
 import { captureLocation, geoAvailable, mapLink } from "@/lib/geo";
-import type { AccountRecord, Delivery, NamedLocation, Profile, Settings, Stage } from "@/lib/types";
+import type { AccountRecord, Delivery, NamedLocation, NoteRole, Profile, RoleNote, Settings, Stage } from "@/lib/types";
 
 type Draft = Partial<Delivery>;
 
@@ -495,6 +495,22 @@ export function OrderModal({
     if (ok) { notify(t(`Ready — ${n} pallets confirmed`, `Listo — ${n} tarimas confirmadas`)); onClose(); }
   };
 
+  // --- Role-targeted notes (add on demand, everyone sees them tagged) ---
+  const addRoleNote = async (role: NoteRole, text: string) => {
+    if (!existing) return;
+    const clean = text.trim();
+    if (!clean) return;
+    const note: RoleNote = {
+      id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      role, text: clean, by: me.id, by_name: me.full_name ?? null, at: new Date().toISOString(),
+    };
+    await updateDelivery(existing.id, { role_notes: [...(existing.role_notes ?? []), note] });
+  };
+  const removeRoleNote = async (id: string) => {
+    if (!existing) return;
+    await updateDelivery(existing.id, { role_notes: (existing.role_notes ?? []).filter((x) => x.id !== id) });
+  };
+
   // Driver confirms what actually fit on the truck. A short load splits the
   // order: this one becomes #Na (loaded part, out for delivery) and the
   // remainder is re-staged as a new linked order #Nb for another trip.
@@ -832,6 +848,10 @@ export function OrderModal({
                   ))}
               </div>
             )}
+
+            {/* Role-targeted notes — added on demand, everyone sees them tagged. */}
+            <RoleNotes notes={existing.role_notes ?? []} me={me} onAdd={addRoleNote} onRemove={removeRoleNote} t={t} lang={lang} />
+
             {existing.rejected_reason && (
               <div className="card" style={{ marginTop: 14, background: "#fef6f6", borderColor: "var(--red)" }}>
                 <b style={{ color: "var(--red)" }}>{t("Rejection reason:", "Motivo del rechazo:")}</b> {existing.rejected_reason}
@@ -1528,6 +1548,95 @@ export function OrderModal({
       </div>
     )}
     </>
+  );
+}
+
+/** Visual meta for each note tag (label + color). */
+const NOTE_ROLE_META: Record<NoteRole, { en: string; es: string; emoji: string; bg: string; fg: string }> = {
+  everyone:  { en: "Everyone",  es: "Todos",     emoji: "🗣", bg: "#eef1f5", fg: "#3a4a5a" },
+  sales:     { en: "Sales",     es: "Ventas",    emoji: "💼", bg: "#e8f0fe", fg: "#1a56c4" },
+  warehouse: { en: "Warehouse", es: "Almacén",   emoji: "📦", bg: "#fff3e0", fg: "#b26a00" },
+  logistics: { en: "Logistics", es: "Logística", emoji: "🧭", bg: "#e7f6ec", fg: "#1a7f37" },
+  driver:    { en: "Driver",    es: "Chofer",    emoji: "🚚", bg: "#f0e9fb", fg: "#6b3fb5" },
+};
+
+/** Role-targeted notes: a tagged list plus an on-demand "Add note" composer.
+ * Everyone sees every note; the tag says who it's for. Added only when needed,
+ * so an order with no notes shows just the "Add note" affordance. */
+function RoleNotes({ notes, me, onAdd, onRemove, t, lang }: {
+  notes: RoleNote[];
+  me: Profile;
+  onAdd: (role: NoteRole, text: string) => void | Promise<void>;
+  onRemove: (id: string) => void | Promise<void>;
+  t: (en: string, es: string) => string;
+  lang: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [role, setRole] = useState<NoteRole>("everyone");
+  const [text, setText] = useState("");
+  const roleLabel = (r: NoteRole) => (lang === "es" ? NOTE_ROLE_META[r].es : NOTE_ROLE_META[r].en);
+
+  const submit = async () => {
+    if (!text.trim()) return;
+    await onAdd(role, text);
+    setText(""); setRole("everyone"); setOpen(false);
+  };
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div className="section-label" style={{ marginTop: 0 }}>{t("Notes", "Notas")}</div>
+        {!open && (
+          <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>＋ {t("Add note", "Agregar nota")}</button>
+        )}
+      </div>
+
+      {notes.length === 0 && !open && (
+        <div className="hint" style={{ marginTop: 2 }}>{t("No notes yet.", "Sin notas todavía.")}</div>
+      )}
+
+      {notes.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+          {notes.map((n) => {
+            const meta = NOTE_ROLE_META[n.role] ?? NOTE_ROLE_META.everyone;
+            const canRemove = me.role === "admin" || n.by === me.id;
+            return (
+              <div key={n.id} className="card" style={{ padding: "8px 10px", display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <span style={{ background: meta.bg, color: meta.fg, borderRadius: 6, padding: "2px 7px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
+                  {meta.emoji} {roleLabel(n.role)}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{n.text}</div>
+                  <div className="hint" style={{ marginTop: 2 }}>{(n.by_name || t("Someone", "Alguien"))} · {fmtDateTime(n.at)}</div>
+                </div>
+                {canRemove && (
+                  <button className="btn btn-sm btn-ghost" title={t("Remove note", "Eliminar nota")} onClick={() => onRemove(n.id)}>✕</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {open && (
+        <div className="card" style={{ marginTop: 8, padding: 10 }}>
+          <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, display: "flex", alignItems: "center", gap: 6 }}>
+            {t("For", "Para")}
+            <select value={role} onChange={(e) => setRole(e.target.value as NoteRole)} style={{ width: "auto" }}>
+              {(["everyone", "sales", "warehouse", "logistics", "driver"] as NoteRole[]).map((r) => (
+                <option key={r} value={r}>{roleLabel(r)}</option>
+              ))}
+            </select>
+          </label>
+          <textarea rows={2} style={{ marginTop: 8 }} autoFocus value={text} onChange={(e) => setText(e.target.value)}
+            placeholder={t("Write a short note…", "Escriba una nota corta…")} />
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setOpen(false); setText(""); }}>{t("Cancel", "Cancelar")}</button>
+            <button className="btn btn-primary btn-sm" onClick={submit} disabled={!text.trim()}>{t("Add note", "Agregar nota")}</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
