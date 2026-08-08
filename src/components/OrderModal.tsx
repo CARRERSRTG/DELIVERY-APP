@@ -1275,7 +1275,7 @@ export function OrderModal({
 
             {showWarehouse && (
               <>
-                <div className="section-label">{t("Warehouse / Fulfillment", "Almacén / Preparación")}</div>
+                <div className="section-label">{t("Warehouse / Preparing", "Almacén / Preparación")}</div>
                 <div className="grid g2">
                   <Txt label={t("Actual Pallets (warehouse)", "Tarimas Reales (almacén)")} type="number" val={d.actual_pallets ?? ""} on={(v) => set("actual_pallets", v === "" ? null : Number(v))} disabled={!whFields} placeholder={d.est_pallets != null ? t(`est. ${d.est_pallets}`, `est. ${d.est_pallets}`) : ""} />
                   <Sel label={t("Assigned Driver", "Chofer Asignado")} val={d.assigned_driver} opts={driverNames(users)} on={(v) => set("assigned_driver", v)} disabled={!adminFields} placeholder={t("Unassigned", "Sin asignar")} />
@@ -1572,7 +1572,7 @@ function StageActions({
 
   // Warehouse
   if (canFulfill(me)) {
-    if (stage === "approved") btns.push(<button key="start" className="btn btn-primary" onClick={() => onMove("fulfilling")} disabled={busy}>{t("Start fulfilling", "Comenzar preparación")}</button>);
+    if (stage === "approved") btns.push(<button key="start" className="btn btn-primary" onClick={() => onMove("fulfilling")} disabled={busy}>{t("Start preparing", "Comenzar preparación")}</button>);
     if (stage === "fulfilling") {
       if (!readyConfirmOpen) {
         btns.push(<button key="ready" className="btn btn-green" onClick={onRequestReady} disabled={busy}>{t("Mark ready", "Marcar listo")}</button>);

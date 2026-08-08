@@ -55,7 +55,7 @@ export function notificationsForStage(args: {
       for (const m of withRole("manager")) push(m.id, "pending", `Order ${label} is awaiting your approval`);
       break;
     case "approved":
-      for (const w of withRole("warehouse")) push(w.id, "approved", `Order ${label} was approved — ready to fulfill`);
+      for (const w of withRole("warehouse")) push(w.id, "approved", `Order ${label} was approved — ready to prepare`);
       push(creatorId, "approved", `Your order ${label} was approved`);
       break;
     case "rejected":

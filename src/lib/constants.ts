@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.9.0";
+export const APP_VERSION = "0.9.1";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
@@ -104,7 +104,7 @@ export const ROLE_INFO: Record<UserRole, { label: string; label_es: string; colo
   admin:     { label: "Admin",          label_es: "Administrador",     color: "var(--red)",    desc: "Full access + manage users",               desc_es: "Acceso total + gestión de usuarios" },
   manager:   { label: "Office Manager", label_es: "Gerente de Oficina", color: "var(--purple)", desc: "Approves & rejects submitted orders",      desc_es: "Aprueba y rechaza órdenes enviadas" },
   sales:     { label: "Salesperson",    label_es: "Vendedor",          color: "var(--accent)", desc: "Creates orders and submits for approval",  desc_es: "Crea órdenes y las envía a aprobación" },
-  warehouse: { label: "Warehouse",      label_es: "Almacén",           color: "var(--teal)",   desc: "Fulfills approved orders",                 desc_es: "Prepara las órdenes aprobadas" },
+  warehouse: { label: "Warehouse",      label_es: "Almacén",           color: "var(--teal)",   desc: "Prepares approved orders",                 desc_es: "Prepara las órdenes aprobadas" },
   driver:    { label: "Driver",         label_es: "Chofer",            color: "var(--amber)",  desc: "Delivers orders and can log new ones",     desc_es: "Entrega órdenes y puede registrar nuevas" },
   logistics: { label: "Logistics Manager", label_es: "Gerente de Logística", color: "var(--green)", desc: "Assigns and optimizes driver routes",  desc_es: "Asigna y optimiza las rutas de los choferes" },
 };
