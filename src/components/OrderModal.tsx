@@ -197,17 +197,6 @@ export function OrderModal({
   // intentional — set when the rep links a past order's invoice, so the
   // duplicate-invoice guard doesn't fight it. Cleared on a manual edit.
   const [sharedInvoice, setSharedInvoice] = useState(false);
-  // Past orders' invoices the rep can attach this delivery to (most recent
-  // first, one entry per distinct invoice).
-  const pastInvoiceOptions = useMemo(() => {
-    const seen = new Set<string>();
-    return deliveries
-      .filter((x) => x.id !== existing?.id && x.stage !== "canceled" && !!(x.invoice_num || "").trim())
-      .sort((a, b) => b.order_no - a.order_no)
-      .filter((x) => { const inv = x.invoice_num!.trim().toLowerCase(); if (seen.has(inv)) return false; seen.add(inv); return true; })
-      .slice(0, 100)
-      .map((x) => ({ invoice: x.invoice_num!.trim(), label: `${x.invoice_num} · #${orderLabel(x)}${x.account ? ` · ${x.account}` : ""}` }));
-  }, [deliveries, existing?.id]);
 
   /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
    * what's missing / conflicting and chooses whether to continue. */
@@ -1102,25 +1091,23 @@ export function OrderModal({
                   <Txt label="PO #" val={d.po2} on={(v) => set("po2", v)} disabled={!salesFields} invalid={missingSet.has("po2")} />
                   <Txt label="SO #" val={d.so_num} on={(v) => set("so_num", v)} disabled={!salesFields} invalid={missingSet.has("so_num")} />
                 </div>
-                {/* Attach this delivery to a past order's invoice (one invoice,
-                    several drops). */}
-                {salesFields && pastInvoiceOptions.length > 0 && (
-                  <div className="field" style={{ maxWidth: 460, marginTop: -4, marginBottom: 10 }}>
-                    <label>🔗 {t("Same invoice as a past order (optional)", "Misma factura que una orden anterior (opcional)")}</label>
-                    <select
-                      value=""
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!v) return;
-                        setD((p) => ({ ...p, invoice_num: v }));
-                        setSharedInvoice(true);
-                        e.currentTarget.value = "";
-                      }}
-                    >
-                      <option value="">{t("Pick a past invoice to share…", "Elija una factura anterior a compartir…")}</option>
-                      {pastInvoiceOptions.map((o) => <option key={o.invoice} value={o.invoice}>{o.label}</option>)}
-                    </select>
-                  </div>
+                {/* When the typed invoice matches a past order, the rep confirms
+                    it's an intentional shared invoice (one invoice, several
+                    drops) by ticking this checkbox — that clears the duplicate
+                    guard. */}
+                {salesFields && invoiceDup && (
+                  <label
+                    className="field"
+                    style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 520, marginTop: -4, marginBottom: 10, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}
+                  >
+                    <input
+                      type="checkbox"
+                      style={{ width: "auto", margin: 0 }}
+                      checked={sharedInvoice}
+                      onChange={(e) => setSharedInvoice(e.target.checked)}
+                    />
+                    🔗 {t(`Same invoice as a past order (#${orderLabel(invoiceDup)})`, `Misma factura que una orden anterior (#${orderLabel(invoiceDup)})`)}
+                  </label>
                 )}
               </>
             )}
