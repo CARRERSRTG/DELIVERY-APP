@@ -1395,8 +1395,8 @@ export function OrderModal({
           </div>
         )}
 
-        {/* ---------- RE-DELIVERY: record a repeat ---------- */}
-        {!editing && existing && existing.stage === "delivered" && (canFulfill(me) || canApprove(me)) && (
+        {/* ---------- RE-DELIVERY: record a repeat (warehouse/office + the driver) ---------- */}
+        {!editing && existing && existing.stage === "delivered" && (canFulfill(me) || canApprove(me) || canDeliver(me)) && (
           showRedeliver ? (
             <div className="field" style={{ marginTop: 14 }}>
               <label>{t("Why does this order need to be delivered again?", "¿Por qué debe entregarse esta orden de nuevo?")}</label>
