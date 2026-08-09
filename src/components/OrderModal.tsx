@@ -215,10 +215,8 @@ export function OrderModal({
       .map((x) => ({ invoice: x.invoice_num!.trim(), label: `${x.invoice_num} · #${orderLabel(x)}${x.account ? ` · ${x.account}` : ""}` }));
   }, [deliveries, existing?.id]);
 
-  // Local-zone pricing suggestion (LOCAL flat vs NOT-LOCAL by miles).
+  // Local-zone pricing suggestion for the edit form (fee by miles).
   const feeSuggestion = suggestDeliveryFee(d, settings);
-  // Zone of the saved order, for the read-only preview badge.
-  const previewZone = existing ? suggestDeliveryFee(existing, settings).zone : "unknown";
 
   /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
    * what's missing / conflicting and chooses whether to continue. */
@@ -883,26 +881,27 @@ export function OrderModal({
                 </div>
               </>
             ) : (
-              // Compact preview — the essentials at a glance.
+              // Compact preview — the essentials at a glance (two pairs per row).
               <>
-                <div className="card" style={{ padding: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                    <b style={{ fontFamily: "Archivo", fontSize: 18 }}>#{orderLabel(existing)}</b>
-                    <span style={{ fontWeight: 600 }}>{existing.account || "—"}</span>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 14px", marginTop: 10 }}>
-                    <span className="dk">{t("Date", "Fecha")}</span>
-                    <span className="dv">{existing.delivery_date || "—"} · {fmtWindows(existing.delivery_windows)}</span>
-                    <span className="dk">{t("Zone / Fee", "Zona / Tarifa")}</span>
-                    <span className="dv">
-                      <span className="sema" style={{ background: previewZone === "local" ? "var(--green)" : "var(--red)", color: "#fff" }}>
-                        {previewZone === "local" ? t("LOCAL", "LOCAL") : t("NOT LOCAL", "NO LOCAL")}
-                      </span>{" "}{fmtMoney(existing.delivery_fee)}
-                    </span>
-                    <span className="dk">{t("Pallets", "Tarimas")}</span>
-                    <span className="dv">{(existing.actual_pallets ?? existing.est_pallets) ?? "—"}{existing.route_miles != null ? ` · ${existing.route_miles} mi` : ""}</span>
-                    <span className="dk">{t("Delivery", "Entrega")}</span>
-                    <span className="dv">{existing.delivery_address || "—"}</span>
+                <div className="card" style={{ padding: 14 }}>
+                  <div className="detail-grid">
+                    {([
+                      [t("Account", "Cuenta"), existing.account || "—"],
+                      [t("Delivery Fee", "Costo de Entrega"), existing.delivery_fee == null ? "—" : fmtMoney(existing.delivery_fee)],
+                      [t("Delivery Date", "Fecha de Entrega"), existing.delivery_date || "—"],
+                      [t("Delivery Windows", "Ventana de Entrega"), fmtWindows(existing.delivery_windows)],
+                      [t("Invoice / Estimate #", "Factura / Estimación #"), existing.invoice_num || existing.estimate_num || "—"],
+                      [t("Actual Pallets", "Tarimas Reales"), existing.actual_pallets == null ? "—" : String(existing.actual_pallets)],
+                      [t("Pickup Address", "Dir. Recolección"), existing.pickup_address || "—"],
+                      [t("Delivery Address", "Dir. Entrega"), existing.delivery_address || "—"],
+                      [t("Route Miles", "Millas"), existing.route_miles == null ? "—" : `${existing.route_miles} mi`],
+                      [t("Travel Time", "Tiempo de Viaje"), existing.route_duration || "—"],
+                    ] as [string, string][]).map(([k, v]) => (
+                      <div className="detail-row" key={k}>
+                        <span className="dk">{k}</span>
+                        <span className="dv">{v}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => setShowAllDetails(true)}>
