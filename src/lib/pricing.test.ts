@@ -59,12 +59,16 @@ describe("suggestDeliveryFee", () => {
     expect(s.discount).toBe(110);
     expect(s.needsApproval).toBe(false);
   });
-  it("prices by miles and flags a non-local delivery for approval", () => {
+  it("uses the not-local formula (500+mi / 400+mi) and flags for approval", () => {
     const s = suggestDeliveryFee({ delivery_address: "500 Ranch Rd, Falfurrias, TX", route_miles: 60 });
     expect(s.zone).toBe("nonlocal");
-    expect(s.list).toBe(410);
-    expect(s.discount).toBe(260);
+    expect(s.list).toBe(560);      // round10(500 + 60)
+    expect(s.discount).toBe(460);  // round10(400 + 60)
     expect(s.needsApproval).toBe(true);
+  });
+  it("not-local fee helpers", () => {
+    expect(listFee(60, false)).toBe(560);
+    expect(discountFee(60, false)).toBe(460);
   });
   it("leaves the fee null until the route miles are known", () => {
     const s = suggestDeliveryFee({ delivery_address: "1 Palm Ave, McAllen, TX", route_miles: null });

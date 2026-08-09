@@ -4,13 +4,15 @@ import { cityFromAddress } from "@/lib/utils";
 // ============================================================
 // Delivery fee = a function of driving miles (the office's real formulas).
 // Two prices per order: a standard "list" fee and a lower "discount" fee a
-// rep may offer. Both round to the nearest $10.
+// rep may offer. Both round to the nearest $10. The fee depends on whether
+// the delivery city is LOCAL:
 //
-//   list:      < 11 mi → $100 · > 50 mi → round10(350 + mi) · else round10(120 + mi·0.8)
-//   discount:  < 11 mi →  $80 · > 50 mi → round10(200 + mi) · else round10(100 + mi·0.8)
-//
-// The LOCAL city list only drives the LOCAL / NOT-LOCAL badge and the "needs
-// approval" flag — it does NOT change the fee, which is purely miles-based.
+//   LOCAL
+//     list:      < 11 mi → $100 · > 50 mi → round10(350 + mi) · else round10(120 + mi·0.8)
+//     discount:  < 11 mi →  $80 · > 50 mi → round10(200 + mi) · else round10(100 + mi·0.8)
+//   NOT LOCAL (also flagged for manager approval)
+//     list:      round10(500 + mi)
+//     discount:  round10(400 + mi)
 // ============================================================
 
 /** Cities inside the LOCAL delivery zone (the red outline on the RGV map). */
@@ -36,15 +38,18 @@ export function isLocalCity(city: string, s?: Partial<Settings> | null): boolean
 /** Round to the nearest $10 (Excel ROUND(x, -1) for non-negative amounts). */
 const round10 = (x: number) => Math.round(x / 10) * 10;
 
-/** Standard "list" delivery fee for a mile figure. */
-export function listFee(miles: number): number {
+/** Standard "list" delivery fee for a mile figure. Not-local deliveries use a
+ * higher base (500 + miles); local deliveries use the tiered local formula. */
+export function listFee(miles: number, local = true): number {
+  if (!local) return round10(500 + miles);
   if (miles < 11) return 100;
   if (miles > 50) return round10(350 + miles);
   return round10(120 + miles * 0.8);
 }
 
-/** Discounted delivery fee a rep may offer for a mile figure. */
-export function discountFee(miles: number): number {
+/** Discounted delivery fee a rep may offer. Not-local: 400 + miles. */
+export function discountFee(miles: number, local = true): number {
+  if (!local) return round10(400 + miles);
   if (miles < 11) return 80;
   if (miles > 50) return round10(200 + miles);
   return round10(100 + miles * 0.8);
@@ -79,8 +84,8 @@ export function suggestDeliveryFee(
   return {
     zone: local ? "local" : "nonlocal",
     city,
-    list: miles != null ? listFee(miles) : null,
-    discount: miles != null ? discountFee(miles) : null,
+    list: miles != null ? listFee(miles, local) : null,
+    discount: miles != null ? discountFee(miles, local) : null,
     needsApproval: !local,
   };
 }

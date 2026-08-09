@@ -519,9 +519,10 @@ function LocalZonePricing({ settings, saveSettings, notify, t }: {
       <div style={{ marginTop: 14 }}>
         <div className="section-label" style={{ marginTop: 0 }}>{t("Fee formula (by driving miles)", "Fórmula de tarifa (por millas)")}</div>
         <div className="hint" style={{ lineHeight: 1.7 }}>
-          <b>{t("List:", "Lista:")}</b> &lt; 11 mi → $100 · &gt; 50 mi → 350 + mi · {t("else", "si no")} → 120 + mi × 0.8<br />
-          <b>{t("Discount:", "Descuento:")}</b> &lt; 11 mi → $80 · &gt; 50 mi → 200 + mi · {t("else", "si no")} → 100 + mi × 0.8<br />
-          <span style={{ opacity: 0.8 }}>{t("Both rounded to the nearest $10.", "Ambas redondeadas al $10 más cercano.")}</span>
+          <b>{t("LOCAL — List:", "LOCAL — Lista:")}</b> &lt; 11 mi → $100 · &gt; 50 mi → 350 + mi · {t("else", "si no")} → 120 + mi × 0.8<br />
+          <b>{t("LOCAL — Discount:", "LOCAL — Descuento:")}</b> &lt; 11 mi → $80 · &gt; 50 mi → 200 + mi · {t("else", "si no")} → 100 + mi × 0.8<br />
+          <b>{t("NOT LOCAL — List:", "NO LOCAL — Lista:")}</b> 500 + mi · <b>{t("Discount:", "Descuento:")}</b> 400 + mi<br />
+          <span style={{ opacity: 0.8 }}>{t("All rounded to the nearest $10.", "Todas redondeadas al $10 más cercano.")}</span>
         </div>
       </div>
     </div>
