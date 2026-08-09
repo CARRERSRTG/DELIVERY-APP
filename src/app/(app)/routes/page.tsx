@@ -145,6 +145,9 @@ export default function RoutesPage() {
   // panel so the route detail can use the whole screen.
   const [wideRoutes, setWideRoutes] = useState(true);
   const [showTop, setShowTop] = useState(true);
+  // Stops table: keep the Address column narrow by default (so the row-action
+  // buttons stay in view); a toggle expands it when the full address is needed.
+  const [addrWide, setAddrWide] = useState(false);
   // Excel-style resizable columns, remembered per table. Tighter defaults (and
   // bumped keys, so they replace older wide ones) so the route + truckload
   // tables fit the screen without horizontal scrolling. Columns are still
@@ -1693,13 +1696,24 @@ export default function RoutesPage() {
             {stops.length > 0 && (
               <div className="tbl-scroll" style={{ border: "none" }}>
                 <table className="orders tbl-resize">
-                  <colgroup>{stopCols.widths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+                  {/* Address (col 3) is forced narrow unless expanded, so the
+                      end-of-row action buttons stay visible without scrolling. */}
+                  <colgroup>{stopCols.widths.map((w, i) => <col key={i} style={{ width: i === 3 ? (addrWide ? Math.max(220, w) : 70) : w }} />)}</colgroup>
                   <thead>
                     <tr>
                       <th>#<span className="col-resizer" onMouseDown={stopCols.startResize(0)} /></th>
                       <th>{t("ID", "ID")}<span className="col-resizer" onMouseDown={stopCols.startResize(1)} /></th>
                       <th>{t("Account", "Cuenta")}<span className="col-resizer" onMouseDown={stopCols.startResize(2)} /></th>
-                      <th>{t("Address", "Dirección")}<span className="col-resizer" onMouseDown={stopCols.startResize(3)} /></th>
+                      <th>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: "0 5px", minHeight: 0, marginRight: 4 }}
+                          title={addrWide ? t("Collapse address", "Contraer dirección") : t("Expand address", "Expandir dirección")}
+                          onClick={() => setAddrWide((v) => !v)}
+                        >{addrWide ? "⤡" : "⤢"}</button>
+                        {t("Address", "Dirección")}
+                        {addrWide && <span className="col-resizer" onMouseDown={stopCols.startResize(3)} />}
+                      </th>
                       <th>{t("ETA", "Llegada")}<span className="col-resizer" onMouseDown={stopCols.startResize(4)} /></th>
                       <th>{t("Windows", "Ventanas")}<span className="col-resizer" onMouseDown={stopCols.startResize(5)} /></th>
                       <th></th>
@@ -1732,7 +1746,7 @@ export default function RoutesPage() {
                                 <td style={{ borderLeft: `4px solid ${tColor}` }}>{d.route_seq != null ? i + 1 : "—"}</td>
                                 <td className="ordno">#{orderLabel(d)}</td>
                                 <td>{d.account || "—"}</td>
-                                <td>{d.delivery_address || "—"}</td>
+                                <td title={d.delivery_address || undefined}>{d.delivery_address || "—"}</td>
                                 <td style={{ fontWeight: 600, color: late ? "var(--red)" : undefined }} title={late ? t("ETA is after the delivery window", "La llegada es después de la ventana") : undefined}>
                                   {eta ?? "—"}{late ? " ⚠️" : ""}
                                 </td>
