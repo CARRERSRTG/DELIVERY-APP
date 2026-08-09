@@ -397,16 +397,16 @@ export function deliveryColumns(d: Delivery): [string, string][] {
     ["Est. Pallets (sales)", d.est_pallets == null ? "" : String(d.est_pallets)],
     ["Actual Pallets (warehouse)", d.actual_pallets == null ? "" : String(d.actual_pallets)],
     // — pickup —
-    ["Delivery Date", d.delivery_date ?? ""],
-    ["Pickup Address", d.pickup_address ?? ""],
     ["Pickup Name", d.pickup_name ?? ""],
+    ["Pickup Address", d.pickup_address ?? ""],
+    ["Delivery Date", d.delivery_date ?? ""],
     ["Pickup Duration", d.pickup_duration ?? ""],
     // — route / delivery —
     ["Route Miles", d.route_miles == null ? "" : `${d.route_miles} mi`],
     ["Est. Travel Time", d.route_duration ?? ""],
-    ["Delivery Fee", d.delivery_fee == null ? "" : fmtMoney(d.delivery_fee)],
-    ["Delivery Duration", d.delivery_duration ?? ""],
     ["Delivery Military Time Windows", fmtWindows(d.delivery_windows)],
+    ["Delivery Duration", d.delivery_duration ?? ""],
+    ["Delivery Fee", d.delivery_fee == null ? "" : fmtMoney(d.delivery_fee)],
     ["Delivery Address", d.delivery_address ?? ""],
     // — customer —
     ["Account", d.account ?? ""],

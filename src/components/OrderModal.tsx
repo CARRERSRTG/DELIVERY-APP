@@ -97,6 +97,8 @@ export function OrderModal({
   // load splits the order into #Na / #Nb).
   const [showReadyConfirm, setShowReadyConfirm] = useState(false);
   const [readyPallets, setReadyPallets] = useState("");
+  // Order view opens on a compact preview; the full detail table is behind a toggle.
+  const [showAllDetails, setShowAllDetails] = useState(false);
   const [showPickupConfirm, setShowPickupConfirm] = useState(false);
   const [pickupPallets, setPickupPallets] = useState("");
   const [podName, setPodName] = useState("");
@@ -212,6 +214,8 @@ export function OrderModal({
 
   // Local-zone pricing suggestion (LOCAL flat vs NOT-LOCAL by miles).
   const feeSuggestion = suggestDeliveryFee(d, settings);
+  // Zone of the saved order, for the read-only preview badge.
+  const previewZone = existing ? suggestDeliveryFee(existing, settings).zone : "unknown";
 
   /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
    * what's missing / conflicting and chooses whether to continue. */
@@ -839,24 +843,57 @@ export function OrderModal({
           <>
             {me.role === "driver" ? (
               <DriverDeliveryScreen order={existing} settings={settings} notify={notify} t={t} />
+            ) : showAllDetails ? (
+              // Full detail table (opened from the preview).
+              <>
+                <button className="btn btn-ghost btn-sm" style={{ marginBottom: 10 }} onClick={() => setShowAllDetails(false)}>
+                  ◂ {t("Back to preview", "Volver al resumen")}
+                </button>
+                <div className="detail-grid">
+                  {deliveryColumns(existing).slice(1)
+                    // Route/redelivery details only show when they actually have a
+                    // value. Assigned Driver hides-when-empty for a salesperson but
+                    // always shows for logistics (they own dispatch).
+                    .filter(([k, v]) => {
+                      if (!v && ["Route Miles", "Est. Travel Time", "Re-delivery reason"].includes(k)) return false;
+                      if (k === "Assigned Driver" && !v && me.role === "sales") return false;
+                      return true;
+                    })
+                    .map(([k, v]) => (
+                      <div className="detail-row" key={k}>
+                        <span className="dk">{colLabel(k, lang)}</span>
+                        <span className="dv">{v || "—"}</span>
+                      </div>
+                    ))}
+                </div>
+              </>
             ) : (
-              <div className="detail-grid">
-                {deliveryColumns(existing).slice(1)
-                  // Route/redelivery details only show when they actually have a
-                  // value. Assigned Driver hides-when-empty for a salesperson but
-                  // always shows for logistics (they own dispatch).
-                  .filter(([k, v]) => {
-                    if (!v && ["Route Miles", "Est. Travel Time", "Re-delivery reason"].includes(k)) return false;
-                    if (k === "Assigned Driver" && !v && me.role === "sales") return false;
-                    return true;
-                  })
-                  .map(([k, v]) => (
-                    <div className="detail-row" key={k}>
-                      <span className="dk">{colLabel(k, lang)}</span>
-                      <span className="dv">{v || "—"}</span>
-                    </div>
-                  ))}
-              </div>
+              // Compact preview — the essentials at a glance.
+              <>
+                <div className="card" style={{ padding: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                    <b style={{ fontFamily: "Archivo", fontSize: 18 }}>#{orderLabel(existing)}</b>
+                    <span style={{ fontWeight: 600 }}>{existing.account || "—"}</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 14px", marginTop: 10 }}>
+                    <span className="dk">{t("Date", "Fecha")}</span>
+                    <span className="dv">{existing.delivery_date || "—"} · {fmtWindows(existing.delivery_windows)}</span>
+                    <span className="dk">{t("Zone / Fee", "Zona / Tarifa")}</span>
+                    <span className="dv">
+                      <span className="sema" style={{ background: previewZone === "local" ? "var(--green)" : "var(--red)", color: "#fff" }}>
+                        {previewZone === "local" ? t("LOCAL", "LOCAL") : t("NOT LOCAL", "NO LOCAL")}
+                      </span>{" "}{fmtMoney(existing.delivery_fee)}
+                    </span>
+                    <span className="dk">{t("Pallets", "Tarimas")}</span>
+                    <span className="dv">{(existing.actual_pallets ?? existing.est_pallets) ?? "—"}{existing.route_miles != null ? ` · ${existing.route_miles} mi` : ""}</span>
+                    <span className="dk">{t("Delivery", "Entrega")}</span>
+                    <span className="dv">{existing.delivery_address || "—"}</span>
+                  </div>
+                </div>
+                <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => setShowAllDetails(true)}>
+                  {t("Show all details ▾", "Ver todos los detalles ▾")}
+                </button>
+              </>
             )}
 
             {/* Role-targeted notes — added on demand, everyone sees them tagged. */}
