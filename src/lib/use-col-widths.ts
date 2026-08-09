@@ -22,7 +22,7 @@ export function useColWidths(storageKey: string, defaults: number[]) {
     const startX = e.clientX;
     const base = widths[i];
     const onMove = (ev: MouseEvent) => {
-      setWidths((w) => { const n = [...w]; n[i] = Math.max(48, base + (ev.clientX - startX)); return n; });
+      setWidths((w) => { const n = [...w]; n[i] = Math.max(16, base + (ev.clientX - startX)); return n; });
     };
     const onUp = () => {
       document.removeEventListener("mousemove", onMove);
@@ -58,7 +58,7 @@ export function useColWidthMap(storageKey: string, defaultWidth = 150) {
     const startX = e.clientX;
     const base = widths[key] ?? defaultWidth;
     const onMove = (ev: MouseEvent) => {
-      setWidths((w) => ({ ...w, [key]: Math.max(48, base + (ev.clientX - startX)) }));
+      setWidths((w) => ({ ...w, [key]: Math.max(16, base + (ev.clientX - startX)) }));
     };
     const onUp = () => {
       document.removeEventListener("mousemove", onMove);
