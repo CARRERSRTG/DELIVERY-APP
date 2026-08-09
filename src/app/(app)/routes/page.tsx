@@ -1240,9 +1240,9 @@ export default function RoutesPage() {
                           <button className="notif-clear" title={t("Rename temp driver", "Renombrar chofer temp")}
                             onClick={(e) => { e.stopPropagation(); renameBucket(u.key); }}>✏</button>
                         )}
-                        {bucket && stops.length === 0 && (
-                          <button className="notif-clear" title={t("Remove empty route", "Quitar ruta vacía")}
-                            onClick={(e) => { e.stopPropagation(); removeBucket(u.key); }}>✕</button>
+                        {bucket && (
+                          <button className="notif-clear" title={t("Remove this route", "Quitar esta ruta")}
+                            onClick={(e) => { e.stopPropagation(); clearLane(u.key); }}>✕</button>
                         )}
                       </div>
                       <div className="hint" style={{ marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap" }}>
