@@ -113,6 +113,10 @@ export interface Delivery {
   /** Named dropoff point (saved site name), paired with delivery_address. */
   delivery_name: string | null;
   delivery_address: string | null;
+  /** Set by the driver at delivery when they had to drop off somewhere OTHER
+   * than delivery_address (an override, reported in the audit log). Null =
+   * delivered at the ordered address. */
+  delivered_address?: string | null;
   delivery_windows: string | null;
   account: string | null;
   contact: string | null;

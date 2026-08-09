@@ -103,6 +103,9 @@ export function OrderModal({
   const [pickupPallets, setPickupPallets] = useState("");
   const [podName, setPodName] = useState("");
   const [podSig, setPodSig] = useState<string | null>(null);
+  // Driver override: delivered somewhere other than the ordered address.
+  const [deliveredElsewhere, setDeliveredElsewhere] = useState(false);
+  const [deliveredAddress, setDeliveredAddress] = useState("");
   const [noteText, setNoteText] = useState("");
   const [notingBusy, setNotingBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -581,6 +584,11 @@ export function OrderModal({
   const deliverWithPod = async () => {
     if (!existing) return;
     if (!podName.trim()) { notify(t("Enter who received the delivery.", "Ingrese quién recibió la entrega.")); return; }
+    // If the driver flags a different drop-off, the address is required.
+    if (deliveredElsewhere && !deliveredAddress.trim()) {
+      notify(t("Enter the address where you actually delivered.", "Ingrese la dirección donde entregó realmente."));
+      return;
+    }
     // Optional proof-of-delivery gate (admin setting): require a signature or at
     // least one material photo before an order can be marked delivered.
     if (settings.require_pod && !podSig && !(existing.photos?.length)) {
@@ -591,6 +599,7 @@ export function OrderModal({
     // Stamp where the driver actually is. Never blocks: resolves to null if the
     // device refuses, has no signal, or the page isn't served over HTTPS.
     const gps = await captureLocation();
+    const altAddr = deliveredElsewhere ? deliveredAddress.trim() : "";
     const pod = {
       pod_received_by: podName.trim(),
       pod_signature: podSig,
@@ -598,9 +607,15 @@ export function OrderModal({
       pod_lat: gps?.lat ?? null,
       pod_lng: gps?.lng ?? null,
       pod_accuracy: gps?.accuracy ?? null,
+      delivered_address: altAddr || null,
     };
+    // The audit note reports an off-address delivery loudly so the office sees it.
+    const note = altAddr
+      ? t(`⚠ Delivered at a DIFFERENT address: ${altAddr} (ordered: ${existing.delivery_address || "—"}). Received by ${podName.trim()}`,
+          `⚠ Entregado en OTRA dirección: ${altAddr} (pedido: ${existing.delivery_address || "—"}). Recibido por ${podName.trim()}`)
+      : t(`Received by ${podName.trim()}`, `Recibido por ${podName.trim()}`);
     // Persist POD fields + the stage move in ONE write so nothing clobbers them.
-    const ok = await setStage(existing.id, "delivered", t(`Received by ${podName.trim()}`, `Recibido por ${podName.trim()}`), pod);
+    const ok = await setStage(existing.id, "delivered", note, pod);
     setBusy(false);
     if (ok) {
       notify(t("Delivered — proof captured", "Entregado — comprobante guardado"));
@@ -1453,13 +1468,35 @@ export function OrderModal({
             <input value={podName} onChange={(e) => setPodName(e.target.value)} placeholder={t("Name of person who received it", "Nombre de quien recibió")} />
             <label style={{ marginTop: 10 }}>{t("Signature", "Firma")}</label>
             <SignaturePad onChange={setPodSig} />
+
+            {/* Override: delivered somewhere other than the ordered address. */}
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>
+              <input type="checkbox" style={{ width: "auto", margin: 0 }} checked={deliveredElsewhere} onChange={(e) => setDeliveredElsewhere(e.target.checked)} />
+              📍 {t("I delivered at a different address", "Entregué en otra dirección")}
+            </label>
+            {deliveredElsewhere && (
+              <div className="field" style={{ marginTop: 8 }}>
+                <div className="hint" style={{ marginTop: 0, marginBottom: 4 }}>
+                  {t("Ordered address:", "Dirección del pedido:")} {existing?.delivery_address || "—"}
+                </div>
+                <input
+                  value={deliveredAddress}
+                  onChange={(e) => setDeliveredAddress(e.target.value)}
+                  placeholder={t("Address where you actually delivered", "Dirección donde entregó realmente")}
+                />
+                <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 4 }}>
+                  ⚠ {t("This will be reported to the office.", "Esto se reportará a la oficina.")}
+                </div>
+              </div>
+            )}
+
             <div className="hint" style={{ marginTop: 6 }}>
               {geoAvailable()
                 ? t("📍 Your location will be recorded with this delivery.", "📍 Su ubicación se registrará con esta entrega.")
                 : t("📍 Location can't be recorded here (needs a secure https connection).", "📍 No se puede registrar la ubicación aquí (requiere conexión https segura).")}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => { setShowPod(false); setPodName(""); setPodSig(null); }} disabled={busy}>{t("Back", "Atrás")}</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setShowPod(false); setPodName(""); setPodSig(null); setDeliveredElsewhere(false); setDeliveredAddress(""); }} disabled={busy}>{t("Back", "Atrás")}</button>
               <button className="btn btn-green btn-sm" disabled={busy || !podName.trim()} onClick={deliverWithPod}>{t("Confirm delivered", "Confirmar entregado")}</button>
             </div>
           </div>
@@ -1470,6 +1507,13 @@ export function OrderModal({
           <div className="card" style={{ marginTop: 14 }}>
             <b>✅ {t("Delivered to", "Entregado a")}:</b> {existing.pod_received_by}
             {existing.pod_delivered_at && <span className="hint"> · {fmtDateTime(existing.pod_delivered_at)}</span>}
+            {existing.delivered_address && (
+              <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 8, background: "#fff7ec", border: "1px solid var(--amber)", fontSize: 13 }}>
+                <b style={{ color: "#b9791a" }}>⚠ {t("Delivered at a different address", "Entregado en otra dirección")}</b>
+                <div style={{ marginTop: 2 }}>{existing.delivered_address}</div>
+                <div className="hint" style={{ marginTop: 2 }}>{t("Ordered:", "Pedido:")} {existing.delivery_address || "—"}</div>
+              </div>
+            )}
             {existing.pod_lat != null && existing.pod_lng != null && (
               <div style={{ marginTop: 6, fontSize: 12.5 }}>
                 📍 <a className="link-tel" href={mapLink(existing.pod_lat, existing.pod_lng)} target="_blank" rel="noopener noreferrer">
