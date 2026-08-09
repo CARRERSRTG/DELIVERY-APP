@@ -1769,11 +1769,11 @@ export default function RoutesPage() {
                                     style={{ width: "auto", padding: "2px 4px", fontSize: 12 }}
                                   >
                                     {Array.from({ length: maxLoadForDriver(u.driver) }, (_, k) => k + 1).map((n) => (
-                                      <option key={n} value={n}>{t("Load", "Carga")} {n}</option>
+                                      <option key={n} value={n}>{t("Truckload", "Viaje")} {n}</option>
                                     ))}
-                                    <option value="__new__">＋ {t("New load", "Nueva carga")}</option>
+                                    <option value="__new__">＋ {t("New truckload", "Nuevo viaje")}</option>
                                   </select>
-                                  <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} onClick={() => unassign(d.id)} title={t("Unassign", "Quitar asignación")}>✕</button>
+                                  <button className="btn btn-danger btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} onClick={() => unassign(d.id)} title={t("Unassign", "Quitar asignación")}>✕</button>
                                 </td>
                               </tr>
                             );
