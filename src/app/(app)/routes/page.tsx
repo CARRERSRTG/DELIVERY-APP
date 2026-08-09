@@ -155,7 +155,10 @@ export default function RoutesPage() {
   // draggable from here.
   const schedCols = useColWidths("rtg_routes_sched3", [72, 140, 140, 52, 52, 100, 60, 44]);
   const poolCols = useColWidths("rtg_routes_pool3", [28, 70, 128, 92, 60, 100, 92, 88, 116]);
-  const stopCols = useColWidths("rtg_routes_stops5", [32, 74, 140, 240, 52, 96, 156]);
+  // [#, ID, Account, Address(expanded), ETA, Windows, actions]. Address is
+  // forced to 92px when collapsed; everything else is sized to show its value
+  // in full so Windows and the ↑↓ action arrows never get clipped.
+  const stopCols = useColWidths("rtg_routes_stops6", [40, 96, 152, 240, 56, 110, 150]);
   // Which drivers are highlighted on the map / focused in the tables. Empty
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
@@ -1754,10 +1757,10 @@ export default function RoutesPage() {
                                   {eta ?? "—"}{late ? " ⚠️" : ""}
                                 </td>
                                 <td>{fmtWindows(d.delivery_windows)}</td>
-                                <td style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center" }}>
+                                <td style={{ display: "flex", gap: 3, justifyContent: "flex-end", alignItems: "center", overflow: "visible" }}>
                                   {/* Hand-arrange the stops — works even before the route is optimized. */}
-                                  <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => move(u.key, i, -1)} title={t("Move up", "Subir")}>↑</button>
-                                  <button className="btn btn-ghost btn-sm" disabled={i === stops.length - 1} onClick={() => move(u.key, i, 1)} title={t("Move down", "Bajar")}>↓</button>
+                                  <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} disabled={i === 0} onClick={() => move(u.key, i, -1)} title={t("Move up", "Subir")}>↑</button>
+                                  <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} disabled={i === stops.length - 1} onClick={() => move(u.key, i, 1)} title={t("Move down", "Bajar")}>↓</button>
                                   {/* Move this stop to another truckload/pickup of the same driver. */}
                                   <select
                                     value={loadNoOf(d)}
@@ -1770,7 +1773,7 @@ export default function RoutesPage() {
                                     ))}
                                     <option value="__new__">＋ {t("New load", "Nueva carga")}</option>
                                   </select>
-                                  <button className="btn btn-ghost btn-sm" onClick={() => unassign(d.id)} title={t("Unassign", "Quitar asignación")}>✕</button>
+                                  <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} onClick={() => unassign(d.id)} title={t("Unassign", "Quitar asignación")}>✕</button>
                                 </td>
                               </tr>
                             );
