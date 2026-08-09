@@ -259,6 +259,17 @@ export interface OrderTypeRule {
   homeIsDestination?: boolean;
 }
 
+/** A how-to video shown in the account view's Tutorials section. Hosted
+ * externally (YouTube / Loom / Vimeo / Drive) and embedded by its link. */
+export interface Tutorial {
+  id: string;
+  title: string;
+  description?: string | null;
+  url: string;
+  added_by?: string | null;
+  added_at?: string;
+}
+
 export interface Settings {
   id: number;
   app_name: string;
@@ -356,6 +367,9 @@ export interface Settings {
   fleet_mpg?: number | null;
   /** Flat overhead cost charged per delivery/stop, in $. */
   cost_per_delivery?: number | null;
+
+  /** How-to videos shown in the account view (admin-managed, everyone views). */
+  tutorials?: Tutorial[];
 
   // ---- Local-zone delivery pricing ----
   // A delivery to a city in `local_cities` is LOCAL → a flat fee (list vs a
