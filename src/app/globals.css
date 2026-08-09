@@ -158,6 +158,10 @@ table.orders { width: 100%; border-collapse: collapse; font-size: 13px; min-widt
 table.tbl-resize { table-layout: fixed; min-width: 0; width: auto; }
 table.tbl-resize th { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 table.tbl-resize td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Stops table: top-align every cell and let the .wrap cells (Account, Address)
+   show their full value on multiple lines instead of clipping — nothing hidden. */
+table.stops-tbl td { vertical-align: top; }
+table.stops-tbl td.wrap { white-space: normal; overflow: visible; text-overflow: clip; word-break: break-word; line-height: 1.35; }
 .col-resizer {
   position: absolute; top: 0; right: 0; width: 8px; height: 100%;
   cursor: col-resize; user-select: none; touch-action: none;
