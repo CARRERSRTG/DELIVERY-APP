@@ -5,7 +5,8 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
 import { canApprove, canCreate, canDeliver, canEditFields, canFulfill, DELIVERY_WINDOW_PRESETS, driverNames, ROLE_INFO, roleLabel, SATURDAY_WINDOW, stageInfo, stageLabel, WEEKDAY_ALL_DAY_WINDOW } from "@/lib/constants";
-import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, fmtWindows, nowMilitary, orderLabel, palletDuration, palletVariance, telClean, todayISO } from "@/lib/utils";
+import { colLabel, deliveryColumns, fmtDate, fmtDateTime, fmtMilitary, fmtMoney, fmtWindows, nowMilitary, orderLabel, palletDuration, palletVariance, telClean, todayISO } from "@/lib/utils";
+import { suggestDeliveryFee } from "@/lib/pricing";
 import { printDeliverySlip } from "@/lib/slip";
 import { AddressInput } from "@/components/AddressInput";
 import { LocationCombo } from "@/components/LocationCombo";
@@ -208,6 +209,9 @@ export function OrderModal({
       .slice(0, 100)
       .map((x) => ({ invoice: x.invoice_num!.trim(), label: `${x.invoice_num} · #${orderLabel(x)}${x.account ? ` · ${x.account}` : ""}` }));
   }, [deliveries, existing?.id]);
+
+  // Local-zone pricing suggestion (LOCAL flat vs NOT-LOCAL by miles).
+  const feeSuggestion = suggestDeliveryFee(d, settings);
 
   /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
    * what's missing / conflicting and chooses whether to continue. */
@@ -1117,6 +1121,46 @@ export function OrderModal({
               <Txt label={t("Delivery Fee charged ($)", "Costo de Entrega cobrado ($)")} type="number" val={d.delivery_fee ?? ""} on={(v) => set("delivery_fee", v === "" ? null : Number(v))} disabled={!salesFields} placeholder="0.00" invalid={missingSet.has("delivery_fee")} />
               <Txt label={t("Est. Pallets (sales)", "Tarimas Est. (ventas)")} type="number" val={d.est_pallets ?? ""} on={(v) => set("est_pallets", v === "" ? null : Number(v))} disabled={!salesFields} invalid={missingSet.has("est_pallets")} />
             </div>
+
+            {/* ---- Local-zone fee suggestion ---- */}
+            {salesFields && (d.delivery_address || "").trim() && (
+              <div className="card" style={{ marginTop: -4, marginBottom: 10, padding: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span className="sema" style={{ background: feeSuggestion.zone === "local" ? "var(--green)" : "var(--red)", color: "#fff" }}>
+                    {feeSuggestion.zone === "local" ? t("LOCAL", "LOCAL") : t("NOT LOCAL", "NO LOCAL")}
+                  </span>
+                  {feeSuggestion.city && <span className="hint" style={{ margin: 0 }}>{feeSuggestion.city}</span>}
+                  {d.route_miles != null && <span className="hint" style={{ margin: 0 }}>· {d.route_miles} mi</span>}
+                </div>
+                {(feeSuggestion.list != null || feeSuggestion.discount != null) ? (
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+                    <span className="hint" style={{ margin: 0 }}>{t("Suggested fee:", "Tarifa sugerida:")}</span>
+                    {feeSuggestion.list != null && (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => set("delivery_fee", feeSuggestion.list)}>
+                        {t("List", "Lista")} {fmtMoney(feeSuggestion.list)}
+                      </button>
+                    )}
+                    {feeSuggestion.discount != null && (
+                      <button type="button" className="btn btn-sm btn-primary" onClick={() => set("delivery_fee", feeSuggestion.discount)}>
+                        {t("Discount", "Descuento")} {fmtMoney(feeSuggestion.discount)}
+                      </button>
+                    )}
+                  </div>
+                ) : feeSuggestion.zone === "nonlocal" ? (
+                  <div className="hint" style={{ marginTop: 6 }}>{t("Calculate the route below to price this not-local delivery by miles.", "Calcule la ruta abajo para cotizar esta entrega no local por millas.")}</div>
+                ) : null}
+                {feeSuggestion.needsApproval && (
+                  <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 6 }}>
+                    ⚠ {t("Not local — requires manager approval.", "No local — requiere aprobación del gerente.")}
+                  </div>
+                )}
+                {feeSuggestion.discount != null && d.delivery_fee != null && d.delivery_fee < feeSuggestion.discount && (
+                  <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 6 }}>
+                    ⚠ {t("Price match (below discount) — requires approval.", "Igualar precio (menor al descuento) — requiere aprobación.")}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ---- Document references ---- */}
             {docRef === "estimate" ? (

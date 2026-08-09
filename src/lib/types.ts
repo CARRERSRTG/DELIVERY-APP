@@ -45,6 +45,16 @@ export interface RoleNote {
   at: string;               // ISO timestamp
 }
 
+/** One row of the NOT-LOCAL, miles-based delivery-fee table. */
+export interface FeeBracket {
+  /** Upper bound of driving miles for this bracket; null = "and up". */
+  max_miles: number | null;
+  /** Standard "list" price for this bracket, in $. */
+  list: number;
+  /** Discounted price a rep may offer for this bracket, in $. */
+  discount: number;
+}
+
 // ---- Delivery order -------------------------------------------------------
 export interface Delivery {
   id: string;
@@ -346,6 +356,21 @@ export interface Settings {
   fleet_mpg?: number | null;
   /** Flat overhead cost charged per delivery/stop, in $. */
   cost_per_delivery?: number | null;
+
+  // ---- Local-zone delivery pricing ----
+  // A delivery to a city in `local_cities` is LOCAL → a flat fee (list vs a
+  // discounted price). Anything outside is NOT LOCAL → priced by driving miles
+  // via `nonlocal_fee_brackets` and flagged as needing manager approval. All
+  // optional; code falls back to seeded defaults (see lib/pricing).
+  /** Cities that count as the LOCAL delivery zone. */
+  local_cities?: string[];
+  /** LOCAL flat fee — the standard "list" price, in $. */
+  local_fee_list?: number | null;
+  /** LOCAL flat fee — the discounted price a rep may offer, in $. */
+  local_fee_discount?: number | null;
+  /** NOT-LOCAL fee by driving miles: the first bracket whose `max_miles` ≥ the
+   * order's route miles wins (`max_miles: null` = "and up"). */
+  nonlocal_fee_brackets?: FeeBracket[];
 
   /** Market Map prospect CRM — status per external place id (Google/OSM).
    * A lightweight sales tracker layered over the live places. */
