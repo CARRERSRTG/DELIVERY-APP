@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#152238"/>
+  <text x="50%" y="46%" dy="8" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-size="120" font-weight="800" fill="#ffffff">RDZ</text>
+  <rect x="176" y="300" width="160" height="12" rx="6" fill="#e9a13b"/>
+  <text x="50%" y="360" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" font-weight="700" fill="#c6cede">DELIVERIES</text>
+</svg>

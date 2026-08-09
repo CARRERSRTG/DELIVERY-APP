@@ -569,3 +569,48 @@ table.orders th { text-align: left; }
 .gantt-hour { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--gray); }
 .gantt-grid { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
 .gantt-bar { position: absolute; top: 4px; height: 22px; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; padding: 0 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.28); }
+
+/* ============================================================
+   Mobile (phones) — make the app comfortable in a mobile browser.
+   Kept in one place so the desktop layout above stays untouched.
+   ============================================================ */
+
+/* iOS Safari zooms the page in when a focused field's text is < 16px.
+   Bumping form controls to 16px on small screens stops that jump. */
+@media (max-width: 640px) {
+  input, select, textarea { font-size: 16px; }
+}
+
+@media (max-width: 760px) {
+  /* Tighter chrome so more content fits above the fold. */
+  .wrap { padding: 14px 12px 72px; }
+  .card { padding: 14px; margin-bottom: 12px; }
+  .topbar { padding: 10px 12px; gap: 8px; }
+  .topbar h1 { font-size: 16px; }
+  .page-head h2 { font-size: 18px; }
+
+  /* Nav tabs become one swipeable row instead of stacking into many rows. */
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-width: 100%;
+    padding-bottom: 2px;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; padding: 8px 12px; }
+
+  /* Comfortable finger targets. */
+  .btn, .tab, .chip { min-height: 40px; display: inline-flex; align-items: center; }
+  .btn-sm { min-height: 34px; }
+
+  /* Modals use the full screen instead of floating in a narrow column. */
+  .overlay { padding: 0; align-items: stretch; }
+  .modal { border-radius: 0; padding: 16px; max-width: 100%; min-height: 100%; }
+
+  /* Kanban board columns take most of the screen width so cards are readable
+     (swipe horizontally between stages / drivers). */
+  .board { gap: 8px; }
+  .board-col, .dboard-col { min-width: 82vw; }
+}

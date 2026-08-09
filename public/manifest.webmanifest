@@ -1,0 +1,15 @@
+{
+  "name": "RDZ Deliveries",
+  "short_name": "RDZ Deliveries",
+  "description": "Delivery order management & dispatch for Rodriguez Tile Group.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#152238",
+  "theme_color": "#152238",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

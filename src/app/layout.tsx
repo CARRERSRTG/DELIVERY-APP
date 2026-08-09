@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   description: "Delivery order management: sales create orders, the office manager approves, the warehouse fulfills.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "RDZ Deliveries" },
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
 };
 
 export const viewport: Viewport = {

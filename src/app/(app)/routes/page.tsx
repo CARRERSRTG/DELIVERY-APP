@@ -336,7 +336,7 @@ export default function RoutesPage() {
     addBucket(nm);
   };
   const removeBucket = (name: string) => {
-    saveSettings({ route_buckets: (settings.route_buckets ?? []).filter((b) => b !== name) });
+    return saveSettings({ route_buckets: (settings.route_buckets ?? []).filter((b) => b !== name) });
   };
   // Rename a temp driver: move its orders onto the new name and update the list.
   const renameBucket = async (oldName: string) => {
@@ -369,9 +369,16 @@ export default function RoutesPage() {
   // Delete a whole route/load: unassign every stop (back to the pool) and, if
   // it was a bucket, retire it.
   const clearLane = async (laneKey: string) => {
-    const stops = [...(byDriver.get(laneKey) ?? [])];
-    for (const d of stops) await manualUnassign(d.id);
-    if (isBucket(laneKey)) removeBucket(laneKey);
+    // Clear EVERY order on this lane across ALL dates, not just the day in view.
+    // Otherwise a stop left on another date keeps `assigned_driver = laneKey`,
+    // and the orphan-lane safety net rebuilds the route on the next reload —
+    // which is exactly why a "cleared" temp driver kept coming back. Await all
+    // writes (and the bucket removal) so the cleared state is fully persisted.
+    const stops = deliveries.filter((d) => (d.assigned_driver || "") === laneKey);
+    await Promise.all(stops.map((d) => updateDelivery(d.id, { assigned_driver: null, route_seq: null, load_no: null })));
+    stops.forEach((d) => addNote(d.id, `Unassigned (was ${laneKey})`));
+    if (isBucket(laneKey)) await removeBucket(laneKey);
+    clearRouteFor(laneKey);
     notify(t(`Cleared ${stops.length} stop(s) from ${laneLabel(laneKey)}`, `${stops.length} parada(s) quitadas de ${laneLabel(laneKey)}`));
   };
   // Drivers on vacation/sick/maintenance for the selected day — excluded from auto-assign.
