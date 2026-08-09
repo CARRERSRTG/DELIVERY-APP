@@ -27,7 +27,10 @@ const TABS = [
 ] as const;
 
 export default function DriverPage() {
-  const { me, deliveries, settings, ready } = useData();
+  const { me, deliveries, settings, ready, realRole } = useData();
+  // An admin previewing the driver role sees EVERY order (no own-assignment or
+  // date-window scoping), so they can test with all data.
+  const adminAllAccess = realRole === "admin";
   const { lang, t } = usePrefs();
   const [open, setOpen] = useState<Delivery | null>(null);
   const [creating, setCreating] = useState(false);
@@ -42,17 +45,17 @@ export default function DriverPage() {
     if (!me) return [];
     const needle = q.trim().toLowerCase();
     return deliveries.filter((d) => {
-      if (me.role === "driver" && d.assigned_driver !== me.full_name && d.created_by !== me.id) return false;
+      if (!adminAllAccess && me.role === "driver" && d.assigned_driver !== me.full_name && d.created_by !== me.id) return false;
       if (storeFilter && d.store !== storeFilter && d.assigned_driver !== me.full_name) return false;
       // Searching matches by invoice # specifically and bypasses the date
       // window below — that's the one way to reach older history here.
       if (needle) return (d.invoice_num || "").toLowerCase().includes(needle);
       // Yesterday / today / future only; a late order lingers a couple of days
       // then drops off unless it's reprogrammed. Older history via search above.
-      if (!withinRetention(d)) return false;
+      if (!adminAllAccess && !withinRetention(d)) return false;
       return true;
     });
-  }, [deliveries, me, storeFilter, q]);
+  }, [deliveries, me, storeFilter, q, adminAllAccess]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};

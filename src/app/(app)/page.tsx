@@ -24,7 +24,10 @@ const colsKey = (role: UserRole) => `rtg_order_columns_${role}`;
 const defaultColsFor = (role: UserRole) => ROLE_DEFAULT_COLUMNS[role] ?? DEFAULT_COLUMNS;
 
 export default function OrdersPage() {
-  const { me, users, deliveries, settings, ready, teaching, updateDelivery, setStage, notify } = useData();
+  const { me, users, deliveries, settings, ready, teaching, realRole, updateDelivery, setStage, notify } = useData();
+  // An admin previewing a role (view-as) sees EVERY order — none of the
+  // role-scoped/date-window restrictions apply, so they can test with all data.
+  const adminAllAccess = realRole === "admin";
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
 
@@ -129,7 +132,7 @@ export default function OrdersPage() {
     return deliveries.filter((d) => {
       // Teaching mode is a fully open sandbox — every user sees every practice
       // order, so none of the role-scoped restrictions below apply.
-      if (!teaching) {
+      if (!teaching && !adminAllAccess) {
         // Sales only ever sees their own orders — a hard boundary, not
         // relaxed by search, unlike the date-window restriction below.
         // "Own" includes orders an office/admin/driver assigned to them.
@@ -143,14 +146,14 @@ export default function OrdersPage() {
         // lingers a couple of days, then drops off unless reprogrammed). Older
         // history is still there, just reached by searching (e.g. an invoice #)
         // rather than scrolled to, so the list stays focused on active work.
-        if (!teaching && me?.role === "sales" && !withinRetention(d)) return false;
+        if (!teaching && !adminAllAccess && me?.role === "sales" && !withinRetention(d)) return false;
         return true;
       }
       const hay = [d.order_code, d.order_no, d.account, d.so_num, d.po2, d.invoice_num, d.store, d.delivery_address, d.contact, d.assigned_driver, d.delivery_phone]
         .map((x) => String(x ?? "").toLowerCase()).join(" ");
       return hay.includes(needle);
     });
-  }, [deliveries, q, me?.id, me?.role, teaching]);
+  }, [deliveries, q, me?.id, me?.role, teaching, adminAllAccess]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: visible.length };

@@ -64,10 +64,11 @@ export default function WarehousePage() {
       if (needle) return (d.invoice_num || "").toLowerCase().includes(needle);
       // Yesterday / today / future only; a late order lingers a couple of days
       // then drops off unless it's reprogrammed. Older history via search above.
-      if (!withinRetention(d)) return false;
+      // An admin previewing the warehouse role bypasses the window (sees all).
+      if (realRole !== "admin" && !withinRetention(d)) return false;
       return true;
     });
-  }, [deliveries, effectiveStore, atStore, q]);
+  }, [deliveries, effectiveStore, atStore, q, realRole]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
