@@ -1763,12 +1763,15 @@ export default function RoutesPage() {
                                   <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} disabled={i === stops.length - 1} onClick={() => move(u.key, i, 1)} title={t("Move down", "Bajar")}>↓</button>
                                   {/* Move this stop to another truckload/pickup of the same driver. */}
                                   <select
-                                    value={loadNoOf(d)}
-                                    title={t("Move to another load / truckload", "Mover a otra carga / viaje")}
-                                    onChange={(e) => { const v = e.target.value; moveStopToLoad(d, v === "__new__" ? maxLoadForDriver(u.driver) + 1 : Number(v)); }}
+                                    // Show the truckload this stop is ACTUALLY in (ti+1 = the
+                                    // section it's rendered under), not its raw load_no — which
+                                    // stays 1 for all when the split is auto (by capacity).
+                                    value={ti + 1}
+                                    title={t("Move to another truckload", "Mover a otro viaje")}
+                                    onChange={(e) => { const v = e.target.value; moveStopToLoad(d, v === "__new__" ? trips.length + 1 : Number(v)); }}
                                     style={{ width: "auto", padding: "2px 4px", fontSize: 12 }}
                                   >
-                                    {Array.from({ length: maxLoadForDriver(u.driver) }, (_, k) => k + 1).map((n) => (
+                                    {Array.from({ length: Math.max(trips.length, maxLoadForDriver(u.driver)) }, (_, k) => k + 1).map((n) => (
                                       <option key={n} value={n}>{t("Truckload", "Viaje")} {n}</option>
                                     ))}
                                     <option value="__new__">＋ {t("New truckload", "Nuevo viaje")}</option>
