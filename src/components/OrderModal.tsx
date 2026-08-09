@@ -99,6 +99,9 @@ export function OrderModal({
   const [readyPallets, setReadyPallets] = useState("");
   // Order view opens on a compact preview; the full detail table is behind a toggle.
   const [showAllDetails, setShowAllDetails] = useState(false);
+  // New order: start on a small initial step (Order Type + Delivery Address to
+  // price the fee) before the whole form. Store-to-store types skip it.
+  const [showFullForm, setShowFullForm] = useState(!isNew);
   const [showPickupConfirm, setShowPickupConfirm] = useState(false);
   const [pickupPallets, setPickupPallets] = useState("");
   const [podName, setPodName] = useState("");
@@ -1042,8 +1045,65 @@ export function OrderModal({
           </>
         )}
 
-        {/* ---------- EDIT MODE ---------- */}
-        {editing && (
+        {/* ---------- INITIAL NEW-ORDER STEP ---------- */}
+        {/* A short first screen for a NEW order: pick the type and delivery
+            address to price the fee, then Next to the whole form. Store-to-store
+            types (Intertienda / Transfer) skip it — no customer fee to calc. */}
+        {editing && isNew && !showFullForm && (
+          <>
+            <div className="section-label" style={{ marginTop: 0 }}>{t("New order", "Nueva orden")}</div>
+            <div className="grid g2">
+              <Sel
+                label={t("Order Type", "Tipo de Orden")}
+                val={d.order_type}
+                opts={settings.order_types}
+                on={(v) => { setD((p) => withTypeDefaults(p, v)); if (v && isStoreToStore(v, settings.order_type_rules)) setShowFullForm(true); }}
+                disabled={!salesFields}
+                placeholder={t("Select order type", "Seleccione tipo de orden")}
+                invalid={missingSet.has("order_type")}
+              />
+              <Txt
+                label={t("Delivery Address", "Dirección de Entrega")}
+                val={d.delivery_address}
+                on={(v) => set("delivery_address", v)}
+                disabled={!salesFields}
+                placeholder={t("Where is it going?", "¿A dónde va?")}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+              <button className="btn btn-ghost" onClick={calcRoute} disabled={routing}>
+                {routing ? t("Calculating…", "Calculando…") : t("🚚 Calculate distance & fee", "🚚 Calcular distancia y tarifa")}
+              </button>
+              <span className="hint" style={{ margin: 0 }}>{t("Route Miles", "Millas")}: <b>{d.route_miles != null ? `${d.route_miles} mi` : "—"}</b></span>
+              <span className="hint" style={{ margin: 0 }}>{t("Delivery Fee", "Costo de Entrega")}: <b>{d.delivery_fee == null ? "—" : fmtMoney(d.delivery_fee)}</b></span>
+            </div>
+            {routeErr && <div className="hint" style={{ color: "var(--red)" }}>{routeErr}</div>}
+            {(feeSuggestion.list != null || feeSuggestion.discount != null) && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+                <span className="hint" style={{ margin: 0 }}>{t("Suggested fee:", "Tarifa sugerida:")}</span>
+                {feeSuggestion.list != null && (
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => set("delivery_fee", feeSuggestion.list)}>{t("List", "Lista")} {fmtMoney(feeSuggestion.list)}</button>
+                )}
+                {feeSuggestion.discount != null && (
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => set("delivery_fee", feeSuggestion.discount)}>{t("Discount", "Descuento")} {fmtMoney(feeSuggestion.discount)}</button>
+                )}
+              </div>
+            )}
+            {feeSuggestion.needsApproval && (d.delivery_address || "").trim() && (
+              <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 6 }}>
+                ⚠ {t("Not local — requires manager approval.", "No local — requiere aprobación del gerente.")}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+              <button className="btn btn-primary" onClick={() => setShowFullForm(true)} disabled={!salesFields}>{t("Next →", "Siguiente →")}</button>
+            </div>
+          </>
+        )}
+
+        {/* ---------- EDIT MODE (full form) ---------- */}
+        {editing && (!isNew || showFullForm) && (
           <>
             <div className="section-label">{t("Order", "Orden")}</div>
             {/* Sales Rep with the "same invoice as a past order" toggle beside it
@@ -1572,7 +1632,7 @@ export function OrderModal({
         )}
 
         {/* ---------- STILL MISSING (moved to the bottom, right above the buttons) ---------- */}
-        {editing && missing.length > 0 && (
+        {editing && showFullForm && missing.length > 0 && (
           <div className="card" style={{ marginTop: 14, marginBottom: 0, background: "#fdeaea", borderColor: "var(--red)" }}>
             <b style={{ color: "var(--red)" }}>{t("Still missing", "Faltan")} ({missing.length})</b>
             <ul style={{ margin: "6px 0 0 18px", fontSize: 12.5, lineHeight: 1.5 }}>
@@ -1583,6 +1643,8 @@ export function OrderModal({
         )}
 
         {/* ---------- ACTIONS ---------- */}
+        {/* Hidden during the initial new-order step (which has its own Next). */}
+        {showFullForm && (
         <div className="modal-actions">
           {existing && me.role === "admin" && (
             <button className="btn btn-danger" onClick={remove} disabled={busy}>{t("Delete", "Eliminar")}</button>
@@ -1662,6 +1724,7 @@ export function OrderModal({
             />
           ) : null}
         </div>
+        )}
       </div>
     </div>
 
