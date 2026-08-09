@@ -145,10 +145,13 @@ export default function RoutesPage() {
   // panel so the route detail can use the whole screen.
   const [wideRoutes, setWideRoutes] = useState(true);
   const [showTop, setShowTop] = useState(true);
-  // Excel-style resizable columns, remembered per table.
-  const schedCols = useColWidths("rtg_routes_sched", [96, 190, 170, 70, 70, 130, 84, 60]);
-  const poolCols = useColWidths("rtg_routes_pool", [36, 96, 180, 130, 84, 140, 130, 120, 160]);
-  const stopCols = useColWidths("rtg_routes_stops2", [46, 96, 170, 230, 84, 120, 220]);
+  // Excel-style resizable columns, remembered per table. Tighter defaults (and
+  // bumped keys, so they replace older wide ones) so the route + truckload
+  // tables fit the screen without horizontal scrolling. Columns are still
+  // draggable from here.
+  const schedCols = useColWidths("rtg_routes_sched3", [72, 140, 140, 52, 52, 100, 60, 44]);
+  const poolCols = useColWidths("rtg_routes_pool3", [28, 70, 128, 92, 60, 100, 92, 88, 116]);
+  const stopCols = useColWidths("rtg_routes_stops3", [30, 68, 120, 180, 58, 92, 168]);
   // Which drivers are highlighted on the map / focused in the tables. Empty
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
