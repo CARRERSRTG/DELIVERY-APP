@@ -1115,25 +1115,35 @@ export function OrderModal({
               <AccountCombo
                 val={d.account}
                 on={(v) => {
-                  // Picking a saved account fills who to contact there (still
-                  // editable after) and defaults the order type: an internal
-                  // branch account → Intertienda, a customer account → Customer.
-                  // An account that has ANY Intertienda order in its history also
-                  // defaults to Intertienda, even if never saved with the flag.
+                  // Picking an account pre-fills who to contact there, the phone,
+                  // the usual delivery address and the order type (all still
+                  // editable). A SAVED account uses its stored record; any other
+                  // account falls back to its most recent past order, so a
+                  // customer that's only in the order history still pre-fills.
                   const rec = savedAccounts.find((a) => a.name.toLowerCase() === v.toLowerCase());
+                  const past = rec ? undefined : [...deliveries]
+                    .filter((x) => (x.account || "").trim().toLowerCase() === v.trim().toLowerCase())
+                    .sort((a, b) => b.order_no - a.order_no)[0];
                   const isIntertienda = rec?.intertienda || intertiendaAccounts.has(v.trim().toLowerCase());
+                  const fillAddr = rec?.address ?? past?.delivery_address ?? "";
                   setD((p) => {
                     const withAcct: Draft = {
                       ...p,
                       account: v,
-                      contact: rec ? rec.contact : p.contact,
-                      delivery_phone: rec ? rec.phone : p.delivery_phone,
+                      contact: rec ? rec.contact : (past?.contact ?? p.contact),
+                      delivery_phone: rec ? rec.phone : (past?.delivery_phone ?? p.delivery_phone),
                       // Fill the account's usual delivery address too — but never
                       // for a store-to-store move, where the destination is a
                       // store chosen from the dropdown, not the customer's site.
-                      delivery_address: rec?.address && !isIntertienda ? rec.address : p.delivery_address,
+                      delivery_address: fillAddr && !isIntertienda ? fillAddr : p.delivery_address,
                     };
-                    const wantType = !v.trim() ? null : (isIntertienda ? "Intertienda" : "Customer");
+                    // Order type: saved flag → Intertienda/Customer; otherwise the
+                    // last order's own type; otherwise the branch/customer default.
+                    const wantType = !v.trim() ? null
+                      : rec ? (isIntertienda ? "Intertienda" : "Customer")
+                      : (past?.order_type && settings.order_types.includes(past.order_type)
+                          ? past.order_type
+                          : (isIntertienda ? "Intertienda" : "Customer"));
                     return wantType && settings.order_types.includes(wantType)
                       ? withTypeDefaults(withAcct, wantType)
                       : withAcct;
