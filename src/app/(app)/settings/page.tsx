@@ -6,8 +6,8 @@ import { usePrefs } from "@/lib/prefs";
 import Link from "next/link";
 import { DEFAULT_HELP_EMAIL, ROLE_DEFAULT_COLUMNS, ROLE_INFO, ROLE_ORDER, allDefaultPermissions, defaultPermissions, driverNames, roleLabel } from "@/lib/constants";
 import { DEFAULT_COLUMNS, ORDER_COLUMNS } from "@/components/OrdersTable";
-import { LOCAL_CITIES_DEFAULT, LOCAL_FEE_LIST_DEFAULT, LOCAL_FEE_DISCOUNT_DEFAULT, NONLOCAL_BRACKETS_DEFAULT } from "@/lib/pricing";
-import type { FeeBracket, Settings, UserRole } from "@/lib/types";
+import { LOCAL_CITIES_DEFAULT } from "@/lib/pricing";
+import type { Settings, UserRole } from "@/lib/types";
 
 export default function SettingsPage() {
   const { me, users, settings, saveSettings, notify } = useData();
@@ -491,21 +491,12 @@ function LocalZonePricing({ settings, saveSettings, notify, t }: {
   t: (en: string, es: string) => string;
 }) {
   const cities = settings.local_cities?.length ? settings.local_cities : LOCAL_CITIES_DEFAULT;
-  const seedBrackets = settings.nonlocal_fee_brackets?.length ? settings.nonlocal_fee_brackets : NONLOCAL_BRACKETS_DEFAULT;
   const [citiesText, setCitiesText] = useState(cities.join(", "));
-  const [rows, setRows] = useState<FeeBracket[]>(seedBrackets);
 
   const saveCities = () => {
     const list = citiesText.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
     saveSettings({ local_cities: list } as Partial<Settings>);
     setCitiesText(list.join(", "));
-    notify(t("Saved", "Guardado"));
-  };
-  const setRow = (i: number, patch: Partial<FeeBracket>) => setRows((r) => r.map((b, j) => (j === i ? { ...b, ...patch } : b)));
-  const addRow = () => setRows((r) => [...r, { max_miles: null, list: 0, discount: 0 }]);
-  const removeRow = (i: number) => setRows((r) => r.filter((_, j) => j !== i));
-  const saveBrackets = () => {
-    saveSettings({ nonlocal_fee_brackets: rows } as Partial<Settings>);
     notify(t("Saved", "Guardado"));
   };
 
@@ -514,54 +505,23 @@ function LocalZonePricing({ settings, saveSettings, notify, t }: {
       <h2>📍 {t("Local-zone delivery pricing", "Precios de entrega por zona local")}</h2>
       <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
         {t(
-          "A delivery to a LOCAL city gets the flat fee. Anywhere else is priced by driving miles and flagged for manager approval.",
-          "Una entrega a una ciudad LOCAL usa la tarifa fija. Cualquier otro lugar se cotiza por millas y se marca para aprobación del gerente.",
+          "The delivery fee is auto-calculated from the route miles (formula below). The local city list only sets the LOCAL / NOT-LOCAL badge — a not-local delivery is flagged for manager approval.",
+          "La tarifa de entrega se calcula automáticamente a partir de las millas de la ruta (fórmula abajo). La lista de ciudades locales solo define la insignia LOCAL / NO-LOCAL — una entrega no local se marca para aprobación del gerente.",
         )}
       </p>
 
-      <div className="grid g2" style={{ maxWidth: 520 }}>
-        <RateInput
-          label={t("Local fee — list ($)", "Tarifa local — lista ($)")}
-          value={settings.local_fee_list ?? LOCAL_FEE_LIST_DEFAULT}
-          onSave={(v) => { saveSettings({ local_fee_list: v } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
-        />
-        <RateInput
-          label={t("Local fee — discount ($)", "Tarifa local — descuento ($)")}
-          value={settings.local_fee_discount ?? LOCAL_FEE_DISCOUNT_DEFAULT}
-          onSave={(v) => { saveSettings({ local_fee_discount: v } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
-        />
-      </div>
-
-      <div className="field" style={{ marginTop: 12 }}>
+      <div className="field">
         <label>{t("Local cities (comma-separated)", "Ciudades locales (separadas por coma)")}</label>
         <textarea rows={3} value={citiesText} onChange={(e) => setCitiesText(e.target.value)} onBlur={saveCities} />
         <div className="hint">{cities.length} {t("cities", "ciudades")}</div>
       </div>
 
       <div style={{ marginTop: 14 }}>
-        <div className="section-label" style={{ marginTop: 0 }}>{t("Not-local fee by miles", "Tarifa no local por millas")}</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 4, maxWidth: 420 }}>
-          <span className="hint" style={{ flex: 1, margin: 0 }}>{t("Up to miles", "Hasta millas")}</span>
-          <span className="hint" style={{ flex: 1, margin: 0 }}>{t("List ($)", "Lista ($)")}</span>
-          <span className="hint" style={{ flex: 1, margin: 0 }}>{t("Discount ($)", "Descuento ($)")}</span>
-          <span style={{ width: 34 }} />
-        </div>
-        {rows.map((b, i) => (
-          <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, maxWidth: 420 }}>
-            <input type="number" min={0} style={{ flex: 1 }} value={b.max_miles ?? ""} placeholder={t("and up", "y más")}
-              onChange={(e) => setRow(i, { max_miles: e.target.value === "" ? null : Number(e.target.value) })} />
-            <input type="number" min={0} style={{ flex: 1 }} value={b.list} onChange={(e) => setRow(i, { list: Number(e.target.value) })} />
-            <input type="number" min={0} style={{ flex: 1 }} value={b.discount} onChange={(e) => setRow(i, { discount: Number(e.target.value) })} />
-            <button className="btn btn-sm btn-ghost" style={{ width: 34 }} title={t("Remove", "Quitar")} onClick={() => removeRow(i)}>✕</button>
-          </div>
-        ))}
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <button className="btn btn-sm btn-ghost" onClick={addRow}>＋ {t("Add bracket", "Agregar rango")}</button>
-          <button className="btn btn-sm btn-primary" onClick={saveBrackets}>{t("Save brackets", "Guardar rangos")}</button>
-        </div>
-        <div className="hint" style={{ marginTop: 6 }}>
-          {t("Leave the last row's miles blank for \"and up\". Seeded from your example: 27 mi → $530 / $430.",
-             "Deje las millas en blanco en la última fila para \"y más\". Precargado de su ejemplo: 27 mi → $530 / $430.")}
+        <div className="section-label" style={{ marginTop: 0 }}>{t("Fee formula (by driving miles)", "Fórmula de tarifa (por millas)")}</div>
+        <div className="hint" style={{ lineHeight: 1.7 }}>
+          <b>{t("List:", "Lista:")}</b> &lt; 11 mi → $100 · &gt; 50 mi → 350 + mi · {t("else", "si no")} → 120 + mi × 0.8<br />
+          <b>{t("Discount:", "Descuento:")}</b> &lt; 11 mi → $80 · &gt; 50 mi → 200 + mi · {t("else", "si no")} → 100 + mi × 0.8<br />
+          <span style={{ opacity: 0.8 }}>{t("Both rounded to the nearest $10.", "Ambas redondeadas al $10 más cercano.")}</span>
         </div>
       </div>
     </div>

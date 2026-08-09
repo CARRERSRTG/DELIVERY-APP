@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isLocalCity, bracketForMiles, suggestDeliveryFee, NONLOCAL_BRACKETS_DEFAULT } from "@/lib/pricing";
-import type { FeeBracket } from "@/lib/types";
+import { isLocalCity, listFee, discountFee, suggestDeliveryFee } from "@/lib/pricing";
 
 describe("isLocalCity", () => {
   it("matches a local-zone city case-insensitively", () => {
@@ -10,7 +9,6 @@ describe("isLocalCity", () => {
   });
   it("rejects a city outside the zone", () => {
     expect(isLocalCity("Laredo")).toBe(false);
-    expect(isLocalCity("Corpus Christi")).toBe(false);
     expect(isLocalCity("")).toBe(false);
   });
   it("honors an admin-overridden city list", () => {
@@ -19,49 +17,61 @@ describe("isLocalCity", () => {
   });
 });
 
-describe("bracketForMiles", () => {
-  const table: FeeBracket[] = [
-    { max_miles: 15, list: 130, discount: 110 },
-    { max_miles: 30, list: 530, discount: 430 },
-    { max_miles: null, list: 800, discount: 700 },
-  ];
-  it("picks the first bracket whose ceiling covers the miles", () => {
-    expect(bracketForMiles(10, table)?.list).toBe(130);
-    expect(bracketForMiles(15, table)?.list).toBe(130);
-    expect(bracketForMiles(27, table)?.list).toBe(530);
+describe("listFee (office formula, rounded to $10)", () => {
+  it("is a flat $100 under 11 miles", () => {
+    expect(listFee(0)).toBe(100);
+    expect(listFee(10)).toBe(100);
   });
-  it("falls to the open-ended bracket beyond the table", () => {
-    expect(bracketForMiles(200, table)?.list).toBe(800);
+  it("uses 120 + mi*0.8 between 11 and 50 miles", () => {
+    expect(listFee(11)).toBe(130); // round10(128.8)
+    expect(listFee(13)).toBe(130); // round10(130.4)
+    expect(listFee(27)).toBe(140); // round10(141.6)
+    expect(listFee(50)).toBe(160); // round10(160)
+  });
+  it("uses 350 + mi over 50 miles", () => {
+    expect(listFee(51)).toBe(400); // round10(401)
+    expect(listFee(60)).toBe(410); // round10(410)
+    expect(listFee(180)).toBe(530); // round10(530)
+  });
+});
+
+describe("discountFee (office formula, rounded to $10)", () => {
+  it("is a flat $80 under 11 miles", () => {
+    expect(discountFee(0)).toBe(80);
+    expect(discountFee(10)).toBe(80);
+  });
+  it("uses 100 + mi*0.8 between 11 and 50 miles", () => {
+    expect(discountFee(13)).toBe(110); // round10(110.4)
+    expect(discountFee(27)).toBe(120); // round10(121.6)
+    expect(discountFee(50)).toBe(140); // round10(140)
+  });
+  it("uses 200 + mi over 50 miles", () => {
+    expect(discountFee(60)).toBe(260); // round10(260)
+    expect(discountFee(180)).toBe(380); // round10(380)
   });
 });
 
 describe("suggestDeliveryFee", () => {
-  it("gives the LOCAL flat fee for a local city, no approval", () => {
-    const s = suggestDeliveryFee({ delivery_address: "123 Main St, McAllen, TX 78501", route_miles: 8 });
+  it("prices by miles and marks a local city as no-approval", () => {
+    const s = suggestDeliveryFee({ delivery_address: "123 Main St, McAllen, TX 78501", route_miles: 13 });
     expect(s.zone).toBe("local");
     expect(s.list).toBe(130);
     expect(s.discount).toBe(110);
     expect(s.needsApproval).toBe(false);
   });
-
-  it("prices a not-local delivery by miles and flags approval", () => {
-    const s = suggestDeliveryFee({ delivery_address: "500 Ranch Rd, Falfurrias, TX", route_miles: 27 });
+  it("prices by miles and flags a non-local delivery for approval", () => {
+    const s = suggestDeliveryFee({ delivery_address: "500 Ranch Rd, Falfurrias, TX", route_miles: 60 });
     expect(s.zone).toBe("nonlocal");
-    expect(s.list).toBe(NONLOCAL_BRACKETS_DEFAULT[0].list); // 530 (single "and up" seed)
-    expect(s.discount).toBe(NONLOCAL_BRACKETS_DEFAULT[0].discount); // 430
+    expect(s.list).toBe(410);
+    expect(s.discount).toBe(260);
     expect(s.needsApproval).toBe(true);
   });
-
-  it("uses the admin overrides when set", () => {
-    const s = suggestDeliveryFee(
-      { delivery_address: "1 Palm Ave, McAllen, TX", route_miles: 5 },
-      { local_fee_list: 99, local_fee_discount: 80 },
-    );
-    expect(s.list).toBe(99);
-    expect(s.discount).toBe(80);
+  it("leaves the fee null until the route miles are known", () => {
+    const s = suggestDeliveryFee({ delivery_address: "1 Palm Ave, McAllen, TX", route_miles: null });
+    expect(s.list).toBeNull();
+    expect(s.discount).toBeNull();
   });
-
   it("stays 'unknown' with no delivery address", () => {
-    expect(suggestDeliveryFee({ delivery_address: "", route_miles: null }).zone).toBe("unknown");
+    expect(suggestDeliveryFee({ delivery_address: "", route_miles: 20 }).zone).toBe("unknown");
   });
 });

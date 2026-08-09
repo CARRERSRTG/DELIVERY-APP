@@ -1,17 +1,16 @@
-import type { FeeBracket, Settings } from "@/lib/types";
+import type { Settings } from "@/lib/types";
 import { cityFromAddress } from "@/lib/utils";
 
 // ============================================================
-// Local-zone delivery pricing.
+// Delivery fee = a function of driving miles (the office's real formulas).
+// Two prices per order: a standard "list" fee and a lower "discount" fee a
+// rep may offer. Both round to the nearest $10.
 //
-//   LOCAL  (delivery city is in the local list) → a flat fee: a "list" price
-//          and a lower "discount" price a rep may offer. Miles are only a
-//          reference the rep checks; they don't change a local fee.
-//   NOT    LOCAL (anything else) → priced by driving miles through a bracket
-//          table, and flagged as needing manager approval.
+//   list:      < 11 mi → $100 · > 50 mi → round10(350 + mi) · else round10(120 + mi·0.8)
+//   discount:  < 11 mi →  $80 · > 50 mi → round10(200 + mi) · else round10(100 + mi·0.8)
 //
-// All of this is admin-editable in Settings; the defaults below seed it and
-// keep the feature working before anything is configured.
+// The LOCAL city list only drives the LOCAL / NOT-LOCAL badge and the "needs
+// approval" flag — it does NOT change the fee, which is purely miles-based.
 // ============================================================
 
 /** Cities inside the LOCAL delivery zone (the red outline on the RGV map). */
@@ -22,25 +21,9 @@ export const LOCAL_CITIES_DEFAULT = [
   "Rio Hondo", "Ranch Viejo", "Brownsville", "Port Isabel", "South Padre",
 ];
 
-/** LOCAL flat fee — standard "list" price. */
-export const LOCAL_FEE_LIST_DEFAULT = 130;
-/** LOCAL flat fee — discounted price a rep may offer. */
-export const LOCAL_FEE_DISCOUNT_DEFAULT = 110;
-
-/** NOT-LOCAL fee by driving miles. Seeded from the 27-mile example ($530/$430)
- * as a single "and up" bracket; admins split it into real ranges in Settings. */
-export const NONLOCAL_BRACKETS_DEFAULT: FeeBracket[] = [
-  { max_miles: null, list: 530, discount: 430 },
-];
-
 export function localCities(s?: Partial<Settings> | null): string[] {
   const c = s?.local_cities;
   return c && c.length ? c : LOCAL_CITIES_DEFAULT;
-}
-
-export function nonlocalBrackets(s?: Partial<Settings> | null): FeeBracket[] {
-  const b = s?.nonlocal_fee_brackets;
-  return b && b.length ? b : NONLOCAL_BRACKETS_DEFAULT;
 }
 
 /** True when `city` is one of the configured local-zone cities (case-insensitive). */
@@ -50,13 +33,30 @@ export function isLocalCity(city: string, s?: Partial<Settings> | null): boolean
   return localCities(s).some((c) => c.trim().toLowerCase() === needle);
 }
 
+/** Round to the nearest $10 (Excel ROUND(x, -1) for non-negative amounts). */
+const round10 = (x: number) => Math.round(x / 10) * 10;
+
+/** Standard "list" delivery fee for a mile figure. */
+export function listFee(miles: number): number {
+  if (miles < 11) return 100;
+  if (miles > 50) return round10(350 + miles);
+  return round10(120 + miles * 0.8);
+}
+
+/** Discounted delivery fee a rep may offer for a mile figure. */
+export function discountFee(miles: number): number {
+  if (miles < 11) return 80;
+  if (miles > 50) return round10(200 + miles);
+  return round10(100 + miles * 0.8);
+}
+
 export type DeliveryZone = "local" | "nonlocal" | "unknown";
 
 export interface FeeSuggestion {
   zone: DeliveryZone;
   /** Detected delivery city (best effort), for display. */
   city: string;
-  /** Suggested standard price, or null when it can't be determined yet. */
+  /** Suggested standard price, or null until the route miles are known. */
   list: number | null;
   /** Suggested discounted price a rep may offer. */
   discount: number | null;
@@ -64,15 +64,8 @@ export interface FeeSuggestion {
   needsApproval: boolean;
 }
 
-/** Pick the fee bracket for a mile figure: the first whose max_miles ≥ miles
- * (null max = "and up"). Returns null if the table is empty. */
-export function bracketForMiles(miles: number, brackets: FeeBracket[]): FeeBracket | null {
-  const sorted = [...brackets].sort((a, b) => (a.max_miles ?? Infinity) - (b.max_miles ?? Infinity));
-  return sorted.find((b) => b.max_miles == null || miles <= b.max_miles) ?? sorted[sorted.length - 1] ?? null;
-}
-
-/** Suggest the delivery fee for an order from its delivery city (local flat) or
- * its driving miles (not-local bracket). */
+/** Suggest the delivery fee for an order from its driving miles (the formulas
+ * above). The delivery city only sets the zone badge + approval flag. */
 export function suggestDeliveryFee(
   d: { delivery_address?: string | null; route_miles?: number | null },
   s?: Partial<Settings> | null,
@@ -81,28 +74,13 @@ export function suggestDeliveryFee(
   const city = cityFromAddress(d.delivery_address, localCities(s));
   if (!hasAddr) return { zone: "unknown", city: "", list: null, discount: null, needsApproval: false };
 
-  if (isLocalCity(city, s)) {
-    return {
-      zone: "local",
-      city,
-      list: s?.local_fee_list ?? LOCAL_FEE_LIST_DEFAULT,
-      discount: s?.local_fee_discount ?? LOCAL_FEE_DISCOUNT_DEFAULT,
-      needsApproval: false,
-    };
-  }
-
-  const brackets = nonlocalBrackets(s);
-  // With miles we look up the bracket; without them, a single "and up" bracket
-  // still gives an answer, otherwise we wait for the route to be calculated.
-  const picked =
-    d.route_miles != null ? bracketForMiles(d.route_miles, brackets)
-    : brackets.length === 1 ? brackets[0]
-    : null;
+  const local = isLocalCity(city, s);
+  const miles = d.route_miles;
   return {
-    zone: "nonlocal",
+    zone: local ? "local" : "nonlocal",
     city,
-    list: picked ? picked.list : null,
-    discount: picked ? picked.discount : null,
-    needsApproval: true,
+    list: miles != null ? listFee(miles) : null,
+    discount: miles != null ? discountFee(miles) : null,
+    needsApproval: !local,
   };
 }

@@ -1208,9 +1208,9 @@ export function OrderModal({
                       </button>
                     )}
                   </div>
-                ) : feeSuggestion.zone === "nonlocal" ? (
-                  <div className="hint" style={{ marginTop: 6 }}>{t("Calculate the route below to price this not-local delivery by miles.", "Calcule la ruta abajo para cotizar esta entrega no local por millas.")}</div>
-                ) : null}
+                ) : (
+                  <div className="hint" style={{ marginTop: 6 }}>{t("Calculate the route below to price this delivery by miles.", "Calcule la ruta abajo para cotizar esta entrega por millas.")}</div>
+                )}
                 {feeSuggestion.needsApproval && (
                   <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 6 }}>
                     ⚠ {t("Not local — requires manager approval.", "No local — requiere aprobación del gerente.")}
