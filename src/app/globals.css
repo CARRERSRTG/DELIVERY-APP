@@ -604,13 +604,24 @@ table.orders th { text-align: left; }
   .tabs::-webkit-scrollbar { display: none; }
   .tab { flex: 0 0 auto; padding: 8px 12px; }
 
-  /* Comfortable finger targets. */
-  .btn, .tab, .chip { min-height: 40px; display: inline-flex; align-items: center; }
-  .btn-sm { min-height: 34px; }
+  /* Comfortable finger targets (without feeling oversized). */
+  .btn, .tab, .chip { min-height: 36px; display: inline-flex; align-items: center; }
+  .btn-sm { min-height: 32px; }
 
   /* Modals use the full screen instead of floating in a narrow column. */
   .overlay { padding: 0; align-items: stretch; }
-  .modal { border-radius: 0; padding: 16px; max-width: 100%; min-height: 100%; }
+  .modal { border-radius: 0; padding: 14px; max-width: 100%; min-height: 100%; }
+
+  /* Compact the form so it reads as a mobile form, not a scaled-up desktop one:
+     shorter fields (still 16px text so iOS doesn't zoom), tighter spacing. */
+  .modal h3 { font-size: 17px; }
+  .modal .sub { margin-bottom: 10px; }
+  .field { margin-bottom: 8px; }
+  label { margin-bottom: 3px; font-size: 11px; }
+  input, select, textarea { padding: 8px 10px; }
+  textarea { min-height: 60px; }
+  .section-label { margin: 12px 0 8px; padding-bottom: 5px; }
+  .grid { gap: 8px; }
 
   /* Kanban board columns take most of the screen width so cards are readable
      (swipe horizontally between stages / drivers). */
