@@ -1703,8 +1703,8 @@ export default function RoutesPage() {
                     expand/contract toggle, so Windows + the action arrows never
                     get pushed off the right edge. Width pinned to the column
                     sum; columns still draggable. */}
-                <table className="orders tbl-resize" style={{ width: stopCols.widths.reduce((sum, w, i) => sum + (i === 3 ? (addrWide ? w : 92) : w), 0) }}>
-                  <colgroup>{stopCols.widths.map((w, i) => <col key={i} style={{ width: i === 3 ? (addrWide ? w : 92) : w }} />)}</colgroup>
+                <table className="orders tbl-resize" style={{ width: stopCols.widths.reduce((sum, w, i) => sum + (i === 3 ? (addrWide ? w : 112) : w), 0) }}>
+                  <colgroup>{stopCols.widths.map((w, i) => <col key={i} style={{ width: i === 3 ? (addrWide ? w : 112) : w }} />)}</colgroup>
                   <thead>
                     <tr>
                       <th>#<span className="col-resizer" onMouseDown={stopCols.startResize(0)} /></th>
