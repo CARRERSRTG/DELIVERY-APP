@@ -145,14 +145,17 @@ export default function RoutesPage() {
   // panel so the route detail can use the whole screen.
   const [wideRoutes, setWideRoutes] = useState(true);
   const [showTop, setShowTop] = useState(true);
+  // Stops table Address on a single line; a toggle expands it when the full
+  // address is needed. Kept narrow by default so Windows + the row-action
+  // arrows never get pushed off the right edge.
+  const [addrWide, setAddrWide] = useState(false);
   // Excel-style resizable columns, remembered per table. Tighter defaults (and
   // bumped keys, so they replace older wide ones) so the route + truckload
   // tables fit the screen without horizontal scrolling. Columns are still
-  // draggable from here. Account + Address wrap (see stops-tbl CSS), so their
-  // widths can stay compact while still showing the whole value.
+  // draggable from here.
   const schedCols = useColWidths("rtg_routes_sched3", [72, 140, 140, 52, 52, 100, 60, 44]);
   const poolCols = useColWidths("rtg_routes_pool3", [28, 70, 128, 92, 60, 100, 92, 88, 116]);
-  const stopCols = useColWidths("rtg_routes_stops4", [32, 76, 150, 210, 54, 98, 168]);
+  const stopCols = useColWidths("rtg_routes_stops5", [32, 74, 140, 240, 52, 96, 156]);
   // Which drivers are highlighted on the map / focused in the tables. Empty
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
@@ -1693,17 +1696,27 @@ export default function RoutesPage() {
             })()}
             {stops.length > 0 && (
               <div className="tbl-scroll" style={{ border: "none" }}>
-                {/* Efficient view: Account + Address WRAP so nothing is hidden;
-                    the table width is pinned to the column sum so the row-action
-                    buttons always stay in view. Columns are still draggable. */}
-                <table className="orders tbl-resize stops-tbl" style={{ width: stopCols.widths.reduce((sum, w) => sum + w, 0) }}>
-                  <colgroup>{stopCols.widths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+                {/* Address stays on one line (narrow by default) with an
+                    expand/contract toggle, so Windows + the action arrows never
+                    get pushed off the right edge. Width pinned to the column
+                    sum; columns still draggable. */}
+                <table className="orders tbl-resize" style={{ width: stopCols.widths.reduce((sum, w, i) => sum + (i === 3 ? (addrWide ? w : 92) : w), 0) }}>
+                  <colgroup>{stopCols.widths.map((w, i) => <col key={i} style={{ width: i === 3 ? (addrWide ? w : 92) : w }} />)}</colgroup>
                   <thead>
                     <tr>
                       <th>#<span className="col-resizer" onMouseDown={stopCols.startResize(0)} /></th>
                       <th>{t("ID", "ID")}<span className="col-resizer" onMouseDown={stopCols.startResize(1)} /></th>
                       <th>{t("Account", "Cuenta")}<span className="col-resizer" onMouseDown={stopCols.startResize(2)} /></th>
-                      <th>{t("Address", "Dirección")}<span className="col-resizer" onMouseDown={stopCols.startResize(3)} /></th>
+                      <th>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: "0 5px", minHeight: 0, marginRight: 4 }}
+                          title={addrWide ? t("Contract address", "Contraer dirección") : t("Expand address", "Expandir dirección")}
+                          onClick={() => setAddrWide((v) => !v)}
+                        >{addrWide ? "⤡" : "⤢"}</button>
+                        {t("Address", "Dirección")}
+                        {addrWide && <span className="col-resizer" onMouseDown={stopCols.startResize(3)} />}
+                      </th>
                       <th>{t("ETA", "Llegada")}<span className="col-resizer" onMouseDown={stopCols.startResize(4)} /></th>
                       <th>{t("Windows", "Ventanas")}<span className="col-resizer" onMouseDown={stopCols.startResize(5)} /></th>
                       <th></th>
@@ -1735,8 +1748,8 @@ export default function RoutesPage() {
                               <tr key={d.id}>
                                 <td style={{ borderLeft: `4px solid ${tColor}` }}>{d.route_seq != null ? i + 1 : "—"}</td>
                                 <td className="ordno">#{orderLabel(d)}</td>
-                                <td className="wrap">{d.account || "—"}</td>
-                                <td className="wrap">{d.delivery_address || "—"}</td>
+                                <td title={d.account || undefined}>{d.account || "—"}</td>
+                                <td title={d.delivery_address || undefined}>{d.delivery_address || "—"}</td>
                                 <td style={{ fontWeight: 600, color: late ? "var(--red)" : undefined }} title={late ? t("ETA is after the delivery window", "La llegada es después de la ventana") : undefined}>
                                   {eta ?? "—"}{late ? " ⚠️" : ""}
                                 </td>
