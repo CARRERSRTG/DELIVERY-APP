@@ -229,35 +229,11 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     notify("Practice sandbox reset");
   }, [notify]);
 
-  // ---- Single-device sessions ----
-  // On load, claim the account by stamping THIS session's id on the profile.
-  // Any other signed-in device sees the change (realtime profile updates)
-  // and signs itself out — one active device per account.
-  const sessionId = useRef<string | null>(null);
-  useEffect(() => {
-    if (!me) return;
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      const sid = data.session?.access_token ? data.session.access_token.slice(-24) : null;
-      if (!sid || cancelled) return;
-      sessionId.current = sid;
-      await supabase.from("profiles").update({ active_session_id: sid }).eq("id", me.id);
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, me?.id]);
-
-  const checkSession = useCallback(async () => {
-    if (!me || !sessionId.current) return;
-    const { data } = await supabase.from("profiles").select("active_session_id").eq("id", me.id).maybeSingle();
-    const active = (data as { active_session_id?: string | null } | null)?.active_session_id;
-    if (active && active !== sessionId.current) {
-      await supabase.auth.signOut();
-      window.location.href = "/login?reason=session";
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, me?.id]);
+  // Multiple concurrent sessions per account are allowed: a user can be signed
+  // in on several devices/tabs at once (phone + desktop, or different roles in
+  // separate browsers) without any of them being forced to sign out. The old
+  // single-device lock (stamp active_session_id, sign out on mismatch) was
+  // removed on purpose.
 
   useEffect(() => {
     reloadAll();
@@ -266,7 +242,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       .on("postgres_changes", { event: "*", schema: "public", table: "deliveries" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "order_events" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, reloadAll)
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => { reloadAll(); checkSession(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "driver_availability" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "driver_shifts" }, reloadAll)
@@ -274,7 +250,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, reloadAll, checkSession]);
+  }, [supabase, reloadAll]);
 
   // ---------------- Event log helper ----------------
   const logEvent = useCallback(
