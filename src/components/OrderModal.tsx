@@ -1071,6 +1071,49 @@ export function OrderModal({
               />
             </div>
 
+            {/* Drop an exact map pin (for sites with no formal address). */}
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4, marginBottom: showPinPicker ? 8 : 0 }}>
+              <button className="btn btn-ghost btn-sm" disabled={!salesFields} onClick={() => {
+                setPinDraft(d.delivery_lat != null && d.delivery_lng != null ? [d.delivery_lat, d.delivery_lng] : null);
+                setShowPinPicker((s) => !s);
+              }}>
+                📍 {t("Set exact location on map", "Marcar ubicación exacta en el mapa")}
+              </button>
+              {pinLookupBusy ? (
+                <span className="hint">{t("Looking up the address…", "Buscando la dirección…")}</span>
+              ) : d.delivery_lat != null && d.delivery_lng != null && (
+                <span className="hint">
+                  {d.delivery_pin_source === "manual"
+                    ? t("Exact pin set — the driver will navigate straight to it.", "Pin exacto marcado — el chofer navegará directo a él.")
+                    : t("Location found from the address above.", "Ubicación encontrada a partir de la dirección de arriba.")}
+                </span>
+              )}
+            </div>
+            {showPinPicker && (
+              <div className="card" style={{ marginBottom: 12 }}>
+                <div className="hint" style={{ marginBottom: 8 }}>
+                  {t("Move the mouse to preview the spot, then right-click to drop the pin.", "Mueva el mouse para previsualizar el punto y haga clic derecho para marcarlo.")}
+                </div>
+                <LeafletMap
+                  pickable
+                  pickedPoint={pinDraft}
+                  center={pinDraft ?? (d.delivery_lat != null && d.delivery_lng != null ? [d.delivery_lat, d.delivery_lng] : undefined)}
+                  onPick={(lat, lng) => dropPin(lat, lng)}
+                  height={280}
+                />
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button className="btn btn-primary btn-sm" disabled={!pinDraft} onClick={() => { if (pinDraft) savePin(pinDraft[0], pinDraft[1]); }}>{t("Save pin", "Guardar pin")}</button>
+                  {(d.delivery_lat != null || pinDraft) && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => {
+                      set("delivery_lat", null); set("delivery_lng", null); set("delivery_pin_source", null);
+                      setPinDraft(null); setShowPinPicker(false);
+                    }}>{t("Clear pin", "Quitar pin")}</button>
+                  )}
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowPinPicker(false)}>{t("Cancel", "Cancelar")}</button>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
               <button className="btn btn-ghost" onClick={calcRoute} disabled={routing}>
                 {routing ? t("Calculating…", "Calculando…") : t("🚚 Calculate distance & fee", "🚚 Calcular distancia y tarifa")}
