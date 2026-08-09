@@ -1695,9 +1695,11 @@ export default function RoutesPage() {
             })()}
             {stops.length > 0 && (
               <div className="tbl-scroll" style={{ border: "none" }}>
-                <table className="orders tbl-resize">
-                  {/* Address (col 3) is forced narrow unless expanded, so the
-                      end-of-row action buttons stay visible without scrolling. */}
+                {/* Address (col 3) is forced narrow unless expanded, so the
+                    end-of-row action buttons stay visible without scrolling.
+                    The table width is pinned to the column sum so a narrow
+                    address can't be overridden by the address content. */}
+                <table className="orders tbl-resize" style={{ width: stopCols.widths.reduce((sum, w, i) => sum + (i === 3 ? (addrWide ? Math.max(220, w) : 70) : w), 0) }}>
                   <colgroup>{stopCols.widths.map((w, i) => <col key={i} style={{ width: i === 3 ? (addrWide ? Math.max(220, w) : 70) : w }} />)}</colgroup>
                   <thead>
                     <tr>
