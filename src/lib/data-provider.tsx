@@ -118,6 +118,9 @@ export interface DataState {
 // `deleted` are real ids hidden while practising. None of this ever hits the DB.
 type Overlay = { created: Delivery[]; updated: Record<string, Partial<Delivery>>; deleted: Set<string>; events: OrderEvent[] };
 const emptyOverlay = (): Overlay => ({ created: [], updated: {}, deleted: new Set(), events: [] });
+// The teaching sandbox is persisted here so practice changes survive reloads
+// until "Reset sandbox" is pressed (the Set is stored as an array for JSON).
+const TEACHING_OVERLAY_KEY = "rtg_teaching_overlay";
 
 export const Ctx = createContext<DataState | null>(null);
 
@@ -167,13 +170,40 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // ---- Teaching-mode sandbox ----
   // Teaching mode is a purely LOCAL overlay on top of the real, live data:
   // creations, edits and deletions are recorded here and NEVER written to the
-  // database, so nothing a user does in teaching mode is visible to anyone else
-  // or survives leaving the mode. Because the real `deliveries` keep updating
-  // from realtime, changes other people make to the LIVE data still flow in
-  // underneath the sandbox while you practice. Turning teaching off discards
-  // the overlay and you're back to exactly the real state.
+  // database, so nothing a user does in teaching mode is visible to anyone else.
+  // Because the real `deliveries` keep updating from realtime, changes other
+  // people make to the LIVE data still flow in underneath the sandbox while you
+  // practice. The sandbox PERSISTS (localStorage) across reloads and across
+  // toggling teaching off/on — practice changes stay until "Reset sandbox".
   const [overlay, setOverlay] = useState<Overlay>(emptyOverlay);
-  useEffect(() => { if (!teaching) setOverlay(emptyOverlay()); }, [teaching]);
+  const overlayLoaded = useRef(false);
+  // Restore a saved sandbox on first load.
+  useEffect(() => {
+    if (overlayLoaded.current) return;
+    overlayLoaded.current = true;
+    try {
+      const raw = localStorage.getItem(TEACHING_OVERLAY_KEY);
+      if (raw) {
+        const o = JSON.parse(raw);
+        setOverlay({
+          created: Array.isArray(o.created) ? o.created : [],
+          updated: o.updated && typeof o.updated === "object" ? o.updated : {},
+          deleted: new Set(Array.isArray(o.deleted) ? o.deleted : []),
+          events: Array.isArray(o.events) ? o.events : [],
+        });
+      }
+    } catch { /* ignore */ }
+  }, []);
+  // Persist the sandbox whenever it changes; clear the key once it's empty.
+  useEffect(() => {
+    if (!overlayLoaded.current) return;
+    try {
+      const empty = overlay.created.length === 0 && Object.keys(overlay.updated).length === 0
+        && overlay.deleted.size === 0 && overlay.events.length === 0;
+      if (empty) localStorage.removeItem(TEACHING_OVERLAY_KEY);
+      else localStorage.setItem(TEACHING_OVERLAY_KEY, JSON.stringify({ ...overlay, deleted: [...overlay.deleted] }));
+    } catch { /* ignore */ }
+  }, [overlay]);
   const [events, setEvents] = useState<OrderEvent[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [availability, setAvailability] = useState<DriverAvailability[]>([]);
