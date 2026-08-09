@@ -298,8 +298,8 @@ export function OrdersTable({
 
   return (
     <>
-    <div className="tbl-scroll">
-      <table className="orders tbl-resize">
+    <div className="tbl-scroll orders-scroll">
+      <table className="orders tbl-resize orders-responsive">
         <colgroup>
           {selectable && <col style={{ width: 34 }} />}
           {cols.map((c) => <col key={c.key} style={{ width: colw.widthOf(c.key) }} />)}
@@ -348,7 +348,7 @@ export function OrdersTable({
                 </td>
               )}
               {cols.map((c) => (
-                <td key={c.key} className={c.key === "__id" ? "ordno" : undefined}>{c.cell(d, ctx)}</td>
+                <td key={c.key} data-label={lang === "es" ? c.es : c.en} className={c.key === "__id" ? "ordno" : undefined}>{c.cell(d, ctx)}</td>
               ))}
             </tr>
           ))}

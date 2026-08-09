@@ -617,3 +617,35 @@ table.orders th { text-align: left; }
   .board { gap: 8px; }
   .board-col, .dboard-col { min-width: 82vw; }
 }
+
+/* ---- Orders table → stacked cards on phones (no horizontal scroll) ---- */
+@media (max-width: 640px) {
+  .orders-scroll { overflow-x: visible; border: none; background: none; }
+  table.orders-responsive { width: 100% !important; min-width: 0 !important; table-layout: auto; }
+  table.orders-responsive colgroup,
+  table.orders-responsive thead { display: none; }
+  table.orders-responsive,
+  table.orders-responsive tbody { display: block; width: 100%; }
+  table.orders-responsive tr {
+    display: block; width: 100%;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: var(--card); margin-bottom: 10px; padding: 4px 12px;
+  }
+  table.orders-responsive td {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    width: auto !important; border: none; padding: 7px 0;
+    white-space: normal; overflow: visible; text-overflow: clip; text-align: right;
+  }
+  table.orders-responsive td + td { border-top: 1px solid var(--line); }
+  table.orders-responsive td::before {
+    content: attr(data-label);
+    font-weight: 700; font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--gray); text-align: left; flex: 0 0 auto;
+  }
+  /* Checkbox cell (has no data-label): no label, pinned right, no divider. */
+  table.orders-responsive td:not([data-label]) { justify-content: flex-end; border-top: none; }
+  table.orders-responsive td:not([data-label])::before { content: ""; }
+  table.orders-responsive td.ordno { font-size: 16px; }
+  table.orders-responsive td.empty { justify-content: center; }
+  table.orders-responsive td.empty::before { content: ""; }
+}
