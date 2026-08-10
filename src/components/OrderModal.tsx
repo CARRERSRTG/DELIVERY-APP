@@ -220,6 +220,14 @@ export function OrderModal({
 
   // Local-zone pricing suggestion for the edit form (fee by miles).
   const feeSuggestion = suggestDeliveryFee(d, settings);
+  // On a new order, once the miles are known the List fee is selected by
+  // default (the rep can toggle it off or switch to Discount).
+  useEffect(() => {
+    if (isNew && d.route_miles != null && d.delivery_fee == null && feeSuggestion.list != null) {
+      set("delivery_fee", feeSuggestion.list);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d.route_miles]);
 
   /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
    * what's missing / conflicting and chooses whether to continue. */
@@ -885,7 +893,11 @@ export function OrderModal({
               </>
             ) : (
               // Compact preview — the essentials at a glance (two pairs per row).
+              // The toggle sits at the top-left, above the preview.
               <>
+                <button className="btn btn-ghost btn-sm" style={{ marginBottom: 8 }} onClick={() => setShowAllDetails(true)}>
+                  {t("Show all details ▾", "Ver todos los detalles ▾")}
+                </button>
                 <div className="card" style={{ padding: 14 }}>
                   <div className="detail-grid">
                     {([
@@ -907,9 +919,6 @@ export function OrderModal({
                     ))}
                   </div>
                 </div>
-                <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }} onClick={() => setShowAllDetails(true)}>
-                  {t("Show all details ▾", "Ver todos los detalles ▾")}
-                </button>
               </>
             )}
 
@@ -1126,10 +1135,10 @@ export function OrderModal({
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
                 <span className="hint" style={{ margin: 0 }}>{t("Suggested fee:", "Tarifa sugerida:")}</span>
                 {feeSuggestion.list != null && (
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => set("delivery_fee", feeSuggestion.list)}>{t("List", "Lista")} {fmtMoney(feeSuggestion.list)}</button>
+                  <button type="button" className={"btn btn-sm " + (d.delivery_fee === feeSuggestion.list ? "btn-primary" : "btn-ghost")} onClick={() => set("delivery_fee", d.delivery_fee === feeSuggestion.list ? null : feeSuggestion.list)}>{d.delivery_fee === feeSuggestion.list ? "✓ " : ""}{t("List", "Lista")} {fmtMoney(feeSuggestion.list)}</button>
                 )}
                 {feeSuggestion.discount != null && (
-                  <button type="button" className="btn btn-sm btn-primary" onClick={() => set("delivery_fee", feeSuggestion.discount)}>{t("Discount", "Descuento")} {fmtMoney(feeSuggestion.discount)}</button>
+                  <button type="button" className={"btn btn-sm " + (d.delivery_fee === feeSuggestion.discount ? "btn-primary" : "btn-ghost")} onClick={() => set("delivery_fee", d.delivery_fee === feeSuggestion.discount ? null : feeSuggestion.discount)}>{d.delivery_fee === feeSuggestion.discount ? "✓ " : ""}{t("Discount", "Descuento")} {fmtMoney(feeSuggestion.discount)}</button>
                 )}
               </div>
             )}
@@ -1300,13 +1309,13 @@ export function OrderModal({
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
                     <span className="hint" style={{ margin: 0 }}>{t("Suggested fee:", "Tarifa sugerida:")}</span>
                     {feeSuggestion.list != null && (
-                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => set("delivery_fee", feeSuggestion.list)}>
-                        {t("List", "Lista")} {fmtMoney(feeSuggestion.list)}
+                      <button type="button" className={"btn btn-sm " + (d.delivery_fee === feeSuggestion.list ? "btn-primary" : "btn-ghost")} onClick={() => set("delivery_fee", d.delivery_fee === feeSuggestion.list ? null : feeSuggestion.list)}>
+                        {d.delivery_fee === feeSuggestion.list ? "✓ " : ""}{t("List", "Lista")} {fmtMoney(feeSuggestion.list)}
                       </button>
                     )}
                     {feeSuggestion.discount != null && (
-                      <button type="button" className="btn btn-sm btn-primary" onClick={() => set("delivery_fee", feeSuggestion.discount)}>
-                        {t("Discount", "Descuento")} {fmtMoney(feeSuggestion.discount)}
+                      <button type="button" className={"btn btn-sm " + (d.delivery_fee === feeSuggestion.discount ? "btn-primary" : "btn-ghost")} onClick={() => set("delivery_fee", d.delivery_fee === feeSuggestion.discount ? null : feeSuggestion.discount)}>
+                        {d.delivery_fee === feeSuggestion.discount ? "✓ " : ""}{t("Discount", "Descuento")} {fmtMoney(feeSuggestion.discount)}
                       </button>
                     )}
                   </div>
