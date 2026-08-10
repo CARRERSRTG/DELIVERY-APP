@@ -1243,10 +1243,9 @@ export function OrderModal({
                       account: v,
                       contact: rec ? rec.contact : (past?.contact ?? p.contact),
                       delivery_phone: rec ? rec.phone : (past?.delivery_phone ?? p.delivery_phone),
-                      // Fill the account's usual delivery address too — but never
-                      // for a store-to-store move, where the destination is a
-                      // store chosen from the dropdown, not the customer's site.
-                      delivery_address: fillAddr && !isIntertienda ? fillAddr : p.delivery_address,
+                      // Do NOT auto-fill the delivery address — the rep picks the
+                      // right site from this customer's saved sites (populated
+                      // below), since a customer can have several drop-offs.
                     };
                     // Order type: saved flag → Intertienda/Customer; otherwise the
                     // last order's own type; otherwise the branch/customer default.
@@ -1259,6 +1258,21 @@ export function OrderModal({
                       ? withTypeDefaults(withAcct, wantType)
                       : withAcct;
                   });
+                  // Save this customer's known delivery addresses as sites so the
+                  // rep can pick one (a nameless site uses the address as its name).
+                  if (v.trim() && !isIntertienda) {
+                    const addrs = new Set<string>();
+                    if (fillAddr) addrs.add(fillAddr);
+                    for (const x of deliveries) {
+                      if ((x.account || "").trim().toLowerCase() === v.trim().toLowerCase() && (x.delivery_address || "").trim()) {
+                        addrs.add(x.delivery_address!.trim());
+                      }
+                    }
+                    const sites = settings.delivery_locations ?? [];
+                    const have = new Set(sites.map((s) => (s.address || "").trim()));
+                    const toAdd = [...addrs].filter((a) => a && !have.has(a)).map((a) => ({ name: a, address: a }));
+                    if (toAdd.length) saveSettings({ delivery_locations: [...sites, ...toAdd] });
+                  }
                 }}
                 options={accountOptions}
                 disabled={!salesFields}
@@ -1482,13 +1496,9 @@ export function OrderModal({
               </div>
             )}
 
-            {/* ---- Delivery notes ---- */}
-            <div className="field">
-              <label>{t("Delivery Notes", "Notas de Entrega")}</label>
-              <textarea rows={2} value={d.delivery_notes ?? ""} disabled={!salesFields} onChange={(e) => set("delivery_notes", e.target.value)} />
-            </div>
-
-            {/* Role-targeted notes sit right beside Delivery Notes; saved with the order. */}
+            {/* Delivery notes are now entered here as role-targeted notes
+                (tag "Driver"/"Everyone") — the old single Delivery Notes field
+                was folded into this "Add note" section. */}
             <RoleNotes notes={d.role_notes ?? []} me={me} onAdd={addDraftNote} onRemove={removeDraftNote} t={t} lang={lang} />
 
             <div className="section-label">{t("Route", "Ruta")}</div>
