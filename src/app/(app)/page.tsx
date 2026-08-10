@@ -183,9 +183,6 @@ export default function OrdersPage() {
   const presets: { id: Preset; en: string; es: string }[] = [
     { id: "all", en: "All", es: "Todas" },
     { id: "today", en: "Today", es: "Hoy" },
-    { id: "overdue", en: "Overdue", es: "Atrasadas" },
-    { id: "unassigned", en: "No driver", es: "Sin chofer" },
-    { id: "mine", en: "Mine", es: "Mías" },
   ];
 
   if (!me) return null;
@@ -336,13 +333,10 @@ export default function OrdersPage() {
             {(me ? filterStagesFor(me.role) : STAGES.map((s) => s.key))
               .filter((key) => !(autoApproveAll && key === "pending"))
               .map((key) => (
-              <button key={key} className={"chip " + (filter === key ? "on" : "")} onClick={() => setFilter(key)}>
+              <button key={key} className={"chip " + (filter === key ? "on" : "")} onClick={() => setFilter(filter === key ? "all" : key)}>
                 {stageLabel(key, lang)} <span className="cnt">{counts[key] ?? 0}</span>
               </button>
             ))}
-            <button className={"chip " + (filter === "all" ? "on" : "")} onClick={() => setFilter("all")}>
-              {t("All", "Todas")} <span className="cnt">{counts.all ?? 0}</span>
-            </button>
           </>
         )}
       </div>

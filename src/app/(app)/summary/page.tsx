@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
-import { fmtDate, fmtMoney, isOverdue, orderLabel, orderOwner } from "@/lib/utils";
+import { fmtDate, fmtMoney, isOverdue, orderLabel, orderOwner, todayISO, yesterdayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
 
 // ============================================================
@@ -24,7 +24,11 @@ export default function SummaryPage() {
   // everyone else's is what they personally logged.
   const mine = useMemo(() => {
     if (!me) return [];
-    if (me.role === "driver") return deliveries.filter((d) => d.assigned_driver === me.full_name || d.created_by === me.id);
+    // A driver's summary is only yesterday + today.
+    if (me.role === "driver") {
+      const days = new Set([todayISO(), yesterdayISO()]);
+      return deliveries.filter((d) => (d.assigned_driver === me.full_name || d.created_by === me.id) && d.delivery_date != null && days.has(d.delivery_date));
+    }
     if (me.role === "sales") return deliveries.filter((d) => orderOwner(d) === me.id);
     return deliveries.filter((d) => d.created_by === me.id);
   }, [deliveries, me]);
