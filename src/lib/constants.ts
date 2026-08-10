@@ -2,7 +2,12 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.9.47";
+export const APP_VERSION = "0.9.48";
+
+// Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
+// the board for admin/office/logistics/accounting). OFF for now — flip to true
+// to activate the automation.
+export const AUTO_CANCEL_LATE_ENABLED = false;
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.

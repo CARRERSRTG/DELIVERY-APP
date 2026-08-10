@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
-import { canCreate, driverNames, filterStagesFor, ROLE_DEFAULT_COLUMNS, STAGES, stageLabel } from "@/lib/constants";
+import { AUTO_CANCEL_LATE_ENABLED, canCreate, driverNames, filterStagesFor, ROLE_DEFAULT_COLUMNS, STAGES, stageLabel } from "@/lib/constants";
 import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/OrdersTable";
 import { OrdersBoard } from "@/components/OrdersBoard";
 import { OrderModal } from "@/components/OrderModal";
@@ -37,6 +37,7 @@ export default function OrdersPage() {
   // logistics / accounting) — the DB guard enforces the same.
   const sweptRef = useRef(false);
   useEffect(() => {
+    if (!AUTO_CANCEL_LATE_ENABLED) return;   // feature off until activated
     if (sweptRef.current || teaching || !ready || !me) return;
     if (!["admin", "manager", "logistics", "accounting"].includes(me.role)) return;
     if (deliveries.length === 0) return;
