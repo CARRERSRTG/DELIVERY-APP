@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
+import { useConfirm } from "@/lib/confirm";
 import { canPlanRoutes, stageInfo, stageLabel } from "@/lib/constants";
 import { autoAssign, parseWindow, splitIntoTrips, unavailableDriverNames } from "@/lib/dispatch";
 import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap";
@@ -136,6 +137,7 @@ interface RoutePlan {
 export default function RoutesPage() {
   const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, availability, ready } = useData();
   const { lang, t } = usePrefs();
+  const confirmAction = useConfirm();
   const [date, setDate] = useState(todayISO());
   // "All dates" ignores the date filter so every routable order (and the routes
   // built on them) shows regardless of delivery date — handy when a route was
@@ -398,12 +400,21 @@ export default function RoutesPage() {
   // Delete a whole route/load: unassign every stop (back to the pool) and, if
   // it was a bucket, retire it.
   const clearLane = async (laneKey: string) => {
-    // Clear EVERY order on this lane across ALL dates, not just the day in view.
-    // Otherwise a stop left on another date keeps `assigned_driver = laneKey`,
-    // and the orphan-lane safety net rebuilds the route on the next reload —
-    // which is exactly why a "cleared" temp driver kept coming back. Await all
-    // writes (and the bucket removal) so the cleared state is fully persisted.
     const stops = deliveries.filter((d) => (d.assigned_driver || "") === laneKey);
+    // Confirm first — this sends every stop back to Unassigned (and removes the
+    // route if it's a temp route).
+    const ok = await confirmAction(
+      t(`Clear ${laneLabel(laneKey)}? Its ${stops.length} order(s) go back to Unassigned.`,
+        `¿Vaciar ${laneLabel(laneKey)}? Sus ${stops.length} orden(es) vuelven a Sin asignar.`),
+      { danger: true, confirmLabel: t("Clear route", "Vaciar ruta") },
+    );
+    if (!ok) return;
+    // Clear EVERY order on this lane across ALL dates, not just the day in view,
+    // so a stop left on another date can't rebuild the route on reload. Await all
+    // writes (and the bucket removal) so the cleared state is fully persisted.
+    await Promise.all(stops.map((d) => updateDelivery(d.id, { assigned_driver: null, route_seq: null, load_no: null })));
+    stops.forEach((d) => addNote(d.id, `Unassigned (was ${laneKey})`));
+    if (isBucket(laneKey)) await removeBucket(laneKey);
     await Promise.all(stops.map((d) => updateDelivery(d.id, { assigned_driver: null, route_seq: null, load_no: null })));
     stops.forEach((d) => addNote(d.id, `Unassigned (was ${laneKey})`));
     if (isBucket(laneKey)) await removeBucket(laneKey);
