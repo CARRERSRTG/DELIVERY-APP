@@ -1015,7 +1015,11 @@ export function OrderModal({
               </>
             )}
 
-            <div className="section-label">{t("Activity & notes", "Actividad y notas")}</div>
+            {/* Private notes (the old Activity & notes): only visible to the
+                order's creator, an admin, or the office manager. */}
+            {(me.role === "admin" || me.role === "manager" || existing.created_by === me.id) && (
+              <>
+            <div className="section-label">{t("Private notes", "Notas privadas")}</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               <input
                 value={noteText}
@@ -1051,6 +1055,8 @@ export function OrderModal({
                 {e.note && <span>— {e.note}</span>}
               </div>
             ))}
+              </>
+            )}
           </>
         )}
 
