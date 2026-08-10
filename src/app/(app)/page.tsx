@@ -234,7 +234,7 @@ export default function OrdersPage() {
     setSelected(new Set());
   };
 
-  const bulkStage = async (to: "pending" | "approved") => {
+  const bulkStage = async (to: "pending" | "approved" | "canceled") => {
     if (!chosen.length) return;
     setBulkBusy(true);
     let ok = 0;
@@ -387,10 +387,15 @@ export default function OrdersPage() {
           {canCreate(me) && (
             <button className="btn btn-ghost btn-sm" disabled={bulkBusy} onClick={() => bulkStage("pending")}>{t("Submit for approval", "Enviar a aprobación")}</button>
           )}
-          {(me.role === "manager" || me.role === "admin") && (
+          {["manager", "admin", "logistics", "accounting"].includes(me.role) && (
             <button className="btn btn-green btn-sm" disabled={bulkBusy} onClick={() => bulkStage("approved")}>{t("Approve", "Aprobar")}</button>
           )}
-          {(me.role === "manager" || me.role === "admin" || me.role === "logistics") && (
+          {["manager", "admin", "logistics", "accounting"].includes(me.role) && (
+            <button className="btn btn-danger btn-sm" disabled={bulkBusy} onClick={async () => {
+              if (await confirmAction(t(`Cancel ${chosen.length} selected order(s)?`, `¿Cancelar ${chosen.length} orden(es) seleccionada(s)?`), { danger: true, confirmLabel: t("Cancel orders", "Cancelar órdenes") })) bulkStage("canceled");
+            }}>{t("Cancel", "Cancelar")}</button>
+          )}
+          {(me.role === "manager" || me.role === "admin" || me.role === "logistics" || me.role === "accounting") && (
             <label style={{ margin: 0, display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }} title={t("Set delivery date on all selected", "Fijar fecha de entrega en las seleccionadas")}>
               📅
               <input type="date" disabled={bulkBusy} onChange={(e) => { if (e.target.value) bulkSetDate(e.target.value); e.target.value = ""; }} style={{ width: "auto", padding: "4px 6px" }} />
