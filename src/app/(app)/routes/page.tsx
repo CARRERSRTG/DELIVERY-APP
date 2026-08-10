@@ -165,7 +165,7 @@ export default function RoutesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<"routes" | "orders" | "board" | "timeline" | "scheduled">("routes");
   const [busyDriver, setBusyDriver] = useState<string | null>(null);
-  const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number }>>({});
+  const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number; minutes: number }>>({});
   const [routeLines, setRouteLines] = useState<Record<string, TripTrace[]>>({});
   const [routeEtas, setRouteEtas] = useState<Record<string, Record<string, string>>>({});
   const [depotCoords, setDepotCoords] = useState<Record<string, [number, number]>>({});
@@ -752,7 +752,7 @@ export default function RoutesPage() {
   /** Save a solved plan as the driver's actual route. */
   const applyPlan = async (driver: string, plan: RoutePlan) => {
     await Promise.all(plan.orderedIds.map((id, i) => updateDelivery(id, { route_seq: i })));
-    setRouteInfo((p) => ({ ...p, [driver]: { miles: plan.miles, duration_text: fmtMinutes(plan.seconds / 60), trips: plan.trips } }));
+    setRouteInfo((p) => ({ ...p, [driver]: { miles: plan.miles, duration_text: fmtMinutes(plan.seconds / 60), trips: plan.trips, minutes: plan.seconds / 60 } }));
     setRouteLines((p) => ({ ...p, [driver]: plan.traces }));
     setRouteEtas((p) => ({ ...p, [driver]: plan.etas }));
   };
@@ -764,7 +764,13 @@ export default function RoutesPage() {
     setPreview(null);
     setErr(null);
     try {
-      await applyPlan(driver, await computeRoute(driver, stops));
+      const before = routeInfo[driver]?.miles ?? null;
+      const plan = await computeRoute(driver, stops);
+      await applyPlan(driver, plan);
+      // Show the mileage saved vs the previous route (only on a re-optimize).
+      if (before != null && before - plan.miles >= 0.1) {
+        notify(t(`Optimized — saved ${Math.round((before - plan.miles) * 10) / 10} mi`, `Optimizada — ahorro ${Math.round((before - plan.miles) * 10) / 10} mi`));
+      }
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -1650,6 +1656,11 @@ export default function RoutesPage() {
                 <span className="sema" style={{ background: "var(--amber)", color: "#fff" }}>{trips.length} {t("truckloads", "viajes")}</span>
               )}
               {info && <span className="hint" style={{ marginTop: 0 }}>· {info.miles} mi · {info.duration_text}</span>}
+              {info && info.minutes > 8 * 60 && (
+                <span className="sema" style={{ background: "var(--red)", color: "#fff" }} title={t("This route runs longer than an 8-hour day", "Esta ruta dura más de una jornada de 8 horas")}>
+                  ⚠ {t("over 8 h day", "más de 8 h")}
+                </span>
+              )}
               <span style={{ flex: 1 }} />
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--gray)" }}>
                 🚚 {t("Truck capacity", "Capacidad del camión")}
