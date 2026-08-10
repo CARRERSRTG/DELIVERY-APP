@@ -1,5 +1,5 @@
 // ---- Roles ----------------------------------------------------------------
-export type UserRole = "admin" | "manager" | "sales" | "warehouse" | "driver" | "logistics";
+export type UserRole = "admin" | "manager" | "sales" | "warehouse" | "driver" | "logistics" | "accounting";
 
 export interface Profile {
   id: string;

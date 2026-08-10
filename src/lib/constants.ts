@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.9.39";
+export const APP_VERSION = "0.9.40";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
@@ -44,6 +44,7 @@ export const ROLE_FILTER_STAGES: Partial<Record<UserRole, Stage[]>> = {
   warehouse: ["approved", "ready", "fulfilling", "delivered"],
   sales:     ["pending", "draft", "rejected", "approved", "fulfilling", "ready", "picked_up", "delivered", "canceled"],
   manager:   ["pending", "draft", "rejected", "approved", "fulfilling", "ready", "picked_up", "delivered", "canceled"],
+  accounting: ["pending", "draft", "rejected", "approved", "fulfilling", "ready", "picked_up", "delivered", "canceled"],
   driver:    ["ready", "picked_up", "delivered", "pending", "fulfilling"],
 };
 
@@ -77,10 +78,10 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   // general Orders board, dashboard, accounts, or the driver view.
   // Driver doesn't get the Orders board either — they work entirely from
   // their own Driver view, which has its own "+ New order" button.
-  { id: "board",     label: "📋 Orders",    label_es: "📋 Órdenes",   href: "/", roles: ["admin", "manager", "sales", "logistics"] },
+  { id: "board",     label: "📋 Orders",    label_es: "📋 Órdenes",   href: "/", roles: ["admin", "manager", "sales", "logistics", "accounting"] },
   { id: "dashboard", label: "📊 Dashboard", label_es: "📊 Panel",     href: "/dashboard", roles: ["manager", "admin"], cap: "dashboard" },
   { id: "accounts",  label: "🏢 Accounts",  label_es: "🏢 Cuentas",    href: "/accounts", roles: ["admin", "manager"] },
-  { id: "map",       label: "🗺 Map",       label_es: "🗺 Mapa",       href: "/map", roles: ["admin", "manager", "sales", "logistics"] },
+  { id: "map",       label: "🗺 Map",       label_es: "🗺 Mapa",       href: "/map", roles: ["admin", "manager", "sales", "logistics", "accounting"] },
   { id: "market",    label: "🏪 Market",    label_es: "🏪 Mercado",    href: "/market", roles: ["admin"] },
   { id: "warehouse", label: "🏭 Warehouse", label_es: "🏭 Almacén",    href: "/warehouse", roles: ["warehouse", "admin"], cap: "fulfill" },
   { id: "driver",    label: "🚚 Driver",    label_es: "🚚 Chofer",     href: "/driver", roles: ["driver", "admin"], cap: "deliver" },
@@ -107,6 +108,7 @@ export const ROLE_INFO: Record<UserRole, { label: string; label_es: string; colo
   warehouse: { label: "Warehouse",      label_es: "Almacén",           color: "var(--teal)",   desc: "Prepares approved orders",                 desc_es: "Prepara las órdenes aprobadas" },
   driver:    { label: "Driver",         label_es: "Chofer",            color: "var(--amber)",  desc: "Delivers orders and can log new ones",     desc_es: "Entrega órdenes y puede registrar nuevas" },
   logistics: { label: "Logistics Manager", label_es: "Gerente de Logística", color: "var(--green)", desc: "Assigns and optimizes driver routes",  desc_es: "Asigna y optimiza las rutas de los choferes" },
+  accounting: { label: "Accounting",     label_es: "Contabilidad",      color: "var(--ink-soft)", desc: "Like Office, without dashboard/accounts/audit", desc_es: "Como Oficina, sin panel/cuentas/auditoría" },
 };
 
 export function roleLabel(role: UserRole, lang: Lang): string {
@@ -124,7 +126,7 @@ export function roleHome(role: UserRole): string {
   }
 }
 
-export const ROLE_ORDER: UserRole[] = ["admin", "manager", "logistics", "sales", "warehouse", "driver"];
+export const ROLE_ORDER: UserRole[] = ["admin", "manager", "accounting", "logistics", "sales", "warehouse", "driver"];
 
 // ---- Delivery time window presets ------------------------------------------
 // Same "HHMM-HHMM" string format the rest of the app already parses
@@ -208,6 +210,12 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, { en: string; es: string }[]>
     { en: "Optimize a driver's route", es: "Optimizar la ruta de un chofer" },
     { en: "View the dispatch map", es: "Ver el mapa de despacho" },
   ],
+  accounting: [
+    { en: "Create orders", es: "Crear órdenes" },
+    { en: "Approve orders", es: "Aprobar órdenes" },
+    { en: "Reject with a reason", es: "Rechazar con motivo" },
+    { en: "See every order", es: "Ver todas las órdenes" },
+  ],
 };
 
 /** The default capability list for a role, in the given language. */
@@ -261,7 +269,10 @@ export const ROLE_CAPS: Record<UserRole, Capability[]> = {
   sales:     ["create"],
   warehouse: ["fulfill", "deliver"],
   driver:    ["create", "deliver"],
-  logistics: ["route_plan", "approve", "create"],
+  logistics: ["route_plan", "approve"],
+  // Accounting: same as Office Manager but WITHOUT the dashboard (and no
+  // Accounts / Audit tabs — see TABS). Can create, approve and see every order.
+  accounting: ["create", "approve"],
 };
 
 /** Minimal shape needed to test a capability. */
