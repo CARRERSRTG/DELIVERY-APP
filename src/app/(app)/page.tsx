@@ -275,9 +275,12 @@ export default function OrdersPage() {
             <button className={"vt " + (view === "table" ? "on" : "")} onClick={() => setView("table")}>☰ {t("Table", "Tabla")}</button>
             <button className={"vt " + (view === "board" ? "on" : "")} onClick={() => setView("board")}>▦ {t("Board", "Tablero")}</button>
           </div>
-          <button className="btn btn-ghost" onClick={() => exportExcelByEmployee(rows, users, lang)} disabled={!rows.length} title={t("Excel grouped by employee, collapsible", "Excel agrupado por empleado, colapsable")}>📊 {t("Excel", "Excel")}</button>
-          <button className="btn btn-ghost" onClick={() => exportPDFByEmployee(rows, users, lang)} disabled={!rows.length}>🖨 {t("PDF", "PDF")}</button>
-          <button className="btn btn-ghost" onClick={exportCSV} disabled={!rows.length}>⬇ {t("CSV", "CSV")}</button>
+          {/* Data exports (Excel / PDF report / CSV) are admin-only. */}
+          {me.role === "admin" && <>
+            <button className="btn btn-ghost" onClick={() => exportExcelByEmployee(rows, users, lang)} disabled={!rows.length} title={t("Excel grouped by employee, collapsible", "Excel agrupado por empleado, colapsable")}>📊 {t("Excel", "Excel")}</button>
+            <button className="btn btn-ghost" onClick={() => exportPDFByEmployee(rows, users, lang)} disabled={!rows.length}>🖨 {t("PDF", "PDF")}</button>
+            <button className="btn btn-ghost" onClick={exportCSV} disabled={!rows.length}>⬇ {t("CSV", "CSV")}</button>
+          </>}
           {view === "table" && me.role !== "sales" && (
             <div style={{ position: "relative" }}>
               <button className="btn btn-ghost" onClick={() => setShowCols((s) => !s)}>⚙ {t("Columns", "Columnas")}</button>
@@ -378,7 +381,7 @@ export default function OrdersPage() {
               <input type="date" disabled={bulkBusy} onChange={(e) => { if (e.target.value) bulkSetDate(e.target.value); e.target.value = ""; }} style={{ width: "auto", padding: "4px 6px" }} />
             </label>
           )}
-          <button className="btn btn-ghost btn-sm" disabled={bulkBusy} onClick={exportSelected}>⬇ {t("Export", "Exportar")}</button>
+          {me.role === "admin" && <button className="btn btn-ghost btn-sm" disabled={bulkBusy} onClick={exportSelected}>⬇ {t("Export", "Exportar")}</button>}
           <button className="btn btn-sm" onClick={() => setSelected(new Set())}>✕</button>
         </div>
       )}

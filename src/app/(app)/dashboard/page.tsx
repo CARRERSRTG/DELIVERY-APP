@@ -210,8 +210,10 @@ export default function DashboardPage() {
           <button className={"btn btn-sm " + (rangeMode === "week" && from === startOfWeekISO() ? "btn-primary" : "btn-ghost")} onClick={thisWeek}>{t("This week", "Esta semana")}</button>
           <button className={"btn btn-sm " + (rangeMode === "month" && from === startOfMonthISO() ? "btn-primary" : "btn-ghost")} onClick={thisMonth}>{t("This month", "Este mes")}</button>
           <button className="btn btn-ghost btn-sm" onClick={lastMonth}>{t("Last month", "Mes pasado")}</button>
-          <button className="btn btn-ghost" onClick={exportRange} disabled={!scoped.length}>⬇ {t("Export range", "Exportar rango")}</button>
-          <button className="btn btn-ghost" onClick={exportDrivers} disabled={!drivers.length && !idle.length}>⬇ {t("Export driver stats", "Exportar stats de choferes")}</button>
+          {me?.role === "admin" && <>
+            <button className="btn btn-ghost" onClick={exportRange} disabled={!scoped.length}>⬇ {t("Export range", "Exportar rango")}</button>
+            <button className="btn btn-ghost" onClick={exportDrivers} disabled={!drivers.length && !idle.length}>⬇ {t("Export driver stats", "Exportar stats de choferes")}</button>
+          </>}
         </div>
       </div>
 

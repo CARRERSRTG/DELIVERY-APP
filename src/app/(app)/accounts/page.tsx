@@ -97,7 +97,7 @@ export default function AccountsPage() {
             <button className="btn btn-ghost btn-sm" onClick={() => setPicked(null)}>← {t("Accounts", "Cuentas")}</button>{" "}
             {current.name}
           </h2>
-          <button className="btn btn-ghost" onClick={() => exportAccount(current)}>⬇ {t("Export", "Exportar")}</button>
+          {me?.role === "admin" && <button className="btn btn-ghost" onClick={() => exportAccount(current)}>⬇ {t("Export", "Exportar")}</button>}
         </div>
 
         <div className="kpi-grid">
