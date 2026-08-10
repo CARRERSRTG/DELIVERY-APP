@@ -10,7 +10,7 @@ import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/Orders
 import { OrdersBoard } from "@/components/OrdersBoard";
 import { OrderModal } from "@/components/OrderModal";
 import { ImportOrdersModal } from "@/components/ImportOrdersModal";
-import { deliveryColumns, downloadCSV, orderLabel, isOverdue, isPendingUrgent, isToday, orderOwner, shiftDateISO, toCSV, todayISO, withinRetention } from "@/lib/utils";
+import { daysBetween, deliveryColumns, downloadCSV, LATE_GRACE_DAYS, orderLabel, isOverdue, isPendingUrgent, isToday, orderOwner, shiftDateISO, toCSV, todayISO, withinRetention } from "@/lib/utils";
 import { exportExcelByEmployee, exportPDFByEmployee } from "@/lib/export";
 import type { Delivery, Stage, UserRole } from "@/lib/types";
 
@@ -30,6 +30,26 @@ export default function OrdersPage() {
   const adminAllAccess = realRole === "admin";
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
+
+  // Automation: an active order more than LATE_GRACE_DAYS days past its delivery
+  // date (i.e. never reprogrammed) is auto-canceled. Runs once per session when
+  // the board loads, and only for roles allowed to cancel (admin / office /
+  // logistics / accounting) — the DB guard enforces the same.
+  const sweptRef = useRef(false);
+  useEffect(() => {
+    if (sweptRef.current || teaching || !ready || !me) return;
+    if (!["admin", "manager", "logistics", "accounting"].includes(me.role)) return;
+    if (deliveries.length === 0) return;
+    sweptRef.current = true;
+    const stale = deliveries.filter(
+      (d) => !["delivered", "canceled", "rejected"].includes(d.stage)
+        && d.delivery_date != null
+        && daysBetween(todayISO(), d.delivery_date) > LATE_GRACE_DAYS,
+    );
+    for (const d of stale) {
+      void setStage(d.id, "canceled", "Auto-canceled: 2+ days late without reprogramming");
+    }
+  }, [ready, teaching, me, deliveries, setStage]);
 
   // Every store auto-approves → nothing ever sits in "Pending Approval", so
   // that stage's filter chip is dropped and manager/sales land on Programmed.
