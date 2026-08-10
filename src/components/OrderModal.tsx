@@ -229,6 +229,24 @@ export function OrderModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d.route_miles]);
 
+  // A brand-new order defaults to Order Type "Customer" and the store the
+  // salesperson is assigned to in Settings (runs once, after settings load).
+  const defaultedRef = useRef(false);
+  useEffect(() => {
+    if (!isNew || defaultedRef.current || settings.order_types.length === 0) return;
+    defaultedRef.current = true;
+    setD((p) => {
+      let next = p;
+      if (!p.order_type && settings.order_types.includes("Customer")) next = withTypeDefaults(next, "Customer");
+      if (!next.store && me.store) {
+        const st = settings.stores.find((s) => s.name === me.store);
+        next = { ...next, store: me.store, pickup_name: me.store, pickup_address: st?.address ?? next.pickup_address };
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, settings.order_types.length]);
+
   /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
    * what's missing / conflicting and chooses whether to continue. */
   const passesChecks = async (draft: Draft): Promise<boolean> => {
@@ -1107,12 +1125,12 @@ export function OrderModal({
                 invalid={missingSet.has("store")}
               />
             </div>
-            <Txt
+            <AddressInput
               label={t("Delivery Address", "Dirección de Entrega")}
-              val={d.delivery_address}
-              on={(v) => set("delivery_address", v)}
+              value={d.delivery_address}
+              onChange={(v) => set("delivery_address", v)}
               disabled={!salesFields}
-              placeholder={t("Where is it going?", "¿A dónde va?")}
+              placeholder={t("Search the address…", "Buscar la dirección…")}
             />
 
             {/* Confirm the address on the map (look it up) or drop an exact pin. */}
