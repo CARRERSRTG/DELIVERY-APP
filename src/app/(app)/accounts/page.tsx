@@ -7,7 +7,8 @@ import { stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
 import { deliveryColumns, downloadCSV, fmtDate, fmtMoney, isOverdue, orderLabel, orderOwner, toCSV, todayISO } from "@/lib/utils";
 import { useColWidths } from "@/lib/use-col-widths";
-import type { Delivery } from "@/lib/types";
+import { useConfirm } from "@/lib/confirm";
+import type { AccountRecord, Delivery, Settings } from "@/lib/types";
 
 // ============================================================
 // Customer accounts — every order grouped by the customer it belongs to.
@@ -32,7 +33,7 @@ interface AccountRow {
 const CLOSED = ["delivered", "canceled", "rejected"];
 
 export default function AccountsPage() {
-  const { me, deliveries, settings, ready } = useData();
+  const { me, deliveries, settings, ready, saveSettings, notify } = useData();
   const { lang, t } = usePrefs();
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
@@ -140,6 +141,9 @@ export default function AccountsPage() {
         <button className="btn btn-ghost btn-sm" onClick={acctCols.reset} title={t("Reset column widths", "Restablecer anchos")}>↔ {t("Reset columns", "Restablecer columnas")}</button>
       </div>
 
+      {/* Manage the saved customer records that auto-fill orders. */}
+      <SavedCustomers settings={settings} saveSettings={saveSettings} notify={notify} t={t} />
+
       <div className="filters">
         <input
           style={{ maxWidth: 280 }}
@@ -199,5 +203,92 @@ export default function AccountsPage() {
         </div>
       )}
     </>
+  );
+}
+
+/** CRUD for the saved customer records (settings.accounts) — the ones that
+ * auto-fill an order's contact, phone, usual address and type. */
+function SavedCustomers({ settings, saveSettings, notify, t }: {
+  settings: Settings;
+  saveSettings: (patch: Partial<Settings>) => void;
+  notify: (m: string) => void;
+  t: (en: string, es: string) => string;
+}) {
+  const accounts = settings.accounts ?? [];
+  const [open, setOpen] = useState(false);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [form, setForm] = useState<AccountRecord>({ name: "", contact: "", phone: "", address: "", intertienda: false });
+  const [q, setQ] = useState("");
+  const confirmAction = useConfirm();
+
+  const startNew = () => { setEditingName(null); setForm({ name: "", contact: "", phone: "", address: "", intertienda: false }); setOpen(true); };
+  const startEdit = (a: AccountRecord) => { setEditingName(a.name); setForm({ name: a.name, contact: a.contact, phone: a.phone, address: a.address ?? "", intertienda: !!a.intertienda }); setOpen(true); };
+  const save = () => {
+    const name = form.name.trim();
+    if (!name) { notify(t("Enter a customer name.", "Ingrese un nombre de cliente.")); return; }
+    const rec: AccountRecord = { name, contact: form.contact.trim(), phone: form.phone.trim(), address: form.address?.trim() || undefined, intertienda: !!form.intertienda };
+    const drop = new Set([name.toLowerCase(), (editingName ?? name).toLowerCase()]);
+    const next = [...accounts.filter((a) => !drop.has(a.name.toLowerCase())), rec].sort((a, b) => a.name.localeCompare(b.name));
+    saveSettings({ accounts: next });
+    setOpen(false);
+    notify(t(`Saved "${name}"`, `"${name}" guardado`));
+  };
+  const remove = async (a: AccountRecord) => {
+    if (!(await confirmAction(t(`Delete saved customer "${a.name}"?`, `¿Eliminar cliente guardado "${a.name}"?`), { danger: true, confirmLabel: t("Delete", "Eliminar") }))) return;
+    saveSettings({ accounts: accounts.filter((x) => x.name.toLowerCase() !== a.name.toLowerCase()) });
+    notify(t("Deleted", "Eliminado"));
+  };
+  const shown = q.trim()
+    ? accounts.filter((a) => `${a.name} ${a.contact} ${a.phone}`.toLowerCase().includes(q.trim().toLowerCase()))
+    : accounts;
+
+  return (
+    <div className="card">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <h2 style={{ margin: 0 }}>👥 {t("Saved customers", "Clientes guardados")} <span className="count-tag">{accounts.length}</span></h2>
+        {!open && <button className="btn btn-primary btn-sm" onClick={startNew}>＋ {t("Add customer", "Agregar cliente")}</button>}
+      </div>
+      <p className="hint" style={{ marginTop: 6, marginBottom: 10 }}>
+        {t("Saved here, a customer auto-fills the contact, phone, usual address and type when picked on an order.",
+           "Guardado aquí, un cliente auto-llena el contacto, teléfono, dirección habitual y tipo al elegirlo en una orden.")}
+      </p>
+
+      {open && (
+        <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+          <div className="grid g2">
+            <div className="field"><label>{t("Name", "Nombre")}</label><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder={t("Customer name", "Nombre del cliente")} /></div>
+            <div className="field"><label>{t("Contact", "Contacto")}</label><input value={form.contact} onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))} /></div>
+            <div className="field"><label>{t("Phone", "Teléfono")}</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
+            <div className="field"><label>{t("Usual address", "Dirección habitual")}</label><input value={form.address ?? ""} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>
+            <input type="checkbox" style={{ width: "auto", margin: 0 }} checked={!!form.intertienda} onChange={(e) => setForm((f) => ({ ...f, intertienda: e.target.checked }))} />
+            {t("Internal branch (Intertienda)", "Sucursal interna (Intertienda)")}
+          </label>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>{t("Cancel", "Cancelar")}</button>
+            <button className="btn btn-primary btn-sm" onClick={save} disabled={!form.name.trim()}>{editingName ? t("Save", "Guardar") : t("Add", "Agregar")}</button>
+          </div>
+        </div>
+      )}
+
+      {accounts.length > 4 && <input placeholder={t("Search saved customers…", "Buscar clientes guardados…")} value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 280, marginBottom: 8 }} />}
+      {accounts.length === 0 ? (
+        <div className="hint">{t("No saved customers yet — add one, or they save automatically when you type a new account on an order.", "Aún no hay clientes guardados — agregue uno, o se guardan solos al escribir una cuenta nueva en una orden.")}</div>
+      ) : (
+        <div style={{ display: "grid", gap: 6 }}>
+          {shown.map((a) => (
+            <div key={a.name} className="card" style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <b style={{ minWidth: 130 }}>{a.name}{a.intertienda && <span className="sema" style={{ background: "var(--purple)", color: "#fff", marginLeft: 6 }}>Intertienda</span>}</b>
+              <span className="hint" style={{ margin: 0 }}>👤 {a.contact || "—"}</span>
+              <span className="hint" style={{ margin: 0 }}>📞 {a.phone || "—"}</span>
+              <span className="hint" style={{ margin: 0, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.address || ""}</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => startEdit(a)}>✏ {t("Edit", "Editar")}</button>
+              <button className="btn btn-danger btn-sm" onClick={() => remove(a)}>🗑</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
