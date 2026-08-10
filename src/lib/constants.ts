@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.9.38";
+export const APP_VERSION = "0.9.39";
 
 // Default recipient for the in-app Help button, used when Settings.help_email
 // is unset. Admins can override it in Settings → app configuration.
@@ -77,7 +77,7 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   // general Orders board, dashboard, accounts, or the driver view.
   // Driver doesn't get the Orders board either — they work entirely from
   // their own Driver view, which has its own "+ New order" button.
-  { id: "board",     label: "📋 Orders",    label_es: "📋 Órdenes",   href: "/", roles: ["admin", "manager", "sales"] },
+  { id: "board",     label: "📋 Orders",    label_es: "📋 Órdenes",   href: "/", roles: ["admin", "manager", "sales", "logistics"] },
   { id: "dashboard", label: "📊 Dashboard", label_es: "📊 Panel",     href: "/dashboard", roles: ["manager", "admin"], cap: "dashboard" },
   { id: "accounts",  label: "🏢 Accounts",  label_es: "🏢 Cuentas",    href: "/accounts", roles: ["admin", "manager"] },
   { id: "map",       label: "🗺 Map",       label_es: "🗺 Mapa",       href: "/map", roles: ["admin", "manager", "sales", "logistics"] },
@@ -261,7 +261,7 @@ export const ROLE_CAPS: Record<UserRole, Capability[]> = {
   sales:     ["create"],
   warehouse: ["fulfill", "deliver"],
   driver:    ["create", "deliver"],
-  logistics: ["route_plan"],
+  logistics: ["route_plan", "approve", "create"],
 };
 
 /** Minimal shape needed to test a capability. */
