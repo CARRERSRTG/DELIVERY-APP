@@ -849,6 +849,21 @@ export default function RoutesPage() {
     ));
   };
 
+  // Suggest the best driver for one order: prefer a driver whose home store
+  // matches the order's sold-from store and still has free truck capacity;
+  // otherwise the same-store driver, otherwise any driver with room.
+  const suggestDriverFor = (d: Delivery): string | null => {
+    const pallets = Number(d.actual_pallets ?? d.est_pallets ?? 0);
+    const hasRoom = (name: string) => {
+      const load = (byDriver.get(name) ?? []).reduce((n, x) => n + Number(x.actual_pallets ?? x.est_pallets ?? 0), 0);
+      return load + pallets <= capacityFor(name);
+    };
+    const sameStore = drivers.filter((u) => u.store && u.store === d.store).map((u) => u.full_name);
+    const pick = sameStore.find(hasRoom) ?? sameStore[0]
+      ?? drivers.map((u) => u.full_name).find(hasRoom) ?? null;
+    return pick ?? null;
+  };
+
   /** Simulate adding an unassigned order to the selected driver's day —
    * shows the would-be route (dashed) and totals without saving anything. */
   const previewAdd = async (d: Delivery, driver: string) => {
@@ -1554,6 +1569,15 @@ export default function RoutesPage() {
                               <option value="__newroute__">＋ {t("New temp driver…", "Nuevo chofer temp…")}</option>
                             </optgroup>
                           </select>
+                          {/* One-tap assign to the suggested driver (same store + free capacity). */}
+                          {(() => {
+                            const sug = suggestDriverFor(d);
+                            return sug ? (
+                              <button className="btn btn-ghost btn-sm" style={{ color: "var(--green)" }}
+                                title={t(`Assign to ${sug} (same store, has room)`, `Asignar a ${sug} (misma tienda, con espacio)`)}
+                                onClick={() => manualAssign(d.id, sug)}>💡 {sug}</button>
+                            ) : null;
+                          })()}
                           {singleSel && (
                             <button
                               className="btn btn-ghost btn-sm"
