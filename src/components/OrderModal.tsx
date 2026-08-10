@@ -118,6 +118,10 @@ export function OrderModal({
   // After a successful delivery we keep the modal open on a success screen so the
   // driver can print the slip; holds the fully-updated (delivered) order.
   const [justDelivered, setJustDelivered] = useState<Delivery | null>(null);
+  // A backdrop click only closes when the press STARTED on the backdrop too —
+  // otherwise a click whose mouseup lands on the just-opened overlay (or a drag
+  // release) would instantly close the modal that the same click just opened.
+  const overlayDownRef = useRef(false);
   // Customer-satisfaction rating on a delivered order (local mirror so the
   // stars light up instantly; also persisted).
   const [csatRating, setCsatRating] = useState<number | null>(existing?.csat_rating ?? null);
@@ -837,7 +841,9 @@ export function OrderModal({
   // they can print the slip (with the signature) before closing.
   if (justDelivered) {
     return (
-      <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="overlay"
+        onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
+        onClick={(e) => e.target === e.currentTarget && overlayDownRef.current && onClose()}>
         <div className="modal" style={{ maxWidth: 460, textAlign: "center" }}>
           <div style={{ fontSize: 44 }}>✅</div>
           <h3 style={{ marginTop: 8 }}>{t("Delivered", "Entregado")} #{orderLabel(justDelivered)}</h3>
@@ -880,7 +886,9 @@ export function OrderModal({
     {/* Viewing an existing order: clicking the backdrop closes it. While EDITING
         (or creating), a backdrop click does nothing — the only way out is the ✕
         or a button, so a stray click can't discard in-progress edits. */}
-    <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget && !isNew && !editing) requestClose(); }}>
+    <div className="overlay"
+      onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && overlayDownRef.current && !isNew && !editing) requestClose(); }}>
       <div className="modal">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>

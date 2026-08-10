@@ -20,6 +20,8 @@ export function ImportOrdersModal({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Only close on a backdrop click that also STARTED on the backdrop.
+  const overlayDownRef = useRef(false);
 
   const onFile = async (file: File) => {
     setFileName(file.name);
@@ -42,7 +44,9 @@ export function ImportOrdersModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+    <div className="overlay"
+      onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && overlayDownRef.current && !busy) onClose(); }}>
       <div className="modal" style={{ maxWidth: 720 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
           <h3>⬆ {t("Import orders from CSV", "Importar órdenes desde CSV")}</h3>

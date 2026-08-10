@@ -32,7 +32,7 @@ export function OrdersBoard({
                   <div className="board-empty">—</div>
                 ) : (
                   col.map((d) => (
-                    <button key={d.id} className="board-card" onClick={() => onOpen(d)}>
+                    <button key={d.id} type="button" className="board-card" onClick={() => onOpen(d)}>
                       <div className="board-card-top">
                         <span className="board-card-no">#{orderLabel(d)}</span>
                         {(d.actual_pallets ?? d.est_pallets) != null && (
