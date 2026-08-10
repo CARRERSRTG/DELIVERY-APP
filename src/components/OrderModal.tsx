@@ -448,6 +448,23 @@ export function OrderModal({
     if (!(d.delivery_address || "").trim()) await geocodePin(lat, lng);
   };
 
+  // Look up the typed delivery address on the map so the rep can confirm the
+  // exact spot before pricing/dispatch — geocodes it and opens the map there.
+  const lookupAddress = async () => {
+    const addr = (d.delivery_address || "").trim();
+    if (!addr) { notify(t("Enter a delivery address first.", "Ingrese primero una dirección de entrega.")); return; }
+    setPinLookupBusy(true);
+    try {
+      const res = await fetch("/api/geocode-point", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: addr }) });
+      const body = await res.json();
+      if (res.ok && body.lat != null) { setPinDraft([body.lat, body.lng]); setShowPinPicker(true); }
+      else notify(t("Couldn't find that address on the map — check it or drop a pin.", "No se encontró esa dirección en el mapa — revísela o marque un pin."));
+    } catch {
+      notify(t("Network error looking up the address.", "Error de red al buscar la dirección."));
+    }
+    setPinLookupBusy(false);
+  };
+
   // Auto-calculate the route as soon as both ends of the trip are known.
   // Debounced so we route once the user stops typing, and skipped if this
   // exact address pair was already resolved.
@@ -1077,17 +1094,32 @@ export function OrderModal({
                 placeholder={t("Select order type", "Seleccione tipo de orden")}
                 invalid={missingSet.has("order_type")}
               />
-              <Txt
-                label={t("Delivery Address", "Dirección de Entrega")}
-                val={d.delivery_address}
-                on={(v) => set("delivery_address", v)}
-                disabled={!salesFields}
-                placeholder={t("Where is it going?", "¿A dónde va?")}
+              <Sel
+                label={t("Store (Sold From)", "Tienda (Vendido Desde)")}
+                val={d.store}
+                opts={settings.stores.map((s) => s.name)}
+                on={(v) => {
+                  const st = settings.stores.find((s) => s.name === v);
+                  setD((p) => ({ ...p, store: v, pickup_name: v || p.pickup_name, pickup_address: st?.address ? st.address : p.pickup_address }));
+                }}
+                disabled={!salesFields || (me.role === "sales" && !!me.store && !homeIsDestination)}
+                placeholder={t("Select store", "Seleccione tienda")}
+                invalid={missingSet.has("store")}
               />
             </div>
+            <Txt
+              label={t("Delivery Address", "Dirección de Entrega")}
+              val={d.delivery_address}
+              on={(v) => set("delivery_address", v)}
+              disabled={!salesFields}
+              placeholder={t("Where is it going?", "¿A dónde va?")}
+            />
 
-            {/* Drop an exact map pin (for sites with no formal address). */}
+            {/* Confirm the address on the map (look it up) or drop an exact pin. */}
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4, marginBottom: showPinPicker ? 8 : 0 }}>
+              <button className="btn btn-ghost btn-sm" disabled={!salesFields || pinLookupBusy} onClick={lookupAddress}>
+                🔎 {t("Look up address on map", "Buscar dirección en el mapa")}
+              </button>
               <button className="btn btn-ghost btn-sm" disabled={!salesFields} onClick={() => {
                 setPinDraft(d.delivery_lat != null && d.delivery_lng != null ? [d.delivery_lat, d.delivery_lng] : null);
                 setShowPinPicker((s) => !s);
