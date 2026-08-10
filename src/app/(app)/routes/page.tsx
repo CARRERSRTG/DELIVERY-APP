@@ -285,7 +285,20 @@ export default function RoutesPage() {
   // Move one already-assigned stop to a different truckload/pickup of the same
   // driver (keeps the driver, changes the load number, resets its sequence).
   const moveStopToLoad = async (d: Delivery, load: number) => {
-    if (d.assigned_driver) clearRouteFor(d.assigned_driver);
+    const driver = d.assigned_driver;
+    if (!driver) return;
+    clearRouteFor(driver);
+    const stops = byDriver.get(driver) ?? [];
+    // If the lane is still auto-split by capacity (no manual load numbers yet),
+    // first stamp every OTHER stop with the truckload it's currently shown in —
+    // otherwise moving just this one flips the lane to manual grouping and the
+    // rest collapse/reshuffle. This keeps every other stop exactly where it is.
+    if (!hasManualLoads(stops)) {
+      const trips = buildTrips(stops, capacityFor(driver));
+      await Promise.all(trips.flatMap((batch, ti) =>
+        batch.filter((s) => s.id !== d.id).map((s) => updateDelivery(s.id, { load_no: ti + 1 > 1 ? ti + 1 : null })),
+      ));
+    }
     await updateDelivery(d.id, { load_no: load > 1 ? load : null, route_seq: null });
     notify(t(`Moved to truckload ${load}`, `Movido al viaje ${load}`));
   };
@@ -1522,7 +1535,14 @@ export default function RoutesPage() {
                       <td onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
                           {/* Assign is ALWAYS available; Simulate is an extra when one lane is focused. */}
-                          <select defaultValue="" onChange={(e) => { const v = e.target.value; e.currentTarget.value = ""; if (v === "__newroute__") { manualAssign(d.id, addBucket()); } else if (v) manualAssign(d.id, v); }} style={{ width: "auto" }}>
+                          <select defaultValue="" onChange={(e) => {
+                            const v = e.target.value; e.currentTarget.value = "";
+                            if (!v) return;
+                            const target = v === "__newroute__" ? addBucket() : v;
+                            // If this row is part of a multi-selection, assign the WHOLE selection.
+                            if (selectedOrders.has(d.id) && selectedOrders.size > 1) bulkAssign(target);
+                            else manualAssign(d.id, target);
+                          }} style={{ width: "auto" }}>
                             <option value="">{t("Assign to…", "Asignar a…")}</option>
                             {drivers.length > 0 && (
                               <optgroup label={t("Drivers", "Choferes")}>
