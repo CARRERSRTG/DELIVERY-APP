@@ -10,7 +10,7 @@ import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/Orders
 import { OrdersBoard } from "@/components/OrdersBoard";
 import { OrderModal } from "@/components/OrderModal";
 import { ImportOrdersModal } from "@/components/ImportOrdersModal";
-import { deliveryColumns, downloadCSV, orderLabel, isOverdue, isPendingUrgent, isToday, orderOwner, toCSV, todayISO, withinRetention } from "@/lib/utils";
+import { deliveryColumns, downloadCSV, orderLabel, isOverdue, isPendingUrgent, isToday, orderOwner, shiftDateISO, toCSV, todayISO, withinRetention } from "@/lib/utils";
 import { exportExcelByEmployee, exportPDFByEmployee } from "@/lib/export";
 import type { Delivery, Stage, UserRole } from "@/lib/types";
 
@@ -127,6 +127,8 @@ export default function OrdersPage() {
   // further — the "All" count and every stage chip's count come from this,
   // not the full company-wide `deliveries`, so the numbers on the chips
   // always match what actually shows up in the table below them.
+  // A salesperson can only search 30 days back.
+  const salesSearchFloor = shiftDateISO(todayISO(), -30);
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return deliveries.filter((d) => {
@@ -137,6 +139,8 @@ export default function OrdersPage() {
         // relaxed by search, unlike the date-window restriction below.
         // "Own" includes orders an office/admin/driver assigned to them.
         if (me?.role === "sales" && orderOwner(d) !== me.id) return false;
+        // Sales never see canceled orders (a canceled order disappears for them).
+        if (me?.role === "sales" && d.stage === "canceled") return false;
         // Warehouse only ever sees orders that have been approved — never
         // draft / pending / rejected / canceled (pre-approval or dead orders).
         if (me?.role === "warehouse" && !["approved", "fulfilling", "ready", "picked_up", "delivered"].includes(d.stage)) return false;
@@ -149,11 +153,13 @@ export default function OrdersPage() {
         if (!teaching && !adminAllAccess && me?.role === "sales" && !withinRetention(d)) return false;
         return true;
       }
+      // Sales can only search 30 days back; older orders stay out of reach.
+      if (!teaching && !adminAllAccess && me?.role === "sales" && d.delivery_date && d.delivery_date < salesSearchFloor) return false;
       const hay = [d.order_code, d.order_no, d.account, d.so_num, d.po2, d.invoice_num, d.store, d.delivery_address, d.contact, d.assigned_driver, d.delivery_phone]
         .map((x) => String(x ?? "").toLowerCase()).join(" ");
       return hay.includes(needle);
     });
-  }, [deliveries, q, me?.id, me?.role, teaching, adminAllAccess]);
+  }, [deliveries, q, me?.id, me?.role, teaching, adminAllAccess, salesSearchFloor]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: visible.length };
