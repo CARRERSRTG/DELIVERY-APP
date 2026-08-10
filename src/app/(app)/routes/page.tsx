@@ -177,6 +177,10 @@ export default function RoutesPage() {
   const [autoAssigning, setAutoAssigning] = useState(false);
   // Multi-select + search + saved filter for the unassigned pool.
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  // Drag-and-drop in the Routes tab: which order is being dragged, and which
+  // lane card is currently under the cursor (for the drop highlight).
+  const [dragOrderId, setDragOrderId] = useState<string | null>(null);
+  const [dragOverLane, setDragOverLane] = useState<string | null>(null);
   const [orderSearch, setOrderSearch] = useState("");
   const [poolFilter, setPoolFilter] = useState<"all" | "overdue" | "noloc" | "windowed">("all");
   // Cached pickup→dropoff geometry for selected unassigned loads (drawn on the map).
@@ -359,12 +363,6 @@ export default function RoutesPage() {
     saveSettings({ route_buckets: [...existing, name] });
     notify(t(`Added ${name}`, `${name} agregada`));
     return name;
-  };
-  // Ask for a name, then create the temp driver.
-  const promptAddBucket = () => {
-    const nm = window.prompt(t("Name this temp driver (leave blank for “Route N”):", "Nombre del chofer temporal (vacío para “Ruta N”):"), "");
-    if (nm === null) return; // cancelled
-    addBucket(nm);
   };
   const removeBucket = (name: string) => {
     return saveSettings({ route_buckets: (settings.route_buckets ?? []).filter((b) => b !== name) });
@@ -1257,11 +1255,11 @@ export default function RoutesPage() {
                 🔀 {t("Merge", "Unir")} ({selected.size})
               </button>
             )}
-            <button className="btn btn-ghost btn-sm" onClick={promptAddBucket} title={t("Create a temp driver to build a route on, then hand it to a real driver later", "Crea un chofer temporal para armar una ruta, y entrégala a un chofer real después")}>＋ {t("Temp driver", "Chofer temp")}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => addBucket()} title={t("Add a numbered route (Route 1, Route 2…) to build on, then hand it to a driver later", "Agrega una ruta numerada (Ruta 1, Ruta 2…) para armar, y entrégala a un chofer después")}>＋ {t("Route", "Ruta")}</button>
             {focused && <button className="notif-clear" onClick={() => setSelected(new Set())}>{t("Show all", "Mostrar todos")}</button>}
           </div>
           {lanes.length === 0 ? (
-            <div className="empty">{t("No drivers yet — tap “＋ Temp driver” to build a route without one.", "Aún sin choferes — toca “＋ Chofer temp” para armar una ruta sin uno.")}</div>
+            <div className="empty">{t("No drivers yet — tap “＋ Route” to build a route without one.", "Aún sin choferes — toca “＋ Ruta” para armar una ruta sin uno.")}</div>
           ) : (
             <div style={{ maxHeight: 470, overflowY: "auto" }}>
               {lanes.map((u) => {
@@ -1505,7 +1503,7 @@ export default function RoutesPage() {
                     )}
                     <optgroup label={t("Temp drivers / routes", "Choferes temp / rutas")}>
                       {bucketNames.map((n) => <option key={n} value={n}>🧭 {n}</option>)}
-                      <option value="__newroute__">＋ {t("New temp driver…", "Nuevo chofer temp…")}</option>
+                      <option value="__newroute__">＋ {t("New route…", "Nueva ruta…")}</option>
                     </optgroup>
                   </select>
                   <button className="btn btn-amber btn-sm" onClick={bulkAutoAssign} disabled={autoAssigning}>✨ {t("Auto-assign selected", "Auto-asignar selección")}</button>
@@ -1583,7 +1581,7 @@ export default function RoutesPage() {
                             )}
                             <optgroup label={t("Temp drivers / routes", "Choferes temp / rutas")}>
                               {bucketNames.map((n) => <option key={n} value={n}>🧭 {n}</option>)}
-                              <option value="__newroute__">＋ {t("New temp driver…", "Nuevo chofer temp…")}</option>
+                              <option value="__newroute__">＋ {t("New route…", "Nueva ruta…")}</option>
                             </optgroup>
                           </select>
                           {/* One-tap assign to the suggested driver (same store + free capacity). */}
@@ -1648,7 +1646,20 @@ export default function RoutesPage() {
           return etaMin != null && win != null && etaMin > win[1];
         });
         return (
-          <div className="card" key={u.id} style={{ margin: 0 }}>
+          <div
+            className="card"
+            key={u.id}
+            style={{ margin: 0, outline: dragOverLane === u.key ? "2px dashed var(--accent)" : undefined, outlineOffset: 2 }}
+            onDragOver={(e) => { if (dragOrderId) { e.preventDefault(); if (dragOverLane !== u.key) setDragOverLane(u.key); } }}
+            onDragLeave={(e) => { if (e.currentTarget === e.target && dragOverLane === u.key) setDragOverLane(null); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const id = e.dataTransfer.getData("text/plain") || dragOrderId;
+              setDragOverLane(null); setDragOrderId(null);
+              const dd = id ? dayOrders.find((x) => x.id === id) : null;
+              if (dd && orderLaneKey(dd) !== u.key) assignToLane(id!, u.key);
+            }}
+          >
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
               <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} onClick={() => toggleCollapse(u.key)} title={t("Collapse", "Contraer")}>{isC ? "▸" : "▾"}</button>
               <span
@@ -1823,7 +1834,12 @@ export default function RoutesPage() {
                             const etaMin = eta ? parseInt(eta.slice(0, 2), 10) * 60 + parseInt(eta.slice(3, 5), 10) : null;
                             const late = etaMin != null && win != null && etaMin > win[1];
                             return (
-                              <tr key={d.id}>
+                              <tr key={d.id}
+                                draggable
+                                onDragStart={(e) => { e.dataTransfer.setData("text/plain", d.id); e.dataTransfer.effectAllowed = "move"; setDragOrderId(d.id); }}
+                                onDragEnd={() => { setDragOrderId(null); setDragOverLane(null); }}
+                                style={{ cursor: "grab" }}
+                              >
                                 <td style={{ borderLeft: `4px solid ${tColor}` }}>{d.route_seq != null ? i + 1 : "—"}</td>
                                 <td className="ordno">#{orderLabel(d)}</td>
                                 <td title={d.account || undefined}>{d.account || "—"}</td>
