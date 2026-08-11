@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.9.63";
+export const APP_VERSION = "0.9.64";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -208,7 +208,7 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, { en: string; es: string }[]>
     { en: "Pick up & deliver", es: "Recoger y entregar" },
     { en: "Capture signatures", es: "Capturar firmas" },
     { en: "Navigate to stops", es: "Navegar a las paradas" },
-    { en: "Log new orders", es: "Registrar órdenes" },
+    { en: "See only their assigned deliveries", es: "Ver solo sus entregas asignadas" },
   ],
   logistics: [
     { en: "Assign orders to drivers", es: "Asignar órdenes a choferes" },
@@ -273,7 +273,9 @@ export const ROLE_CAPS: Record<UserRole, Capability[]> = {
   manager:   ["create", "approve", "dashboard"],
   sales:     ["create"],
   warehouse: ["fulfill", "deliver"],
-  driver:    ["create", "deliver"],
+  // Drivers do NOT create orders — orders must be programmed by sales/office and
+  // dispatched by the logistics manager. A driver only delivers what's assigned.
+  driver:    ["deliver"],
   logistics: ["route_plan", "approve"],
   // Accounting: same as Office Manager but WITHOUT the dashboard (and no
   // Accounts / Audit tabs — see TABS). Can create, approve and see every order.

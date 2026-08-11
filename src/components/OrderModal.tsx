@@ -830,6 +830,9 @@ export function OrderModal({
 
   // Field editability: sales owns order data, warehouse owns fulfillment data.
   const salesFields = editing && (isNew || me.role === "sales" || me.role === "admin" || me.role === "manager");
+  // True when an existing order is being pushed to a LATER delivery date (a
+  // reprogram) — the cue to offer the "deliver first thing in the morning" flag.
+  const rescheduledForward = !!existing?.delivery_date && !!d.delivery_date && d.delivery_date > existing.delivery_date;
   const whFields = editing && (me.role === "warehouse" || me.role === "admin");
   // Warehouse may edit only pallets + prepared status; temp & driver are admin-only.
   const adminFields = editing && me.role === "admin";
@@ -1280,6 +1283,21 @@ export function OrderModal({
               <Txt label={t("Delivery Date", "Fecha de Entrega")} type="date" val={d.delivery_date} on={(v) => set("delivery_date", v)} disabled={!salesFields} invalid={missingSet.has("delivery_date")} />
               <WindowSel val={d.delivery_windows} on={(v) => set("delivery_windows", v)} disabled={!salesFields} invalid={missingSet.has("delivery_windows")} t={t} />
             </div>
+            {/* Reprogramming a missed order: offer to send it out first thing the
+                next morning. Shows when an existing order is pushed to a LATER
+                date, or whenever the flag is already on. */}
+            {(rescheduledForward || d.morning_priority) && (
+              <label className="check" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: salesFields ? "pointer" : "default" }}>
+                <input
+                  type="checkbox"
+                  checked={!!d.morning_priority}
+                  disabled={!salesFields}
+                  onChange={(e) => set("morning_priority", e.target.checked)}
+                  style={{ width: "auto" }}
+                />
+                <span>⏰ {t("Priority — deliver first thing in the morning", "Prioridad — entregar a primera hora de la mañana")}</span>
+              </label>
+            )}
             {scheduleWarnings.length > 0 && (
               <div className="card" style={{ marginTop: 10, background: "#fff7ec", borderColor: "var(--amber)" }}>
                 <b style={{ color: "#b9791a" }}>⚠ {t("Scheduling conflict", "Conflicto de programación")}</b>

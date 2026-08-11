@@ -242,6 +242,8 @@ export function autoAssign(
  * to delivery window start (then miles) — a simple, dependency-free guess. */
 export function routeOrder(deliveries: Delivery[]): Delivery[] {
   return [...deliveries].sort((a, b) => {
+    // A reprogrammed order flagged for the morning goes out first.
+    if (!!a.morning_priority !== !!b.morning_priority) return a.morning_priority ? -1 : 1;
     if (a.route_seq != null && b.route_seq != null) return a.route_seq - b.route_seq;
     if (a.route_seq != null) return -1;
     if (b.route_seq != null) return 1;

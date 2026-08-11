@@ -125,6 +125,10 @@ export interface Delivery {
   /** Role-targeted notes added on demand (see RoleNote). Optional so existing
    * rows / constructors don't need it; read defensively with `?? []`. */
   role_notes?: RoleNote[] | null;
+  /** Set when an order that missed its day is reprogrammed for a later date and
+   * flagged to go out FIRST thing the next morning. Drives a badge + bumps the
+   * stop to the front of the driver's route. */
+  morning_priority?: boolean | null;
 
   // Auto-computed route (pickup → delivery) from the routing service.
   route_miles: number | null;
