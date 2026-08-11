@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Delivery, DriverAvailability, DriverShift, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
+import type { Delivery, DriverAvailability, DriverIncident, DriverShift, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner, changedFieldsNote } from "@/lib/utils";
@@ -111,6 +111,11 @@ export interface DataState {
   shifts: DriverShift[];
   clockIn: (driverId: string) => Promise<void>;
   clockOut: (driverId: string) => Promise<void>;
+
+  // logistics-manager driver incident log (things that cost the company money)
+  incidents: DriverIncident[];
+  addIncident: (inc: Omit<DriverIncident, "id" | "created_at" | "created_by">) => Promise<boolean>;
+  removeIncident: (id: string) => Promise<void>;
 }
 
 // Teaching-mode sandbox: a local diff over the live data. `created` are orders
@@ -208,6 +213,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [availability, setAvailability] = useState<DriverAvailability[]>([]);
   const [shifts, setShifts] = useState<DriverShift[]>([]);
+  const [incidents, setIncidents] = useState<DriverIncident[]>([]);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -229,7 +235,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   }, [teaching, deliveries, overlay]);
 
   const reloadAll = useCallback(async () => {
-    const [s, p, d, e, n, av, sh] = await Promise.all([
+    const [s, p, d, e, n, av, sh, inc] = await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("profiles").select("id, full_name, role, store, avatar_url").order("full_name"),
       // Teaching mode never loads from the DB — the live (non-training) rows are
@@ -241,6 +247,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         : Promise.resolve({ data: [] as AppNotification[] }),
       supabase.from("driver_availability").select("*").order("start_date", { ascending: false }),
       supabase.from("driver_shifts").select("*").order("started_at", { ascending: false }),
+      supabase.from("driver_incidents").select("*").order("incident_date", { ascending: false }),
     ]);
     if (s.data) setSettings(s.data as Settings);
     if (p.data) setUsers(p.data as Profile[]);
@@ -249,6 +256,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (n.data) setNotifications(n.data as AppNotification[]);
     if (av.data) setAvailability(av.data as DriverAvailability[]);
     if (sh.data) setShifts(sh.data as DriverShift[]);
+    if (inc.data) setIncidents(inc.data as DriverIncident[]);
     setReady(true);
   }, [supabase, me]);
 
@@ -276,6 +284,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "driver_availability" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "driver_shifts" }, reloadAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "driver_incidents" }, reloadAll)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -634,6 +643,19 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     await reloadAll();
   }, [supabase, shifts, notify, reloadAll]);
 
+  const addIncident = useCallback<DataState["addIncident"]>(async (inc) => {
+    const { error } = await supabase.from("driver_incidents").insert({ ...inc, created_by: me?.id ?? null });
+    if (error) { notify("Error: " + error.message); return false; }
+    await reloadAll();
+    return true;
+  }, [supabase, me, notify, reloadAll]);
+
+  const removeIncident = useCallback<DataState["removeIncident"]>(async (id) => {
+    const { error } = await supabase.from("driver_incidents").delete().eq("id", id);
+    if (error) { notify("Error: " + error.message); return; }
+    await reloadAll();
+  }, [supabase, notify, reloadAll]);
+
   const value: DataState = {
     ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, clearTrainingData, settings, users, deliveries: effectiveDeliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
@@ -641,6 +663,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
     availability, addAvailability, removeAvailability,
     shifts, clockIn, clockOut,
+    incidents, addIncident, removeIncident,
   };
 
   return (

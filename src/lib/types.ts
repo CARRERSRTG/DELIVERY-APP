@@ -209,6 +209,21 @@ export interface DriverShift {
   created_at: string;
 }
 
+/** A logistics-manager record of something a driver did that cost the company
+ * money (wasted trips, damage, bad attitude leading to inefficiency, etc.).
+ * `cost` is the estimated $ impact; `delivery_id` optionally links the order it
+ * relates to. */
+export interface DriverIncident {
+  id: string;
+  driver_name: string;
+  delivery_id: string | null;
+  incident_date: string;   // yyyy-mm-dd
+  description: string;
+  cost: number;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface OrderEvent {
   id: string;
   delivery_id: string;

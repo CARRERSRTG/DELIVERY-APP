@@ -10,11 +10,11 @@ import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap
 import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
-import { fallbackDriverColor, fmtDate, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
+import { fallbackDriverColor, fmtDate, fmtMoney, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
 import { driverOf, groupIntoLoads, hasManualLoads, loadNoOf, nextLoadFor as nextLoadForPure, orderLaneKey as orderLaneKeyPure, planMerge } from "@/lib/route-lanes";
 import { useColWidths } from "@/lib/use-col-widths";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
-import type { Delivery, Profile } from "@/lib/types";
+import type { Delivery, DriverIncident, Profile } from "@/lib/types";
 
 // ============================================================
 // Logistics Manager tool: assign the day's approved-but-undelivered orders
@@ -135,7 +135,7 @@ interface RoutePlan {
 }
 
 export default function RoutesPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, availability, ready } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, availability, ready, incidents, addIncident, removeIncident } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
   const [date, setDate] = useState(todayISO());
@@ -165,7 +165,7 @@ export default function RoutesPage() {
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<"routes" | "orders" | "board" | "timeline" | "scheduled">("routes");
+  const [tab, setTab] = useState<"routes" | "orders" | "board" | "timeline" | "scheduled" | "incidents">("routes");
   const [busyDriver, setBusyDriver] = useState<string | null>(null);
   const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number; minutes: number }>>({});
   const [routeLines, setRouteLines] = useState<Record<string, TripTrace[]>>({});
@@ -1386,7 +1386,10 @@ export default function RoutesPage() {
         <button className={"vt " + (tab === "scheduled" ? "on" : "")} onClick={() => setTab("scheduled")}>✅ {t("Scheduled", "Programadas")} ({scheduled.length})</button>
         <button className={"vt " + (tab === "board" ? "on" : "")} onClick={() => setTab("board")}>🗂 {t("Board", "Tablero")}</button>
         <button className={"vt " + (tab === "timeline" ? "on" : "")} onClick={() => setTab("timeline")}>📅 {t("Timeline", "Horario")}</button>
+        <button className={"vt " + (tab === "incidents" ? "on" : "")} onClick={() => setTab("incidents")}>⚠ {t("Incidents", "Incidencias")} ({incidents.length})</button>
       </div>
+
+      {tab === "incidents" && <DriverIncidents me={me} drivers={drivers} deliveries={deliveries} incidents={incidents} addIncident={addIncident} removeIncident={removeIncident} confirmAction={confirmAction} notify={notify} t={t} />}
 
       {/* ---------- Scheduled (assigned) orders list ---------- */}
       {tab === "scheduled" && (
@@ -1927,6 +1930,195 @@ function DateCell({
         onChange={(e) => e.target.value && onChange(d.id, e.target.value)}
         style={{ width: "auto" }}
       />
+    </div>
+  );
+}
+
+// ============================================================
+// Driver incident log — the logistics manager records something a driver did
+// that cost the company money (a wasted round trip, damage, inefficiency from a
+// bad attitude). Each entry has a driver, date, description, and estimated cost,
+// and can optionally be tied to a specific order. Only reachable from the Routes
+// Manager (logistics/admin), so it's gated by the page's own role access.
+// ============================================================
+function DriverIncidents({
+  me, drivers, deliveries, incidents, addIncident, removeIncident, confirmAction, notify, t,
+}: {
+  me: Profile;
+  drivers: Profile[];
+  deliveries: Delivery[];
+  incidents: DriverIncident[];
+  addIncident: (inc: Omit<DriverIncident, "id" | "created_at" | "created_by">) => Promise<boolean>;
+  removeIncident: (id: string) => Promise<void>;
+  confirmAction: (message: string, opts?: { danger?: boolean; confirmLabel?: string }) => Promise<boolean>;
+  notify: (m: string) => void;
+  t: (en: string, es: string) => string;
+}) {
+  const [driver, setDriver] = useState("");
+  const [date, setDate] = useState(todayISO());
+  const [description, setDescription] = useState("");
+  const [cost, setCost] = useState("");
+  const [orderId, setOrderId] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // Orders you can attach an incident to: the chosen driver's, most recent first.
+  const attachable = useMemo(
+    () => deliveries
+      .filter((d) => !driver || d.assigned_driver === driver)
+      .sort((a, b) => (b.delivery_date ?? "").localeCompare(a.delivery_date ?? ""))
+      .slice(0, 60),
+    [deliveries, driver],
+  );
+
+  const submit = async () => {
+    if (!driver) { notify(t("Choose a driver.", "Elija un chofer.")); return; }
+    if (!description.trim()) { notify(t("Describe what happened.", "Describa lo que pasó.")); return; }
+    setBusy(true);
+    const ok = await addIncident({
+      driver_name: driver,
+      delivery_id: orderId || null,
+      incident_date: date || todayISO(),
+      description: description.trim(),
+      cost: Math.max(0, Number(cost) || 0),
+    });
+    setBusy(false);
+    if (ok) {
+      notify(t("Incident recorded", "Incidencia registrada"));
+      setDescription(""); setCost(""); setOrderId("");
+    }
+  };
+
+  const del = async (inc: DriverIncident) => {
+    const ok = await confirmAction(
+      t(`Delete this incident for ${inc.driver_name}?`, `¿Eliminar esta incidencia de ${inc.driver_name}?`),
+      { danger: true, confirmLabel: t("Delete", "Eliminar") },
+    );
+    if (ok) await removeIncident(inc.id);
+  };
+
+  // Total logged cost per driver, for a quick at-a-glance tally.
+  const totals = useMemo(() => {
+    const m = new Map<string, { count: number; cost: number }>();
+    for (const inc of incidents) {
+      const cur = m.get(inc.driver_name) ?? { count: 0, cost: 0 };
+      cur.count += 1; cur.cost += Number(inc.cost) || 0;
+      m.set(inc.driver_name, cur);
+    }
+    return [...m.entries()].sort((a, b) => b[1].cost - a[1].cost);
+  }, [incidents]);
+
+  const grandTotal = incidents.reduce((s, i) => s + (Number(i.cost) || 0), 0);
+  const codeFor = (id: string | null) => {
+    if (!id) return null;
+    const d = deliveries.find((x) => x.id === id);
+    return d ? orderLabel(d) : null;
+  };
+
+  return (
+    <div className="card" style={{ margin: 0 }}>
+      <h3 style={{ marginTop: 0 }}>⚠ {t("Driver incidents", "Incidencias de choferes")}</h3>
+      <p className="hint" style={{ marginTop: 0 }}>
+        {t(
+          "Log anything a driver did that cost the company money — a wasted round trip, damage, or lost time. Used to review performance; only the logistics manager and admins see this.",
+          "Registre cualquier cosa que un chofer haya hecho que le costó dinero a la empresa — un viaje repetido, daños o tiempo perdido. Se usa para evaluar el desempeño; solo lo ven el gerente de logística y administradores.",
+        )}
+      </p>
+
+      {/* ---- New incident ---- */}
+      <div className="grid g2" style={{ gap: 10 }}>
+        <div className="field">
+          <label>{t("Driver", "Chofer")}</label>
+          <select value={driver} onChange={(e) => { setDriver(e.target.value); setOrderId(""); }}>
+            <option value="">{t("Choose…", "Elegir…")}</option>
+            {drivers.map((d) => <option key={d.id} value={d.full_name}>{d.full_name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>{t("Date", "Fecha")}</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+      </div>
+      <div className="field">
+        <label>{t("What happened", "Qué pasó")}</label>
+        <textarea
+          rows={2}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={t("e.g. Left to a delivery before planning the day and had to drive back to the same area for the next stop.", "ej. Salió a una entrega sin planear el día y tuvo que regresar a la misma zona para la siguiente parada.")}
+        />
+      </div>
+      <div className="grid g2" style={{ gap: 10 }}>
+        <div className="field">
+          <label>{t("Estimated cost ($)", "Costo estimado ($)")}</label>
+          <input type="number" min={0} step="1" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0" />
+        </div>
+        <div className="field">
+          <label>{t("Related order (optional)", "Orden relacionada (opcional)")}</label>
+          <select value={orderId} onChange={(e) => setOrderId(e.target.value)}>
+            <option value="">{t("None", "Ninguna")}</option>
+            {attachable.map((d) => (
+              <option key={d.id} value={d.id}>#{orderLabel(d)} · {d.account || "—"}{d.delivery_date ? ` · ${fmtDate(d.delivery_date)}` : ""}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+        <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? "…" : t("Record incident", "Registrar incidencia")}</button>
+      </div>
+
+      {/* ---- Per-driver tally ---- */}
+      {totals.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <div className="section-label" style={{ marginTop: 0 }}>{t("Cost by driver", "Costo por chofer")}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {totals.map(([name, v]) => (
+              <span key={name} className="sema" style={{ background: "#fff1f0", color: "#a10e0e", border: "1px solid #f0c0bd" }}>
+                {name}: {fmtMoney(v.cost)} · {v.count}
+              </span>
+            ))}
+            <span className="sema" style={{ background: "#3a2a00", color: "#ffd98a" }}>{t("Total", "Total")}: {fmtMoney(grandTotal)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Log ---- */}
+      <div style={{ marginTop: 18 }}>
+        <div className="section-label" style={{ marginTop: 0 }}>{t("Log", "Registro")} ({incidents.length})</div>
+        {incidents.length === 0 ? (
+          <div className="hint">{t("No incidents recorded.", "Sin incidencias registradas.")}</div>
+        ) : (
+          <div className="tbl-scroll">
+            <table className="orders">
+              <thead>
+                <tr>
+                  <th>{t("Date", "Fecha")}</th>
+                  <th>{t("Driver", "Chofer")}</th>
+                  <th>{t("What happened", "Qué pasó")}</th>
+                  <th>{t("Order", "Orden")}</th>
+                  <th style={{ textAlign: "right" }}>{t("Cost", "Costo")}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {incidents.map((inc) => (
+                  <tr key={inc.id}>
+                    <td style={{ whiteSpace: "nowrap" }}>{fmtDate(inc.incident_date)}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>{inc.driver_name}</td>
+                    <td>{inc.description}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>{codeFor(inc.delivery_id) ? `#${codeFor(inc.delivery_id)}` : "—"}</td>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap", fontWeight: 600 }}>{fmtMoney(Number(inc.cost) || 0)}</td>
+                    <td style={{ textAlign: "right" }}>
+                      {(me.role === "admin" || inc.created_by === me.id) && (
+                        <button className="btn btn-sm btn-ghost" onClick={() => del(inc)} title={t("Delete", "Eliminar")}>✕</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
