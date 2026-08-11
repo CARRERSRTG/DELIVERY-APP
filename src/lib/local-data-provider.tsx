@@ -222,9 +222,9 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
       notify("A user with that name already exists.");
       return { ok: false };
     }
-    const user: Profile = { id: uid(), full_name: name, role: input.role };
+    const user: Profile = { id: uid(), full_name: name, role: input.role, store: input.store ?? null };
     persist({ ...s, users: [...s.users, user] });
-    notify(`User "${name}" created`);
+    if (!input.quiet) notify(`User "${name}" created`);
     return { ok: true };
   }, [persist, notify]);
 

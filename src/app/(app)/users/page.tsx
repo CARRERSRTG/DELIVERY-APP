@@ -6,6 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
 import { CAPABILITIES, ROLE_CAPS, ROLE_INFO, ROLE_ORDER, extraCaps, roleLabel } from "@/lib/constants";
 import { avatarColor, initials } from "@/lib/utils";
+import { UsersImportModal } from "@/components/UsersImportModal";
 import type { UserRole } from "@/lib/types";
 
 const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
@@ -22,6 +23,7 @@ export default function UsersPage() {
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   // Which user's permissions panel is expanded.
   const [perms, setPerms] = useState<string | null>(null);
+  const [bulk, setBulk] = useState(false);
 
   if (!me) return null;
   if (me.role !== "admin") return <div className="empty">{t("Admins only.", "Solo administradores.")}</div>;
@@ -40,7 +42,10 @@ export default function UsersPage() {
 
   return (
     <>
-      <div className="page-head"><h2>{t("Users", "Usuarios")}</h2></div>
+      <div className="page-head">
+        <h2>{t("Users", "Usuarios")}</h2>
+        {!LOCAL_MODE && <button className="btn btn-ghost" onClick={() => setBulk(true)}>⬆ {t("Bulk import", "Importar en lote")}</button>}
+      </div>
 
       <div className="card">
         <h2>{t("Create a user", "Crear un usuario")}</h2>
@@ -179,6 +184,8 @@ export default function UsersPage() {
           );
         })}
       </div>
+
+      {bulk && <UsersImportModal onClose={() => setBulk(false)} />}
     </>
   );
 }

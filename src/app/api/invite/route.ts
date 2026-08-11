@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const ROLES = ["admin", "manager", "sales", "warehouse", "driver", "logistics"] as const;
+const ROLES = ["admin", "manager", "sales", "warehouse", "driver", "logistics", "accounting"] as const;
 type Role = (typeof ROLES)[number];
 
 /** A readable temporary password like "Swift-Puma-4821". */
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   }
 
   // 2) Validate input.
-  let body: { email?: string; full_name?: string; role?: string; password?: string };
+  let body: { email?: string; full_name?: string; role?: string; password?: string; store?: string | null };
   try {
     body = await req.json();
   } catch {
@@ -41,6 +41,7 @@ export async function POST(req: Request) {
   const email = (body.email || "").trim().toLowerCase();
   const full_name = (body.full_name || "").trim();
   const role: Role = ROLES.includes(body.role as Role) ? (body.role as Role) : "sales";
+  const store = (body.store || "").trim() || null;
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
@@ -63,8 +64,9 @@ export async function POST(req: Request) {
     );
   }
 
+  let newUserId: string | null = null;
   try {
-    const { error } = await admin.auth.admin.createUser({
+    const { data, error } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true, // bypass email verification — account is active at once
@@ -76,11 +78,21 @@ export async function POST(req: Request) {
         : error.message;
       return NextResponse.json({ error: msg }, { status: 400 });
     }
+    newUserId = data.user?.id ?? null;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: "Create failed: " + msg }, { status: 500 });
   }
 
+  // The handle_new_user trigger seeds the profile from metadata (full_name +
+  // role). Store isn't in metadata, so stamp it (and re-assert name/role) on the
+  // fresh profile row here. Best-effort — a failure here doesn't undo the login.
+  if (newUserId) {
+    await admin.from("profiles")
+      .update({ store, full_name: full_name || email.split("@")[0], role })
+      .eq("id", newUserId);
+  }
+
   // Return the password so the admin can hand it to the user.
-  return NextResponse.json({ ok: true, email, password });
+  return NextResponse.json({ ok: true, email, password, id: newUserId });
 }
