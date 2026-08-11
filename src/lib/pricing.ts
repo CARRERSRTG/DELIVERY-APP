@@ -1,5 +1,5 @@
 import type { Settings } from "@/lib/types";
-import { cityFromAddress } from "@/lib/utils";
+import { cityFromAddress, todayISO } from "@/lib/utils";
 
 // ============================================================
 // Delivery fee = a function of driving miles (the office's real formulas).
@@ -61,31 +61,43 @@ export interface FeeSuggestion {
   zone: DeliveryZone;
   /** Detected delivery city (best effort), for display. */
   city: string;
-  /** Suggested standard price, or null until the route miles are known. */
+  /** Suggested standard price (incl. same-day surcharge), or null until miles are known. */
   list: number | null;
-  /** Suggested discounted price a rep may offer. */
+  /** Suggested discounted price a rep may offer (incl. same-day surcharge). */
   discount: number | null;
   /** NOT-LOCAL deliveries need manager approval before the price is committed. */
   needsApproval: boolean;
+  /** The order is for same-day delivery and a surcharge applies. */
+  sameDay: boolean;
+  /** The same-day surcharge amount folded into list/discount ($), 0 if none. */
+  sameDaySurcharge: number;
 }
 
 /** Suggest the delivery fee for an order from its driving miles (the formulas
- * above). The delivery city only sets the zone badge + approval flag. */
+ * above) plus a same-day surcharge when the delivery date is today. The
+ * delivery city only sets the zone badge + approval flag. */
 export function suggestDeliveryFee(
-  d: { delivery_address?: string | null; route_miles?: number | null },
+  d: { delivery_address?: string | null; route_miles?: number | null; delivery_date?: string | null },
   s?: Partial<Settings> | null,
 ): FeeSuggestion {
   const hasAddr = !!(d.delivery_address || "").trim();
   const city = cityFromAddress(d.delivery_address, localCities(s));
-  if (!hasAddr) return { zone: "unknown", city: "", list: null, discount: null, needsApproval: false };
+  // Same-day surcharge: when the delivery is today and an admin has set an
+  // amount in Settings (default 0 = off).
+  const surcharge = Math.max(0, Number(s?.same_day_surcharge ?? 0));
+  const sameDay = !!d.delivery_date && d.delivery_date === todayISO() && surcharge > 0;
+  const add = sameDay ? surcharge : 0;
+  if (!hasAddr) return { zone: "unknown", city: "", list: null, discount: null, needsApproval: false, sameDay, sameDaySurcharge: add };
 
   const local = isLocalCity(city, s);
   const miles = d.route_miles;
   return {
     zone: local ? "local" : "nonlocal",
     city,
-    list: miles != null ? listFee(miles, local) : null,
-    discount: miles != null ? discountFee(miles, local) : null,
+    list: miles != null ? listFee(miles, local) + add : null,
+    discount: miles != null ? discountFee(miles, local) + add : null,
     needsApproval: !local,
+    sameDay,
+    sameDaySurcharge: add,
   };
 }

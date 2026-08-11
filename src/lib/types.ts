@@ -389,6 +389,9 @@ export interface Settings {
   /** NOT-LOCAL fee by driving miles: the first bracket whose `max_miles` ≥ the
    * order's route miles wins (`max_miles: null` = "and up"). */
   nonlocal_fee_brackets?: FeeBracket[];
+  /** Extra charge ($) added to the delivery fee when the order is for same-day
+   * delivery (delivery date = today). Default 0 = feature off. */
+  same_day_surcharge?: number | null;
 
   /** Market Map prospect CRM — status per external place id (Google/OSM).
    * A lightweight sales tracker layered over the live places. */

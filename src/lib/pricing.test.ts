@@ -78,4 +78,28 @@ describe("suggestDeliveryFee", () => {
   it("stays 'unknown' with no delivery address", () => {
     expect(suggestDeliveryFee({ delivery_address: "", route_miles: 20 }).zone).toBe("unknown");
   });
+
+  it("adds the same-day surcharge only when the delivery date is today", () => {
+    const today = new Date();
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const base = { delivery_address: "123 Main St, McAllen, TX 78501", route_miles: 13 };
+
+    const same = suggestDeliveryFee({ ...base, delivery_date: iso }, { same_day_surcharge: 50 });
+    expect(same.sameDay).toBe(true);
+    expect(same.sameDaySurcharge).toBe(50);
+    expect(same.list).toBe(180);      // 130 + 50
+    expect(same.discount).toBe(160);  // 110 + 50
+
+    const other = suggestDeliveryFee({ ...base, delivery_date: "2020-01-01" }, { same_day_surcharge: 50 });
+    expect(other.sameDay).toBe(false);
+    expect(other.list).toBe(130);
+  });
+
+  it("does not surcharge when the amount is 0 (feature off)", () => {
+    const today = new Date();
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const s = suggestDeliveryFee({ delivery_address: "1 Palm Ave, McAllen, TX", route_miles: 13, delivery_date: iso }, { same_day_surcharge: 0 });
+    expect(s.sameDay).toBe(false);
+    expect(s.list).toBe(130);
+  });
 });

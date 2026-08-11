@@ -1211,6 +1211,11 @@ export function OrderModal({
                 ⚠ {t("Not local — requires manager approval.", "No local — requiere aprobación del gerente.")}
               </div>
             )}
+            {feeSuggestion.sameDay && (
+              <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 6 }}>
+                ⚡ {t(`Same-day delivery — includes ${fmtMoney(feeSuggestion.sameDaySurcharge)} surcharge.`, `Entrega mismo día — incluye recargo de ${fmtMoney(feeSuggestion.sameDaySurcharge)}.`)}
+              </div>
+            )}
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
               <button className="btn btn-primary" onClick={() => setShowFullForm(true)} disabled={!salesFields}>{t("Next →", "Siguiente →")}</button>
@@ -1403,6 +1408,11 @@ export function OrderModal({
                 {feeSuggestion.needsApproval && (
                   <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 6 }}>
                     ⚠ {t("Not local — requires manager approval.", "No local — requiere aprobación del gerente.")}
+                  </div>
+                )}
+                {feeSuggestion.sameDay && (
+                  <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 6 }}>
+                    ⚡ {t(`Same-day delivery — includes ${fmtMoney(feeSuggestion.sameDaySurcharge)} surcharge.`, `Entrega mismo día — incluye recargo de ${fmtMoney(feeSuggestion.sameDaySurcharge)}.`)}
                   </div>
                 )}
                 {feeSuggestion.discount != null && d.delivery_fee != null && d.delivery_fee < feeSuggestion.discount && (

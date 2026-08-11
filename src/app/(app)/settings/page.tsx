@@ -516,6 +516,20 @@ function LocalZonePricing({ settings, saveSettings, notify, t }: {
         <div className="hint">{cities.length} {t("cities", "ciudades")}</div>
       </div>
 
+      <div style={{ marginTop: 14, maxWidth: 260 }}>
+        <RateInput
+          label={t("Same-day surcharge ($)", "Recargo mismo día ($)")}
+          value={Number(settings.same_day_surcharge ?? 0)}
+          onSave={(v) => { saveSettings({ same_day_surcharge: v } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
+        />
+        <div className="hint" style={{ marginTop: -4 }}>
+          {t(
+            "Added to the delivery fee when the delivery date is today. 0 = off.",
+            "Se suma a la tarifa cuando la fecha de entrega es hoy. 0 = desactivado.",
+          )}
+        </div>
+      </div>
+
       <div style={{ marginTop: 14 }}>
         <div className="section-label" style={{ marginTop: 0 }}>{t("Fee formula (by driving miles)", "Fórmula de tarifa (por millas)")}</div>
         <div className="hint" style={{ lineHeight: 1.7 }}>
