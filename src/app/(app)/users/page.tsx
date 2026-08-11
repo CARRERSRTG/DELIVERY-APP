@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
 import { CAPABILITIES, ROLE_CAPS, ROLE_INFO, ROLE_ORDER, extraCaps, roleLabel } from "@/lib/constants";
 import { avatarColor, initials } from "@/lib/utils";
 import { UsersImportModal } from "@/components/UsersImportModal";
-import type { UserRole } from "@/lib/types";
+import type { Profile, UserRole } from "@/lib/types";
 
 const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 
@@ -24,6 +24,25 @@ export default function UsersPage() {
   // Which user's permissions panel is expanded.
   const [perms, setPerms] = useState<string | null>(null);
   const [bulk, setBulk] = useState(false);
+  const [groupByStore, setGroupByStore] = useState(true);
+
+  // Team grouped by assigned store, in the settings store order, with a final
+  // bucket for users with no store (admin / logistics / office). Within a group,
+  // sorted by role then name.
+  const groups = useMemo(() => {
+    const NO_STORE = "__none__";
+    const byStore = new Map<string, Profile[]>();
+    for (const u of users) {
+      const key = u.store || NO_STORE;
+      (byStore.get(key) ?? byStore.set(key, []).get(key)!).push(u);
+    }
+    const out: { key: string; label: string; list: Profile[] }[] = [];
+    for (const s of settings.stores) if (byStore.has(s.name)) out.push({ key: s.name, label: s.name, list: byStore.get(s.name)! });
+    for (const [k, list] of byStore) if (k !== NO_STORE && !settings.stores.some((s) => s.name === k)) out.push({ key: k, label: k, list });
+    if (byStore.has(NO_STORE)) out.push({ key: NO_STORE, label: t("No store (Admin / Office / Logistics)", "Sin tienda (Admin / Oficina / Logística)"), list: byStore.get(NO_STORE)! });
+    for (const g of out) g.list.sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || (a.full_name || "").localeCompare(b.full_name || ""));
+    return out;
+  }, [users, settings.stores, t]);
 
   if (!me) return null;
   if (me.role !== "admin") return <div className="empty">{t("Admins only.", "Solo administradores.")}</div>;
@@ -36,6 +55,98 @@ export default function UsersPage() {
       if (!LOCAL_MODE && res.email && res.password) setCreated({ email: res.email, password: res.password });
       setEmail(""); setName(""); setRole("sales"); setPassword("");
     }
+  };
+
+  const renderRow = (u: Profile) => {
+    const info = ROLE_INFO[u.role];
+    const extra = extraCaps(u);
+    return (
+      <div key={u.id}>
+        <div className="user-row" style={{ marginBottom: perms === u.id ? 0 : undefined }}>
+          <span className="avatar" style={{ background: avatarColor(u.full_name || "?") }}>{initials(u.full_name || "?")}</span>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <input
+              defaultValue={u.full_name}
+              onBlur={(e) => e.target.value.trim() && e.target.value !== u.full_name && updateUserName(u.id, e.target.value.trim())}
+              style={{ fontWeight: 700, maxWidth: 240 }}
+            />
+          </div>
+          <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value as UserRole)} style={{ maxWidth: 170 }}>
+            {ROLE_ORDER.map((r) => <option key={r} value={r}>{roleLabel(r, lang)}</option>)}
+          </select>
+          {(u.role === "warehouse" || u.role === "driver" || u.role === "sales") && (
+            <select value={u.store ?? ""} onChange={(e) => updateUserStore(u.id, e.target.value || null)} style={{ maxWidth: 150 }} title={t("Assigned store", "Tienda asignada")}>
+              <option value="">{t("All stores", "Todas las tiendas")}</option>
+              {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+            </select>
+          )}
+          {/* Customer visibility on the Accounts page. Admin always sees all;
+              Manager/Logistics can be scoped to only their own customers. */}
+          {(u.role === "manager" || u.role === "logistics") && (
+            <select
+              value={settings.customer_scope?.[u.id] ?? "all"}
+              onChange={(e) => saveSettings({ customer_scope: { ...(settings.customer_scope ?? {}), [u.id]: e.target.value as "all" | "own" } })}
+              style={{ maxWidth: 160 }}
+              title={t("Customer visibility", "Visibilidad de clientes")}
+            >
+              <option value="all">{t("All customers", "Todos los clientes")}</option>
+              <option value="own">{t("Own customers only", "Solo sus clientes")}</option>
+            </select>
+          )}
+          <span className="sema" style={{ background: info.color, color: "#fff" }}>{roleLabel(u.role, lang)}</span>
+          <button
+            className={"btn btn-sm " + (extra.length ? "btn-amber" : "btn-ghost")}
+            onClick={() => setPerms(perms === u.id ? null : u.id)}
+            title={t("Grant extra permissions", "Otorgar permisos extra")}
+          >
+            🔑 {extra.length ? `+${extra.length}` : t("Permissions", "Permisos")}
+          </button>
+          {u.id !== me.id && (
+            <button className="btn btn-danger btn-sm" onClick={async () => {
+              if (await confirmAction(
+                t(`Remove ${u.full_name}? This deletes their login.`, `¿Eliminar a ${u.full_name}? Esto borra su acceso.`),
+                { danger: true, confirmLabel: t("Remove", "Eliminar") },
+              )) await deleteUser(u.id);
+            }}>{t("Remove", "Eliminar")}</button>
+          )}
+        </div>
+
+        {perms === u.id && (
+          <div className="perm-panel">
+            <div className="hint" style={{ marginBottom: 10 }}>
+              {t(
+                `Extra permissions for ${u.full_name}, on top of what the ${roleLabel(u.role, lang)} role already allows. Role-granted ones are locked on.`,
+                `Permisos extra para ${u.full_name}, además de lo que el rol ${roleLabel(u.role, lang)} ya permite. Los del rol están fijos.`,
+              )}
+            </div>
+            <div className="grid g2">
+              {CAPABILITIES.map((c) => {
+                const fromRole = ROLE_CAPS[u.role].includes(c.key);
+                const granted = fromRole || !!u.permissions?.includes(c.key);
+                return (
+                  <label key={c.key} className={"perm-opt " + (fromRole ? "locked" : "")}>
+                    <input
+                      type="checkbox"
+                      checked={granted}
+                      disabled={fromRole}
+                      onChange={(e) => {
+                        const cur = (u.permissions ?? []).filter((p) => p !== c.key);
+                        updateUserPermissions(u.id, e.target.checked ? [...cur, c.key] : cur);
+                      }}
+                    />
+                    <span>
+                      <b>{lang === "es" ? c.es : c.en}</b>
+                      {fromRole && <span className="sema" style={{ background: "var(--gray)", color: "#fff", marginLeft: 6 }}>{t("from role", "del rol")}</span>}
+                      <span className="hint" style={{ display: "block" }}>{lang === "es" ? c.desc_es : c.desc_en}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const canSubmit = LOCAL_MODE ? !!name.trim() : !!email.trim();
@@ -91,98 +202,23 @@ export default function UsersPage() {
       </div>
 
       <div className="card">
-        <h2>{t("Team", "Equipo")} ({users.length})</h2>
-        {users.map((u) => {
-          const info = ROLE_INFO[u.role];
-          const extra = extraCaps(u);
-          return (
-            <div key={u.id}>
-            <div className="user-row" style={{ marginBottom: perms === u.id ? 0 : undefined }}>
-              <span className="avatar" style={{ background: avatarColor(u.full_name || "?") }}>{initials(u.full_name || "?")}</span>
-              <div style={{ flex: 1, minWidth: 160 }}>
-                <input
-                  defaultValue={u.full_name}
-                  onBlur={(e) => e.target.value.trim() && e.target.value !== u.full_name && updateUserName(u.id, e.target.value.trim())}
-                  style={{ fontWeight: 700, maxWidth: 240 }}
-                />
-              </div>
-              <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value as UserRole)} style={{ maxWidth: 170 }}>
-                {ROLE_ORDER.map((r) => <option key={r} value={r}>{roleLabel(r, lang)}</option>)}
-              </select>
-              {(u.role === "warehouse" || u.role === "driver" || u.role === "sales") && (
-                <select value={u.store ?? ""} onChange={(e) => updateUserStore(u.id, e.target.value || null)} style={{ maxWidth: 150 }} title={t("Assigned store", "Tienda asignada")}>
-                  <option value="">{t("All stores", "Todas las tiendas")}</option>
-                  {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-                </select>
-              )}
-              {/* Customer visibility on the Accounts page. Admin always sees all;
-                  Manager/Logistics can be scoped to only their own customers. */}
-              {(u.role === "manager" || u.role === "logistics") && (
-                <select
-                  value={settings.customer_scope?.[u.id] ?? "all"}
-                  onChange={(e) => saveSettings({ customer_scope: { ...(settings.customer_scope ?? {}), [u.id]: e.target.value as "all" | "own" } })}
-                  style={{ maxWidth: 160 }}
-                  title={t("Customer visibility", "Visibilidad de clientes")}
-                >
-                  <option value="all">{t("All customers", "Todos los clientes")}</option>
-                  <option value="own">{t("Own customers only", "Solo sus clientes")}</option>
-                </select>
-              )}
-              <span className="sema" style={{ background: info.color, color: "#fff" }}>{roleLabel(u.role, lang)}</span>
-              <button
-                className={"btn btn-sm " + (extra.length ? "btn-amber" : "btn-ghost")}
-                onClick={() => setPerms(perms === u.id ? null : u.id)}
-                title={t("Grant extra permissions", "Otorgar permisos extra")}
-              >
-                🔑 {extra.length ? `+${extra.length}` : t("Permissions", "Permisos")}
-              </button>
-              {u.id !== me.id && (
-                <button className="btn btn-danger btn-sm" onClick={async () => {
-                  if (await confirmAction(
-                    t(`Remove ${u.full_name}? This deletes their login.`, `¿Eliminar a ${u.full_name}? Esto borra su acceso.`),
-                    { danger: true, confirmLabel: t("Remove", "Eliminar") },
-                  )) await deleteUser(u.id);
-                }}>{t("Remove", "Eliminar")}</button>
-              )}
-            </div>
-
-            {perms === u.id && (
-              <div className="perm-panel">
-                <div className="hint" style={{ marginBottom: 10 }}>
-                  {t(
-                    `Extra permissions for ${u.full_name}, on top of what the ${roleLabel(u.role, lang)} role already allows. Role-granted ones are locked on.`,
-                    `Permisos extra para ${u.full_name}, además de lo que el rol ${roleLabel(u.role, lang)} ya permite. Los del rol están fijos.`,
-                  )}
+        <div className="page-head" style={{ marginBottom: 10 }}>
+          <h2 style={{ margin: 0 }}>{t("Team", "Equipo")} ({users.length})</h2>
+          <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, display: "flex", alignItems: "center", gap: 6 }}>
+            <input type="checkbox" checked={groupByStore} onChange={(e) => setGroupByStore(e.target.checked)} style={{ width: "auto" }} />
+            {t("Group by store", "Agrupar por tienda")}
+          </label>
+        </div>
+        {groupByStore
+          ? groups.map((g) => (
+              <div key={g.key} style={{ marginBottom: 16 }}>
+                <div className="section-label" style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  🏬 {g.label} <span className="count-tag">{g.list.length}</span>
                 </div>
-                <div className="grid g2">
-                  {CAPABILITIES.map((c) => {
-                    const fromRole = ROLE_CAPS[u.role].includes(c.key);
-                    const granted = fromRole || !!u.permissions?.includes(c.key);
-                    return (
-                      <label key={c.key} className={"perm-opt " + (fromRole ? "locked" : "")}>
-                        <input
-                          type="checkbox"
-                          checked={granted}
-                          disabled={fromRole}
-                          onChange={(e) => {
-                            const cur = (u.permissions ?? []).filter((p) => p !== c.key);
-                            updateUserPermissions(u.id, e.target.checked ? [...cur, c.key] : cur);
-                          }}
-                        />
-                        <span>
-                          <b>{lang === "es" ? c.es : c.en}</b>
-                          {fromRole && <span className="sema" style={{ background: "var(--gray)", color: "#fff", marginLeft: 6 }}>{t("from role", "del rol")}</span>}
-                          <span className="hint" style={{ display: "block" }}>{lang === "es" ? c.desc_es : c.desc_en}</span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
+                {g.list.map(renderRow)}
               </div>
-            )}
-            </div>
-          );
-        })}
+            ))
+          : users.map(renderRow)}
       </div>
 
       {bulk && <UsersImportModal onClose={() => setBulk(false)} />}
