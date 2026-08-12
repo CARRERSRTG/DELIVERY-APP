@@ -926,14 +926,17 @@ export default function RoutesPage() {
     await applyPlan(driver, plan);
   };
 
-  // Manual nudge — only offered once every stop already has a computed
-  // sequence, so swapping two positions can't collide with an unset one.
+  // Manual nudge — hand-arrange a load's stops with the ↑/↓ arrows, whether or
+  // not the route's been optimized yet. `index` is the position in the DISPLAYED
+  // order (the flattened truckloads), so we rebuild that exact order here rather
+  // than byDriver's sequence — otherwise, with manual truckloads, the two orders
+  // differ and the arrow would move the wrong row.
   const move = async (laneKey: string, index: number, dir: -1 | 1) => {
-    const list = [...(byDriver.get(laneKey) ?? [])];
+    const stops = byDriver.get(laneKey) ?? [];
+    const list = buildTrips(stops, capacityFor(driverOf(laneKey))).flat();
     const j = index + dir;
     if (j < 0 || j >= list.length) return;
-    // Reorder the whole list and renumber it 0..n-1. Works whether or not the
-    // route was optimized yet, so the arrows let you hand-arrange any load.
+    // Reorder the whole list and renumber it 0..n-1.
     const [item] = list.splice(index, 1);
     list.splice(j, 0, item);
     // The traced path/distance were computed for the old order — a manual
@@ -1871,7 +1874,14 @@ export default function RoutesPage() {
                                   {eta ?? "—"}{late ? " ⚠️" : ""}
                                 </td>
                                 <td>{fmtWindows(d.delivery_windows)}</td>
-                                <td style={{ display: "flex", gap: 3, justifyContent: "flex-end", alignItems: "center", overflow: "visible" }}>
+                                <td
+                                  style={{ display: "flex", gap: 3, justifyContent: "flex-end", alignItems: "center", overflow: "visible" }}
+                                  // The row is draggable; without this, pressing an arrow/select
+                                  // starts a row drag instead of firing the control's click.
+                                  draggable={false}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                >
                                   {/* Hand-arrange the stops — works even before the route is optimized. */}
                                   <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} disabled={i === 0} onClick={() => move(u.key, i, -1)} title={t("Move up", "Subir")}>↑</button>
                                   <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} disabled={i === stops.length - 1} onClick={() => move(u.key, i, 1)} title={t("Move down", "Bajar")}>↓</button>
