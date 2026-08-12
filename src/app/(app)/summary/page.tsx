@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
-import { stageInfo, stageLabel } from "@/lib/constants";
+import { roleLabel, stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
 import { fmtDate, fmtMoney, isOverdue, orderLabel, orderOwner, todayISO, yesterdayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
@@ -15,23 +15,33 @@ import type { Delivery } from "@/lib/types";
 // ============================================================
 
 export default function SummaryPage() {
-  const { me, deliveries } = useData();
+  const { me, users, deliveries } = useData();
   const { lang, t } = usePrefs();
   const [open, setOpen] = useState<Delivery | null>(null);
+  // Admins can pull up any one person's numbers; everyone else only ever sees
+  // their own. Empty = me.
+  const [viewUserId, setViewUserId] = useState("");
+
+  // Whose work the page is reporting on.
+  const subject = useMemo(
+    () => (me?.role === "admin" && viewUserId ? users.find((u) => u.id === viewUserId) ?? me : me),
+    [me, users, viewUserId],
+  );
+  const isSelf = !!subject && !!me && subject.id === me.id;
 
   // A driver's work is what's assigned to them; a sales rep's is what they
   // own (theirs, plus anything an office/admin/driver assigned to them);
   // everyone else's is what they personally logged.
   const mine = useMemo(() => {
-    if (!me) return [];
+    if (!subject) return [];
     // A driver's summary is only yesterday + today.
-    if (me.role === "driver") {
+    if (subject.role === "driver") {
       const days = new Set([todayISO(), yesterdayISO()]);
-      return deliveries.filter((d) => (d.assigned_driver === me.full_name || d.created_by === me.id) && d.delivery_date != null && days.has(d.delivery_date));
+      return deliveries.filter((d) => (d.assigned_driver === subject.full_name || d.created_by === subject.id) && d.delivery_date != null && days.has(d.delivery_date));
     }
-    if (me.role === "sales") return deliveries.filter((d) => orderOwner(d) === me.id);
-    return deliveries.filter((d) => d.created_by === me.id);
-  }, [deliveries, me]);
+    if (subject.role === "sales") return deliveries.filter((d) => orderOwner(d) === subject.id);
+    return deliveries.filter((d) => d.created_by === subject.id);
+  }, [deliveries, subject]);
 
   const stats = useMemo(() => {
     const active = mine.filter((d) => !["delivered", "canceled", "rejected"].includes(d.stage));
@@ -50,17 +60,33 @@ export default function SummaryPage() {
 
   return (
     <>
-      <div className="page-head"><h2>{t("Summary", "Resumen")}</h2></div>
+      <div className="page-head">
+        <h2>{t("Summary", "Resumen")}</h2>
+        {/* Admin-only: report on any one person instead of yourself. */}
+        {me.role === "admin" && (
+          <select value={viewUserId} onChange={(e) => setViewUserId(e.target.value)} style={{ width: "auto", maxWidth: 260 }} title={t("Whose numbers to show", "De quién mostrar los números")}>
+            <option value="">👤 {t("Me", "Yo")} ({me.full_name})</option>
+            {[...users]
+              .filter((u) => u.id !== me.id)
+              .sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""))
+              .map((u) => <option key={u.id} value={u.id}>{u.full_name} — {roleLabel(u.role, lang)}</option>)}
+          </select>
+        )}
+      </div>
 
-      {/* ---------- My numbers ---------- */}
+      {/* ---------- Their numbers ---------- */}
       <div className="card">
-        <h2>📊 {me.role === "driver" ? t("My deliveries", "Mis entregas") : t("My orders", "Mis órdenes")}</h2>
+        <h2>
+          📊 {subject?.role === "driver"
+            ? (isSelf ? t("My deliveries", "Mis entregas") : t(`${subject.full_name} — deliveries`, `${subject.full_name} — entregas`))
+            : (isSelf ? t("My orders", "Mis órdenes") : t(`${subject?.full_name} — orders`, `${subject?.full_name} — órdenes`))}
+        </h2>
         <div className="kpi-grid" style={{ marginBottom: 0 }}>
           <div className="kpi"><b>{stats.total}</b><span>{t("Total", "Total")}</span></div>
           <div className="kpi"><b style={{ color: "var(--accent)" }}>{stats.active}</b><span>{t("In progress", "En curso")}</span></div>
           <div className="kpi"><b style={{ color: "var(--green)" }}>{stats.delivered}</b><span>{t("Delivered", "Entregadas")}</span></div>
           <div className="kpi"><b style={{ color: stats.overdue ? "var(--red)" : undefined }}>{stats.overdue}</b><span>{t("Overdue", "Atrasadas")}</span></div>
-          {me.role !== "driver" && (
+          {subject?.role !== "driver" && (
             <div className="kpi"><b style={{ color: "var(--green)", fontSize: 17 }}>{fmtMoney(stats.fees)}</b><span>{t("Fees charged", "Cobros")}</span></div>
           )}
         </div>

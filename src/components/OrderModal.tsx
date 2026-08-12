@@ -223,15 +223,10 @@ export function OrderModal({
   }, [deliveries, existing?.id]);
 
   // Local-zone pricing suggestion for the edit form (fee by miles).
+  // Only ever a SUGGESTION: the fee stays blank until the rep picks List or
+  // Discount (or types an amount). It used to auto-fill with List once the
+  // miles resolved, which quietly committed a price nobody had agreed to.
   const feeSuggestion = suggestDeliveryFee(d, settings);
-  // On a new order, once the miles are known the List fee is selected by
-  // default (the rep can toggle it off or switch to Discount).
-  useEffect(() => {
-    if (isNew && d.route_miles != null && d.delivery_fee == null && feeSuggestion.list != null) {
-      set("delivery_fee", feeSuggestion.list);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d.route_miles]);
 
   // A brand-new order defaults to Order Type "Customer" and the store the
   // salesperson is assigned to in Settings (runs once, after settings load).
