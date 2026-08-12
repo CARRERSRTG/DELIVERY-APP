@@ -220,9 +220,11 @@ export default function RoutesPage() {
       return next;
     });
 
-  // Viewing today also carries forward anything overdue that never went out —
-  // logistics needs to see it to actually dispatch it, not just what's newly
-  // due today. Browsing another date (planning ahead) shows only that date.
+  // Viewing today also carries forward anything overdue that never went out AND
+  // anything not yet dated — an order that has no delivery date can't belong to
+  // any specific day, so it would otherwise be invisible until someone dated it.
+  // Logistics needs to see both to actually dispatch/plan them, not just what's
+  // newly due today. Browsing another date (planning ahead) shows only that date.
   const viewingToday = date === todayISO();
   const dayOrders = useMemo(
     () =>
@@ -230,7 +232,7 @@ export default function RoutesPage() {
         if (!ROUTE_STAGES.includes(d.stage)) return false;
         if (allDates) return true;               // ignore the date filter entirely
         if (d.delivery_date === date) return true;
-        return viewingToday && isOverdue(d);
+        return viewingToday && (isOverdue(d) || !d.delivery_date);
       }),
     [deliveries, date, viewingToday, allDates],
   );
