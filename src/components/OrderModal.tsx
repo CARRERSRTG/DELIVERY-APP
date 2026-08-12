@@ -884,6 +884,37 @@ export function OrderModal({
     );
   }
 
+  // The workflow buttons for the order being viewed. Built once here because
+  // they render in two different places: the modal footer for office roles, and
+  // inside the driver's delivery card (under the notes) for drivers.
+  const stageActions = existing ? (
+    <StageActions me={me} stage={stage} busy={busy}
+      onEdit={() => setEditing(true)}
+      onMove={move}
+      showReject={showReject}
+      setShowReject={setShowReject}
+      rejectReason={rejectReason}
+      showCancel={showCancel}
+      setShowCancel={setShowCancel}
+      cancelReason={cancelReason}
+      onPrint={() => printDeliverySlip(existing, settings, users, lang)}
+      onRequestDeliver={() => setShowPod(true)}
+      podOpen={showPod}
+      readyConfirmOpen={showReadyConfirm}
+      onRequestReady={() => { setReadyPallets(String(existing.actual_pallets ?? existing.est_pallets ?? "")); setShowReadyConfirm(true); }}
+      onConfirmReady={confirmReady}
+      onCancelReady={() => setShowReadyConfirm(false)}
+      pickupConfirmOpen={showPickupConfirm}
+      onRequestPickup={() => { setPickupPallets(String(existing.actual_pallets ?? existing.est_pallets ?? "")); setShowPickupConfirm(true); }}
+      onConfirmPickup={confirmPickup}
+      onCancelPickup={() => setShowPickupConfirm(false)}
+      departedAt={departedAt}
+      onDepart={depart}
+      arrivedAt={arrivedAt}
+      onArrive={arrive}
+    />
+  ) : null;
+
   return (
     <>
     {/* Viewing an existing order: clicking the backdrop closes it. While EDITING
@@ -912,7 +943,7 @@ export function OrderModal({
         {!editing && existing && (
           <>
             {me.role === "driver" ? (
-              <DriverDeliveryScreen order={existing} settings={settings} notify={notify} t={t} />
+              <DriverDeliveryScreen order={existing} settings={settings} notify={notify} t={t} actions={stageActions} />
             ) : showAllDetails ? (
               // Full detail table (opened from the preview).
               <>
@@ -1850,32 +1881,12 @@ export function OrderModal({
                 <button className="btn btn-primary" onClick={save} disabled={busy}>{t("Save changes", "Guardar cambios")}</button>
               )}
             </>
+          ) : existing && me.role === "driver" ? (
+            // The driver's run buttons live up in their delivery card (right
+            // under the notes), so all that's left down here is the way out.
+            <button className="btn btn-ghost" onClick={requestClose}>{t("Close", "Cerrar")}</button>
           ) : existing ? (
-            <StageActions me={me} stage={stage} busy={busy}
-              onEdit={() => setEditing(true)}
-              onMove={move}
-              showReject={showReject}
-              setShowReject={setShowReject}
-              rejectReason={rejectReason}
-              showCancel={showCancel}
-              setShowCancel={setShowCancel}
-              cancelReason={cancelReason}
-              onPrint={() => printDeliverySlip(existing!, settings, users, lang)}
-              onRequestDeliver={() => setShowPod(true)}
-              podOpen={showPod}
-              readyConfirmOpen={showReadyConfirm}
-              onRequestReady={() => { setReadyPallets(String(existing!.actual_pallets ?? existing!.est_pallets ?? "")); setShowReadyConfirm(true); }}
-              onConfirmReady={confirmReady}
-              onCancelReady={() => setShowReadyConfirm(false)}
-              pickupConfirmOpen={showPickupConfirm}
-              onRequestPickup={() => { setPickupPallets(String(existing!.actual_pallets ?? existing!.est_pallets ?? "")); setShowPickupConfirm(true); }}
-              onConfirmPickup={confirmPickup}
-              onCancelPickup={() => setShowPickupConfirm(false)}
-              departedAt={departedAt}
-              onDepart={depart}
-              arrivedAt={arrivedAt}
-              onArrive={arrive}
-            />
+            stageActions
           ) : null}
         </div>
         )}
@@ -2110,7 +2121,7 @@ function StageActions({
     if (!pickupConfirmOpen) {
       // Drive-to-pickup: stamp "on my way" so the drive counts as active time.
       if (!departedAt) {
-        btns.push(<button key="depart" className="btn btn-ghost" onClick={onDepart} disabled={busy}>🚗 {t("Start drive to pickup", "Iniciar viaje a recoger")}</button>);
+        btns.push(<button key="depart" className="btn btn-ghost" onClick={onDepart} disabled={busy} title={t("Start the drive to the pickup point", "Iniciar el viaje al punto de recolección")}>🚗 {t("Start drive", "Iniciar viaje")}</button>);
       } else {
         btns.push(
           <span key="enroute" className="hint" style={{ alignSelf: "center" }}>
@@ -2118,7 +2129,7 @@ function StageActions({
           </span>,
         );
       }
-      btns.push(<button key="pickup" className="btn btn-primary" onClick={onRequestPickup} disabled={busy}>🚚 {t("Pick up — out for delivery", "Recoger — en reparto")}</button>);
+      btns.push(<button key="pickup" className="btn btn-primary" onClick={onRequestPickup} disabled={busy} title={t("Confirm the load and go out for delivery", "Confirmar la carga y salir en reparto")}>🚚 {t("Pick up", "Recoger")}</button>);
     } else {
       btns.push(<button key="pickupback" className="btn btn-ghost" onClick={onCancelPickup} disabled={busy}>{t("Back", "Atrás")}</button>);
       btns.push(<button key="dopickup" className="btn btn-primary" onClick={onConfirmPickup} disabled={busy}>🚚 {t("Confirm load & go", "Confirmar carga y salir")}</button>);
@@ -2245,12 +2256,15 @@ function CallClientButton({
 // contact with one-tap Call / Text / Navigate. "Call client" opens the phone's
 // native dialer via a tel: link so the driver rings the customer instantly.
 function DriverDeliveryScreen({
-  order, settings, notify, t,
+  order, settings, notify, t, actions,
 }: {
   order: Delivery;
   settings: Settings;
   notify: (m: string) => void;
   t: (en: string, es: string) => string;
+  /** The run buttons (start drive / pick up / deliver). Shown right under the
+   * notes so they're reachable without scrolling to the modal footer. */
+  actions?: React.ReactNode;
 }) {
   const phone = telClean(order.delivery_phone);
   const hasPhone = phone.replace(/\D/g, "").length >= 7;
@@ -2340,6 +2354,10 @@ function DriverDeliveryScreen({
         </div>
       )}
 
+      {/* The run buttons live here, right after the notes — the driver's next
+          action is the first thing in reach, not buried at the bottom. */}
+      {actions && <div className="drv-run">{actions}</div>}
+
       {order.pickup_lat != null && order.pickup_lng != null && (
         <div className="drv-block">
           <div className="drv-k">📍 {t("Picked up at", "Recogido en")}</div>
@@ -2368,6 +2386,15 @@ function DriverDeliveryScreen({
             <button className="btn btn-ghost drv-call" onClick={() => window.open(waze, "_blank", "noopener")}>Waze</button>
           </>
         )}
+        {/* Live tracking link for the customer — same public /track page the
+            office shares, so the driver can hand it over on the spot. */}
+        <button className="btn btn-ghost drv-call" onClick={() => {
+          const url = `${location.origin}/track/${order.id}`;
+          navigator.clipboard?.writeText(url).then(
+            () => notify(t("Tracking link copied", "Enlace de seguimiento copiado")),
+            () => window.prompt(t("Copy this tracking link:", "Copie este enlace de seguimiento:"), url),
+          );
+        }}>🔗 {t("Copy tracking link", "Copiar enlace")}</button>
       </div>
     </div>
   );

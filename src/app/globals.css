@@ -324,6 +324,11 @@ table.orders th { text-align: left; }
 .drv-notes { font-size: 14px; line-height: 1.4; }
 .drv-row2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 .drv-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+/* The driver's run buttons (start drive / pick up / deliver), shown inline in
+   the delivery card instead of the modal footer. Buttons stretch so they stay
+   thumb-sized on a phone. */
+.drv-run { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 4px; }
+.drv-run > button { flex: 1 1 46%; min-height: 46px; font-weight: 700; }
 .drv-call { justify-content: center; font-size: 16px; padding: 15px 12px; border-radius: 12px; text-decoration: none; }
 @media (max-width: 480px) { .drv-row2 { grid-template-columns: 1fr; } }
 
