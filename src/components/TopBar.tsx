@@ -127,8 +127,15 @@ export function TopBar({ me: propMe }: { me: Profile }) {
                         key={tb.id}
                         href={tb.href}
                         role="menuitem"
-                        className={"col-opt" + (isActive(tb.href) ? " on" : "")}
-                        style={{ textDecoration: "none", color: "inherit", fontWeight: isActive(tb.href) ? 700 : undefined }}
+                        // No `color: inherit` here — it would pick up the dark
+                        // topbar's white text and vanish against the menu's
+                        // light card. .col-opt already sets the readable color.
+                        className="col-opt"
+                        style={{
+                          textDecoration: "none",
+                          fontWeight: isActive(tb.href) ? 700 : undefined,
+                          background: isActive(tb.href) ? "var(--accent-soft)" : undefined,
+                        }}
                         onClick={() => setGeneralOpen(false)}
                       >
                         {tabLabel(tb)}

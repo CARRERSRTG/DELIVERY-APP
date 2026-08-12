@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.9.81";
+export const APP_VERSION = "0.9.82";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -97,7 +97,7 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   // Warehouse/Driver — it doesn't get the general Orders board or dashboard.
   { id: "routes",    label: "🧭 Routes Manager", label_es: "🧭 Gestor de Rutas", href: "/routes", roles: ["logistics", "admin"], cap: "route_plan" },
   { id: "data",      label: "🗂 Data",      label_es: "🗂 Datos",      href: "/data", roles: ["admin"], cap: "settings", group: "general" },
-  { id: "audit",     label: "🧾 Audit",     label_es: "🧾 Auditoría",  href: "/audit", roles: ["admin", "manager"] },
+  { id: "audit",     label: "🧾 Audit",     label_es: "🧾 Auditoría",  href: "/audit", roles: ["admin", "manager"], group: "general" },
   // Settings is reached from the account view (click your name → Open settings)
   // rather than a nav tab.
   { id: "users",     label: "🛡 Users",     label_es: "🛡 Usuarios",   href: "/users", roles: ["admin"], cap: "users", group: "general" },
