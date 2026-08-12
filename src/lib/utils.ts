@@ -20,7 +20,16 @@ export function localISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export const todayISO = () => localISO(new Date());
+// The business runs in South Texas (US Central). "Today" is computed in that
+// fixed timezone so the SAME calendar day is used on the server (UTC) and in
+// the browser — otherwise the server-rendered HTML and the client's first
+// render disagree in the evening (UTC has already rolled to tomorrow), which
+// is exactly what triggers React hydration errors. It's also what the RGV
+// operation means by "today", regardless of a device's own clock/timezone.
+export const BUSINESS_TZ = "America/Chicago";
+const isoInTZ = (d: Date) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: BUSINESS_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+export const todayISO = () => isoInTZ(new Date());
 
 /** Human-facing order id incl. the split-load letter: "FA100", "FA100a".
  * Uses the order_code; falls back to the internal number for legacy rows. */
@@ -95,10 +104,12 @@ export function endOfMonthISO(d: Date = new Date()): string {
   return localISO(new Date(d.getFullYear(), d.getMonth() + 1, 0));
 }
 
-/** Current local time as "HH:MM", for comparing against a configured cutoff. */
+/** Current business-timezone time as "HH:MM", for comparing against a
+ * configured cutoff. Uses the fixed business timezone (not the runtime clock)
+ * so it's identical on server and client and can't desync SSR from hydration. */
 export const nowHHMM = () => {
   const n = new Date();
-  return `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
+  return new Intl.DateTimeFormat("en-GB", { timeZone: BUSINESS_TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(n);
 };
 
 /** The sales rep this order belongs to, for anything that scopes by "whose
@@ -209,8 +220,11 @@ export function avatarColor(name: string): string {
 export function isOverdue(d: Delivery): boolean {
   if (!d.delivery_date) return false;
   if (d.stage === "delivered" || d.stage === "canceled") return false;
-  const due = new Date(d.delivery_date.length === 10 ? d.delivery_date + "T23:59:59" : d.delivery_date);
-  return due.getTime() < Date.now();
+  // Overdue once its calendar day has fully passed. Compared as YYYY-MM-DD
+  // strings against the business-timezone "today" so the result is identical on
+  // the server (UTC) and in the browser — a Date.now() comparison flips across
+  // timezones and would desync SSR from hydration.
+  return d.delivery_date.slice(0, 10) < todayISO();
 }
 
 /** How far the warehouse's actual pallet count landed from the sales estimate.
@@ -287,13 +301,9 @@ export function fmtDuration(ms: number | null): string {
 
 export function isToday(iso: string | null): boolean {
   if (!iso) return false;
-  const d = new Date(iso.length === 10 ? iso + "T12:00:00" : iso);
-  const n = new Date();
-  return (
-    d.getFullYear() === n.getFullYear() &&
-    d.getMonth() === n.getMonth() &&
-    d.getDate() === n.getDate()
-  );
+  // Calendar-date comparison in the business timezone, so server and client
+  // agree (see isOverdue / todayISO).
+  return iso.slice(0, 10) === todayISO();
 }
 
 /** Build a CSV string from rows of records (values are stringified + quoted). */
