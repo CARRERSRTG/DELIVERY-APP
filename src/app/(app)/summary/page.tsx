@@ -5,8 +5,12 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { roleLabel, stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
-import { fmtDate, fmtMoney, isOverdue, orderLabel, orderOwner, todayISO, yesterdayISO } from "@/lib/utils";
+import { driverKpis, driverQualityKpis } from "@/lib/analytics";
+import { fmtDate, fmtMoney, isOverdue, orderLabel, orderOwner, shiftDateISO, todayISO, yesterdayISO } from "@/lib/utils";
 import type { Delivery } from "@/lib/types";
+
+// Matches the Routes Manager / Dashboard default when a driver has no capacity set.
+const DEFAULT_CAPACITY = 12;
 
 // ============================================================
 // "Summary" — every signed-in user gets this, whatever their role.
@@ -15,7 +19,7 @@ import type { Delivery } from "@/lib/types";
 // ============================================================
 
 export default function SummaryPage() {
-  const { me, users, deliveries } = useData();
+  const { me, users, deliveries, settings } = useData();
   const { lang, t } = usePrefs();
   const [open, setOpen] = useState<Delivery | null>(null);
   // Admins can pull up any one person's numbers; everyone else only ever sees
@@ -56,6 +60,26 @@ export default function SummaryPage() {
 
   const recent = useMemo(() => [...mine].sort((a, b) => b.order_no - a.order_no).slice(0, 8), [mine]);
 
+  // ---- Driver performance ----
+  // The card above is deliberately just yesterday+today (what's on the truck
+  // now). Performance needs a longer look-back to mean anything, so it runs
+  // over its own window across every run assigned to this driver.
+  const [days, setDays] = useState(30);
+  const perf = useMemo(() => {
+    if (subject?.role !== "driver") return null;
+    const from = shiftDateISO(todayISO(), -days);
+    const runs = deliveries.filter(
+      (d) => d.assigned_driver === subject.full_name && d.delivery_date != null && d.delivery_date >= from && d.delivery_date <= todayISO(),
+    );
+    if (!runs.length) return { empty: true as const };
+    const capacityOf = (n: string) => settings.driver_capacity?.[n] ?? settings.default_truck_capacity ?? DEFAULT_CAPACITY;
+    const k = driverKpis(runs, capacityOf, {
+      fuelPrice: settings.fuel_price, mpg: settings.fleet_mpg, base: settings.cost_per_delivery,
+    })[0];
+    const q = driverQualityKpis(runs)[0];
+    return k ? { empty: false as const, k, q } : { empty: true as const };
+  }, [subject, deliveries, days, settings]);
+
   if (!me) return null;
 
   return (
@@ -91,6 +115,61 @@ export default function SummaryPage() {
           )}
         </div>
       </div>
+
+      {/* ---------- Driver performance ---------- */}
+      {perf && (
+        <div className="card">
+          <div className="page-head" style={{ marginBottom: 10 }}>
+            <h2 style={{ margin: 0 }}>🚚 {isSelf ? t("My performance", "Mi desempeño") : t("Performance", "Desempeño")}</h2>
+            <div className="viewtoggle">
+              {[7, 30, 90].map((n) => (
+                <button key={n} className={"vt " + (days === n ? "on" : "")} onClick={() => setDays(n)}>
+                  {n} {t("days", "días")}
+                </button>
+              ))}
+            </div>
+          </div>
+          {perf.empty ? (
+            <div className="empty">{t("No runs in this period.", "Sin viajes en este periodo.")}</div>
+          ) : (
+            <>
+              <div className="kpi-grid" style={{ marginBottom: 0 }}>
+                <div className="kpi"><b style={{ color: "var(--green)" }}>{perf.k.delivered}</b><span>{t("Delivered", "Entregadas")}</span></div>
+                <div className="kpi">
+                  <b style={{ color: perf.k.onTimePct == null ? undefined : perf.k.onTimePct >= 90 ? "var(--green)" : perf.k.onTimePct >= 75 ? "var(--amber)" : "var(--red)" }}>
+                    {perf.k.onTimePct == null ? "—" : `${Math.round(perf.k.onTimePct)}%`}
+                  </b>
+                  <span>{t("On time", "A tiempo")}</span>
+                </div>
+                <div className="kpi"><b>{perf.k.routes}</b><span>{t("Days worked", "Días trabajados")}</span></div>
+                <div className="kpi"><b>{perf.k.avgStops.toFixed(1)}</b><span>{t("Stops per day", "Paradas por día")}</span></div>
+                <div className="kpi"><b>{Math.round(perf.k.miles)}</b><span>{t("Miles driven", "Millas recorridas")}</span></div>
+                <div className="kpi"><b>{Math.round(perf.k.pallets)}</b><span>{t("Pallets moved", "Pallets movidos")}</span></div>
+                <div className="kpi">
+                  <b style={{ color: "var(--amber)" }}>{perf.k.avgCsat == null ? "—" : `★ ${perf.k.avgCsat.toFixed(1)}`}</b>
+                  <span>{t("Client rating", "Calificación")}{perf.k.csatCount > 0 ? ` (${perf.k.csatCount})` : ""}</span>
+                </div>
+                <div className="kpi">
+                  <b>{perf.k.utilizationPct == null ? "—" : `${Math.round(perf.k.utilizationPct)}%`}</b>
+                  <span>{t("Truck used", "Uso del camión")}</span>
+                </div>
+              </div>
+              {perf.q && (
+                <div className="hint" style={{ marginTop: 10, lineHeight: 1.7 }}>
+                  {perf.q.avgTransitMin != null && <>⏱ {t("Avg transit", "Tránsito prom.")}: <b>{Math.round(perf.q.avgTransitMin)} min</b> · </>}
+                  {perf.q.avgDwellMin != null && <>{t("Avg time at stop", "Tiempo prom. en parada")}: <b>{Math.round(perf.q.avgDwellMin)} min</b> · </>}
+                  {perf.q.podCompliancePct != null && <>{t("Proof of delivery", "Prueba de entrega")}: <b>{Math.round(perf.q.podCompliancePct)}%</b></>}
+                  {perf.q.redeliveries > 0 && <> · <span style={{ color: "var(--red)" }}>{t("Re-deliveries", "Reentregas")}: <b>{perf.q.redeliveries}</b></span></>}
+                </div>
+              )}
+              <div className="hint" style={{ marginTop: 6 }}>
+                {t("“On time” counts deliveries completed within the promised delivery window.",
+                   "“A tiempo” cuenta las entregas completadas dentro de la ventana prometida.")}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ---------- Recent work ---------- */}
       <div className="card">
