@@ -275,18 +275,32 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
 
   useEffect(() => {
     reloadAll();
+    // Coalesce realtime refetches. A single action often writes many rows at
+    // once (e.g. reordering a driver's stops writes route_seq on every stop),
+    // and each row change echoes its own postgres_changes event. Firing a full
+    // reloadAll per event caused a storm of overlapping 8-table fetches — and an
+    // EARLY-triggered fetch could read a half-committed snapshot yet resolve
+    // LAST, clobbering the correct state (a stop would visibly move, then snap
+    // back). Debouncing means exactly one reload runs after the burst settles,
+    // reading fully-committed data.
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleReload = () => {
+      if (reloadTimer) clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => { reloadTimer = null; reloadAll(); }, 250);
+    };
     const channel = supabase
       .channel("deliveries-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "deliveries" }, reloadAll)
-      .on("postgres_changes", { event: "*", schema: "public", table: "order_events" }, reloadAll)
-      .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, reloadAll)
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, reloadAll)
-      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, reloadAll)
-      .on("postgres_changes", { event: "*", schema: "public", table: "driver_availability" }, reloadAll)
-      .on("postgres_changes", { event: "*", schema: "public", table: "driver_shifts" }, reloadAll)
-      .on("postgres_changes", { event: "*", schema: "public", table: "driver_incidents" }, reloadAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "deliveries" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_events" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "driver_availability" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "driver_shifts" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "driver_incidents" }, scheduleReload)
       .subscribe();
     return () => {
+      if (reloadTimer) clearTimeout(reloadTimer);
       supabase.removeChannel(channel);
     };
   }, [supabase, reloadAll]);

@@ -942,7 +942,13 @@ export default function RoutesPage() {
     // The traced path/distance were computed for the old order — a manual
     // nudge no longer matches them, so drop them rather than mislead.
     clearRouteFor(laneKey);
-    await Promise.all(list.map((d, i) => updateDelivery(d.id, { route_seq: i })));
+    // Written sequentially, and only for the stops whose position actually
+    // changed. Firing all of them concurrently made their realtime echoes
+    // interleave with the refetch, which could restore a stale order and make
+    // the stop snap back to where it was.
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].route_seq !== i) await updateDelivery(list[i].id, { route_seq: i });
+    }
   };
 
   const focused = selected.size > 0;
