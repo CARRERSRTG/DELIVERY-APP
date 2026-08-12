@@ -17,7 +17,7 @@ const UNASSIGNED_COLOR = "#6b7686";
 const DEFAULT_CAPACITY = 12;
 
 export default function MapPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, pushNotifs, ready } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, pushNotifs, ready, driverLocations } = useData();
   const { lang, t } = usePrefs();
   const [date, setDate] = useState(todayISO());
   const [open, setOpen] = useState<Delivery | null>(null);
@@ -79,6 +79,31 @@ export default function MapPage() {
     if (!driver) return UNASSIGNED_COLOR;
     return settings.driver_colors?.[driver] || fallbackDriverColor(driver);
   };
+
+  // Drivers currently reporting from the road. Only office roles get these —
+  // a salesperson has no business tracking staff.
+  const liveDrivers = useMemo(() => {
+    if (!canAssign) return [];
+    const nameById = new Map(users.map((u) => [u.id, u.full_name]));
+    return driverLocations.flatMap((loc) => {
+      const name = nameById.get(loc.driver_id);
+      if (!name) return [];
+      const ageMin = (Date.now() - new Date(loc.recorded_at).getTime()) / 60000;
+      // Older than an hour isn't "live" any more; drop it rather than imply
+      // the truck is still sitting there.
+      if (ageMin > 60) return [];
+      return [{
+        driver: name,
+        lat: loc.lat,
+        lng: loc.lng,
+        color: colorFor(name),
+        accuracy_m: loc.accuracy_m,
+        ageMin,
+        label: `🚚 ${name} · ${ageMin < 1 ? t("now", "ahora") : t(`${Math.round(ageMin)} min ago`, `hace ${Math.round(ageMin)} min`)}`,
+      }];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driverLocations, users, canAssign, settings.driver_colors]);
 
   // Best-effort pickup coordinates for an order: its own captured point, else
   // geocode the pickup address (or the sold-from store's address).
@@ -351,7 +376,7 @@ export default function MapPage() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <LeafletMap points={points} lines={lines} stores={storeMarkers} fitTo={fitTo} onPointClick={(id) => {
+        <LeafletMap points={points} lines={lines} stores={storeMarkers} liveDrivers={liveDrivers} fitTo={fitTo} onPointClick={(id) => {
           if (id === "__pickup") return;
           const d = dayOrders.find((x) => x.id === id);
           if (!d) return;

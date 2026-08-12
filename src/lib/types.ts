@@ -209,6 +209,22 @@ export interface DriverShift {
   created_at: string;
 }
 
+/** One GPS fix from a driver's phone, sent only while they're on shift.
+ * `accuracy_m` is the radius the device claims the point is good to — a coarse
+ * fix is shown differently rather than trusted like a precise one. */
+export interface DriverLocation {
+  id: string;
+  driver_id: string;
+  lat: number;
+  lng: number;
+  accuracy_m: number | null;
+  speed_mps: number | null;
+  heading: number | null;
+  battery_pct: number | null;
+  recorded_at: string;
+  created_at: string;
+}
+
 /** A logistics-manager record of something a driver did that cost the company
  * money (wasted trips, damage, bad attitude leading to inefficiency, etc.).
  * `cost` is the estimated $ impact; `delivery_id` optionally links the order it

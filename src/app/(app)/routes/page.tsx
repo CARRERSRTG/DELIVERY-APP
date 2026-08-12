@@ -140,7 +140,7 @@ interface RoutePlan {
 }
 
 export default function RoutesPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, reorderStops, addNote, notify, availability, ready, incidents, addIncident, removeIncident } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, reorderStops, addNote, notify, availability, ready, incidents, addIncident, removeIncident, driverLocations } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
   const [date, setDate] = useState(todayISO());
@@ -249,6 +249,26 @@ export default function RoutesPage() {
   const geocoding = useAutoGeocode(dayOrders, updateDelivery);
   // Every store as a big red landmark point, always shown on the route map.
   const storeMarkers = useStoreMarkers(settings.stores);
+
+  // Where each driver's phone last reported from, so the dispatcher can see
+  // the fleet against the routes they planned.
+  const liveDrivers = useMemo(() => {
+    const nameById = new Map(users.map((u) => [u.id, u.full_name]));
+    return driverLocations.flatMap((loc) => {
+      const name = nameById.get(loc.driver_id);
+      if (!name) return [];
+      const ageMin = (Date.now() - new Date(loc.recorded_at).getTime()) / 60000;
+      if (ageMin > 60) return [];   // not live any more
+      return [{
+        driver: name, lat: loc.lat, lng: loc.lng,
+        color: settings.driver_colors?.[name] || fallbackDriverColor(name),
+        accuracy_m: loc.accuracy_m,
+        ageMin,
+        label: `🚚 ${name} · ${ageMin < 1 ? t("now", "ahora") : t(`${Math.round(ageMin)} min ago`, `hace ${Math.round(ageMin)} min`)}`,
+      }];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driverLocations, users, settings.driver_colors]);
 
   const drivers = useMemo(() => users.filter((u) => u.role === "driver"), [users]);
   const realDriverNames = useMemo(() => new Set(drivers.map((d) => d.full_name)), [drivers]);
@@ -1387,7 +1407,7 @@ export default function RoutesPage() {
           )}
         </div>
         <div className="card" style={{ flex: "3 1 460px", margin: 0, padding: 0, overflow: "hidden" }}>
-          <LeafletMap points={points} lines={lines} stores={storeMarkers} onLineClick={onLineClick} fitTo={fitTo} height={430} onPointClick={(id) => {
+          <LeafletMap points={points} lines={lines} stores={storeMarkers} liveDrivers={liveDrivers} onLineClick={onLineClick} fitTo={fitTo} height={430} onPointClick={(id) => {
             // Click any order pin (assigned or pool) to toggle its PU→DEL view.
             const d = dayOrders.find((x) => x.id === id);
             if (d) toggleOrder(d.id);

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ctx, type DataState } from "@/lib/data-provider";
-import type { Delivery, DriverAvailability, DriverIncident, DriverShift, OrderEvent, Profile, Settings, Stage } from "@/lib/types";
+import type { Delivery, DriverAvailability, DriverIncident, DriverLocation, DriverShift, OrderEvent, Profile, Settings, Stage } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner, todayISO } from "@/lib/utils";
@@ -174,6 +174,26 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     return true;
   }, [persist]);
 
+  // Local demo mode: positions live only in this browser session, so the
+  // driver view can be exercised without a backend.
+  const [driverLocations, setDriverLocations] = useState<DriverLocation[]>([]);
+  const pushLocation = useCallback<DataState["pushLocation"]>(async (fix) => {
+    const row: DriverLocation = {
+      id: `local-${Date.now()}`,
+      driver_id: me.id,
+      lat: fix.lat,
+      lng: fix.lng,
+      accuracy_m: fix.accuracy_m ?? null,
+      speed_mps: fix.speed_mps ?? null,
+      heading: fix.heading ?? null,
+      battery_pct: fix.battery_pct ?? null,
+      recorded_at: fix.recorded_at ?? new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    setDriverLocations((prev) => [row, ...prev.filter((p) => p.driver_id !== me.id)]);
+    return true;
+  }, [me.id]);
+
   const deleteDelivery = useCallback<DataState["deleteDelivery"]>(async (id) => {
     const s = storeRef.current;
     persist({ ...s, deliveries: s.deliveries.filter((c) => c.id !== id) });
@@ -317,7 +337,8 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     availability: store.availability ?? [], addAvailability, removeAvailability,
     shifts: store.shifts ?? [], clockIn, clockOut,
     incidents: store.incidents ?? [], addIncident, removeIncident,
-  }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, pushNotifs, addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser, addAvailability, removeAvailability, clockIn, clockOut, addIncident, removeIncident]);
+    driverLocations, pushLocation,
+  }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, pushNotifs, addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser, addAvailability, removeAvailability, clockIn, clockOut, addIncident, removeIncident, driverLocations, pushLocation]);
 
   return (
     <Ctx.Provider value={value}>

@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Delivery, DriverAvailability, DriverIncident, DriverShift, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
+import type { Delivery, DriverAvailability, DriverIncident, DriverLocation, DriverShift, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner, changedFieldsNote } from "@/lib/utils";
@@ -110,6 +110,17 @@ export interface DataState {
   updateUserPermissions: (userId: string, permissions: string[]) => Promise<void>;
   deleteUser: (userId: string) => Promise<boolean>;
 
+  // live driver GPS
+  /** Each driver's most recent position (one entry per driver). */
+  driverLocations: DriverLocation[];
+  /** Report this device's position. Silent on failure — the next fix is
+   * seconds away and a driver doesn't need an error for a dropped ping. */
+  pushLocation: (fix: {
+    lat: number; lng: number;
+    accuracy_m?: number | null; speed_mps?: number | null; heading?: number | null;
+    battery_pct?: number | null; recorded_at?: string;
+  }) => Promise<boolean>;
+
   // driver availability (vacation / sick / vehicle maintenance)
   availability: DriverAvailability[];
   addAvailability: (seed: Omit<DriverAvailability, "id" | "created_at" | "created_by">) => Promise<void>;
@@ -184,6 +195,8 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // flight. Realtime echoes arriving mid-write would otherwise refetch a
   // half-committed snapshot and visibly undo the change.
   const writingRef = useRef(false);
+  // Each driver's CURRENT position (one row per driver), for the live map.
+  const [driverLocations, setDriverLocations] = useState<DriverLocation[]>([]);
   // ---- Teaching-mode sandbox ----
   // Teaching mode is a purely LOCAL overlay on top of the real, live data:
   // creations, edits and deletions are recorded here and NEVER written to the
@@ -247,7 +260,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   }, [teaching, deliveries, overlay]);
 
   const reloadAll = useCallback(async () => {
-    const [s, p, d, e, n, av, sh, inc] = await Promise.all([
+    const [s, p, d, e, n, av, sh, inc, loc] = await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("profiles").select("id, full_name, role, store, avatar_url").order("full_name"),
       // Teaching mode never loads from the DB — the live (non-training) rows are
@@ -260,6 +273,12 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       supabase.from("driver_availability").select("*").order("start_date", { ascending: false }),
       supabase.from("driver_shifts").select("*").order("started_at", { ascending: false }),
       supabase.from("driver_incidents").select("*").order("incident_date", { ascending: false }),
+      // Only the recent tail: the live map needs each driver's CURRENT spot,
+      // not the whole history, and a shift's worth of fixes is a lot of rows.
+      supabase.from("driver_locations").select("*")
+        .gte("recorded_at", new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString())
+        .order("recorded_at", { ascending: false })
+        .limit(2000),
     ]);
     if (s.data) setSettings(s.data as Settings);
     if (p.data) setUsers(p.data as Profile[]);
@@ -269,6 +288,13 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (av.data) setAvailability(av.data as DriverAvailability[]);
     if (sh.data) setShifts(sh.data as DriverShift[]);
     if (inc.data) setIncidents(inc.data as DriverIncident[]);
+    // Rows arrive newest-first, so the first one seen per driver is their
+    // current position — everything older is trail we don't hold in memory.
+    if (loc.data) {
+      const latest = new Map<string, DriverLocation>();
+      for (const row of loc.data as DriverLocation[]) if (!latest.has(row.driver_id)) latest.set(row.driver_id, row);
+      setDriverLocations([...latest.values()]);
+    }
     setReady(true);
   }, [supabase, me]);
 
@@ -316,6 +342,20 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       .on("postgres_changes", { event: "*", schema: "public", table: "driver_availability" }, scheduleReload)
       .on("postgres_changes", { event: "*", schema: "public", table: "driver_shifts" }, scheduleReload)
       .on("postgres_changes", { event: "*", schema: "public", table: "driver_incidents" }, scheduleReload)
+      // GPS fixes arrive constantly, so they are applied straight to the one
+      // driver's dot. Routing them through reloadAll would refetch every table
+      // in the app several times a minute per driver on the road.
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_locations" }, (payload) => {
+        const row = payload.new as DriverLocation;
+        if (!row?.driver_id) return;
+        setDriverLocations((prev) => {
+          const current = prev.find((p) => p.driver_id === row.driver_id);
+          // Fixes can arrive out of order (a phone flushing a queue after a
+          // dead zone); never let an older one overwrite a newer one.
+          if (current && current.recorded_at > row.recorded_at) return prev;
+          return [row, ...prev.filter((p) => p.driver_id !== row.driver_id)];
+        });
+      })
       .subscribe();
     return () => {
       if (reloadTimer) clearTimeout(reloadTimer);
@@ -495,6 +535,35 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       }
     },
     [supabase, notify, teaching, deliveries],
+  );
+
+  // Report this device's position. Called on a timer while the driver is on
+  // shift (and by the Android app's background service). Deliberately quiet:
+  // a dropped fix is not worth a toast on the driver's screen, and the next
+  // one is seconds away.
+  const pushLocation = useCallback<DataState["pushLocation"]>(
+    async (fix) => {
+      if (!me || teaching) return false;
+      const row = {
+        driver_id: me.id,
+        lat: fix.lat,
+        lng: fix.lng,
+        accuracy_m: fix.accuracy_m ?? null,
+        speed_mps: fix.speed_mps ?? null,
+        heading: fix.heading ?? null,
+        battery_pct: fix.battery_pct ?? null,
+        recorded_at: fix.recorded_at ?? new Date().toISOString(),
+      };
+      const { error } = await supabase.from("driver_locations").insert(row);
+      if (error) return false;
+      // Reflect our own dot immediately rather than waiting for the echo.
+      setDriverLocations((prev) => [
+        { ...row, id: `local-${Date.now()}`, created_at: row.recorded_at } as DriverLocation,
+        ...prev.filter((p) => p.driver_id !== me.id),
+      ]);
+      return true;
+    },
+    [supabase, me, teaching],
   );
 
   const deleteDelivery = useCallback<DataState["deleteDelivery"]>(
@@ -741,6 +810,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     availability, addAvailability, removeAvailability,
     shifts, clockIn, clockOut,
     incidents, addIncident, removeIncident,
+    driverLocations, pushLocation,
   };
 
   return (

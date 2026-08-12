@@ -55,6 +55,21 @@ export interface StoreMarker {
   lng: number;
 }
 
+/** A driver's live position, drawn as a moving truck marker on top of
+ * everything else with a halo showing how precise the fix is. */
+export interface LiveDriver {
+  driver: string;
+  lat: number;
+  lng: number;
+  color: string;
+  /** Reported accuracy in metres — drawn as a circle so a vague fix reads as
+   * vague instead of looking pin-sharp. */
+  accuracy_m?: number | null;
+  /** Minutes since the fix; a stale position is faded. */
+  ageMin?: number;
+  label?: string;
+}
+
 /** A traced route — e.g. one driver's optimized stop-to-stop path. */
 export interface MapLine {
   id: string;
@@ -74,6 +89,7 @@ export function LeafletMap({
   points = [],
   lines = [],
   stores = [],
+  liveDrivers = [],
   onPointClick,
   onLineClick,
   fitTo,
@@ -89,6 +105,8 @@ export function LeafletMap({
   lines?: MapLine[];
   /** Store/branch locations — always drawn as big red points on top. */
   stores?: StoreMarker[];
+  /** Drivers currently on shift, drawn where their phone last reported. */
+  liveDrivers?: LiveDriver[];
   onPointClick?: (id: string) => void;
   /** Click a traced route — used to focus that route's driver. */
   onLineClick?: (id: string) => void;
@@ -107,6 +125,8 @@ export function LeafletMap({
   const mapRef = useRef<LeafletMapInstance | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const storeMarkersRef = useRef<Marker[]>([]);
+  // Truck markers + accuracy halos, cleared and redrawn as fixes arrive.
+  const liveLayerRef = useRef<{ remove: () => void }[]>([]);
   const linesRef = useRef<Polyline[]>([]);
   // Polylines that need their sideways offset recomputed whenever the map is
   // zoomed/reset (the offset is in pixels, the stored path is in lat/lng).
@@ -302,6 +322,44 @@ export function LeafletMap({
     })();
     return () => { cancelled = true; };
   }, [stores]);
+
+  // Live driver positions: a truck marker plus an accuracy halo, always on top
+  // of the order pins. A fix that's gone stale is faded rather than removed —
+  // "last seen here 20 min ago" is still useful, but shouldn't look current.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancelled || !mapRef.current) return;
+      liveLayerRef.current.forEach((m) => m.remove());
+      liveLayerRef.current = [];
+      for (const d of liveDrivers) {
+        if (d.lat == null || d.lng == null) continue;
+        const stale = (d.ageMin ?? 0) > 10;
+        const opacity = stale ? 0.45 : 1;
+        if (d.accuracy_m && d.accuracy_m > 25) {
+          const halo = L.circle([d.lat, d.lng], {
+            radius: d.accuracy_m, color: d.color, weight: 1,
+            fillColor: d.color, fillOpacity: stale ? 0.05 : 0.12, opacity: stale ? 0.25 : 0.5,
+          }).addTo(mapRef.current!);
+          liveLayerRef.current.push(halo);
+        }
+        const icon = L.divIcon({
+          className: "",
+          html:
+            `<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;` +
+            `border-radius:50%;background:${d.color};border:3px solid #fff;` +
+            `box-shadow:0 2px 8px rgba(0,0,0,.5);font-size:16px;opacity:${opacity}">🚚</div>`,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17],
+        });
+        const marker = L.marker([d.lat, d.lng], { icon, zIndexOffset: 1500 }).addTo(mapRef.current!);
+        marker.bindTooltip(d.label ?? d.driver, { direction: "top" });
+        liveLayerRef.current.push(marker);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [liveDrivers]);
 
   // Keep the single "picked" marker in sync (manual pin picker mode).
   useEffect(() => {
