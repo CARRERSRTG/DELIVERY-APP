@@ -1,5 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { decodePolyline, departureTimeFor } from "./google-routes";
+import { decodePolyline, departureTimeFor, resolveOptimizedOrder } from "./google-routes";
+
+describe("resolveOptimizedOrder", () => {
+  it("keeps a real permutation from Google", () => {
+    expect(resolveOptimizedOrder([2, 0, 1], 3)).toEqual([2, 0, 1]);
+  });
+
+  it("falls back to the sent order when Google answers [-1]", () => {
+    // Google returns [-1] when there is a single intermediate — nothing to
+    // solve. Indexing with -1 used to crash the whole optimize call.
+    expect(resolveOptimizedOrder([-1], 1)).toEqual([0]);
+  });
+
+  it("ignores a truncated, out-of-range or duplicated answer", () => {
+    expect(resolveOptimizedOrder([0], 3)).toEqual([0, 1, 2]);        // wrong length
+    expect(resolveOptimizedOrder([0, 5], 2)).toEqual([0, 1]);        // out of range
+    expect(resolveOptimizedOrder([1, 1], 2)).toEqual([0, 1]);        // duplicate
+    expect(resolveOptimizedOrder(undefined, 2)).toEqual([0, 1]);     // field absent
+    expect(resolveOptimizedOrder("nope", 2)).toEqual([0, 1]);        // wrong type
+  });
+
+  it("handles a route with no intermediates", () => {
+    expect(resolveOptimizedOrder(undefined, 0)).toEqual([]);
+  });
+});
 
 describe("decodePolyline", () => {
   it("decodes Google's reference example to [lng, lat] pairs", () => {

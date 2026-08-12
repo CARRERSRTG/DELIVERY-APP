@@ -101,6 +101,27 @@ interface ComputeArgs {
   apiKey: string;
 }
 
+/**
+ * Turn Google's `optimizedIntermediateWaypointIndex` into a usable visiting
+ * order for `count` intermediate stops.
+ *
+ * Google doesn't always hand back a real permutation: with a single
+ * intermediate there is nothing to solve and it answers `[-1]`. Anything that
+ * isn't a complete, in-range permutation is ignored in favour of the order the
+ * stops were sent in — the caller already sorted those by delivery window, so
+ * it's a sane answer rather than a crash.
+ */
+export function resolveOptimizedOrder(raw: unknown, count: number): number[] {
+  const natural = Array.from({ length: count }, (_, i) => i);
+  if (!Array.isArray(raw) || raw.length !== count) return natural;
+  const seen = new Set<number>();
+  for (const v of raw) {
+    if (!Number.isInteger(v) || v < 0 || v >= count || seen.has(v)) return natural;
+    seen.add(v);
+  }
+  return raw as number[];
+}
+
 /** Great-circle distance, only used to pick a sensible end for an open route. */
 function roughDistance(a: RoutePoint, b: RoutePoint): number {
   const dLat = a.lat - b.lat, dLng = (a.lng - b.lng) * Math.cos((a.lat * Math.PI) / 180);
@@ -190,7 +211,7 @@ export async function computeRoute({
   // Rebuild the visiting order. optimizedIntermediateWaypointIndex[k] is the
   // position (in the ORIGINAL intermediates array) of the k-th stop actually
   // visited — so it maps the solved order back onto our stop ids.
-  const optimized: number[] = route.optimizedIntermediateWaypointIndex ?? middle.map((_, i) => i);
+  const optimized = resolveOptimizedOrder(route.optimizedIntermediateWaypointIndex, middle.length);
   const order = [start.id, ...optimized.map((i) => middle[i].id)];
   if (!roundtrip) order.push(end.id);
 
