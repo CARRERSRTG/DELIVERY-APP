@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { TABS, ROLE_INFO, ROLE_ORDER, extraCaps, roleHome, roleLabel } from "@/lib/constants";
@@ -19,6 +20,9 @@ export function TopBar({ me: propMe }: { me: Profile }) {
   // `me` is the EFFECTIVE user — its role follows the admin "view as" preview.
   const me = ctxMe ?? propMe;
   const role = ROLE_INFO[me.role];
+  const [generalOpen, setGeneralOpen] = useState(false);
+  // Navigating away closes the menu (covers back/forward too).
+  useEffect(() => { setGeneralOpen(false); }, [pathname]);
 
   // Dispatch nudge (#29): how many orders due today/tomorrow still have no
   // driver — shown as a badge on the Map tab for the roles that assign drivers.
@@ -35,6 +39,33 @@ export function TopBar({ me: propMe }: { me: Profile }) {
       !["delivered", "canceled", "rejected"].includes(d.stage),
     ).length;
   })();
+
+  // Visible by role, or unlocked by a capability an admin granted this
+  // INDIVIDUAL beyond what their role already gives them — NOT just because
+  // their role happens to carry that capability (e.g. warehouse has the
+  // "deliver" capability so fulfillment actions work, but that alone shouldn't
+  // surface the Driver tab).
+  const visibleTabs = TABS.filter(
+    (tb) => !tb.roles || tb.roles.includes(me.role) || (tb.cap ? extraCaps(me).includes(tb.cap) : false),
+  );
+  const mainTabs = visibleTabs.filter((tb) => tb.group !== "general");
+  const generalTabs = visibleTabs.filter((tb) => tb.group === "general");
+
+  // Match the exact route or a sub-route — never a prefix of another tab
+  // (e.g. "/accounts" must not light up the "/account" tab).
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
+
+  // Warehouse and Driver each work entirely inside their own screen, so for
+  // those roles that screen simply IS their orders and is labelled as such.
+  // An admin (who sees every tab) keeps the role names, otherwise they'd get
+  // three tabs all called "Orders".
+  const tabLabel = (tb: (typeof TABS)[number]) => {
+    if ((tb.id === "warehouse" && me.role === "warehouse") || (tb.id === "driver" && me.role === "driver")) {
+      return t("📋 Orders", "📋 Órdenes");
+    }
+    return lang === "es" ? tb.label_es : tb.label;
+  };
 
   return (
     <>
@@ -55,33 +86,59 @@ export function TopBar({ me: propMe }: { me: Profile }) {
       <h1>{settings.app_name || "RDZ·DELIVERIES"}</h1>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div className="tabs">
-          {TABS.filter((tb) =>
-            // Visible by role, or unlocked by a capability an admin granted
-            // this INDIVIDUAL beyond what their role already gives them —
-            // NOT just because their role happens to carry that capability
-            // (e.g. warehouse has the "deliver" capability so fulfillment
-            // actions work, but that alone shouldn't surface the Driver tab).
-            !tb.roles || tb.roles.includes(me.role) || (tb.cap ? extraCaps(me).includes(tb.cap) : false),
-          ).map((tb) => {
-            // Match the exact route or a sub-route — never a prefix of another
-            // tab (e.g. "/accounts" must not light up the "/account" tab).
-            const active = tb.href === "/"
-              ? pathname === "/"
-              : pathname === tb.href || pathname.startsWith(tb.href + "/");
-            return (
-              <Link key={tb.id} href={tb.href} className={"tab " + (active ? "active" : "")} style={{ position: "relative" }}>
-                {lang === "es" ? tb.label_es : tb.label}
-                {tb.id === "map" && unassignedDue > 0 && (
-                  <span
-                    title={t(`${unassignedDue} order(s) due today/tomorrow with no driver`, `${unassignedDue} orden(es) para hoy/mañana sin chofer`)}
-                    style={{ marginLeft: 6, background: "var(--amber, #e9a13b)", color: "#fff", borderRadius: 999, padding: "0 6px", fontSize: 11, fontWeight: 800, lineHeight: "16px", display: "inline-block", minWidth: 16, textAlign: "center" }}
-                  >
-                    {unassignedDue}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+          {mainTabs.map((tb) => (
+            <Link key={tb.id} href={tb.href} className={"tab " + (isActive(tb.href) ? "active" : "")} style={{ position: "relative" }}>
+              {tabLabel(tb)}
+              {tb.id === "map" && unassignedDue > 0 && (
+                <span
+                  title={t(`${unassignedDue} order(s) due today/tomorrow with no driver`, `${unassignedDue} orden(es) para hoy/mañana sin chofer`)}
+                  style={{ marginLeft: 6, background: "var(--amber, #e9a13b)", color: "#fff", borderRadius: 999, padding: "0 6px", fontSize: 11, fontWeight: 800, lineHeight: "16px", display: "inline-block", minWidth: 16, textAlign: "center" }}
+                >
+                  {unassignedDue}
+                </span>
+              )}
+            </Link>
+          ))}
+          {/* The back-office screens live behind one "General" menu so the bar
+              stays about the day's work. With only one of them visible there's
+              nothing to group, so it just renders as its own tab. */}
+          {generalTabs.length === 1 && (
+            <Link href={generalTabs[0].href} className={"tab " + (isActive(generalTabs[0].href) ? "active" : "")}>
+              {tabLabel(generalTabs[0])}
+            </Link>
+          )}
+          {generalTabs.length > 1 && (
+            <div style={{ position: "relative" }}>
+              <button
+                className={"tab " + (generalTabs.some((g) => isActive(g.href)) ? "active" : "")}
+                onClick={() => setGeneralOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={generalOpen}
+              >
+                ☰ {t("General", "General")} <span aria-hidden>▾</span>
+              </button>
+              {generalOpen && (
+                <>
+                  {/* Click anywhere else to dismiss. */}
+                  <div style={{ position: "fixed", inset: 0, zIndex: 70 }} onClick={() => setGeneralOpen(false)} />
+                  <div className="col-menu" style={{ zIndex: 71, right: 0, left: "auto", minWidth: 190 }} role="menu">
+                    {generalTabs.map((tb) => (
+                      <Link
+                        key={tb.id}
+                        href={tb.href}
+                        role="menuitem"
+                        className={"col-opt" + (isActive(tb.href) ? " on" : "")}
+                        style={{ textDecoration: "none", color: "inherit", fontWeight: isActive(tb.href) ? 700 : undefined }}
+                        onClick={() => setGeneralOpen(false)}
+                      >
+                        {tabLabel(tb)}
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
         <NotificationBell />
         {/* Your name + avatar is the entry to the account view (replaces the

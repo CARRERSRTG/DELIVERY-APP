@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.9.80";
+export const APP_VERSION = "0.9.81";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -78,29 +78,32 @@ export function stageLabel(key: string, lang: Lang): string {
 // ---- Navigation tabs ------------------------------------------------------
 // `roles` = who sees the tab by default. `cap` = the capability that also
 // unlocks it, so an admin can grant one person access without changing role.
-export const TABS: { id: string; label: string; label_es: string; href: string; roles?: UserRole[]; cap?: Capability }[] = [
+// `group: "general"` folds the tab into the "General" dropdown instead of
+// giving it its own slot — these are the reference/back-office screens, kept
+// out of the way of the day-to-day work tabs.
+export const TABS: { id: string; label: string; label_es: string; href: string; roles?: UserRole[]; cap?: Capability; group?: "general" }[] = [
   // Warehouse works entirely inside its own queue — it doesn't get the
   // general Orders board, dashboard, accounts, or the driver view.
   // Driver doesn't get the Orders board either — they work entirely from
   // their own Driver view, which has its own "+ New order" button.
   { id: "board",     label: "📋 Orders",    label_es: "📋 Órdenes",   href: "/", roles: ["admin", "manager", "sales", "logistics", "accounting"] },
   { id: "dashboard", label: "📊 Dashboard", label_es: "📊 Panel",     href: "/dashboard", roles: ["manager", "admin"], cap: "dashboard" },
-  { id: "accounts",  label: "🏢 Accounts",  label_es: "🏢 Cuentas",    href: "/accounts", roles: ["admin", "manager"] },
+  { id: "accounts",  label: "🏢 Accounts",  label_es: "🏢 Cuentas",    href: "/accounts", roles: ["admin", "manager"], group: "general" },
   { id: "map",       label: "🗺 Map",       label_es: "🗺 Mapa",       href: "/map", roles: ["admin", "manager", "sales", "logistics"] },
-  { id: "market",    label: "🏪 Market",    label_es: "🏪 Mercado",    href: "/market", roles: ["admin"] },
+  { id: "market",    label: "🏪 Market",    label_es: "🏪 Mercado",    href: "/market", roles: ["admin"], group: "general" },
   { id: "warehouse", label: "🏭 Warehouse", label_es: "🏭 Almacén",    href: "/warehouse", roles: ["warehouse", "admin"], cap: "fulfill" },
   { id: "driver",    label: "🚚 Driver",    label_es: "🚚 Chofer",     href: "/driver", roles: ["driver", "admin"], cap: "deliver" },
   // Logistics works entirely inside its own route-planning queue, same as
   // Warehouse/Driver — it doesn't get the general Orders board or dashboard.
   { id: "routes",    label: "🧭 Routes Manager", label_es: "🧭 Gestor de Rutas", href: "/routes", roles: ["logistics", "admin"], cap: "route_plan" },
-  { id: "data",      label: "🗂 Data",      label_es: "🗂 Datos",      href: "/data", roles: ["admin"], cap: "settings" },
+  { id: "data",      label: "🗂 Data",      label_es: "🗂 Datos",      href: "/data", roles: ["admin"], cap: "settings", group: "general" },
   { id: "audit",     label: "🧾 Audit",     label_es: "🧾 Auditoría",  href: "/audit", roles: ["admin", "manager"] },
   // Settings is reached from the account view (click your name → Open settings)
   // rather than a nav tab.
-  { id: "users",     label: "🛡 Users",     label_es: "🛡 Usuarios",   href: "/users", roles: ["admin"], cap: "users" },
+  { id: "users",     label: "🛡 Users",     label_es: "🛡 Usuarios",   href: "/users", roles: ["admin"], cap: "users", group: "general" },
   // Personal work summary — not shown to sales/manager (redundant with their
   // Orders default view) or warehouse (outside its restricted nav).
-  { id: "summary",   label: "📈 Summary",   label_es: "📈 Resumen",    href: "/summary", roles: ["admin", "driver"] },
+  { id: "summary",   label: "📈 Summary",   label_es: "📈 Resumen",    href: "/summary", roles: ["admin", "driver"], group: "general" },
   // Account is reached by clicking your own name/avatar in the top bar (see
   // TopBar) rather than a nav tab.
 ];
