@@ -40,8 +40,12 @@ import type { Delivery, DriverIncident, Profile } from "@/lib/types";
 const UNASSIGNED_COLOR = "#6b7686";
 // Distinct colors for multiple selected unassigned loads (route + pin).
 const SEL_PALETTE = ["#2456c9", "#0f8a8a", "#d1782e", "#7c4dbc", "#1f9d61", "#d64545", "#e9a13b"];
-// Orders that need dispatching: approved but not yet picked up.
-const ROUTE_STAGES: Delivery["stage"][] = ["approved", "fulfilling", "ready"];
+// Orders that can be scheduled/assigned here. Logistics can plan ANY order that
+// isn't already out the door (picked_up/delivered) or off the board
+// (rejected/canceled) — so an order still in draft/pending, not yet approved or
+// prepared, can be dropped onto a route ahead of time. The warehouse still has
+// to get it ready before it actually ships; this just lets dispatch pre-plan it.
+const ROUTE_STAGES: Delivery["stage"][] = ["draft", "pending", "approved", "fulfilling", "ready"];
 // Used whenever a driver has no capacity set yet in Settings.
 const DEFAULT_CAPACITY = 12;
 
@@ -1185,20 +1189,17 @@ export default function RoutesPage() {
 
       {/* ---------- Why-is-it-empty helper ---------- */}
       {dayOrders.length === 0 && (() => {
-        const preApprovalAll = deliveries.filter((d) => ["draft", "pending"].includes(d.stage)).length;
         const otherDates = deliveries.filter((d) => ROUTE_STAGES.includes(d.stage) && d.delivery_date !== date).length;
         return (
           <div className="card" style={{ marginBottom: 14, background: "#fff7ec", borderColor: "var(--amber)" }}>
-            <b style={{ color: "#b9791a" }}>⚠ {allDates ? t("No routable orders at all.", "No hay órdenes para rutas.") : t("No routable orders for this date.", "No hay órdenes para rutas en esta fecha.")}</b>
+            <b style={{ color: "#b9791a" }}>⚠ {allDates ? t("No schedulable orders at all.", "No hay órdenes para programar.") : t("No schedulable orders for this date.", "No hay órdenes para programar en esta fecha.")}</b>
             <div className="hint" style={{ marginTop: 4 }}>
               {allDates
-                ? t("Orders appear here only once they're Approved (Programmed).", "Las órdenes aparecen aquí solo cuando están Aprobadas (Programadas).")
-                : t(`Orders appear here only once they're Approved (Programmed) and their delivery date is ${fmtDate(date)}.`,
-                    `Las órdenes aparecen aquí solo cuando están Aprobadas (Programadas) y su fecha de entrega es ${fmtDate(date)}.`)}
-              {preApprovalAll > 0 && " " + t(`${preApprovalAll} order(s) are still awaiting approval — approve them first.`,
-                                             `${preApprovalAll} orden(es) aún esperan aprobación — apruébelas primero.`)}
-              {!allDates && otherDates > 0 && " " + t(`${otherDates} approved order(s) sit on other dates — tap "All dates" or use the ◀ ▶ arrows.`,
-                                                      `${otherDates} orden(es) aprobadas están en otras fechas — toque "Todas" o use las flechas ◀ ▶.`)}
+                ? t("Any order that isn't delivered or canceled can be scheduled here — even before it's approved or prepared.", "Cualquier orden que no esté entregada o cancelada se puede programar aquí — incluso antes de aprobarse o prepararse.")
+                : t(`Any order with delivery date ${fmtDate(date)} shows here (except delivered/canceled ones) — you can plan it even before it's approved.`,
+                    `Cualquier orden con fecha de entrega ${fmtDate(date)} aparece aquí (menos entregadas/canceladas) — puedes planearla incluso antes de aprobarse.`)}
+              {!allDates && otherDates > 0 && " " + t(`${otherDates} schedulable order(s) sit on other dates — tap "All dates" or use the ◀ ▶ arrows.`,
+                                                      `${otherDates} orden(es) programables están en otras fechas — toque "Todas" o use las flechas ◀ ▶.`)}
             </div>
           </div>
         );
