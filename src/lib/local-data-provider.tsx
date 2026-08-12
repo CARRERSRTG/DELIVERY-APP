@@ -154,6 +154,19 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     return true;
   }, [persist]);
 
+  // Renumber a route's stops (see the real provider) — one local write, so the
+  // whole new sequence lands at once.
+  const reorderStops = useCallback<DataState["reorderStops"]>(async (orderedIds) => {
+    const s = storeRef.current;
+    const seqById = new Map(orderedIds.map((id, i) => [id, i]));
+    persist({
+      ...s,
+      deliveries: s.deliveries.map((c) =>
+        seqById.has(c.id) ? { ...c, route_seq: seqById.get(c.id)!, updated_at: new Date().toISOString() } : c),
+    });
+    return true;
+  }, [persist]);
+
   const deleteDelivery = useCallback<DataState["deleteDelivery"]>(async (id) => {
     const s = storeRef.current;
     persist({ ...s, deliveries: s.deliveries.filter((c) => c.id !== id) });
@@ -292,12 +305,12 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     ready, me, realRole: me.role, viewAs: null, setViewAs: () => {}, teaching: false, setTeaching: () => {}, clearTrainingData: async () => {}, settings: store.settings, users: store.users, deliveries: store.deliveries, events: store.events,
     notifications: store.notifications.filter((n) => n.user_id === me.id),
     toast, notify, markNotifRead, markAllNotifsRead, pushNotifs,
-    addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
+    addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
     availability: store.availability ?? [], addAvailability, removeAvailability,
     shifts: store.shifts ?? [], clockIn, clockOut,
     incidents: store.incidents ?? [], addIncident, removeIncident,
-  }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, pushNotifs, addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser, addAvailability, removeAvailability, clockIn, clockOut, addIncident, removeIncident]);
+  }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, pushNotifs, addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser, addAvailability, removeAvailability, clockIn, clockOut, addIncident, removeIncident]);
 
   return (
     <Ctx.Provider value={value}>

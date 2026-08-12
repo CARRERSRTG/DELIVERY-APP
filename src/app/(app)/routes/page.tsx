@@ -140,7 +140,7 @@ interface RoutePlan {
 }
 
 export default function RoutesPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, addNote, notify, availability, ready, incidents, addIncident, removeIncident } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, reorderStops, addNote, notify, availability, ready, incidents, addIncident, removeIncident } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
   const [date, setDate] = useState(todayISO());
@@ -186,8 +186,8 @@ export default function RoutesPage() {
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   // Drag-and-drop in the Routes tab: which order is being dragged, and which
   // lane card is currently under the cursor (for the drop highlight).
-  const [dragOrderId, setDragOrderId] = useState<string | null>(null);
-  const [dragOverLane, setDragOverLane] = useState<string | null>(null);
+  // (Row drag-and-drop was removed from the Routes tab — stops are reordered
+  // with the ↑/↓ arrows, and orders are assigned from the "Assign to…" picker.)
   const [orderSearch, setOrderSearch] = useState("");
   const [poolFilter, setPoolFilter] = useState<"all" | "overdue" | "noloc" | "windowed">("all");
   // Cached pickup→dropoff geometry for selected unassigned loads (drawn on the map).
@@ -942,13 +942,10 @@ export default function RoutesPage() {
     // The traced path/distance were computed for the old order — a manual
     // nudge no longer matches them, so drop them rather than mislead.
     clearRouteFor(laneKey);
-    // Written sequentially, and only for the stops whose position actually
-    // changed. Firing all of them concurrently made their realtime echoes
-    // interleave with the refetch, which could restore a stale order and make
-    // the stop snap back to where it was.
-    for (let i = 0; i < list.length; i++) {
-      if (list[i].route_seq !== i) await updateDelivery(list[i].id, { route_seq: i });
-    }
+    // One guarded operation for the whole new sequence: the list updates
+    // locally right away and is held there until every write lands, so a
+    // realtime refetch can't snap the stop back to where it was.
+    await reorderStops(list.map((d) => d.id));
   };
 
   const focused = selected.size > 0;
@@ -1678,20 +1675,7 @@ export default function RoutesPage() {
           return etaMin != null && win != null && etaMin > win[1];
         });
         return (
-          <div
-            className="card"
-            key={u.id}
-            style={{ margin: 0, outline: dragOverLane === u.key ? "2px dashed var(--accent)" : undefined, outlineOffset: 2 }}
-            onDragOver={(e) => { if (dragOrderId) { e.preventDefault(); if (dragOverLane !== u.key) setDragOverLane(u.key); } }}
-            onDragLeave={(e) => { if (e.currentTarget === e.target && dragOverLane === u.key) setDragOverLane(null); }}
-            onDrop={(e) => {
-              e.preventDefault();
-              const id = e.dataTransfer.getData("text/plain") || dragOrderId;
-              setDragOverLane(null); setDragOrderId(null);
-              const dd = id ? dayOrders.find((x) => x.id === id) : null;
-              if (dd && orderLaneKey(dd) !== u.key) assignToLane(id!, u.key);
-            }}
-          >
+          <div className="card" key={u.id} style={{ margin: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
               <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} onClick={() => toggleCollapse(u.key)} title={t("Collapse", "Contraer")}>{isC ? "▸" : "▾"}</button>
               <span
@@ -1865,13 +1849,10 @@ export default function RoutesPage() {
                             const win = parseWindow(d.delivery_windows);
                             const etaMin = eta ? parseInt(eta.slice(0, 2), 10) * 60 + parseInt(eta.slice(3, 5), 10) : null;
                             const late = etaMin != null && win != null && etaMin > win[1];
+                            // Stops are reordered with the ↑/↓ arrows only —
+                            // row dragging was removed on request.
                             return (
-                              <tr key={d.id}
-                                draggable
-                                onDragStart={(e) => { e.dataTransfer.setData("text/plain", d.id); e.dataTransfer.effectAllowed = "move"; setDragOrderId(d.id); }}
-                                onDragEnd={() => { setDragOrderId(null); setDragOverLane(null); }}
-                                style={{ cursor: "grab" }}
-                              >
+                              <tr key={d.id}>
                                 <td style={{ borderLeft: `4px solid ${tColor}` }}>{d.route_seq != null ? i + 1 : "—"}</td>
                                 <td className="ordno">#{orderLabel(d)}</td>
                                 <td title={d.account || undefined}>{d.account || "—"}</td>
@@ -1880,14 +1861,7 @@ export default function RoutesPage() {
                                   {eta ?? "—"}{late ? " ⚠️" : ""}
                                 </td>
                                 <td>{fmtWindows(d.delivery_windows)}</td>
-                                <td
-                                  style={{ display: "flex", gap: 3, justifyContent: "flex-end", alignItems: "center", overflow: "visible" }}
-                                  // The row is draggable; without this, pressing an arrow/select
-                                  // starts a row drag instead of firing the control's click.
-                                  draggable={false}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                  onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                >
+                                <td style={{ display: "flex", gap: 3, justifyContent: "flex-end", alignItems: "center", overflow: "visible" }}>
                                   {/* Hand-arrange the stops — works even before the route is optimized. */}
                                   <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} disabled={i === 0} onClick={() => move(u.key, i, -1)} title={t("Move up", "Subir")}>↑</button>
                                   <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} disabled={i === stops.length - 1} onClick={() => move(u.key, i, 1)} title={t("Move down", "Bajar")}>↓</button>

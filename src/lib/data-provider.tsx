@@ -80,6 +80,11 @@ export interface DataState {
   // delivery CRUD
   addDelivery: (d: Partial<Delivery>) => Promise<Delivery | null>;
   updateDelivery: (id: string, patch: Partial<Delivery>) => Promise<boolean>;
+  /** Renumber a route's stops: `orderedIds` in their new visiting order gets
+   * route_seq 0..n-1. Applied to local state FIRST and held there until every
+   * write lands, so a realtime refetch can't interleave and snap stops back to
+   * the old order. Returns false (and restores the previous order) on failure. */
+  reorderStops: (orderedIds: string[]) => Promise<boolean>;
   deleteDelivery: (id: string) => Promise<void>;
   /** Move an order to a new workflow stage and log the event. `extra` merges
    * additional column updates into the SAME write (e.g. proof-of-delivery),
@@ -172,6 +177,10 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [users, setUsers] = useState<Profile[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  // Set while a multi-row write (e.g. renumbering a route's stops) is in
+  // flight. Realtime echoes arriving mid-write would otherwise refetch a
+  // half-committed snapshot and visibly undo the change.
+  const writingRef = useRef(false);
   // ---- Teaching-mode sandbox ----
   // Teaching mode is a purely LOCAL overlay on top of the real, live data:
   // creations, edits and deletions are recorded here and NEVER written to the
@@ -286,7 +295,13 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     let reloadTimer: ReturnType<typeof setTimeout> | null = null;
     const scheduleReload = () => {
       if (reloadTimer) clearTimeout(reloadTimer);
-      reloadTimer = setTimeout(() => { reloadTimer = null; reloadAll(); }, 250);
+      reloadTimer = setTimeout(() => {
+        reloadTimer = null;
+        // A multi-row write is still going — refetching now would read a
+        // half-written sequence. Try again once it's finished.
+        if (writingRef.current) { scheduleReload(); return; }
+        reloadAll();
+      }, 250);
     };
     const channel = supabase
       .channel("deliveries-realtime")
@@ -432,6 +447,45 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       return true;
     },
     [supabase, notify, logEvent, teaching, deliveries],
+  );
+
+  // Renumber a route's stops in one shot. The local order is applied FIRST and
+  // a write-guard blocks realtime refetches until every row has landed, so the
+  // reorder can't be undone mid-flight by a refetch reading a partially
+  // committed sequence. On any failure the previous order is restored, so the
+  // list never silently disagrees with the database.
+  const reorderStops = useCallback<DataState["reorderStops"]>(
+    async (orderedIds) => {
+      if (!orderedIds.length) return true;
+      const seqById = new Map(orderedIds.map((id, i) => [id, i]));
+      if (teaching) {
+        setOverlay((o) => ({
+          ...o,
+          created: o.created.map((c) => (seqById.has(c.id) ? { ...c, route_seq: seqById.get(c.id)! } : c)),
+          updated: orderedIds.reduce((acc, id, i) => ({ ...acc, [id]: { ...acc[id], route_seq: i } }), { ...o.updated }),
+        }));
+        return true;
+      }
+      const prev = deliveries;
+      setDeliveries((cur) => cur.map((d) => (seqById.has(d.id) ? { ...d, route_seq: seqById.get(d.id)! } : d)));
+      writingRef.current = true;
+      try {
+        for (const [id, seq] of seqById) {
+          // Skip rows already at the right position — fewer writes, fewer echoes.
+          if (prev.find((d) => d.id === id)?.route_seq === seq) continue;
+          const { error } = await supabase.from("deliveries").update({ route_seq: seq }).eq("id", id);
+          if (error) {
+            setDeliveries(prev);          // put the old order back
+            notify("Error: " + error.message);
+            return false;
+          }
+        }
+        return true;
+      } finally {
+        writingRef.current = false;
+      }
+    },
+    [supabase, notify, teaching, deliveries],
   );
 
   const deleteDelivery = useCallback<DataState["deleteDelivery"]>(
@@ -673,7 +727,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const value: DataState = {
     ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, clearTrainingData, settings, users, deliveries: effectiveDeliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
-    addDelivery, updateDelivery, deleteDelivery, setStage, eventsFor, addNote,
+    addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
     availability, addAvailability, removeAvailability,
     shifts, clockIn, clockOut,
