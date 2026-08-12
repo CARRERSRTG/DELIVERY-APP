@@ -8,6 +8,7 @@ import { OrderModal } from "@/components/OrderModal";
 import { LeafletMap, type MapPoint, type MapLine } from "@/components/LeafletMap";
 import { cityFromAddress, deliveryRisk, fallbackDriverColor, fmtDate, fmtWindows, orderLabel, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
+import { useStoreMarkers } from "@/lib/useStoreMarkers";
 import { assignmentWarnings, autoAssign, recommendDriver, type AssignWarning } from "@/lib/dispatch";
 import type { Delivery } from "@/lib/types";
 
@@ -71,6 +72,8 @@ export default function MapPage() {
   // Geocode (and cache) any order on this date that has an address but no
   // point yet.
   const geocoding = useAutoGeocode(dayOrders, updateDelivery);
+  // Every store as a big red landmark point, always shown on the map.
+  const storeMarkers = useStoreMarkers(settings.stores);
 
   const colorFor = (driver: string | null) => {
     if (!driver) return UNASSIGNED_COLOR;
@@ -348,7 +351,7 @@ export default function MapPage() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <LeafletMap points={points} lines={lines} fitTo={fitTo} onPointClick={(id) => {
+        <LeafletMap points={points} lines={lines} stores={storeMarkers} fitTo={fitTo} onPointClick={(id) => {
           if (id === "__pickup") return;
           const d = dayOrders.find((x) => x.id === id);
           if (!d) return;

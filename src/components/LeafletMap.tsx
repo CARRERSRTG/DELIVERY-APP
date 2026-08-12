@@ -47,6 +47,14 @@ export interface MapPoint {
   dimmed?: boolean;
 }
 
+/** A store / branch location, drawn as a big red point that's always visible
+ * on top of everything else — the fixed landmarks the fleet works around. */
+export interface StoreMarker {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 /** A traced route — e.g. one driver's optimized stop-to-stop path. */
 export interface MapLine {
   id: string;
@@ -65,6 +73,7 @@ export interface MapLine {
 export function LeafletMap({
   points = [],
   lines = [],
+  stores = [],
   onPointClick,
   onLineClick,
   fitTo,
@@ -78,6 +87,8 @@ export function LeafletMap({
   points?: MapPoint[];
   /** Route traces drawn under the pins (e.g. per-driver optimized paths). */
   lines?: MapLine[];
+  /** Store/branch locations — always drawn as big red points on top. */
+  stores?: StoreMarker[];
   onPointClick?: (id: string) => void;
   /** Click a traced route — used to focus that route's driver. */
   onLineClick?: (id: string) => void;
@@ -95,6 +106,7 @@ export function LeafletMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMapInstance | null>(null);
   const markersRef = useRef<Marker[]>([]);
+  const storeMarkersRef = useRef<Marker[]>([]);
   const linesRef = useRef<Polyline[]>([]);
   // Polylines that need their sideways offset recomputed whenever the map is
   // zoomed/reset (the offset is in pixels, the stored path is in lat/lng).
@@ -265,6 +277,31 @@ export function LeafletMap({
     })();
     return () => { cancelled = true; };
   }, [points]);
+
+  // Store/branch markers: big red points, always drawn on top of the fleet
+  // pins and never dimmed — the fixed landmarks the whole map is built around.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancelled || !mapRef.current) return;
+      storeMarkersRef.current.forEach((m) => m.remove());
+      storeMarkersRef.current = [];
+      for (const s of stores) {
+        if (s.lat == null || s.lng == null) continue;
+        const icon = L.divIcon({
+          className: "",
+          html: `<div style="width:24px;height:24px;border-radius:50%;background:#e11414;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.55)"></div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        });
+        const marker = L.marker([s.lat, s.lng], { icon, zIndexOffset: 1000, interactive: true }).addTo(mapRef.current!);
+        marker.bindTooltip(`🏬 ${s.name}`, { permanent: false, direction: "top" });
+        storeMarkersRef.current.push(marker);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [stores]);
 
   // Keep the single "picked" marker in sync (manual pin picker mode).
   useEffect(() => {

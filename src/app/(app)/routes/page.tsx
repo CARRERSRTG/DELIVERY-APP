@@ -14,6 +14,7 @@ import { fallbackDriverColor, fmtDate, fmtMoney, fmtWindows, isOverdue, orderLab
 import { driverOf, groupIntoLoads, hasManualLoads, loadNoOf, nextLoadFor as nextLoadForPure, orderLaneKey as orderLaneKeyPure, planMerge } from "@/lib/route-lanes";
 import { useColWidths } from "@/lib/use-col-widths";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
+import { useStoreMarkers } from "@/lib/useStoreMarkers";
 import type { Delivery, DriverIncident, Profile } from "@/lib/types";
 
 // ============================================================
@@ -242,6 +243,8 @@ export default function RoutesPage() {
   const reschedule = (id: string, delivery_date: string) => updateDelivery(id, { delivery_date });
 
   const geocoding = useAutoGeocode(dayOrders, updateDelivery);
+  // Every store as a big red landmark point, always shown on the route map.
+  const storeMarkers = useStoreMarkers(settings.stores);
 
   const drivers = useMemo(() => users.filter((u) => u.role === "driver"), [users]);
   const realDriverNames = useMemo(() => new Set(drivers.map((d) => d.full_name)), [drivers]);
@@ -1335,7 +1338,7 @@ export default function RoutesPage() {
           )}
         </div>
         <div className="card" style={{ flex: "3 1 460px", margin: 0, padding: 0, overflow: "hidden" }}>
-          <LeafletMap points={points} lines={lines} onLineClick={onLineClick} fitTo={fitTo} height={430} onPointClick={(id) => {
+          <LeafletMap points={points} lines={lines} stores={storeMarkers} onLineClick={onLineClick} fitTo={fitTo} height={430} onPointClick={(id) => {
             // Click any order pin (assigned or pool) to toggle its PU→DEL view.
             const d = dayOrders.find((x) => x.id === id);
             if (d) toggleOrder(d.id);
