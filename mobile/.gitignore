@@ -1,0 +1,24 @@
+# Capacitor / Android shell — source is tracked, build output is not.
+node_modules/
+
+# Machine-specific SDK path; each developer writes their own.
+android/local.properties
+
+# Gradle + build output
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/
+android/.idea/
+*.apk
+*.aab
+
+# Copied in by `cap sync` from node_modules — regenerated, never edited here.
+android/app/src/main/assets/capacitor.plugins.json
+android/app/capacitor.build.gradle
+android/capacitor-cordova-android-plugins/
+
+# Signing material must never be committed.
+*.keystore
+*.jks
+keystore.properties

@@ -35,7 +35,7 @@ export function ShiftClock({ driverId }: { driverId: string }) {
 
   // Position sharing runs exactly as long as the shift does — clocking out
   // stops it. The driver is told plainly that it's on, never silently.
-  const { status: gps } = useLiveLocation(!!open);
+  const { status: gps, native } = useLiveLocation(!!open);
 
   const doIn = async () => { setBusy(true); await clockIn(driverId); setBusy(false); };
   const doOut = async () => { setBusy(true); await clockOut(driverId); setBusy(false); };
@@ -65,7 +65,13 @@ export function ShiftClock({ driverId }: { driverId: string }) {
               the driver should never have to wonder whether it's on. */}
           {open && (
             <div className="hint" style={{ marginTop: 2 }}>
-              {gps === "live" && <span style={{ color: "var(--green)" }}>📍 {t("Sharing your location with the office", "Compartiendo tu ubicación con la oficina")}</span>}
+              {gps === "live" && (
+                <span style={{ color: "var(--green)" }}>
+                  📍 {native
+                    ? t("Sharing your location — keeps working with the screen off", "Compartiendo tu ubicación — sigue con la pantalla apagada")
+                    : t("Sharing your location while this app is open", "Compartiendo tu ubicación mientras esta app esté abierta")}
+                </span>
+              )}
               {gps === "starting" && <span>📍 {t("Finding your location…", "Buscando tu ubicación…")}</span>}
               {gps === "denied" && <span style={{ color: "var(--amber)" }}>📍 {t("Location permission is off — turn it on so dispatch can see you", "Permiso de ubicación desactivado — actívalo para que logística te vea")}</span>}
               {gps === "unavailable" && <span style={{ color: "var(--amber)" }}>📍 {t("Location unavailable on this device", "Ubicación no disponible en este dispositivo")}</span>}

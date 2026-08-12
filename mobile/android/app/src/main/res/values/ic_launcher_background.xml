@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app's accent blue, so the adaptive icon reads as the same mark
+         users see in the web app's top bar. -->
+    <color name="ic_launcher_background">#2456C9</color>
+</resources>
