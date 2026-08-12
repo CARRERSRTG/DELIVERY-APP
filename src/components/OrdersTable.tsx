@@ -54,7 +54,7 @@ export const ORDER_COLUMNS: OrderColumn[] = [
     },
   },
   { key: "windows", en: "Windows", es: "Ventanas", value: (d) => d.delivery_windows, cell: (d) => fmtWindows(d.delivery_windows) },
-  { key: "pallets", en: "Pallets", es: "Tarimas", value: (d) => d.actual_pallets ?? d.est_pallets ?? null, cell: (d, { t }) => {
+  { key: "pallets", en: "Pallets", es: "Pallets", value: (d) => d.actual_pallets ?? d.est_pallets ?? null, cell: (d, { t }) => {
       const v = palletVariance(d);
       const val = d.actual_pallets ?? d.est_pallets ?? "—";
       if (!v) return <>{val}</>;

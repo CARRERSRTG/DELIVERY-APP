@@ -82,7 +82,7 @@ export function printDeliverySlip(d: Delivery, settings: Settings, users: Profil
     </table></div><div><table>
       ${row(T("Delivery date", "Fecha entrega"), d.delivery_date ? fmtDate(d.delivery_date) : "")}
       ${row(T("Windows", "Ventanas"), fmtWindows(d.delivery_windows))}
-      ${row(T("Pallets", "Tarimas"), String(d.actual_pallets ?? d.est_pallets ?? ""))}
+      ${row(T("Pallets", "Pallets"), String(d.actual_pallets ?? d.est_pallets ?? ""))}
       ${row(T("Delivery fee", "Costo de entrega"), d.delivery_fee == null ? "" : fmtMoney(d.delivery_fee))}
       ${row(T("Driver", "Chofer"), d.assigned_driver || "")}
     </table></div></div>
@@ -194,14 +194,14 @@ export function printLoadSheets(orders: Delivery[], settings: Settings, lang: La
           </div>
           <div class="drv">
             <div class="drv-name">🚚 ${esc(driver)}</div>
-            <div class="drv-tot">${list.length} ${T("stops", "paradas")} · ${pallets} ${T("pallets", "tarimas")}</div>
+            <div class="drv-tot">${list.length} ${T("stops", "paradas")} · ${pallets} ${T("pallets", "pallets")}</div>
           </div>
         </div>
         <table class="loads">
           <thead><tr>
             <th class="num">#</th><th>${T("Order", "Orden")}</th><th>${T("Account", "Cuenta")}</th>
             <th>${T("Address", "Dirección")}</th><th>${T("Window", "Ventana")}</th>
-            <th class="num">${T("Pallets", "Tarimas")}</th><th>${T("Ref", "Ref")}</th><th>${T("Notes", "Notas")}</th>
+            <th class="num">${T("Pallets", "Pallets")}</th><th>${T("Ref", "Ref")}</th><th>${T("Notes", "Notas")}</th>
           </tr></thead>
           <tbody>${rows || `<tr><td colspan="8" class="empty">${T("No stops.", "Sin paradas.")}</td></tr>`}</tbody>
         </table>

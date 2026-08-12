@@ -1418,7 +1418,7 @@ export default function RoutesPage() {
                     <th>{t("Load", "Carga")}<span className="col-resizer" onMouseDown={schedCols.startResize(3)} /></th>
                     <th>{t("Stop", "Parada")}<span className="col-resizer" onMouseDown={schedCols.startResize(4)} /></th>
                     <th>{t("Windows", "Ventanas")}<span className="col-resizer" onMouseDown={schedCols.startResize(5)} /></th>
-                    <th>{t("Pallets", "Tarimas")}<span className="col-resizer" onMouseDown={schedCols.startResize(6)} /></th>
+                    <th>{t("Pallets", "Pallets")}<span className="col-resizer" onMouseDown={schedCols.startResize(6)} /></th>
                     <th></th>
                   </tr>
                 </thead>
@@ -1562,7 +1562,7 @@ export default function RoutesPage() {
                   <th>{t("ID", "ID")}<span className="col-resizer" onMouseDown={poolCols.startResize(1)} /></th>
                   <th>{t("Account", "Cuenta")}<span className="col-resizer" onMouseDown={poolCols.startResize(2)} /></th>
                   <th>{t("Store", "Tienda")}<span className="col-resizer" onMouseDown={poolCols.startResize(3)} /></th>
-                  <th>{t("Pallets", "Tarimas")}<span className="col-resizer" onMouseDown={poolCols.startResize(4)} /></th>
+                  <th>{t("Pallets", "Pallets")}<span className="col-resizer" onMouseDown={poolCols.startResize(4)} /></th>
                   <th>{t("Delivery Date", "Fecha de Entrega")}<span className="col-resizer" onMouseDown={poolCols.startResize(5)} /></th>
                   <th>{t("Windows", "Ventanas")}<span className="col-resizer" onMouseDown={poolCols.startResize(6)} /></th>
                   <th>{t("Status", "Estado")}<span className="col-resizer" onMouseDown={poolCols.startResize(7)} /></th>
@@ -1765,7 +1765,7 @@ export default function RoutesPage() {
                 <div className="hint" style={{ marginBottom: 8, color: "var(--accent)" }}>
                   💡 {t(
                     `This is over the ${capacity}-pallet truck capacity (${load} on board), so it reloads at the pickup between loads. Raise the truck capacity to ${load} or more to carry it all in one trip (drop → drop).`,
-                    `Supera la capacidad de ${capacity} tarimas del camión (${load} a bordo), por eso recarga en la recolección entre cargas. Sube la capacidad a ${load} o más para llevar todo en un solo viaje (parada → parada).`,
+                    `Supera la capacidad de ${capacity} pallets del camión (${load} a bordo), por eso recarga en la recolección entre cargas. Sube la capacidad a ${load} o más para llevar todo en un solo viaje (parada → parada).`,
                   )}
                 </div>
               );
@@ -1839,7 +1839,7 @@ export default function RoutesPage() {
                           <tr>
                             <td colSpan={7} style={{ background: "var(--card-hover)", fontWeight: 700, fontSize: 12 }}>
                               <span style={{ display: "inline-block", width: 11, height: 11, borderRadius: 3, background: tColor, marginRight: 7, verticalAlign: "-1px", boxShadow: "0 0 0 1px var(--line)" }} />
-                              🚚 {t("Truckload", "Viaje")} {ti + 1} — {load}/{capacity} {t("pallets", "tarimas")}
+                              🚚 {t("Truckload", "Viaje")} {ti + 1} — {load}/{capacity} {t("pallets", "pallets")}
                               {/* Capacity bar: fills with the load, turns red when over. */}
                               <span title={`${load}/${capacity}`} style={{ display: "inline-block", width: 84, height: 7, borderRadius: 999, background: "var(--line)", verticalAlign: "middle", margin: "0 8px", overflow: "hidden" }}>
                                 <span style={{ display: "block", height: "100%", width: `${Math.min(100, capacity > 0 ? (load / capacity) * 100 : 0)}%`, background: load > capacity ? "var(--red)" : tColor }} />

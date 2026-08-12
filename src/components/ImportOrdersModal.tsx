@@ -56,7 +56,7 @@ export function ImportOrdersModal({ onClose }: { onClose: () => void }) {
           <p className="hint" style={{ marginTop: 0 }}>
             {t(
               "Upload a CSV whose header row matches the app's export columns (Account, Delivery Address, Delivery Date, Delivery Fee, Est. Pallets, Windows, PO #, Invoice #, Order Type, Store…). Unknown columns are ignored. Every row is created as a draft you can review and submit.",
-              "Sube un CSV cuya fila de encabezados coincida con las columnas de exportación de la app (Cuenta, Dirección, Fecha, Costo, Tarimas, Ventanas, PO #, Factura #, Tipo, Tienda…). Las columnas desconocidas se ignoran. Cada fila se crea como borrador que puedes revisar y enviar.",
+              "Sube un CSV cuya fila de encabezados coincida con las columnas de exportación de la app (Cuenta, Dirección, Fecha, Costo, Pallets, Ventanas, PO #, Factura #, Tipo, Tienda…). Las columnas desconocidas se ignoran. Cada fila se crea como borrador que puedes revisar y enviar.",
             )}
           </p>
 
@@ -104,7 +104,7 @@ export function ImportOrdersModal({ onClose }: { onClose: () => void }) {
                         <th>{t("Account", "Cuenta")}</th>
                         <th>{t("Address", "Dirección")}</th>
                         <th>{t("Date", "Fecha")}</th>
-                        <th>{t("Pallets", "Tarimas")}</th>
+                        <th>{t("Pallets", "Pallets")}</th>
                       </tr>
                     </thead>
                     <tbody>

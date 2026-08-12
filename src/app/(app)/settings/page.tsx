@@ -95,21 +95,21 @@ export default function SettingsPage() {
         <h2>⏱ {t("Duration rates", "Tarifas de duración")}</h2>
         <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
           {t("Pickup and delivery durations are calculated automatically as", "Las duraciones de recolección y entrega se calculan automáticamente como")}
-          <b> {t("pallets × minutes-per-pallet", "tarimas × minutos-por-tarima")}</b>. {t("Set the rates here.", "Configura las tarifas aquí.")}
+          <b> {t("pallets × minutes-per-pallet", "pallets × minutos-por-pallet")}</b>. {t("Set the rates here.", "Configura las tarifas aquí.")}
         </p>
         <div className="grid g2" style={{ maxWidth: 460 }}>
           <RateInput
-            label={t("Pickup — minutes per pallet", "Recolección — minutos por tarima")}
+            label={t("Pickup — minutes per pallet", "Recolección — minutos por pallet")}
             value={settings.pickup_min_per_pallet}
             onSave={(v) => { saveSettings({ pickup_min_per_pallet: v }); notify(t("Saved", "Guardado")); }}
           />
           <RateInput
-            label={t("Delivery — minutes per pallet", "Entrega — minutos por tarima")}
+            label={t("Delivery — minutes per pallet", "Entrega — minutos por pallet")}
             value={settings.delivery_min_per_pallet}
             onSave={(v) => { saveSettings({ delivery_min_per_pallet: v }); notify(t("Saved", "Guardado")); }}
           />
         </div>
-        <div className="hint">{t("Example", "Ejemplo")}: 6 {t("pallets", "tarimas")} → {t("pickup", "recolección")} {6 * settings.pickup_min_per_pallet} min, {t("delivery", "entrega")} {6 * settings.delivery_min_per_pallet} min.</div>
+        <div className="hint">{t("Example", "Ejemplo")}: 6 {t("pallets", "pallets")} → {t("pickup", "recolección")} {6 * settings.pickup_min_per_pallet} min, {t("delivery", "entrega")} {6 * settings.delivery_min_per_pallet} min.</div>
       </div>
 
       <div className="card">
@@ -117,12 +117,12 @@ export default function SettingsPage() {
         <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
           {t(
             "Pallets a truck carries per load. A route keeps stops on the truck and delivers them one after another (drop → drop); it only drives back to the pickup to reload when a load goes over this. Raise it so a truck carries several orders in one trip. Each driver can still be given their own capacity on the Routes screen.",
-            "Tarimas que un camión lleva por carga. Una ruta mantiene las paradas en el camión y las entrega una tras otra (parada → parada); solo regresa a la recolección a recargar cuando una carga supera esto. Súbelo para que un camión lleve varias órdenes en un viaje. Cada chofer puede tener su propia capacidad en la pantalla de Rutas.",
+            "Pallets que un camión lleva por carga. Una ruta mantiene las paradas en el camión y las entrega una tras otra (parada → parada); solo regresa a la recolección a recargar cuando una carga supera esto. Súbelo para que un camión lleve varias órdenes en un viaje. Cada chofer puede tener su propia capacidad en la pantalla de Rutas.",
           )}
         </p>
         <div style={{ maxWidth: 240 }}>
           <RateInput
-            label={t("Default truck capacity (pallets)", "Capacidad predeterminada (tarimas)")}
+            label={t("Default truck capacity (pallets)", "Capacidad predeterminada (pallets)")}
             value={settings.default_truck_capacity ?? 12}
             onSave={(v) => { saveSettings({ default_truck_capacity: v || null } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
           />

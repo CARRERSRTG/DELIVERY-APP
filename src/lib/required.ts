@@ -77,7 +77,7 @@ export function missingFields(d: Partial<Delivery>, rules?: OrderTypeRules): Mis
   if (!filled(d.delivery_date)) out.push({ key: "delivery_date", en: "Delivery Date", es: "Fecha de Entrega" });
   if (!filled(d.delivery_windows)) out.push({ key: "delivery_windows", en: "Delivery Time Window", es: "Ventana de Entrega" });
   if (d.est_pallets == null || Number(d.est_pallets) <= 0) {
-    out.push({ key: "est_pallets", en: "Est. Pallets", es: "Tarimas Estimadas" });
+    out.push({ key: "est_pallets", en: "Est. Pallets", es: "Pallets Estimadas" });
   }
 
   // ---- Document reference, by order type ----

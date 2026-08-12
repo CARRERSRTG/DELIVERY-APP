@@ -284,7 +284,7 @@ export default function MapPage() {
         )
       : t(
           `Over capacity: ${w.used} + ${w.adding} > ${w.capacity} pallets`,
-          `Sobre capacidad: ${w.used} + ${w.adding} > ${w.capacity} tarimas`,
+          `Sobre capacidad: ${w.used} + ${w.adding} > ${w.capacity} pallets`,
         );
 
   const riskChip = (risk: "overdue" | "at_risk" | null) => {
@@ -372,7 +372,7 @@ export default function MapPage() {
           </div>
           <div className="detail-row"><span className="dk">{t("Route", "Ruta")}</span><span className="dv">{selected.store || "—"} → {cityFromAddress(selected.delivery_address, cityNames) || selected.delivery_address || "—"}</span></div>
           <div className="detail-row"><span className="dk">{t("Window", "Ventana")}</span><span className="dv">{fmtWindows(selected.delivery_windows)}</span></div>
-          <div className="detail-row"><span className="dk">{t("Pallets", "Tarimas")}</span><span className="dv">{selected.actual_pallets ?? selected.est_pallets ?? "—"}</span></div>
+          <div className="detail-row"><span className="dk">{t("Pallets", "Pallets")}</span><span className="dv">{selected.actual_pallets ?? selected.est_pallets ?? "—"}</span></div>
           <div className="detail-row">
             <span className="dk">{t("Pickup → Dropoff", "Recolección → Entrega")}</span>
             <span className="dv" style={{ fontWeight: 700 }}>
@@ -427,7 +427,7 @@ export default function MapPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <h2 style={{ margin: 0 }}>
               {selectedList.length} {t("loads selected", "cargas seleccionadas")}{" "}
-              <span className="count-tag">{Math.round(selectedList.reduce((s, d) => s + Number(d.actual_pallets ?? d.est_pallets ?? 0), 0))} {t("pallets", "tarimas")}</span>
+              <span className="count-tag">{Math.round(selectedList.reduce((s, d) => s + Number(d.actual_pallets ?? d.est_pallets ?? 0), 0))} {t("pallets", "pallets")}</span>
             </h2>
             <button className="btn btn-ghost btn-sm" onClick={clearSelection}>✕ {t("Clear", "Limpiar")}</button>
           </div>
@@ -467,7 +467,7 @@ export default function MapPage() {
                   <th>{t("To", "Hasta")}</th>
                   <th>{t("Windows", "Ventanas")}</th>
                   <th>{t("Status", "Estado")}</th>
-                  <th>{t("Pallets", "Tarimas")}</th>
+                  <th>{t("Pallets", "Pallets")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -491,7 +491,7 @@ export default function MapPage() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={5} style={{ fontWeight: 700, textAlign: "right" }}>{t("Total pallets", "Total de tarimas")}</td>
+                  <td colSpan={5} style={{ fontWeight: 700, textAlign: "right" }}>{t("Total pallets", "Total de pallets")}</td>
                   <td style={{ fontWeight: 700 }}>{totalPallets}</td>
                 </tr>
               </tfoot>

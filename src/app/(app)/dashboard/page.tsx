@@ -229,7 +229,7 @@ export default function DashboardPage() {
             <Kpi n={kpis.outForDelivery} label={t("Out for delivery", "En reparto")} tone="accent" />
             <Kpi n={kpis.delivered} label={t("Delivered", "Entregadas")} tone="green" />
             <Kpi n={kpis.overdue} label={t("Overdue", "Atrasadas")} tone={kpis.overdue ? "red" : undefined} />
-            <Kpi n={kpis.totalPallets} label={t("Pallets", "Tarimas")} />
+            <Kpi n={kpis.totalPallets} label={t("Pallets", "Pallets")} />
             <Kpi n={kpis.totalMiles} label={t("Route miles", "Millas")} />
             <Kpi n={fmtMoney(kpis.totalFees)} label={t("Fees charged", "Cobros de entrega")} tone="green" small />
             <Kpi n={kpis.onTimePct == null ? "—" : `${kpis.onTimePct}%`} label={t("On-time", "A tiempo")} tone={kpis.onTimePct != null && kpis.onTimePct < 80 ? "amber" : "green"} />
@@ -450,7 +450,7 @@ export default function DashboardPage() {
                       <th title={t("Deliveries with a signature or photo", "Entregas con firma o foto")}>{t("POD %", "% Comp.")}</th>
                       <th title={t("Deliveries that got a rating", "Entregas que recibieron calificación")}>{t("Rated %", "% Calif.")}</th>
                       <th title={t("Second-attempt deliveries", "Entregas en segundo intento")}>{t("Redeliv.", "Reenvíos")}</th>
-                      <th title={t("Loaded fewer pallets than ordered", "Cargó menos tarimas de las pedidas")}>{t("Short loads", "Carga corta")}</th>
+                      <th title={t("Loaded fewer pallets than ordered", "Cargó menos pallets de las pedidas")}>{t("Short loads", "Carga corta")}</th>
                       <th title={t("Deliveries stamped far from the destination address", "Entregas marcadas lejos de la dirección de destino")}>{t("GPS off", "GPS lejos")}</th>
                     </tr>
                   </thead>

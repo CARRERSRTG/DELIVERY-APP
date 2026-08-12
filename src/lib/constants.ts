@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "0.9.71";
+export const APP_VERSION = "0.9.72";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -201,7 +201,7 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, { en: string; es: string }[]>
   warehouse: [
     { en: "Fulfill approved orders", es: "Preparar órdenes aprobadas" },
     { en: "Set prepared status", es: "Marcar preparación" },
-    { en: "Confirm pallets", es: "Confirmar tarimas" },
+    { en: "Confirm pallets", es: "Confirmar pallets" },
     { en: "Mark ready", es: "Marcar listo" },
   ],
   driver: [

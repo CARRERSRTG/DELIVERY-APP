@@ -547,11 +547,11 @@ export function OrderModal({
   const confirmReady = async () => {
     if (!existing) return;
     const n = Number(readyPallets);
-    if (!Number.isFinite(n) || n <= 0) { notify(t("Enter the confirmed pallet count.", "Ingrese la cantidad confirmada de tarimas.")); return; }
+    if (!Number.isFinite(n) || n <= 0) { notify(t("Enter the confirmed pallet count.", "Ingrese la cantidad confirmada de pallets.")); return; }
     setBusy(true);
-    const ok = await setStage(existing.id, "ready", t(`Pallets confirmed: ${n}`, `Tarimas confirmadas: ${n}`), { actual_pallets: n });
+    const ok = await setStage(existing.id, "ready", t(`Pallets confirmed: ${n}`, `Pallets confirmadas: ${n}`), { actual_pallets: n });
     setBusy(false);
-    if (ok) { notify(t(`Ready — ${n} pallets confirmed`, `Listo — ${n} tarimas confirmadas`)); onClose(); }
+    if (ok) { notify(t(`Ready — ${n} pallets confirmed`, `Listo — ${n} pallets confirmadas`)); onClose(); }
   };
 
   // --- Role-targeted notes (add on demand, everyone sees them tagged) ---
@@ -583,8 +583,8 @@ export function OrderModal({
     if (!existing) return;
     const total = existing.actual_pallets ?? existing.est_pallets ?? 0;
     const n = Number(pickupPallets);
-    if (!Number.isFinite(n) || n <= 0) { notify(t("Enter the loaded pallet count.", "Ingrese la cantidad de tarimas cargadas.")); return; }
-    if (total > 0 && n > total) { notify(t(`Only ${total} pallets on this order.`, `Esta orden solo tiene ${total} tarimas.`)); return; }
+    if (!Number.isFinite(n) || n <= 0) { notify(t("Enter the loaded pallet count.", "Ingrese la cantidad de pallets cargadas.")); return; }
+    if (total > 0 && n > total) { notify(t(`Only ${total} pallets on this order.`, `Esta orden solo tiene ${total} pallets.`)); return; }
     setBusy(true);
     const gps = await captureLocation();
     const gpsExtra = gps
@@ -606,24 +606,24 @@ export function OrderModal({
         actual_pallets: rest,
         stage: "ready",
         assigned_driver: null,
-        delivery_notes: [existing.delivery_notes, t(`Split of #${existing.order_code || existing.order_no}${mySuffix} — ${rest} pallets left behind.`, `División de #${existing.order_code || existing.order_no}${mySuffix} — quedaron ${rest} tarimas.`)].filter(Boolean).join("\n"),
+        delivery_notes: [existing.delivery_notes, t(`Split of #${existing.order_code || existing.order_no}${mySuffix} — ${rest} pallets left behind.`, `División de #${existing.order_code || existing.order_no}${mySuffix} — quedaron ${rest} pallets.`)].filter(Boolean).join("\n"),
       });
       if (!rowB) { setBusy(false); return; }
       const ok = await setStage(
         existing.id, "picked_up",
         t(`Partial load: ${n} of ${total} pallets — remainder split to #${existing.order_code || existing.order_no}${nextSuffix}`,
-          `Carga parcial: ${n} de ${total} tarimas — resto dividido a #${existing.order_code || existing.order_no}${nextSuffix}`),
+          `Carga parcial: ${n} de ${total} pallets — resto dividido a #${existing.order_code || existing.order_no}${nextSuffix}`),
         { ...gpsExtra, order_suffix: mySuffix, actual_pallets: n },
       );
       setBusy(false);
       if (ok) {
         notify(t(`Out for delivery as #${existing.order_code || existing.order_no}${mySuffix} — #${existing.order_code || existing.order_no}${nextSuffix} staged with ${rest} pallets`,
-          `En reparto como #${existing.order_code || existing.order_no}${mySuffix} — #${existing.order_code || existing.order_no}${nextSuffix} preparada con ${rest} tarimas`));
+          `En reparto como #${existing.order_code || existing.order_no}${mySuffix} — #${existing.order_code || existing.order_no}${nextSuffix} preparada con ${rest} pallets`));
         onClose();
       }
       return;
     }
-    const ok = await setStage(existing.id, "picked_up", t(`Loaded: ${n} pallets`, `Cargadas: ${n} tarimas`), { ...gpsExtra, actual_pallets: n });
+    const ok = await setStage(existing.id, "picked_up", t(`Loaded: ${n} pallets`, `Cargadas: ${n} pallets`), { ...gpsExtra, actual_pallets: n });
     setBusy(false);
     if (ok) { notify(t("Out for delivery", "En reparto")); onClose(); }
   };
@@ -952,7 +952,7 @@ export function OrderModal({
                       [t("Delivery Date", "Fecha de Entrega"), existing.delivery_date || "—"],
                       [t("Delivery Windows", "Ventana de Entrega"), fmtWindows(existing.delivery_windows)],
                       [t("Invoice / Estimate #", "Factura / Estimación #"), existing.invoice_num || existing.estimate_num || "—"],
-                      [t("Actual Pallets", "Tarimas Reales"), existing.actual_pallets == null ? "—" : String(existing.actual_pallets)],
+                      [t("Actual Pallets", "Pallets Reales"), existing.actual_pallets == null ? "—" : String(existing.actual_pallets)],
                       [t("Pickup Address", "Dir. Recolección"), existing.pickup_address || "—"],
                       [t("Delivery Address", "Dir. Entrega"), existing.delivery_address || "—"],
                       [t("Route Miles", "Millas"), existing.route_miles == null ? "—" : `${existing.route_miles} mi`],
@@ -1393,7 +1393,7 @@ export function OrderModal({
             <div className="grid g3">
               <Sel label={t("Order Type", "Tipo de Orden")} val={d.order_type} opts={settings.order_types} on={(v) => setD((p) => withTypeDefaults(p, v))} disabled={!salesFields} placeholder={t("Select order type", "Seleccione tipo de orden")} invalid={missingSet.has("order_type")} />
               <Txt label={t("Delivery Fee charged ($)", "Costo de Entrega cobrado ($)")} type="number" val={d.delivery_fee ?? ""} on={(v) => set("delivery_fee", v === "" ? null : Number(v))} disabled={!salesFields} placeholder="0.00" invalid={missingSet.has("delivery_fee")} />
-              <Txt label={t("Est. Pallets (sales)", "Tarimas Est. (ventas)")} type="number" val={d.est_pallets ?? ""} on={(v) => set("est_pallets", v === "" ? null : Number(v))} disabled={!salesFields} invalid={missingSet.has("est_pallets")} />
+              <Txt label={t("Est. Pallets (sales)", "Pallets Est. (ventas)")} type="number" val={d.est_pallets ?? ""} on={(v) => set("est_pallets", v === "" ? null : Number(v))} disabled={!salesFields} invalid={missingSet.has("est_pallets")} />
             </div>
 
             {/* ---- Local-zone fee suggestion ---- */}
@@ -1624,7 +1624,7 @@ export function OrderModal({
               <>
                 <div className="section-label">{t("Warehouse / Preparing", "Almacén / Preparación")}</div>
                 <div className="grid g2">
-                  <Txt label={t("Actual Pallets (warehouse)", "Tarimas Reales (almacén)")} type="number" val={d.actual_pallets ?? ""} on={(v) => set("actual_pallets", v === "" ? null : Number(v))} disabled={!whFields} placeholder={d.est_pallets != null ? t(`est. ${d.est_pallets}`, `est. ${d.est_pallets}`) : ""} />
+                  <Txt label={t("Actual Pallets (warehouse)", "Pallets Reales (almacén)")} type="number" val={d.actual_pallets ?? ""} on={(v) => set("actual_pallets", v === "" ? null : Number(v))} disabled={!whFields} placeholder={d.est_pallets != null ? t(`est. ${d.est_pallets}`, `est. ${d.est_pallets}`) : ""} />
                   <Sel label={t("Assigned Driver", "Chofer Asignado")} val={d.assigned_driver} opts={driverNames(users)} on={(v) => set("assigned_driver", v)} disabled={!adminFields} placeholder={t("Unassigned", "Sin asignar")} />
                 </div>
                 {(() => {
@@ -1633,7 +1633,7 @@ export function OrderModal({
                     <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 4 }}>
                       ⚠ {t(
                         `Actual pallets (${v.actual}) differ from the sales estimate (${v.est}) by ${v.diff > 0 ? "+" : ""}${v.diff}.`,
-                        `Las tarimas reales (${v.actual}) difieren del estimado de ventas (${v.est}) por ${v.diff > 0 ? "+" : ""}${v.diff}.`,
+                        `Las pallets reales (${v.actual}) difieren del estimado de ventas (${v.est}) por ${v.diff > 0 ? "+" : ""}${v.diff}.`,
                       )}
                     </div>
                   ) : null;
@@ -1674,7 +1674,7 @@ export function OrderModal({
         {/* ---------- PALLET CONFIRMATION (pickup) — "ready" is a popup, see below ---------- */}
         {showPickupConfirm && existing && (
           <div className="field" style={{ marginTop: 14 }}>
-            <label>{t("How many pallets did you load?", "¿Cuántas tarimas cargó?")}</label>
+            <label>{t("How many pallets did you load?", "¿Cuántas pallets cargó?")}</label>
             <input type="number" min={1} value={pickupPallets} onChange={(e) => setPickupPallets(e.target.value)} />
             <div className="hint">
               {t(`Total on this order: ${existing.actual_pallets ?? existing.est_pallets ?? "—"}. Loading fewer splits the order into #${orderLabel({ ...existing, order_suffix: existing.order_suffix ?? "a" })} (this trip) and a new staged trip with the rest.`,
@@ -1768,7 +1768,7 @@ export function OrderModal({
           showRedeliver ? (
             <div className="field" style={{ marginTop: 14 }}>
               <label>{t("Why does this order need to be delivered again?", "¿Por qué debe entregarse esta orden de nuevo?")}</label>
-              <textarea rows={2} value={redeliverReason} onChange={(e) => setRedeliverReason(e.target.value)} placeholder={t("e.g. wrong pallet loaded, damaged in transit…", "ej. tarima equivocada, dañado en tránsito…")} />
+              <textarea rows={2} value={redeliverReason} onChange={(e) => setRedeliverReason(e.target.value)} placeholder={t("e.g. wrong pallet loaded, damaged in transit…", "ej. pallet equivocada, dañado en tránsito…")} />
               <label style={{ marginTop: 10 }}>{t("Was there an additional charge to the customer for this re-delivery? ($)", "¿Hubo un cargo adicional al cliente por esta reentrega? ($)")}</label>
               <input type="number" min={0} step="0.01" value={redeliverCharge} onChange={(e) => setRedeliverCharge(e.target.value)} placeholder={t("0 = no extra charge", "0 = sin cargo adicional")} style={{ maxWidth: 200 }} />
               <div className="hint">{t("Leave 0 (or blank) if the re-delivery is free. This becomes the delivery fee on the new linked order.", "Deje 0 (o vacío) si la reentrega es gratis. Esto será el costo de entrega en la nueva orden vinculada.")}</div>
@@ -1887,9 +1887,9 @@ export function OrderModal({
     {showReadyConfirm && existing && (
       <div className="overlay" style={{ zIndex: 60 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal" style={{ maxWidth: 420 }}>
-          <h3 style={{ marginTop: 0 }}>{t("Confirm pallets", "Confirmar tarimas")}</h3>
+          <h3 style={{ marginTop: 0 }}>{t("Confirm pallets", "Confirmar pallets")}</h3>
           <div className="field">
-            <label>{t("How many pallets are ready?", "¿Cuántas tarimas están listas?")}</label>
+            <label>{t("How many pallets are ready?", "¿Cuántas pallets están listas?")}</label>
             <input type="number" min={1} autoFocus value={readyPallets} onChange={(e) => setReadyPallets(e.target.value)}
               placeholder={existing.est_pallets != null ? `est. ${existing.est_pallets}` : ""} />
             <div className="hint">{t("Original order amount:", "Cantidad original de la orden:")} {existing.est_pallets ?? "—"}</div>
@@ -2323,7 +2323,7 @@ function DriverDeliveryScreen({
           <div className="drv-v">{fmtWindows(order.delivery_windows)}</div>
         </div>
         <div className="drv-block">
-          <div className="drv-k">📦 {t("Pallets", "Tarimas")}</div>
+          <div className="drv-k">📦 {t("Pallets", "Pallets")}</div>
           <div className="drv-v">{order.actual_pallets ?? order.est_pallets ?? "—"}</div>
         </div>
       </div>

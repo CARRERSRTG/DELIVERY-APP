@@ -77,7 +77,7 @@ export function printRouteManifest(
       <div>
         <div class="driver">${esc(driverName || T("Unassigned", "Sin asignar"))}</div>
         <div class="sub" style="text-align:right;">${esc(dateLabel)}</div>
-        <div class="totals"><b>${stops.length}</b> ${T("stops", "paradas")} · <b>${totalPallets}</b> ${T("pallets", "tarimas")}${totalMiles > 0 ? ` · <b>${totalMiles}</b> ${T("mi", "mi")}` : ""}</div>
+        <div class="totals"><b>${stops.length}</b> ${T("stops", "paradas")} · <b>${totalPallets}</b> ${T("pallets", "pallets")}${totalMiles > 0 ? ` · <b>${totalMiles}</b> ${T("mi", "mi")}` : ""}</div>
       </div>
     </div>
 
