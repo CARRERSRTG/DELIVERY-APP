@@ -33,7 +33,44 @@ interface Result {
   traffic: boolean;
 }
 
-// ---------- Google (Distance Matrix, traffic-aware) ----------
+// ---------- Google Routes API (traffic-aware) ----------
+// The current API. Takes the addresses directly, so there's no separate
+// geocode step, and prices the drive with live traffic. Distance Matrix below
+// is the legacy service Google no longer enables on new projects — it stays
+// only for older projects that still have it switched on.
+async function viaGoogleRoutes(origin: string, destination: string, key: string): Promise<Result> {
+  const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask": "routes.duration,routes.staticDuration,routes.distanceMeters",
+    },
+    body: JSON.stringify({
+      origin: { address: origin },
+      destination: { address: destination },
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_AWARE",
+      units: "IMPERIAL",
+    }),
+  });
+  const data = await res.json();
+  const route = data?.routes?.[0];
+  if (!res.ok || !route) throw new Error(data?.error?.message || `Google Routes failed (${res.status})`);
+  const secs = (v: unknown) => { const m = String(v ?? "").match(/([\d.]+)s/); return m ? parseFloat(m[1]) : 0; };
+  const seconds = secs(route.duration);
+  return {
+    miles: Number(route.distanceMeters ?? 0) / METERS_PER_MILE,
+    duration_text: fmtDuration(seconds),
+    duration_min: Math.round(seconds / 60),
+    provider: "Google Maps",
+    // `duration` includes traffic; staticDuration is the free-flow time. When
+    // they differ, traffic actually moved the number.
+    traffic: Math.abs(seconds - secs(route.staticDuration)) > 1,
+  };
+}
+
+// ---------- Google (Distance Matrix, legacy) ----------
 async function viaGoogle(origin: string, destination: string, key: string): Promise<Result> {
   const url =
     "https://maps.googleapis.com/maps/api/distancematrix/json" +
@@ -154,7 +191,8 @@ export async function POST(req: Request) {
   const safe = async (fn: () => Promise<Result>) => { try { return await fn(); } catch { return null; } };
   try {
     let result: Result | null = null;
-    if (google) result = await safe(() => viaGoogle(origin, destination, google));
+    if (google) result = await safe(() => viaGoogleRoutes(origin, destination, google));
+    if (!result && google) result = await safe(() => viaGoogle(origin, destination, google));
     if (!result && mapbox) result = await safe(() => viaMapbox(origin, destination, mapbox));
     // Fallback: accurate geocode (Google/Mapbox/OSM) + free OSRM routing.
     if (!result) result = await viaGeocodeOSRM(origin, destination, google, mapbox);

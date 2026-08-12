@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
@@ -196,6 +196,10 @@ export default function RoutesPage() {
   // a straight PU→DEL line immediately, before (or if) the road geometry loads.
   const [selPickup, setSelPickup] = useState<Record<string, [number, number]>>({});
   const [err, setErr] = useState<string | null>(null);
+  // Which router actually answered last — so the page can say whether the
+  // mileage/ETAs account for traffic (Google) or are free-flow (OSRM fallback).
+  const lastProviderRef = useRef<{ provider: string; traffic: boolean } | null>(null);
+  const [routerInfo, setRouterInfo] = useState<{ provider: string; traffic: boolean } | null>(null);
   // Which panels are collapsed — the unassigned pool ("__unassigned__") and
   // each driver (by name), so a busy board can be folded down to just the
   // one being worked on.
@@ -733,10 +737,13 @@ export default function RoutesPage() {
       const res = await fetch("/api/optimize-route", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stops: stopsForCall, roundtrip: !!depot }),
+        // The run's own date drives PREDICTIVE traffic: a route planned tonight
+        // for tomorrow gets tomorrow-morning conditions, not tonight's empty roads.
+        body: JSON.stringify({ stops: stopsForCall, roundtrip: !!depot, date: sorted[0]?.delivery_date ?? date }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Route optimization failed");
+      if (data.provider) lastProviderRef.current = { provider: data.provider, traffic: !!data.traffic };
       const stopIds = (data.order as string[]).filter((id) => id !== "__depot__");
       const legs = (data.legs ?? []) as number[];
       orderedIds.push(...stopIds);
@@ -804,6 +811,7 @@ export default function RoutesPage() {
       setErr((e as Error).message);
     } finally {
       setBusyDriver(null);
+      setRouterInfo(lastProviderRef.current);
     }
   };
 
@@ -827,6 +835,7 @@ export default function RoutesPage() {
     }
     setBusyDriver(null);
     setOptimizingAll(false);
+    setRouterInfo(lastProviderRef.current);
   };
 
   // Auto-assign every unassigned order across the drivers (capacity + window +
@@ -1214,6 +1223,21 @@ export default function RoutesPage() {
             {optimizingAll ? `… ${t("Optimizing", "Optimizando")} ${busyDriver ?? ""}` : `🧭 ${t("Optimize all routes", "Optimizar todas las rutas")}`}
           </button>
           {geocoding > 0 && <span className="hint">{t("Locating addresses…", "Ubicando direcciones…")}</span>}
+          {/* Says plainly whether the distances/ETAs just computed account for
+              traffic, so nobody trusts free-flow numbers thinking otherwise. */}
+          {routerInfo && (
+            routerInfo.traffic ? (
+              <span className="sema" style={{ background: "var(--green)", color: "#fff" }}
+                title={t("Distances and ETAs come from Google Maps with traffic for the run's departure time", "Distancias y tiempos vienen de Google Maps con tráfico para la hora de salida")}>
+                🚦 {t("Google · with traffic", "Google · con tráfico")}
+              </span>
+            ) : (
+              <span className="sema" style={{ background: "var(--amber)", color: "#fff" }}
+                title={t("Google Routes is unavailable, so these are free-flow estimates from the free router", "Google Routes no está disponible, así que son estimados sin tráfico del router gratuito")}>
+                ⚠ {t("No traffic data", "Sin datos de tráfico")}
+              </span>
+            )
+          )}
         </div>
       </div>
 
