@@ -244,6 +244,32 @@ export default function OrdersPage() {
     setSelected(new Set());
   };
 
+  // Admin-only shortcut for onboarding: close a backlog of orders that were
+  // already delivered in real life before the system existed. Jumps the whole
+  // selection straight to Delivered (skipping picked-up etc.) and stamps each
+  // order's history with who did it, so it's a traceable manual close.
+  const bulkMarkDelivered = async () => {
+    if (!chosen.length) return;
+    const list = chosen.slice(0, 8).map((d) => `#${orderLabel(d)}`).join(", ") + (chosen.length > 8 ? "…" : "");
+    const ok = await confirmAction(t(
+      `Mark ${chosen.length} order(s) as Delivered?\n\n${list}\n\nUse this to close orders already delivered before the system was in place. Each order's history will show you marked it delivered.`,
+      `¿Marcar ${chosen.length} orden(es) como Entregadas?\n\n${list}\n\nUsa esto para cerrar órdenes ya entregadas antes de tener el sistema. El historial de cada orden mostrará que tú la marcaste como entregada.`,
+    ), { danger: false, confirmLabel: t("Mark delivered", "Marcar entregadas") });
+    if (!ok) return;
+    setBulkBusy(true);
+    let done = 0;
+    for (const d of chosen) {
+      const note = t(
+        `Admin ${me.full_name} marked this delivered (closed during system onboarding)`,
+        `El administrador ${me.full_name} la marcó como entregada (cierre durante la implementación del sistema)`,
+      );
+      if (await setStage(d.id, "delivered", note)) done++;
+    }
+    setBulkBusy(false);
+    notify(t(`${done} of ${chosen.length} order(s) marked delivered`, `${done} de ${chosen.length} orden(es) marcadas como entregadas`));
+    setSelected(new Set());
+  };
+
   // Admin-only: force any status on the selection, skipping the normal workflow
   // steps. One confirmation for the whole batch, and every order records the
   // override in its own activity history so it's never a silent change.
@@ -394,6 +420,9 @@ export default function OrdersPage() {
             <button className="btn btn-danger btn-sm" disabled={bulkBusy} onClick={async () => {
               if (await confirmAction(t(`Cancel ${chosen.length} selected order(s)?`, `¿Cancelar ${chosen.length} orden(es) seleccionada(s)?`), { danger: true, confirmLabel: t("Cancel orders", "Cancelar órdenes") })) bulkStage("canceled");
             }}>{t("Cancel", "Cancelar")}</button>
+          )}
+          {me.role === "admin" && (
+            <button className="btn btn-green btn-sm" disabled={bulkBusy} onClick={bulkMarkDelivered} title={t("Close orders already delivered before the system (onboarding)", "Cerrar órdenes ya entregadas antes del sistema (implementación)")}>✅ {t("Mark delivered", "Marcar entregadas")}</button>
           )}
           {(me.role === "manager" || me.role === "admin" || me.role === "logistics" || me.role === "accounting") && (
             <label style={{ margin: 0, display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }} title={t("Set delivery date on all selected", "Fijar fecha de entrega en las seleccionadas")}>
