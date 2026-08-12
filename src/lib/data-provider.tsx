@@ -83,8 +83,11 @@ export interface DataState {
   /** Renumber a route's stops: `orderedIds` in their new visiting order gets
    * route_seq 0..n-1. Applied to local state FIRST and held there until every
    * write lands, so a realtime refetch can't interleave and snap stops back to
-   * the old order. Returns false (and restores the previous order) on failure. */
-  reorderStops: (orderedIds: string[]) => Promise<boolean>;
+   * the old order. Returns false (and restores the previous order) on failure.
+   * `loadNoById` optionally stamps each stop's truckload in the SAME guarded
+   * write — needed when reordering whole truckloads, so the new grouping sticks
+   * instead of being re-derived from truck capacity. */
+  reorderStops: (orderedIds: string[], loadNoById?: Record<string, number | null>) => Promise<boolean>;
   deleteDelivery: (id: string) => Promise<void>;
   /** Move an order to a new workflow stage and log the event. `extra` merges
    * additional column updates into the SAME write (e.g. proof-of-delivery),
@@ -455,25 +458,31 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // committed sequence. On any failure the previous order is restored, so the
   // list never silently disagrees with the database.
   const reorderStops = useCallback<DataState["reorderStops"]>(
-    async (orderedIds) => {
+    async (orderedIds, loadNoById) => {
       if (!orderedIds.length) return true;
       const seqById = new Map(orderedIds.map((id, i) => [id, i]));
+      // The full patch for one stop: its new position, plus its truckload when
+      // whole truckloads are being reordered.
+      const patchFor = (id: string): Partial<Delivery> =>
+        loadNoById ? { route_seq: seqById.get(id)!, load_no: loadNoById[id] ?? null } : { route_seq: seqById.get(id)! };
       if (teaching) {
         setOverlay((o) => ({
           ...o,
-          created: o.created.map((c) => (seqById.has(c.id) ? { ...c, route_seq: seqById.get(c.id)! } : c)),
-          updated: orderedIds.reduce((acc, id, i) => ({ ...acc, [id]: { ...acc[id], route_seq: i } }), { ...o.updated }),
+          created: o.created.map((c) => (seqById.has(c.id) ? { ...c, ...patchFor(c.id) } : c)),
+          updated: orderedIds.reduce((acc, id) => ({ ...acc, [id]: { ...acc[id], ...patchFor(id) } }), { ...o.updated }),
         }));
         return true;
       }
       const prev = deliveries;
-      setDeliveries((cur) => cur.map((d) => (seqById.has(d.id) ? { ...d, route_seq: seqById.get(d.id)! } : d)));
+      setDeliveries((cur) => cur.map((d) => (seqById.has(d.id) ? { ...d, ...patchFor(d.id) } : d)));
       writingRef.current = true;
       try {
-        for (const [id, seq] of seqById) {
-          // Skip rows already at the right position — fewer writes, fewer echoes.
-          if (prev.find((d) => d.id === id)?.route_seq === seq) continue;
-          const { error } = await supabase.from("deliveries").update({ route_seq: seq }).eq("id", id);
+        for (const id of seqById.keys()) {
+          const was = prev.find((d) => d.id === id);
+          const patch = patchFor(id);
+          // Skip rows already exactly where they should be — fewer writes, fewer echoes.
+          if (was && was.route_seq === patch.route_seq && (!loadNoById || (was.load_no ?? null) === (patch.load_no ?? null))) continue;
+          const { error } = await supabase.from("deliveries").update(patch).eq("id", id);
           if (error) {
             setDeliveries(prev);          // put the old order back
             notify("Error: " + error.message);

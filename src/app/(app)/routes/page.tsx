@@ -948,6 +948,25 @@ export default function RoutesPage() {
     await reorderStops(list.map((d) => d.id));
   };
 
+  // Move a WHOLE truckload up/down within a driver's day, so the dispatcher
+  // can say which load goes out first. The new order is stamped as explicit
+  // load numbers (not just a sequence), otherwise a lane that was auto-split by
+  // capacity would just re-derive the original grouping on the next render.
+  const moveTrip = async (laneKey: string, index: number, dir: -1 | 1) => {
+    const stops = byDriver.get(laneKey) ?? [];
+    const trips = buildTrips(stops, capacityFor(driverOf(laneKey)));
+    const j = index + dir;
+    if (j < 0 || j >= trips.length) return;
+    const next = [...trips];
+    const [moved] = next.splice(index, 1);
+    next.splice(j, 0, moved);
+    clearRouteFor(laneKey);
+    const loadNoById: Record<string, number | null> = {};
+    next.forEach((batch, ti) => batch.forEach((d) => { loadNoById[d.id] = ti + 1 > 1 ? ti + 1 : null; }));
+    await reorderStops(next.flat().map((d) => d.id), loadNoById);
+    notify(t(`Truckload moved to position ${j + 1}`, `Viaje movido a la posición ${j + 1}`));
+  };
+
   const focused = selected.size > 0;
   const isDim = (driver: string | null) => focused && !!driver && !selected.has(driver);
 
@@ -1805,7 +1824,7 @@ export default function RoutesPage() {
                     <tr>
                       <th>#<span className="col-resizer" onMouseDown={stopCols.startResize(0)} /></th>
                       <th>{t("ID", "ID")}<span className="col-resizer" onMouseDown={stopCols.startResize(1)} /></th>
-                      <th>{t("Account", "Cuenta")}<span className="col-resizer" onMouseDown={stopCols.startResize(2)} /></th>
+                      <th>{t("Type", "Tipo")}<span className="col-resizer" onMouseDown={stopCols.startResize(2)} /></th>
                       <th>
                         <button
                           className="btn btn-ghost btn-sm"
@@ -1840,6 +1859,17 @@ export default function RoutesPage() {
                               · {t("loads at pickup ↺", "carga en recolección ↺")}
                               {free > 0 && <span style={{ color: "var(--green)", marginLeft: 6 }}>({free} {t("free", "libres")})</span>}
                               {load > capacity && <span style={{ color: "var(--red)", marginLeft: 6 }}>⚠ {t("over capacity", "sobre capacidad")}</span>}
+                              {/* Reorder whole truckloads — which load goes out first. */}
+                              {trips.length > 1 && (
+                                <span style={{ float: "right", display: "inline-flex", gap: 3 }}>
+                                  <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }}
+                                    disabled={ti === 0} onClick={() => moveTrip(u.key, ti, -1)}
+                                    title={t("Move this truckload earlier", "Adelantar este viaje")}>↑</button>
+                                  <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }}
+                                    disabled={ti === trips.length - 1} onClick={() => moveTrip(u.key, ti, 1)}
+                                    title={t("Move this truckload later", "Retrasar este viaje")}>↓</button>
+                                </span>
+                              )}
                             </td>
                           </tr>
                           {batch.map((d, bi) => {
@@ -1855,7 +1885,7 @@ export default function RoutesPage() {
                               <tr key={d.id}>
                                 <td style={{ borderLeft: `4px solid ${tColor}` }}>{d.route_seq != null ? i + 1 : "—"}</td>
                                 <td className="ordno">#{orderLabel(d)}</td>
-                                <td title={d.account || undefined}>{d.account || "—"}</td>
+                                <td title={d.order_type || undefined}>{d.order_type || "—"}</td>
                                 <td title={d.delivery_address || undefined}>{d.delivery_address || "—"}</td>
                                 <td style={{ fontWeight: 600, color: late ? "var(--red)" : undefined }} title={late ? t("ETA is after the delivery window", "La llegada es después de la ventana") : undefined}>
                                   {eta ?? "—"}{late ? " ⚠️" : ""}
