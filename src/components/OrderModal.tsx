@@ -118,6 +118,10 @@ export function OrderModal({
   // After a successful delivery we keep the modal open on a success screen so the
   // driver can print the slip; holds the fully-updated (delivered) order.
   const [justDelivered, setJustDelivered] = useState<Delivery | null>(null);
+  // Held in a ref so the auto-close timer below isn't restarted every time the
+  // parent hands down a fresh onClose.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   // A backdrop click only closes when the press STARTED on the backdrop too —
   // otherwise a click whose mouseup lands on the just-opened overlay (or a drag
   // release) would instantly close the modal that the same click just opened.
@@ -874,52 +878,31 @@ export function OrderModal({
   // The Warehouse / Fulfillment section is only shown to warehouse & admin.
   const showWarehouse = me.role === "warehouse" || me.role === "admin";
 
+  // Close the confirmation by itself. Nothing on that screen needs an action,
+  // and a driver with the tailgate open shouldn't have to dismiss it.
+  useEffect(() => {
+    if (!justDelivered) return;
+    const id = setTimeout(() => onCloseRef.current(), 1000);
+    return () => clearTimeout(id);
+  }, [justDelivered]);
+
   // ---------- DELIVERED SUCCESS SCREEN ----------
-  // Shown right after the driver confirms delivery. The dialog stays open so
-  // they can print the slip (with the signature) before closing.
+  // A one-second confirmation, not a form. The driver has already done the
+  // work; this exists only to show it landed — delivered, who signed, and the
+  // signature itself — then get out of the way so they can drive on.
   if (justDelivered) {
     return (
-      <div className="overlay"
-        onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
-        onClick={(e) => e.target === e.currentTarget && overlayDownRef.current && onClose()}>
+      <div className="overlay" onClick={onClose}>
         <div className="modal" style={{ maxWidth: 460, textAlign: "center" }}>
           <div style={{ fontSize: 44 }}>✅</div>
           <h3 style={{ marginTop: 8 }}>{t("Delivered", "Entregado")} #{orderLabel(justDelivered)}</h3>
           <div className="sub" style={{ justifyContent: "center" }}>
-            {t("Received by", "Recibido por")} <b>{justDelivered.pod_received_by}</b> · {fmtDateTime(justDelivered.pod_delivered_at)}
+            {t("Received by", "Recibido por")} <b>{justDelivered.pod_received_by}</b>
           </div>
           {justDelivered.pod_signature && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={justDelivered.pod_signature} alt="signature" style={{ maxHeight: 110, background: "#fff", border: "1px solid var(--line)", borderRadius: 8, margin: "6px auto", display: "block" }} />
+            <img src={justDelivered.pod_signature} alt={t("Signature", "Firma")} style={{ maxHeight: 110, background: "#fff", border: "1px solid var(--line)", borderRadius: 8, margin: "10px auto 0", display: "block" }} />
           )}
-          {/* Rate the delivery on the spot — feeds the CSAT KPI. */}
-          <div style={{ margin: "12px 0" }}>
-            <div className="hint" style={{ marginBottom: 4 }}>⭐ {t("How did the delivery go? (optional)", "¿Cómo estuvo la entrega? (opcional)")}</div>
-            <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  title={`${n}`}
-                  onClick={() => { setCsatRating(n); updateDelivery(justDelivered.id, { csat_rating: n }); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 30, lineHeight: 1, padding: 0, color: (csatRating ?? 0) >= n ? "var(--amber)" : "var(--line)" }}
-                >★</button>
-              ))}
-              {csatRating != null && (
-                <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={() => { setCsatRating(null); updateDelivery(justDelivered.id, { csat_rating: null }); }}>{t("Clear", "Borrar")}</button>
-              )}
-            </div>
-          </div>
-          {/* No slip for drivers — there's no printer in the truck, so the
-              only thing left to do is close. */}
-          {me.role !== "driver" && (
-            <p className="hint" style={{ marginBottom: 16 }}>{t("Print the delivery slip, then close.", "Imprima el comprobante de entrega y luego cierre.")}</p>
-          )}
-          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-            {me.role !== "driver" && (
-              <button className="btn btn-primary" onClick={() => printDeliverySlip(justDelivered, settings, users, lang)}>🖨 {t("Print slip", "Imprimir comprobante")}</button>
-            )}
-            <button className={me.role === "driver" ? "btn btn-primary" : "btn btn-ghost"} onClick={onClose}>{t("Done", "Listo")}</button>
-          </div>
         </div>
       </div>
     );
