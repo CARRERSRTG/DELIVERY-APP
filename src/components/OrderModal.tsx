@@ -574,18 +574,36 @@ export function OrderModal({
   // Driver confirms what actually fit on the truck. A short load splits the
   // order: this one becomes #Na (loaded part, out for delivery) and the
   // remainder is re-staged as a new linked order #Nb for another trip.
-  const confirmPickup = async () => {
+  /**
+   * Mark the order loaded and on its way.
+   *
+   * `quickTotal` is the driver's one-tap path: they take the whole load as
+   * counted, with no pallet prompt and no split. The office keeps the detailed
+   * flow (confirm a count, split a partial load) by calling with no argument.
+   */
+  const confirmPickup = async (quickTotal?: number) => {
     if (!existing) return;
     const total = existing.actual_pallets ?? existing.est_pallets ?? 0;
-    const n = Number(pickupPallets);
-    if (!Number.isFinite(n) || n <= 0) { notify(t("Enter the loaded pallet count.", "Ingrese la cantidad de pallets cargadas.")); return; }
-    if (total > 0 && n > total) { notify(t(`Only ${total} pallets on this order.`, `Esta orden solo tiene ${total} pallets.`)); return; }
+    const quick = quickTotal != null;
+    const n = quick ? quickTotal : Number(pickupPallets);
+    if (!quick) {
+      if (!Number.isFinite(n) || n <= 0) { notify(t("Enter the loaded pallet count.", "Ingrese la cantidad de pallets cargadas.")); return; }
+      if (total > 0 && n > total) { notify(t(`Only ${total} pallets on this order.`, `Esta orden solo tiene ${total} pallets.`)); return; }
+    }
     setBusy(true);
     const gps = await captureLocation();
     const gpsExtra = gps
       ? { pickup_lat: gps.lat, pickup_lng: gps.lng, pickup_gps_at: gps.at }
       : { pickup_gps_at: new Date().toISOString() };
-    if (total > 0 && n < total) {
+    // A driver who physically loads an order that was never assigned to anyone
+    // becomes its driver. Otherwise it goes "out for delivery" belonging to
+    // nobody: it vanishes from every driver's queue (they only see their own)
+    // and no one is accountable for it.
+    const claim = me.role === "driver" && !existing.assigned_driver
+      ? { assigned_driver: me.full_name }
+      : {};
+
+    if (!quick && total > 0 && n < total) {
       const mySuffix = existing.order_suffix ?? "a";
       const nextSuffix = String.fromCharCode(mySuffix.charCodeAt(0) + 1);
       const rest = total - n;
@@ -608,7 +626,7 @@ export function OrderModal({
         existing.id, "picked_up",
         t(`Partial load: ${n} of ${total} pallets — remainder split to #${existing.order_code || existing.order_no}${nextSuffix}`,
           `Carga parcial: ${n} de ${total} pallets — resto dividido a #${existing.order_code || existing.order_no}${nextSuffix}`),
-        { ...gpsExtra, order_suffix: mySuffix, actual_pallets: n },
+        { ...gpsExtra, ...claim, order_suffix: mySuffix, actual_pallets: n },
       );
       setBusy(false);
       if (ok) {
@@ -618,7 +636,14 @@ export function OrderModal({
       }
       return;
     }
-    const ok = await setStage(existing.id, "picked_up", t(`Loaded: ${n} pallets`, `Cargadas: ${n} pallets`), { ...gpsExtra, actual_pallets: n });
+    const ok = await setStage(
+      existing.id,
+      "picked_up",
+      n > 0 ? t(`Loaded: ${n} pallets`, `Cargadas: ${n} pallets`) : t("Loaded", "Cargada"),
+      // Never write a 0 pallet count over a blank one — a missing number from
+      // the office shouldn't become a wrong number from the truck.
+      { ...gpsExtra, ...claim, ...(n > 0 ? { actual_pallets: n } : {}) },
+    );
     setBusy(false);
     if (ok) { notify(t("Out for delivery", "En reparto")); onClose(); }
   };
@@ -901,7 +926,8 @@ export function OrderModal({
       onCancelReady={() => setShowReadyConfirm(false)}
       pickupConfirmOpen={showPickupConfirm}
       onRequestPickup={() => { setPickupPallets(String(existing.actual_pallets ?? existing.est_pallets ?? "")); setShowPickupConfirm(true); }}
-      onConfirmPickup={confirmPickup}
+      onConfirmPickup={() => confirmPickup()}
+      onQuickPickup={() => confirmPickup(existing.actual_pallets ?? existing.est_pallets ?? 0)}
       onCancelPickup={() => setShowPickupConfirm(false)}
       departedAt={departedAt}
       onDepart={depart}
@@ -2050,7 +2076,7 @@ function StageActions({
   me, stage, busy, onEdit, onMove, showReject, setShowReject, rejectReason,
   showCancel, setShowCancel, cancelReason, onPrint, onRequestDeliver, podOpen,
   readyConfirmOpen, onRequestReady, onConfirmReady, onCancelReady,
-  pickupConfirmOpen, onRequestPickup, onConfirmPickup, onCancelPickup,
+  pickupConfirmOpen, onRequestPickup, onConfirmPickup, onCancelPickup, onQuickPickup,
   departedAt, onDepart, arrivedAt, onArrive,
 }: {
   me: Profile; stage: Stage; busy: boolean;
@@ -2061,14 +2087,19 @@ function StageActions({
   onPrint: () => void; onRequestDeliver: () => void; podOpen: boolean;
   readyConfirmOpen: boolean; onRequestReady: () => void; onConfirmReady: () => void; onCancelReady: () => void;
   pickupConfirmOpen: boolean; onRequestPickup: () => void; onConfirmPickup: () => void; onCancelPickup: () => void;
+  /** Driver's one-tap pickup: takes the full load, no count prompt. */
+  onQuickPickup: () => void;
   departedAt: string | null; onDepart: () => void;
   arrivedAt: string | null; onArrive: () => void;
 }) {
   const { t } = usePrefs();
   const btns: React.ReactNode[] = [];
 
-  // Printable delivery slip / packing list — available on any real order.
-  btns.push(<button key="print" className="btn btn-ghost" onClick={onPrint} disabled={busy}>🖨 {t("Slip", "Comprobante")}</button>);
+  // Printable delivery slip / packing list. Not for drivers — there's no
+  // printer in the truck, and it only crowded the buttons they actually use.
+  if (me.role !== "driver") {
+    btns.push(<button key="print" className="btn btn-ghost" onClick={onPrint} disabled={busy}>🖨 {t("Slip", "Comprobante")}</button>);
+  }
 
   if (canEditFields(me.role, stage)) {
     btns.push(<button key="edit" className="btn btn-ghost" onClick={onEdit} disabled={busy}>{t("Edit", "Editar")}</button>);
@@ -2124,7 +2155,20 @@ function StageActions({
           </span>,
         );
       }
-      btns.push(<button key="pickup" className="btn btn-primary" onClick={onRequestPickup} disabled={busy} title={t("Confirm the load and go out for delivery", "Confirmar la carga y salir en reparto")}>🚚 {t("Pick up", "Recoger")}</button>);
+      // A driver gets ONE button that marks it picked up on the spot. Their
+      // hands are full and the truck is loaded — a second "confirm the count"
+      // screen only stands between them and the road. The office keeps the
+      // two-step flow, where confirming a partial load and splitting the
+      // remainder is the point.
+      btns.push(
+        <button
+          key="pickup"
+          className="btn btn-primary"
+          onClick={me.role === "driver" ? onQuickPickup : onRequestPickup}
+          disabled={busy}
+          title={t("Mark loaded and go out for delivery", "Marcar cargada y salir en reparto")}
+        >🚚 {t("Pick up", "Recoger")}</button>,
+      );
     } else {
       btns.push(<button key="pickupback" className="btn btn-ghost" onClick={onCancelPickup} disabled={busy}>{t("Back", "Atrás")}</button>);
       btns.push(<button key="dopickup" className="btn btn-primary" onClick={onConfirmPickup} disabled={busy}>🚚 {t("Confirm load & go", "Confirmar carga y salir")}</button>);

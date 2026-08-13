@@ -329,6 +329,22 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-018", title: "La vista del chofer: sin comprobante y un solo botón para recoger",
+      fecha: "2026-08-13", version: "v1.0.1", quien: "Andrés",
+      cambio: "Al abrir una orden como chofer se quitó el botón “Comprobante”, y recoger pasó de dos toques (Recoger → Confirmar carga) a uno solo.",
+      razon: "Cuando abro la orden en el view de conductor, bórrame el slip, y el pickup miro que son 2 botones, entonces solo deja 1 y que de un solo se cambie a recogido.",
+      razonTextual: true,
+      consecuencia: "El chofer ya no puede registrar una carga parcial desde ese botón (llevarse 3 de 5 pallets y dividir el resto); toma la carga completa tal como está contada. La oficina conserva el flujo de dos pasos, que es donde dividir una carga tiene sentido. Si la orden no trae conteo, se marca recogida sin escribir un 0 encima."
+    },
+    {
+      id: "D-017", title: "Quien recoge una orden sin chofer, queda como su chofer",
+      fecha: "2026-08-13", version: "v1.0.1", quien: "Bug reportado",
+      cambio: "Si un chofer marca “Recogido” en una orden que no tiene chofer asignado, la orden queda a su nombre automáticamente.",
+      razon: "Andrés reportó que marcó una orden como recogida y “en la web sí me sale pero en la APK no me sale en Out for delivery”. No era un fallo de la APK: la orden estaba en picked_up con el chofer en nulo, y la vista del chofer solo muestra lo asignado a él — así que la orden desapareció de la cola de todos los choferes justo cuando ya iba en el camión.",
+      razonTextual: false,
+      consecuencia: "Si alguien tiene físicamente la carga, es su entrega. Un chofer puede quedar asignado a una orden que logística no le puso; se prefiere eso a una orden en tránsito sin responsable. Pendiente relacionado: la página de Órdenes no filtra por chofer — ahí un chofer ve todas las órdenes de la empresa, y así fue como recogió una que no era suya. Falta decidir si se restringe."
+    },
+    {
       id: "D-016", title: "Tres niveles de detalle en la tabla de paradas",
       fecha: "2026-08-12", version: "v0.9.98", quien: "Andrés",
       cambio: "En la tabla de paradas del Gestor de Rutas el destino del toque cambia según dónde caiga: el ID abre la orden completa, la fila aísla esa parada en el mapa con su ruta recolección→entrega, y tocar fuera vuelve a mostrar todas las paradas del chofer.",

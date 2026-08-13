@@ -320,6 +320,53 @@ ya no se arrastra, el clic quedó libre para significar "enfocar en el mapa".
 
 ---
 
+## D-017 · Quien recoge una orden sin chofer, queda como su chofer
+**Fecha:** 2026-08-13 · **Versión:** v1.0.1 · **Origen:** bug reportado
+
+**Cambio:** Si un chofer marca "Recogido" en una orden que no tiene chofer
+asignado, la orden queda a su nombre automáticamente.
+
+**Razón:** Andrés reportó que marcó una orden como recogida y *"en la web sí me
+sale pero en la APK no me sale en Out for delivery"*. No era un fallo de la
+APK: la orden (FQ115) estaba en `picked_up` con `assigned_driver` en nulo. La
+vista del chofer solo muestra lo asignado a él, así que la orden **desapareció
+de la cola de todos los choferes** justo cuando ya iba en el camión.
+
+**Por qué así:** si alguien tiene físicamente la carga, es su entrega. Dejarla
+sin dueño en reparto es el peor estado posible — nadie la ve y nadie responde
+por ella.
+
+**Consecuencia aceptada:** un chofer puede quedar asignado a una orden que
+logística no le puso. Se prefiere eso a una orden en tránsito sin responsable.
+
+**Pendiente relacionado:** la página de Órdenes (`/`) **no filtra por chofer** —
+ahí un chofer ve todas las órdenes de la empresa, a diferencia de su propia
+vista. Así fue como recogió una orden que no era suya. Falta decidir si eso se
+restringe.
+
+---
+
+## D-018 · La vista del chofer: sin comprobante y un solo botón para recoger
+**Fecha:** 2026-08-13 · **Versión:** v1.0.1 · **Pedido por:** Andrés
+
+**Cambio:** Al abrir una orden como chofer se quitó el botón "Comprobante", y
+recoger pasó de dos toques (Recoger → Confirmar carga) a **uno solo**.
+
+**Razón (textual):** *"cuando abro la orden en el view de conductor, bórrame el
+slip, y el pickup miro que son 2 botones, entonces solo deja 1 y que de un solo
+se cambie a recogido."*
+
+**Consecuencia aceptada:** el chofer ya no puede registrar una **carga parcial**
+desde ese botón (llevarse 3 de 5 pallets y dividir el resto). Toma la carga
+completa tal como está contada. La oficina conserva el flujo de dos pasos, que
+es donde dividir una carga tiene sentido.
+
+**Detalle:** si la orden no trae conteo de pallets, se marca recogida sin
+escribir un 0 encima — un número que la oficina no llenó no debe convertirse en
+un número equivocado desde el camión.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
