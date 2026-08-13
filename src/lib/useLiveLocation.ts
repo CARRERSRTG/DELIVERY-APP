@@ -56,9 +56,14 @@ export function useLiveLocation(active: boolean): { status: LocationStatus; last
         const stop = await startNativeWatch(
           (fix) => void report(fix),
           (_msg, denied) => { if (!cancelled) setStatus(denied ? "denied" : "unavailable"); },
+          // Android forces a permanent notification for a background location
+          // service and no app may suppress it, so this text is always visible
+          // to the driver. Kept factual: the service does run for the duration
+          // of the shift. Android additionally shows its own location indicator
+          // in the status bar, independent of anything written here.
           {
             title: "RDZ Deliveries",
-            message: "Compartiendo tu ubicación con la oficina durante tu turno",
+            message: "Turno en curso",
           },
           MIN_MOVE_M,
         );

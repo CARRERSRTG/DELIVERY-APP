@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { isLocalCity, listFee, discountFee, suggestDeliveryFee } from "@/lib/pricing";
+import { todayISO } from "@/lib/utils";
 
 describe("isLocalCity", () => {
   it("matches a local-zone city case-insensitively", () => {
@@ -80,8 +81,11 @@ describe("suggestDeliveryFee", () => {
   });
 
   it("adds the same-day surcharge only when the delivery date is today", () => {
-    const today = new Date();
-    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    // "Today" must come from the business-timezone helper the code itself
+    // uses. Building it from the machine's local date only agreed by luck —
+    // it broke as soon as the two disagreed, which they do every evening on a
+    // machine that isn't set to US Central.
+    const iso = todayISO();
     const base = { delivery_address: "123 Main St, McAllen, TX 78501", route_miles: 13 };
 
     const same = suggestDeliveryFee({ ...base, delivery_date: iso }, { same_day_surcharge: 50 });
@@ -96,9 +100,7 @@ describe("suggestDeliveryFee", () => {
   });
 
   it("does not surcharge when the amount is 0 (feature off)", () => {
-    const today = new Date();
-    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    const s = suggestDeliveryFee({ delivery_address: "1 Palm Ave, McAllen, TX", route_miles: 13, delivery_date: iso }, { same_day_surcharge: 0 });
+    const s = suggestDeliveryFee({ delivery_address: "1 Palm Ave, McAllen, TX", route_miles: 13, delivery_date: todayISO() }, { same_day_surcharge: 0 });
     expect(s.sameDay).toBe(false);
     expect(s.list).toBe(130);
   });

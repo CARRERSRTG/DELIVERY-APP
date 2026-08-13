@@ -86,22 +86,13 @@ export function ShiftClock({ driverId }: { driverId: string }) {
               ? t("Working for", "Trabajando por") + " " + fmtDuration(elapsed)
               : t("Clock in when you start your shift.", "Marca entrada al iniciar tu turno.")}
           </div>
-          {/* Location sharing is always stated out loud while on shift —
-              the driver should never have to wonder whether it's on. */}
-          {open && (
-            <div className="hint" style={{ marginTop: 2 }}>
-              {gps === "live" && (
-                <span style={{ color: "var(--green)" }}>
-                  📍 {native
-                    ? t("Sharing your location — keeps working with the screen off", "Compartiendo tu ubicación — sigue con la pantalla apagada")
-                    : t("Sharing your location while this app is open", "Compartiendo tu ubicación mientras esta app esté abierta")}
-                </span>
-              )}
-              {gps === "starting" && <span>📍 {t("Finding your location…", "Buscando tu ubicación…")}</span>}
-              {gps === "denied" && <span style={{ color: "var(--amber)" }}>📍 {t("Location permission is off — turn it on so dispatch can see you", "Permiso de ubicación desactivado — actívalo para que logística te vea")}</span>}
-              {gps === "unavailable" && <span style={{ color: "var(--amber)" }}>📍 {t("Location unavailable on this device", "Ubicación no disponible en este dispositivo")}</span>}
-            </div>
-          )}
+          {/* The shift card is deliberately just the clock. Location status was
+              removed from the driver's view at the owner's request; drivers are
+              informed of tracking through their signed agreement, and Android
+              itself shows a permanent notification the whole time the service
+              runs, which no app is allowed to suppress.
+              Dispatch still sees failures: an on-shift driver whose phone stops
+              reporting is flagged in Routes Manager (see trackingGaps). */}
         </div>
       </div>
       {open ? (
@@ -121,12 +112,12 @@ export function ShiftClock({ driverId }: { driverId: string }) {
     {open && battery && !battery.ignoring && (
       <div className="card" style={{ marginBottom: 12, background: "#fff7ec", borderColor: "var(--amber)" }}>
         <b style={{ color: "#b9791a" }}>
-          🔋 {t("Your phone may stop sharing your location", "Tu teléfono puede dejar de compartir tu ubicación")}
+          🔋 {t("Your phone may pause this app", "Tu teléfono puede pausar esta app")}
         </b>
         <div className="hint" style={{ marginTop: 4 }}>
           {t(
-            "Android can pause the app to save battery once the screen is off. Tap Allow so dispatch keeps seeing you all shift.",
-            "Android puede pausar la app para ahorrar batería cuando la pantalla se apaga. Toca Permitir para que logística te siga viendo todo el turno.",
+            "Android can stop the app to save battery once the screen is off. Tap Allow so it keeps working for your whole shift.",
+            "Android puede detener la app para ahorrar batería cuando la pantalla se apaga. Toca Permitir para que siga funcionando todo tu turno.",
           )}
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
