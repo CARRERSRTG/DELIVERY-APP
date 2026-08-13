@@ -7,6 +7,7 @@ import { useConfirm } from "@/lib/confirm";
 import { canPlanRoutes, stageInfo, stageLabel } from "@/lib/constants";
 import { autoAssign, parseWindow, splitIntoTrips, unavailableDriverNames } from "@/lib/dispatch";
 import { MapView, type MapLine, type MapPoint } from "@/components/MapView";
+import { OrderModal } from "@/components/OrderModal";
 import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
@@ -276,6 +277,9 @@ export default function RoutesPage() {
   // one-shot "show me" rather than a mode to get stuck in.
   const [locateDriver, setLocateDriver] = useState<string | null>(null);
   useEffect(() => { setLocateDriver(null); }, [selected, selectedOrders]);
+  // The order opened from a stop's ID — the dispatcher wants the order itself,
+  // not just its pin.
+  const [openOrder, setOpenOrder] = useState<Delivery | null>(null);
 
   // Where each driver's phone last reported from, so the dispatcher can see
   // the fleet against the routes they planned.
@@ -1835,8 +1839,11 @@ export default function RoutesPage() {
           const etaMin = eta ? parseInt(eta.slice(0, 2), 10) * 60 + parseInt(eta.slice(3, 5), 10) : null;
           return etaMin != null && win != null && etaMin > win[1];
         });
+        // Tapping anywhere on the card that isn't a stop row drops the
+        // single-stop focus, so the map goes back to this driver's whole day.
+        // That's the "tap outside" way back out.
         return (
-          <div className="card" key={u.id} style={{ margin: 0 }}>
+          <div className="card" key={u.id} style={{ margin: 0 }} onClick={() => { if (selectedOrders.size) setSelectedOrders(new Set()); }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
               <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} onClick={() => toggleCollapse(u.key)} title={t("Collapse", "Contraer")}>{isC ? "▸" : "▾"}</button>
               <span
@@ -2023,17 +2030,37 @@ export default function RoutesPage() {
                             const late = etaMin != null && win != null && etaMin > win[1];
                             // Stops are reordered with the ↑/↓ arrows only —
                             // row dragging was removed on request.
+                            //
+                            // Three levels of detail, by where you tap:
+                            //   the ID   → open the order itself
+                            //   the row  → isolate this stop on the map, with its route
+                            //   outside  → back to the driver's whole day
+                            const isolated = selectedOrders.has(d.id) && selectedOrders.size === 1;
                             return (
-                              <tr key={d.id}>
+                              <tr
+                                key={d.id}
+                                className="clickable"
+                                style={isolated ? { background: "var(--accent-soft)" } : undefined}
+                                onClick={() => setSelectedOrders(isolated ? new Set() : new Set([d.id]))}
+                                title={t("Show this stop on the map", "Ver esta parada en el mapa")}
+                              >
                                 <td style={{ borderLeft: `4px solid ${tColor}` }}>{d.route_seq != null ? i + 1 : "—"}</td>
-                                <td className="ordno">#{orderLabel(d)}</td>
+                                <td
+                                  className="ordno"
+                                  onClick={(e) => { e.stopPropagation(); setOpenOrder(d); }}
+                                  style={{ cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}
+                                  title={t("Open this order", "Abrir esta orden")}
+                                >#{orderLabel(d)}</td>
                                 <td title={d.order_type || undefined}>{d.order_type || "—"}</td>
                                 <td title={d.delivery_address || undefined}>{d.delivery_address || "—"}</td>
                                 <td style={{ fontWeight: 600, color: late ? "var(--red)" : undefined }} title={late ? t("ETA is after the delivery window", "La llegada es después de la ventana") : undefined}>
                                   {eta ?? "—"}{late ? " ⚠️" : ""}
                                 </td>
                                 <td>{fmtWindows(d.delivery_windows)}</td>
-                                <td style={{ display: "flex", gap: 3, justifyContent: "flex-end", alignItems: "center", overflow: "visible" }}>
+                                {/* Reordering and moving loads are edits, not
+                                    "show me this" — they must not also hijack
+                                    the map to this one stop. */}
+                                <td onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 3, justifyContent: "flex-end", alignItems: "center", overflow: "visible" }}>
                                   {/* Hand-arrange the stops — works even before the route is optimized. */}
                                   <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} disabled={i === 0} onClick={() => move(u.key, i, -1)} title={t("Move up", "Subir")}>↑</button>
                                   <button className="btn btn-ghost btn-sm" style={{ padding: "2px 6px", minHeight: 0 }} disabled={i === stops.length - 1} onClick={() => move(u.key, i, 1)} title={t("Move down", "Bajar")}>↓</button>
@@ -2072,6 +2099,8 @@ export default function RoutesPage() {
       )}
 
       {!ready && <div className="empty">{t("Loading…", "Cargando…")}</div>}
+
+      {openOrder && <OrderModal me={me} existing={openOrder} startEditing={false} onClose={() => setOpenOrder(null)} />}
     </>
   );
 }

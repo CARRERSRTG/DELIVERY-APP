@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-016", title: "Tres niveles de detalle en la tabla de paradas",
+      fecha: "2026-08-12", version: "v0.9.98", quien: "Andrés",
+      cambio: "En la tabla de paradas del Gestor de Rutas el destino del toque cambia según dónde caiga: el ID abre la orden completa, la fila aísla esa parada en el mapa con su ruta recolección→entrega, y tocar fuera vuelve a mostrar todas las paradas del chofer.",
+      razon: "Haz que si toco el ID en la tabla ahí en viajes se abra la orden para verla, y si toco el row me va a llevar en el mapa a ver esa orden y la ruta, y si aprieto fuera me aparecen todas las de ese conductor.",
+      razonTextual: true,
+      consecuencia: "Las flechas ↑/↓ y el selector de viaje detienen el clic: reordenar es una edición, no un “muéstrame”, y no debe secuestrar el mapa. Se apoya en D-007 — ahora que la fila ya no se arrastra, el clic quedó libre para significar “enfocar en el mapa”."
+    },
+    {
       id: "D-015", title: "Auto-cancelar órdenes muy atrasadas: apagado",
       fecha: "—", version: "—", quien: "—",
       cambio: "Existe la automatización que cancela órdenes con más de 2 días de atraso sin reprogramar, pero está desactivada.",

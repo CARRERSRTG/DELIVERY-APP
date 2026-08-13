@@ -270,6 +270,31 @@ Falta registrar por qué se dejó apagada y qué debe pasar para prenderla.
 
 ---
 
+## D-016 · Tres niveles de detalle en la tabla de paradas
+**Fecha:** 2026-08-12 · **Versión:** v0.9.98 · **Pedido por:** Andrés
+
+**Cambio:** En la tabla de paradas del Gestor de Rutas, el destino del toque
+cambia según dónde caiga:
+
+| Tocas | Pasa |
+|---|---|
+| El **ID** | Se abre la orden completa |
+| La **fila** | El mapa aísla esa parada y dibuja su ruta recolección→entrega |
+| **Fuera** (la tarjeta) | Vuelve a mostrar todas las paradas de ese chofer |
+
+**Razón (textual):** *"haz que si toco el ID en la tabla ahí en viajes se abra
+la orden para verla, y si toco el row me va a llevar en el mapa a ver esa orden
+y la ruta, y si aprieto fuera me aparecen todas las de ese conductor."*
+
+**Consecuencia aceptada:** las flechas ↑/↓ y el selector de viaje detienen el
+clic — reordenar es una edición, no un "muéstrame", y no debe secuestrar el
+mapa hacia esa parada.
+
+**Relación:** se apoya en D-007 (sin arrastrar, solo flechas). Ahora que la fila
+ya no se arrastra, el clic quedó libre para significar "enfocar en el mapa".
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
