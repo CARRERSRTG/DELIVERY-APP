@@ -45,9 +45,42 @@ export function captureLocation(timeoutMs = 8000): Promise<GeoStamp | null> {
         });
       },
       () => { clearTimeout(timer); done(null); },
-      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 0 },
+      {
+        enableHighAccuracy: true,
+        timeout: timeoutMs,
+        // A fix from the last half-minute is fine for "where did this stop
+        // happen" — the truck hasn't moved far. Demanding a brand-new one
+        // (maximumAge: 0) made the phone wake the GPS chip and re-acquire on
+        // every press, which is what made pickups and deliveries feel slow.
+        // On shift the background service is already producing fixes, so this
+        // almost always returns instantly.
+        maximumAge: 30_000,
+      },
     );
   });
+}
+
+/**
+ * Position for a milestone the driver is waiting on.
+ *
+ * `immediate` settles fast — with whatever fix is already available, or null
+ * if none arrives in `maxWaitMs`. Stamp the milestone with that and move on;
+ * the driver came to press a button, not to watch a spinner.
+ *
+ * `eventual` is the real fix whenever it lands, so a caller that had to
+ * proceed without one can patch the coordinates in afterwards. Nothing is
+ * lost, and nothing is delayed.
+ */
+export function captureLocationSplit(maxWaitMs = 1200): {
+  immediate: Promise<GeoStamp | null>;
+  eventual: Promise<GeoStamp | null>;
+} {
+  const eventual = captureLocation();
+  const immediate = Promise.race([
+    eventual,
+    new Promise<null>((r) => setTimeout(() => r(null), maxWaitMs)),
+  ]);
+  return { immediate, eventual };
 }
 
 /** Google Maps link for a captured point (used to review where a stop happened). */

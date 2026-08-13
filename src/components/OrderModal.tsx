@@ -16,7 +16,7 @@ import { MapView } from "@/components/MapView";
 import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
 import { isStoreToStore, orderTypeRule, missingFields, missingKeys, type MissingField } from "@/lib/required";
-import { captureLocation, geoAvailable, mapLink } from "@/lib/geo";
+import { captureLocationSplit, geoAvailable, mapLink, type GeoStamp } from "@/lib/geo";
 import type { AccountRecord, Delivery, NamedLocation, NoteRole, Profile, RoleNote, Settings, Stage } from "@/lib/types";
 
 type Draft = Partial<Delivery>;
@@ -122,6 +122,26 @@ export function OrderModal({
   // parent hands down a fresh onClose.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+
+  /**
+   * Fill in coordinates that arrived after the milestone was already saved.
+   *
+   * The stage change is what the driver is waiting on, so it never waits for
+   * GPS; when the fix shows up a moment later this quietly patches it onto the
+   * order. Silent by design — the driver has moved on and there's nothing for
+   * them to do about it either way.
+   */
+  const attachLateFix = async (
+    id: string,
+    pending: Promise<GeoStamp | null>,
+    kind: "pickup" | "pod",
+  ) => {
+    const gps = await pending;
+    if (!gps) return;
+    await updateDelivery(id, kind === "pickup"
+      ? { pickup_lat: gps.lat, pickup_lng: gps.lng, pickup_gps_at: gps.at }
+      : { pod_lat: gps.lat, pod_lng: gps.lng, pod_accuracy: gps.accuracy });
+  };
   // A backdrop click only closes when the press STARTED on the backdrop too —
   // otherwise a click whose mouseup lands on the just-opened overlay (or a drag
   // release) would instantly close the modal that the same click just opened.
@@ -505,15 +525,21 @@ export function OrderModal({
     setBusy(true);
     // Stamp the driver's location when they collect the load (never blocks).
     let extra: Partial<Delivery> | undefined;
+    let latePickupFix: Promise<GeoStamp | null> | null = null;
     if (to === "picked_up") {
       // Always stamp the pickup time (feeds the pickup/transit KPIs); add GPS
       // coords too when the driver allows location, but never require them.
-      const gps = await captureLocation();
+      const { immediate, eventual } = captureLocationSplit();
+      const gps = await immediate;
       extra = gps
         ? { pickup_lat: gps.lat, pickup_lng: gps.lng, pickup_gps_at: gps.at }
         : { pickup_gps_at: new Date().toISOString() };
+      // No fix yet? Save now and attach the coordinates when they land, rather
+      // than holding the driver at a spinner while the GPS chip wakes up.
+      if (!gps) latePickupFix = eventual;
     }
     const ok = await setStage(existing.id, to, note, extra);
+    if (ok && latePickupFix) void attachLateFix(existing.id, latePickupFix, "pickup");
     setBusy(false);
     if (ok) { notify(t(`Moved to ${stageLabel(to, lang)}`, `Movido a ${stageLabel(to, lang)}`)); onClose(); }
   };
@@ -595,10 +621,12 @@ export function OrderModal({
       if (total > 0 && n > total) { notify(t(`Only ${total} pallets on this order.`, `Esta orden solo tiene ${total} pallets.`)); return; }
     }
     setBusy(true);
-    const gps = await captureLocation();
+    const { immediate, eventual } = captureLocationSplit();
+    const gps = await immediate;
     const gpsExtra = gps
       ? { pickup_lat: gps.lat, pickup_lng: gps.lng, pickup_gps_at: gps.at }
       : { pickup_gps_at: new Date().toISOString() };
+    if (!gps) void attachLateFix(existing.id, eventual, "pickup");
     // A driver who physically loads an order that was never assigned to anyone
     // becomes its driver. Otherwise it goes "out for delivery" belonging to
     // nobody: it vanishes from every driver's queue (they only see their own)
@@ -684,8 +712,11 @@ export function OrderModal({
     }
     setBusy(true);
     // Stamp where the driver actually is. Never blocks: resolves to null if the
-    // device refuses, has no signal, or the page isn't served over HTTPS.
-    const gps = await captureLocation();
+    // device refuses, has no signal, or the page isn't served over HTTPS — and
+    // a fix that's still coming is attached afterwards rather than waited on.
+    const { immediate, eventual } = captureLocationSplit();
+    const gps = await immediate;
+    if (!gps) void attachLateFix(existing.id, eventual, "pod");
     const altAddr = deliveredElsewhere ? deliveredAddress.trim() : "";
     const pod = {
       pod_received_by: podName.trim(),

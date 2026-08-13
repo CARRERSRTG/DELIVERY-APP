@@ -619,9 +619,13 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         return false;
       }
       setDeliveries((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-      await logEvent(id, stage, note);
+      // The stage itself is saved above — that's what the caller is waiting on.
+      // The audit entry and the notification fan-out are two more round trips
+      // that nobody is watching, so they run without holding the UI. A driver
+      // pressing "Pick up" was waiting through all three.
       const order = deliveries.find((c) => c.id === id);
-      await emitStageNotifs({ stage, order_no: order?.order_no ?? null, order_code: order?.order_code ?? null, delivery_id: id, creatorId: order ? orderOwner(order) : null, reason: note });
+      void logEvent(id, stage, note);
+      void emitStageNotifs({ stage, order_no: order?.order_no ?? null, order_code: order?.order_code ?? null, delivery_id: id, creatorId: order ? orderOwner(order) : null, reason: note });
       return true;
     },
     [supabase, me, notify, logEvent, deliveries, effectiveDeliveries, emitStageNotifs, teaching],
