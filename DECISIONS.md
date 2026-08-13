@@ -212,6 +212,22 @@ con las siglas de la tienda de donde sale."*
 **Consecuencia:** en computadora no cambia nada — ahí ya hay columnas de Etapa,
 Tipo y Tienda.
 
+**Refinamiento (2026-08-13, v1.0.4):** *"quiero que se pueda ver la fecha de
+entrega ahí también, sin hacer más grande esa tarjeta; Customer lo puedes poner
+solo como CUS y que esté al lado del ID."*
+
+La fila quedó con cuatro datos en una sola línea:
+
+```
+ID  #FQ115 CUS        [Recogido]  Ago 13  [BRO]  ▸
+```
+
+El **tipo** se abrevia a tres letras (CUS / INT / TRA) y se mueve **junto al
+ID**, porque dice lo que la orden **es** — a diferencia de la etapa y la fecha,
+que dicen dónde **está**. La **fecha** se muestra sin año (la lista solo tiene
+días alrededor de hoy) y **se pone roja si ya pasó**, que es lo único de esa
+línea que un chofer no puede pasar por alto.
+
 **Refinamiento (2026-08-13, v1.0.0):** *"que siempre al lado del tag de Listo
 también esté el tag del tipo de orden que es."* El tipo se mostraba como texto
 plano mientras la etapa y la tienda sí eran etiquetas — tres datos en una línea

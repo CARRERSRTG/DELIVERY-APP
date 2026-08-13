@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
-import { fmtDate, fmtMilitary, fmtMoney, fmtWindows, isOverdue, orderLabel, palletVariance, storeTag } from "@/lib/utils";
+import { fmtDate, fmtDateShort, fmtMilitary, fmtMoney, fmtWindows, isOverdue, orderLabel, orderTypeTag, palletVariance, storeTag } from "@/lib/utils";
 import { useColWidthMap } from "@/lib/use-col-widths";
 import type { Delivery } from "@/lib/types";
 
@@ -93,14 +93,21 @@ const ID_COLUMN: OrderColumn = {
   cell: (d, { lang }) => {
     const s = stageInfo(d.stage);
     const tag = storeTag(d.store);
+    const late = isOverdue(d);
     return (
       <>
         #{orderLabel(d)}
+        {/* Type rides with the id — it's part of what the order IS, unlike the
+            stage and date, which are where it currently stands. Abbreviated so
+            all four facts fit one phone line without growing the card. */}
+        <span className="row-type" title={d.order_type ?? undefined}>{orderTypeTag(d.order_type) || "—"}</span>
         <span className="row-badges">
           <span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>
-          {/* Always present, even when unset — a missing type is worth seeing
-              (someone has to fill it in), not silently hiding. */}
-          <span className="row-type">{d.order_type || "—"}</span>
+          {d.delivery_date && (
+            <span className={"row-date" + (late ? " late" : "")} title={fmtDate(d.delivery_date)}>
+              {fmtDateShort(d.delivery_date, lang)}
+            </span>
+          )}
           {tag && <span className="store-tag" title={d.store ?? undefined}>{tag}</span>}
         </span>
       </>

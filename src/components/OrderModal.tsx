@@ -1757,54 +1757,6 @@ export function OrderModal({
         )}
 
         {/* ---------- PROOF OF DELIVERY ---------- */}
-        {showPod && (
-          <div className="field" style={{ marginTop: 14 }}>
-            <div className="section-label" style={{ marginTop: 0 }}>{t("Proof of delivery", "Comprobante de entrega")}</div>
-            <label>{t("Received by", "Recibido por")}</label>
-            <input value={podName} onChange={(e) => setPodName(e.target.value)} placeholder={t("Name of person who received it", "Nombre de quien recibió")} />
-            <label style={{ marginTop: 10 }}>{t("Signature", "Firma")}</label>
-            <SignaturePad onChange={setPodSig} />
-
-            {/* Override: delivered somewhere other than the ordered address. */}
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>
-              <input type="checkbox" style={{ width: "auto", margin: 0 }} checked={deliveredElsewhere} onChange={(e) => setDeliveredElsewhere(e.target.checked)} />
-              📍 {t("I delivered at a different address", "Entregué en otra dirección")}
-            </label>
-            {deliveredElsewhere && (
-              <div className="field" style={{ marginTop: 8 }}>
-                <div className="hint" style={{ marginTop: 0, marginBottom: 4 }}>
-                  {t("Ordered address:", "Dirección del pedido:")} {existing?.delivery_address || "—"}
-                </div>
-                <input
-                  value={deliveredAddress}
-                  onChange={(e) => setDeliveredAddress(e.target.value)}
-                  placeholder={t("Address where you actually delivered", "Dirección donde entregó realmente")}
-                />
-                <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 4 }}>
-                  ⚠ {t("This will be reported to the office.", "Esto se reportará a la oficina.")}
-                </div>
-              </div>
-            )}
-
-            <div className="hint" style={{ marginTop: 6 }}>
-              {geoAvailable()
-                ? t("📍 Your location will be recorded with this delivery.", "📍 Su ubicación se registrará con esta entrega.")
-                : t("📍 Location can't be recorded here (needs a secure https connection).", "📍 No se puede registrar la ubicación aquí (requiere conexión https segura).")}
-            </div>
-            {/* Say what's still missing BEFORE the driver taps. This gate used
-                to be invisible until the button was pressed and a toast said
-                no — which reads as "I pressed delivered and nothing happened". */}
-            {podBlocker && (
-              <div className="hint" style={{ marginTop: 8, color: "var(--amber)", fontWeight: 600 }}>
-                ⚠ {podBlocker}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="btn btn-ghost btn-sm" onClick={() => { setShowPod(false); setPodName(""); setPodSig(null); setDeliveredElsewhere(false); setDeliveredAddress(""); }} disabled={busy}>{t("Back", "Atrás")}</button>
-              <button className="btn btn-green btn-sm" disabled={busy || !!podBlocker} onClick={deliverWithPod}>{t("Confirm delivered", "Confirmar entregado")}</button>
-            </div>
-          </div>
-        )}
 
         {/* ---------- POD (view, after delivery) ---------- */}
         {!editing && existing?.pod_received_by && (
@@ -1945,6 +1897,66 @@ export function OrderModal({
 
     {/* CONFIRM-PALLETS POPUP — opens after pressing "Mark ready". The only way
         out is Confirm or Discard; a backdrop click does nothing on purpose. */}
+    {/* PROOF-OF-DELIVERY POPUP — opened by "Mark delivered". A focused sheet
+        rather than a panel further down the order, because the driver is
+        doing this one-handed at the tailgate and shouldn't have to hunt for
+        the signature box. Backdrop clicks do nothing: half a signature lost
+        to a stray tap is worse than an extra tap on "Back". */}
+    {showPod && existing && (
+      <div className="overlay" style={{ zIndex: 60 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal" style={{ maxWidth: 460 }}>
+          <h3 style={{ marginTop: 0 }}>✅ {t("Confirm delivery", "Confirmar entrega")}</h3>
+          <div className="hint" style={{ marginTop: -6, marginBottom: 12 }}>
+            #{orderLabel(existing)}{existing.account ? ` · ${existing.account}` : ""}
+          </div>
+              <label>{t("Received by", "Recibido por")}</label>
+              <input value={podName} onChange={(e) => setPodName(e.target.value)} placeholder={t("Name of person who received it", "Nombre de quien recibió")} />
+              <label style={{ marginTop: 10 }}>{t("Signature", "Firma")}</label>
+              <SignaturePad onChange={setPodSig} />
+
+              {/* Override: delivered somewhere other than the ordered address. */}
+              <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>
+                <input type="checkbox" style={{ width: "auto", margin: 0 }} checked={deliveredElsewhere} onChange={(e) => setDeliveredElsewhere(e.target.checked)} />
+                📍 {t("I delivered at a different address", "Entregué en otra dirección")}
+              </label>
+              {deliveredElsewhere && (
+                <div className="field" style={{ marginTop: 8 }}>
+                  <div className="hint" style={{ marginTop: 0, marginBottom: 4 }}>
+                    {t("Ordered address:", "Dirección del pedido:")} {existing?.delivery_address || "—"}
+                  </div>
+                  <input
+                    value={deliveredAddress}
+                    onChange={(e) => setDeliveredAddress(e.target.value)}
+                    placeholder={t("Address where you actually delivered", "Dirección donde entregó realmente")}
+                  />
+                  <div className="hint" style={{ color: "var(--amber)", fontWeight: 600, marginTop: 4 }}>
+                    ⚠ {t("This will be reported to the office.", "Esto se reportará a la oficina.")}
+                  </div>
+                </div>
+              )}
+
+              <div className="hint" style={{ marginTop: 6 }}>
+                {geoAvailable()
+                  ? t("📍 Your location will be recorded with this delivery.", "📍 Su ubicación se registrará con esta entrega.")
+                  : t("📍 Location can't be recorded here (needs a secure https connection).", "📍 No se puede registrar la ubicación aquí (requiere conexión https segura).")}
+              </div>
+              {/* Say what's still missing BEFORE the driver taps. This gate used
+                  to be invisible until the button was pressed and a toast said
+                  no — which reads as "I pressed delivered and nothing happened". */}
+              {podBlocker && (
+                <div className="hint" style={{ marginTop: 8, color: "var(--amber)", fontWeight: 600 }}>
+                  ⚠ {podBlocker}
+                </div>
+              )}
+              {/* Full-size targets: this is tapped standing at a tailgate. */}
+              <div className="modal-actions" style={{ marginTop: 14 }}>
+                <button className="btn btn-ghost" onClick={() => { setShowPod(false); setPodName(""); setPodSig(null); setDeliveredElsewhere(false); setDeliveredAddress(""); }} disabled={busy}>{t("Cancel", "Cancelar")}</button>
+                <button className="btn btn-green" disabled={busy || !!podBlocker} onClick={deliverWithPod}>{t("Confirm delivered", "Confirmar entregado")}</button>
+              </div>
+        </div>
+      </div>
+    )}
+
     {showReadyConfirm && existing && (
       <div className="overlay" style={{ zIndex: 60 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal" style={{ maxWidth: 420 }}>

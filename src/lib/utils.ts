@@ -56,6 +56,35 @@ export function storeTag(store: string | null | undefined): string {
   return last.slice(0, 3).toUpperCase();
 }
 
+// Order types shortened to three letters for the phone's collapsed row, where
+// "Intertienda" alone would eat the line the stage and branch also need.
+const TYPE_TAGS: Record<string, string> = {
+  customer: "CUS",
+  intertienda: "INT",
+  transfer: "TRA",
+};
+
+/** Three-letter tag for an order type, e.g. "Customer" → "CUS". Falls back to
+ * the first letters so a type added later still shortens sanely. */
+export function orderTypeTag(type: string | null | undefined): string {
+  const name = (type ?? "").trim();
+  if (!name) return "";
+  return TYPE_TAGS[name.toLowerCase()] ?? name.slice(0, 3).toUpperCase();
+}
+
+/** Compact delivery date for a cramped row: "Aug 13" / "13 ago". The year is
+ * dropped — a driver's list only ever holds the days around today. */
+export function fmtDateShort(iso: string | null | undefined, lang: "en" | "es" = "en"): string {
+  if (!iso) return "";
+  // Noon anchors the parse away from the midnight boundary, so a date-only
+  // value can't slip a day when it's read back in another zone.
+  const d = new Date(iso.length === 10 ? iso + "T12:00:00" : iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(lang === "es" ? "es-MX" : "en-US", {
+    timeZone: BUSINESS_TZ, month: "short", day: "numeric",
+  }).format(d).replace(".", "");
+}
+
 /** Human-facing order id incl. the split-load letter: "FA100", "FA100a".
  * Uses the order_code; falls back to the internal number for legacy rows. */
 export const orderLabel = (d: { order_code?: string | null; order_no: number; order_suffix?: string | null }) =>
