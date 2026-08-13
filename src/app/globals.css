@@ -126,6 +126,14 @@ label { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: bloc
 .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 
 .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+/* Stage chips stay on ONE line and scroll sideways. Wrapped onto two or three
+   rows they pushed the actual list below the fold on a phone. */
+.filters-oneline {
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.filters-oneline::-webkit-scrollbar { display: none; }
+.filters-oneline .chip { flex: 0 0 auto; }
 .chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 12px; font-weight: 600; color: var(--ink-soft); cursor: pointer; }
 .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .chip .cnt { margin-left: 6px; opacity: .7; }
@@ -676,22 +684,28 @@ table.orders th { text-align: left; }
      Unlike every other row, the label hugs its value — "ID     #FQ109" spread
      across the card reads as two unrelated things. The badges take the slack
      instead and sit against the right edge. */
-  table.orders-responsive td.ordno { justify-content: flex-start; gap: 8px; }
-  .row-badges { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
-  /* An order can carry several invoices ("177987, 177986"). Let it shrink and
-     clip rather than shove the badges off the right edge; the full value stays
-     available on long-press via the title. */
-  .id-main {
-    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  table.orders-responsive td.ordno { justify-content: flex-start; gap: 10px; align-items: flex-start; }
+  /* Status stacks in fixed lines instead of wrapping wherever it lands, so
+     every card reads the same way down the list: stage, then when + where,
+     then what kind. */
+  .row-badges {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+    margin-left: auto; flex: 0 0 auto;
   }
-  /* Order type sits with the id as a short outlined tag (CUS / INT / TRA) —
-     it says what the order IS, so it belongs beside its number rather than
-     with the status badges on the right. */
+  .row-badge-line { display: inline-flex; align-items: center; gap: 6px; }
+  /* An order can carry several invoices ("177966, 177987"). All of them have to
+     be readable — a driver matches paperwork against this — so it wraps rather
+     than truncating. */
+  .id-main {
+    min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.25;
+  }
+  /* Order type on its own line under the stage — with a line to itself there's
+     room for the real word, so no one has to decode "INT". */
   .row-type {
-    font-size: 10.5px; font-weight: 800; color: var(--ink-soft);
-    text-transform: none; letter-spacing: .04em; white-space: nowrap;
-    border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px;
-    background: var(--card); margin-left: 7px;
+    font-size: 11px; font-weight: 700; color: var(--ink-soft);
+    text-transform: none; letter-spacing: .01em; white-space: nowrap;
+    border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px;
+    background: var(--card);
   }
   /* Delivery date: quiet by default, red when the day has already passed —
      the one thing on this line a driver must not miss. */

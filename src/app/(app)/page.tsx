@@ -323,13 +323,25 @@ export default function OrdersPage() {
             <button className={"vt " + (view === "table" ? "on" : "")} onClick={() => setView("table")}>☰ {t("Table", "Tabla")}</button>
             <button className={"vt " + (view === "board" ? "on" : "")} onClick={() => setView("board")}>▦ {t("Board", "Tablero")}</button>
           </div>
+          {/* All / Today rides with the view switch — both answer "what am I
+              looking at", so they belong on the same line. */}
+          <div className="viewtoggle">
+            {presets.map((p) => (
+              <button key={p.id} className={"vt " + (preset === p.id ? "on" : "")} onClick={() => setPreset(p.id)}>
+                {t(p.en, p.es)}
+              </button>
+            ))}
+          </div>
           {/* Data exports (Excel / PDF report / CSV) are admin-only. */}
           {me.role === "admin" && <>
             <button className="btn btn-ghost" onClick={() => exportExcelByEmployee(rows, users, lang)} disabled={!rows.length} title={t("Excel grouped by employee, collapsible", "Excel agrupado por empleado, colapsable")}>📊 {t("Excel", "Excel")}</button>
             <button className="btn btn-ghost" onClick={() => exportPDFByEmployee(rows, users, lang)} disabled={!rows.length}>🖨 {t("PDF", "PDF")}</button>
             <button className="btn btn-ghost" onClick={exportCSV} disabled={!rows.length}>⬇ {t("CSV", "CSV")}</button>
           </>}
-          {view === "table" && me.role !== "sales" && (
+          {/* Column picking is an office habit. Sales get a fixed list set by
+              an admin, and a driver has one job on a phone — the button was
+              just taking room from the list. */}
+          {view === "table" && !["sales", "driver"].includes(me.role) && (
             <div style={{ position: "relative" }}>
               <button className="btn btn-ghost" onClick={() => setShowCols((s) => !s)}>⚙ {t("Columns", "Columnas")}</button>
               {showCols && (
@@ -362,13 +374,6 @@ export default function OrdersPage() {
       </div>
 
       <div className="filters">
-        <div className="viewtoggle">
-          {presets.map((p) => (
-            <button key={p.id} className={"vt " + (preset === p.id ? "on" : "")} onClick={() => setPreset(p.id)}>
-              {t(p.en, p.es)}
-            </button>
-          ))}
-        </div>
         <input
           ref={searchRef}
           style={{ maxWidth: 260 }}
@@ -378,7 +383,7 @@ export default function OrdersPage() {
         />
       </div>
 
-      <div className="filters">
+      <div className="filters filters-oneline">
         {view === "table" && (
           <>
             {(me ? filterStagesFor(me.role) : STAGES.map((s) => s.key))

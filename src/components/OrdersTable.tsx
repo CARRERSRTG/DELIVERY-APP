@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
 import { useData } from "@/lib/data-provider";
-import { fmtDate, fmtDateShort, fmtMilitary, fmtMoney, fmtWindows, isOverdue, orderLabel, orderTypeTag, palletVariance, storeTag } from "@/lib/utils";
+import { fmtDate, fmtDateShort, fmtMilitary, fmtMoney, fmtWindows, isOverdue, orderLabel, palletVariance, storeTag } from "@/lib/utils";
 import { useColWidthMap } from "@/lib/use-col-widths";
 import type { Delivery } from "@/lib/types";
 
@@ -106,21 +106,30 @@ const ID_COLUMN: OrderColumn = {
     const invoice = (d.invoice_num || "").trim();
     return (
       <>
+        {/* The number is the thing being looked up, so it never truncates —
+            an order can carry several invoices ("177966, 177987") and a driver
+            matching paperwork needs to read all of them. It wraps instead. */}
         {byInvoice
-          ? <span className="id-main" title={invoice || undefined}>{invoice || `#${orderLabel(d)}`}</span>
+          ? <span className="id-main">{invoice || `#${orderLabel(d)}`}</span>
           : <>#{orderLabel(d)}</>}
-        {/* Type rides with the id — it's part of what the order IS, unlike the
-            stage and date, which are where it currently stands. Abbreviated so
-            all four facts fit one phone line without growing the card. */}
-        <span className="row-type" title={d.order_type ?? undefined}>{orderTypeTag(d.order_type) || "—"}</span>
+        {/* Status stack, right-aligned: where the order stands, then what it
+            is. The type sits under the stage where there's room for its full
+            name rather than a three-letter guess. */}
         <span className="row-badges">
-          <span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>
-          {d.delivery_date && (
-            <span className={"row-date" + (late ? " late" : "")} title={fmtDate(d.delivery_date)}>
-              {fmtDateShort(d.delivery_date, lang)}
-            </span>
-          )}
-          {tag && <span className="store-tag" title={d.store ?? undefined}>{tag}</span>}
+          <span className="row-badge-line">
+            <span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>
+          </span>
+          <span className="row-badge-line">
+            {d.delivery_date && (
+              <span className={"row-date" + (late ? " late" : "")} title={fmtDate(d.delivery_date)}>
+                {fmtDateShort(d.delivery_date, lang)}
+              </span>
+            )}
+            {tag && <span className="store-tag" title={d.store ?? undefined}>{tag}</span>}
+          </span>
+          <span className="row-badge-line">
+            <span className="row-type">{d.order_type || "—"}</span>
+          </span>
         </span>
       </>
     );
@@ -266,7 +275,9 @@ export function OrdersTable({
   const cols = useMemo(() => {
     // Relabel the first column when it holds an invoice — a header reading
     // "ID" over an invoice number is worse than no header at all.
-    const idCol = byInvoice ? { ...ID_COLUMN, en: "Invoice #", es: "Factura #" } : ID_COLUMN;
+    // Just "#" — the value itself already says whether it's an invoice or an
+    // SO, and the word was eating the width the number needs.
+    const idCol = byInvoice ? { ...ID_COLUMN, en: "#", es: "#" } : ID_COLUMN;
     return [idCol, ...ORDER_COLUMNS.filter((c) => visible.includes(c.key))];
   }, [visible, byInvoice]);
 

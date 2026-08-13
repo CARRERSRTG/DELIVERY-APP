@@ -1,32 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { fmtDateShort, orderTypeTag, storeTag } from "./utils";
+import { fmtDateShort, storeTag } from "./utils";
 
 // The three short labels that share one line on a driver's phone. They exist
 // to fit, so the tests are mostly about not growing and not going blank.
-
-describe("orderTypeTag", () => {
-  it("uses the company's own short forms", () => {
-    expect(orderTypeTag("Customer")).toBe("CUS");
-    expect(orderTypeTag("Intertienda")).toBe("INT");
-    expect(orderTypeTag("Transfer")).toBe("TRA");
-  });
-
-  it("is case-insensitive", () => {
-    expect(orderTypeTag("customer")).toBe("CUS");
-    expect(orderTypeTag("INTERTIENDA")).toBe("INT");
-  });
-
-  it("shortens an unknown type instead of dropping it", () => {
-    // A type added in Settings later still gets a usable tag.
-    expect(orderTypeTag("Devolucion")).toBe("DEV");
-  });
-
-  it("returns empty for no type, so the caller can show its own placeholder", () => {
-    expect(orderTypeTag(null)).toBe("");
-    expect(orderTypeTag(undefined)).toBe("");
-    expect(orderTypeTag("   ")).toBe("");
-  });
-});
 
 describe("storeTag", () => {
   it("uses the branch codes the team already says out loud", () => {

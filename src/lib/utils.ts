@@ -56,22 +56,6 @@ export function storeTag(store: string | null | undefined): string {
   return last.slice(0, 3).toUpperCase();
 }
 
-// Order types shortened to three letters for the phone's collapsed row, where
-// "Intertienda" alone would eat the line the stage and branch also need.
-const TYPE_TAGS: Record<string, string> = {
-  customer: "CUS",
-  intertienda: "INT",
-  transfer: "TRA",
-};
-
-/** Three-letter tag for an order type, e.g. "Customer" → "CUS". Falls back to
- * the first letters so a type added later still shortens sanely. */
-export function orderTypeTag(type: string | null | undefined): string {
-  const name = (type ?? "").trim();
-  if (!name) return "";
-  return TYPE_TAGS[name.toLowerCase()] ?? name.slice(0, 3).toUpperCase();
-}
-
 /** Compact delivery date for a cramped row: "Aug 13" / "13 ago". The year is
  * dropped — a driver's list only ever holds the days around today. */
 export function fmtDateShort(iso: string | null | undefined, lang: "en" | "es" = "en"): string {
