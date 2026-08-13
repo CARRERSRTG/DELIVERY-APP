@@ -1,0 +1,253 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useData } from "@/lib/data-provider";
+import { usePrefs } from "@/lib/prefs";
+import { canDeliver } from "@/lib/constants";
+import { routeOrder, splitIntoTrips } from "@/lib/dispatch";
+import { groupIntoLoads, hasManualLoads } from "@/lib/route-lanes";
+import { MapView, type MapPoint } from "@/components/MapView";
+import { OrderModal } from "@/components/OrderModal";
+import { useStoreMarkers } from "@/lib/useStoreMarkers";
+import { fallbackDriverColor, fmtDate, fmtWindows, isOverdue, orderLabel, storeTag, todayISO } from "@/lib/utils";
+import type { Delivery } from "@/lib/types";
+
+// ============================================================
+// "My route" — the driver's read-only copy of what logistics planned.
+//
+// Deliberately NOT the dispatcher's screen with the controls removed. A
+// dispatcher is arranging a whole fleet at a desk; a driver is in a cab with
+// one question at a time. So this leads with the NEXT stop, then shows the
+// day's sequence to plan ahead, and never offers reordering, reassignment or
+// optimisation — those stay logistics' job.
+//
+// What it does let them do is finish the work: each stop opens the same order
+// screen they already use to pick up and deliver.
+// ============================================================
+
+const DEFAULT_CAPACITY = 12;
+
+export default function MyRoutePage() {
+  const { me, deliveries, settings, driverLocations, ready } = useData();
+  const { t } = usePrefs();
+  const [open, setOpen] = useState<Delivery | null>(null);
+
+  const driverName = me?.full_name ?? "";
+
+  // Today's work: everything assigned to this driver for today, plus anything
+  // overdue that never went out — a slipped stop is still theirs to finish.
+  const stops = useMemo(() => {
+    if (!me) return [];
+    const today = todayISO();
+    const mine = deliveries.filter((d) => {
+      if (d.assigned_driver !== driverName) return false;
+      if (d.stage === "canceled" || d.stage === "rejected") return false;
+      if (d.delivery_date === today) return true;
+      return isOverdue(d);
+    });
+    return routeOrder(mine);
+  }, [deliveries, me, driverName]);
+
+  // Same truckload grouping the dispatcher sees, so the driver's "Trip 2" is
+  // the dispatcher's "Trip 2" — by explicit load numbers when they were set,
+  // otherwise split by what the truck holds.
+  const trips = useMemo(() => {
+    const capacity = settings.driver_capacity?.[driverName] ?? settings.default_truck_capacity ?? DEFAULT_CAPACITY;
+    return hasManualLoads(stops) ? groupIntoLoads(stops) : splitIntoTrips(stops, capacity);
+  }, [stops, settings.driver_capacity, settings.default_truck_capacity, driverName]);
+
+  const done = stops.filter((d) => d.stage === "delivered").length;
+  // The one stop that matters right now: first in sequence still to finish.
+  const next = stops.find((d) => d.stage !== "delivered") ?? null;
+
+  const storeMarkers = useStoreMarkers(settings.stores);
+
+  // Numbered pins in visiting order. Colour carries state at a glance: done,
+  // the one you're heading to, and the rest.
+  const points: MapPoint[] = useMemo(() => {
+    const out: MapPoint[] = [];
+    stops.forEach((d, i) => {
+      if (d.delivery_lat == null || d.delivery_lng == null) return;
+      const isDone = d.stage === "delivered";
+      const isNext = next?.id === d.id;
+      out.push({
+        id: d.id,
+        lat: d.delivery_lat,
+        lng: d.delivery_lng,
+        color: isDone ? "#1f9d61" : isNext ? "#d1782e" : "#6b7686",
+        badge: String(i + 1),
+        label: `${i + 1}. ${d.invoice_num || `#${orderLabel(d)}`}${d.delivery_address ? ` — ${d.delivery_address}` : ""}`,
+        dimmed: isDone,
+      });
+    });
+    return out;
+  }, [stops, next]);
+
+  // Their own truck, so they can see where they are against the plan.
+  const liveDrivers = useMemo(() => {
+    if (!me) return [];
+    const loc = driverLocations.find((l) => l.driver_id === me.id);
+    if (!loc) return [];
+    const ageMin = (Date.now() - new Date(loc.recorded_at).getTime()) / 60000;
+    if (ageMin > 60) return [];
+    return [{
+      driver: driverName,
+      lat: loc.lat,
+      lng: loc.lng,
+      color: settings.driver_colors?.[driverName] || fallbackDriverColor(driverName),
+      accuracy_m: loc.accuracy_m,
+      ageMin,
+      label: t("You are here", "Aquí estás"),
+    }];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driverLocations, me, driverName, settings.driver_colors]);
+
+  const fitTo = useMemo<[number, number][] | undefined>(() => {
+    const pts = points.map((p) => [p.lat, p.lng] as [number, number]);
+    return pts.length ? pts : undefined;
+  }, [points]);
+
+  const navigateTo = (d: Delivery) => {
+    const dest = d.delivery_lat != null && d.delivery_lng != null
+      ? `${d.delivery_lat},${d.delivery_lng}`
+      : (d.delivery_address || "").trim();
+    if (!dest) return;
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=driving`, "_blank", "noopener");
+  };
+
+  if (!me) return null;
+  if (!canDeliver(me) || me.role === "warehouse") {
+    return <div className="empty">{t("Not available for your role.", "No disponible para tu rol.")}</div>;
+  }
+  if (!ready) return <div className="empty">{t("Loading…", "Cargando…")}</div>;
+
+  const pct = stops.length ? Math.round((done / stops.length) * 100) : 0;
+
+  return (
+    <>
+      <div className="page-head">
+        <h2>🧭 {t("My route", "Mi ruta")}</h2>
+        <span className="hint">{fmtDate(todayISO())}</span>
+      </div>
+
+      {stops.length === 0 ? (
+        <div className="empty">
+          {t("No stops assigned to you yet. Logistics will plan your route.",
+             "Aún no tienes paradas asignadas. Logística planeará tu ruta.")}
+        </div>
+      ) : (
+        <>
+          {/* Progress first — "how much is left" is the question a driver asks
+              themselves all day. */}
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <b style={{ fontSize: 16 }}>
+                {t(`${done} of ${stops.length} delivered`, `${done} de ${stops.length} entregadas`)}
+              </b>
+              <span className="hint">
+                {trips.length > 1 ? t(`${trips.length} truckloads`, `${trips.length} viajes`) : t("1 truckload", "1 viaje")}
+              </span>
+            </div>
+            <div style={{ height: 8, borderRadius: 999, background: "var(--line)", overflow: "hidden", marginTop: 8 }}>
+              <div style={{ height: "100%", width: `${pct}%`, background: "var(--green)" }} />
+            </div>
+          </div>
+
+          {/* The next stop, given its own card. Everything else on this screen
+              is context; this is the thing to act on. */}
+          {next && (
+            <div className="card" style={{ marginBottom: 12, borderColor: "var(--accent)", borderWidth: 2 }}>
+              <div className="section-label" style={{ marginTop: 0 }}>
+                {t("Next stop", "Siguiente parada")} · {stops.indexOf(next) + 1}/{stops.length}
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>
+                {next.invoice_num || `#${orderLabel(next)}`}
+              </div>
+              <div style={{ marginTop: 2 }}>{next.delivery_address || t("(no address)", "(sin dirección)")}</div>
+              <div className="hint" style={{ marginTop: 4 }}>
+                {fmtWindows(next.delivery_windows)}
+                {next.actual_pallets ?? next.est_pallets ? ` · ${next.actual_pallets ?? next.est_pallets} ${t("pallets", "pallets")}` : ""}
+                {next.store ? ` · ${storeTag(next.store)}` : ""}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <button className="btn btn-primary" style={{ flex: "1 1 140px", justifyContent: "center" }} onClick={() => navigateTo(next)}>
+                  🧭 {t("Navigate", "Navegar")}
+                </button>
+                <button className="btn btn-green" style={{ flex: "1 1 140px", justifyContent: "center" }} onClick={() => setOpen(next)}>
+                  {next.stage === "ready" ? `🚚 ${t("Pick up", "Recoger")}` : `✅ ${t("Deliver", "Entregar")}`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 12 }}>
+            <MapView
+              points={points}
+              stores={storeMarkers}
+              liveDrivers={liveDrivers}
+              fitTo={fitTo}
+              height={280}
+              onPointClick={(id) => { const d = stops.find((x) => x.id === id); if (d) setOpen(d); }}
+            />
+          </div>
+
+          {/* The whole day in order, so they can plan ahead — grouped into the
+              same truckloads logistics built. */}
+          {trips.map((batch, ti) => {
+            const startIdx = trips.slice(0, ti).reduce((n, b) => n + b.length, 0);
+            const pallets = batch.reduce((n, d) => n + Number(d.actual_pallets ?? d.est_pallets ?? 0), 0);
+            return (
+              <div className="card" key={ti} style={{ marginBottom: 12 }}>
+                <div className="section-label" style={{ marginTop: 0 }}>
+                  🚚 {t("Truckload", "Viaje")} {ti + 1} · {Math.round(pallets)} {t("pallets", "pallets")}
+                </div>
+                <div className="bar-list">
+                  {batch.map((d, bi) => {
+                    const n = startIdx + bi + 1;
+                    const isDone = d.stage === "delivered";
+                    const isNext = next?.id === d.id;
+                    return (
+                      <button
+                        key={d.id}
+                        className="acct-row"
+                        onClick={() => setOpen(d)}
+                        style={{
+                          textAlign: "left", cursor: "pointer", alignItems: "flex-start",
+                          background: isNext ? "var(--accent-soft)" : undefined,
+                          opacity: isDone ? 0.6 : 1,
+                        }}
+                      >
+                        <span style={{
+                          flex: "0 0 26px", height: 26, borderRadius: "50%", display: "inline-flex",
+                          alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 12,
+                          background: isDone ? "var(--green)" : isNext ? "var(--accent)" : "var(--line)",
+                          color: isDone || isNext ? "#fff" : "var(--ink-soft)",
+                        }}>
+                          {isDone ? "✓" : n}
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontWeight: 700, display: "block" }}>
+                            {d.invoice_num || `#${orderLabel(d)}`}
+                          </span>
+                          <span className="hint" style={{ display: "block" }}>
+                            {d.delivery_address || t("(no address)", "(sin dirección)")}
+                          </span>
+                          <span className="hint" style={{ display: "block" }}>
+                            {fmtWindows(d.delivery_windows)}
+                            {d.order_type ? ` · ${d.order_type}` : ""}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {open && <OrderModal me={me} existing={open} startEditing={false} onClose={() => setOpen(null)} />}
+    </>
+  );
+}

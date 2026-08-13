@@ -453,6 +453,44 @@ práctica, la salida más simple es ampliar solo el futuro para Ventas
 
 ---
 
+## D-021 · "Mi ruta": el chofer ve el plan, sin poder cambiarlo
+**Fecha:** 2026-08-13 · **Versión:** v1.1.1 · **Pedido por:** Andrés
+
+**Cambio:** Pestaña nueva **🧭 Mi ruta** para el chofer, con el orden y los
+viajes que planeó logística. Puede ver y completar parada por parada; **no**
+puede reordenar, reasignar ni optimizar.
+
+**Razón (textual):** *"haz una separate view para el driver, así como el
+logistic manager pone los viajes y las órdenes, así quiero que se le aparezca al
+driver para que él sepa el orden y la ruta, pero obviamente solo es para ver, no
+puede hacer lo mismo que el logistic manager, pero ahí él puede completar orden
+por orden."*
+
+**Cómo se diseñó, y por qué así:** no es la pantalla del despachador con los
+botones quitados. Un despachador acomoda una flota entera sentado en un
+escritorio; un chofer está en la cabina con **una pregunta a la vez**. Por eso
+el orden de la pantalla es:
+
+1. **Progreso** — "3 de 7 entregadas". Es lo que un chofer se pregunta todo el día.
+2. **La siguiente parada**, en su propia tarjeta con Navegar y Recoger/Entregar.
+   Todo lo demás es contexto; esto es lo único que hay que hacer ahora.
+3. **El mapa** con pines numerados: verde lo hecho, naranja el siguiente, gris
+   lo que falta — más su propia posición, para ubicarse contra el plan.
+4. **El día completo** agrupado en los mismos viajes que armó logística, para
+   poder planear con anticipación.
+
+**Consistencia:** usa el mismo agrupamiento de viajes que el despachador, así
+que "Viaje 2" significa lo mismo para los dos. Y el orden ya venía respetando
+la secuencia optimizada (`routeOrder` usa `route_seq`), así que las dos
+pantallas nunca se contradicen.
+
+**Lo que a propósito NO hace:** no dibuja la ruta trazada por carretera. Eso
+costaría una llamada a Google por chofer cada vez que abre la pantalla, y los
+pines numerados ya responden la pregunta "¿en qué orden voy?". Si más adelante
+hace falta el trazo real, se agrega.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.1.0";
+export const APP_VERSION = "1.1.1";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -93,6 +93,9 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   { id: "market",    label: "🏪 Market",    label_es: "🏪 Mercado",    href: "/market", roles: ["admin"], group: "general" },
   { id: "warehouse", label: "🏭 Warehouse", label_es: "🏭 Almacén",    href: "/warehouse", roles: ["warehouse", "admin"], cap: "fulfill" },
   { id: "driver",    label: "🚚 Driver",    label_es: "🚚 Chofer",     href: "/driver", roles: ["driver", "admin"], cap: "deliver" },
+  // The driver's read-only view of the route logistics planned: the day in
+  // sequence, grouped into the same truckloads, with the next stop up front.
+  { id: "myroute",   label: "🧭 My route",  label_es: "🧭 Mi ruta",    href: "/my-route", roles: ["driver", "admin"], cap: "deliver" },
   // Logistics works entirely inside its own route-planning queue, same as
   // Warehouse/Driver — it doesn't get the general Orders board or dashboard.
   { id: "routes",    label: "🧭 Routes Manager", label_es: "🧭 Gestor de Rutas", href: "/routes", roles: ["logistics", "admin"], cap: "route_plan" },
