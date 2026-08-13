@@ -687,10 +687,13 @@ table.orders th { text-align: left; }
   table.orders-responsive td.ordno { justify-content: flex-start; gap: 10px; align-items: flex-start; }
   /* Status stacks in fixed lines instead of wrapping wherever it lands, so
      every card reads the same way down the list: stage, then when + where,
-     then what kind. */
+     then what kind.
+     It sits on the LEFT with the number on the right — `order` moves it ahead
+     of the label without touching the markup, so the "#" stays glued to the
+     number it belongs to. */
   .row-badges {
-    display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
-    margin-left: auto; flex: 0 0 auto;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    order: -1; margin-right: auto; flex: 0 0 auto;
   }
   .row-badge-line { display: inline-flex; align-items: center; gap: 6px; }
   /* An order can carry several invoices ("177966, 177987"). All of them have to
@@ -698,6 +701,7 @@ table.orders th { text-align: left; }
      than truncating. */
   .id-main {
     min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.25;
+    text-align: right;
   }
   /* Order type on its own line under the stage — with a line to itself there's
      room for the real word, so no one has to decode "INT". */
