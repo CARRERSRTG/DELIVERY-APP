@@ -972,9 +972,21 @@ export function OrderModal({
               {isNew ? t("New delivery order", "Nueva orden de entrega") : `${t("Order", "Orden")} #${orderLabel(existing!)}`}
               {dirty && <span className="sema" style={{ background: "var(--amber)", color: "#fff", marginLeft: 8 }}>● {t("Unsaved", "Sin guardar")}</span>}
             </h3>
-            <div className="sub">
+            <div className="sub" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               {isNew ? t("Fill in the order details, then save as draft or submit for approval.", "Complete los datos de la orden, luego guárdela como borrador o envíela a aprobación.") : (
-                <span className="sema" style={{ background: info.color, color: "#fff" }}>{stageLabel(stage, lang)}</span>
+                <>
+                  <span className="sema" style={{ background: info.color, color: "#fff" }}>{stageLabel(stage, lang)}</span>
+                  {/* The two things a driver reads off the paperwork, right at
+                      the top instead of buried in the detail rows below. Both
+                      wrap fully — an order can carry several invoices, and a
+                      half-shown number is worse than none. */}
+                  {existing?.order_type && <span className="hdr-chip">{existing.order_type}</span>}
+                  {existing?.invoice_num && (
+                    <span className="hdr-chip hdr-chip-num">
+                      # {existing.invoice_num}
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>

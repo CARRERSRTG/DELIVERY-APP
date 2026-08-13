@@ -753,3 +753,18 @@ table.orders th { text-align: left; }
 @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 /* Respect a reduced-motion preference — the colour alone still reads. */
 @media (prefers-reduced-motion: reduce) { .live-tag { animation: none; } }
+
+/* Header chips on an open order: order type and invoice number, sitting with
+   the stage badge so the three facts a driver checks against paperwork are all
+   at the top. Outlined rather than filled, so the stage badge stays the loudest
+   thing on the line. */
+.hdr-chip {
+  display: inline-flex; align-items: center;
+  font-size: 11.5px; font-weight: 700; color: var(--ink-soft);
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px 9px;
+  text-transform: none; letter-spacing: .01em;
+}
+/* Invoice numbers line up and can run long (several on one order) — they wrap
+   instead of clipping, since a partial number is useless. */
+.hdr-chip-num { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
