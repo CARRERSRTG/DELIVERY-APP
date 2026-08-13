@@ -31,6 +31,31 @@ const isoInTZ = (d: Date) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: BUSINESS_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 export const todayISO = () => isoInTZ(new Date());
 
+// The company's own short codes for each branch — the ones used on the
+// onboarding sheet and spoken on the radio. A tiny "BRO" tag fits on a phone
+// where "RDZ Brownsville" would wrap and push everything else off the row.
+const STORE_TAGS: Record<string, string> = {
+  "rdz mcallen": "MCA",
+  "rdz pharr": "PHR",
+  "rdz edinburg": "EDG",
+  "rdz brownsville": "BRO",
+  "rdz weslaco": "WES",
+  "rdz mission": "MIS",
+  "bodega azul": "AZUL",
+};
+
+/** Short tag for the store an order ships out of. Falls back to the first
+ * letters of the last word, so a branch added later still gets a sane tag
+ * instead of nothing. */
+export function storeTag(store: string | null | undefined): string {
+  const name = (store ?? "").trim();
+  if (!name) return "";
+  const known = STORE_TAGS[name.toLowerCase()];
+  if (known) return known;
+  const last = name.split(/\s+/).pop() ?? name;
+  return last.slice(0, 3).toUpperCase();
+}
+
 /** Human-facing order id incl. the split-load letter: "FA100", "FA100a".
  * Uses the order_code; falls back to the internal number for legacy rows. */
 export const orderLabel = (d: { order_code?: string | null; order_no: number; order_suffix?: string | null }) =>

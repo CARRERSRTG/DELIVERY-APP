@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
-import { fmtDate, fmtMilitary, fmtMoney, fmtWindows, isOverdue, orderLabel, palletVariance } from "@/lib/utils";
+import { fmtDate, fmtMilitary, fmtMoney, fmtWindows, isOverdue, orderLabel, palletVariance, storeTag } from "@/lib/utils";
 import { useColWidthMap } from "@/lib/use-col-widths";
 import type { Delivery } from "@/lib/types";
 
@@ -79,12 +79,31 @@ export const ORDER_COLUMNS: OrderColumn[] = [
 export const DEFAULT_COLUMNS = ["stage", "type", "store", "account", "so", "date", "windows", "pallets", "driver"];
 
 // Pseudo-column for the always-visible ID, so it gets the same sort/filter UI.
+//
+// On a phone the table collapses to one card per order, and this cell is the
+// card's header — so it carries the three things a driver needs to triage a
+// stop without opening it: what state it's in, what kind of order it is, and
+// which branch it ships out of. The extra badges are hidden on desktop, where
+// those already have their own columns.
 const ID_COLUMN: OrderColumn = {
   key: "__id",
   en: "ID",
   es: "ID",
   value: (d) => orderLabel(d),
-  cell: (d) => <>#{orderLabel(d)}</>,
+  cell: (d, { lang }) => {
+    const s = stageInfo(d.stage);
+    const tag = storeTag(d.store);
+    return (
+      <>
+        #{orderLabel(d)}
+        <span className="row-badges">
+          <span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>
+          {d.order_type && <span className="row-type">{d.order_type}</span>}
+          {tag && <span className="store-tag" title={d.store ?? undefined}>{tag}</span>}
+        </span>
+      </>
+    );
+  },
 };
 
 const NO_VALUE = " —"; // internal key for null/blank, kept out of user-typed territory
@@ -177,6 +196,7 @@ export function OrdersTable({
   onToggleAll,
   isUrgent,
   resizeKey = "orders",
+  collapsible = false,
 }: {
   rows: Delivery[];
   onOpen: (d: Delivery) => void;
@@ -191,8 +211,18 @@ export function OrdersTable({
   isUrgent?: (d: Delivery) => boolean;
   /** Namespaces the per-column widths in localStorage (e.g. per view/role). */
   resizeKey?: string;
+  /** Phone layout only: each order starts collapsed to its header row (id +
+   * stage + type + branch) with a chevron to open the rest. Used by the driver
+   * view, where a whole day of stops otherwise means endless scrolling.
+   * Desktop is unaffected — the table there shows every column as usual. */
+  collapsible?: boolean;
 }) {
   const { lang, t } = usePrefs();
+  // Which rows the driver has opened. Collapsed is the default, so this only
+  // ever holds the handful they're actively looking at.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const colw = useColWidthMap(`rtg_colw_${resizeKey}`);
   const ctx: Ctx = { lang, t };
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -342,14 +372,34 @@ export function OrdersTable({
           {sortedRows.length === 0 ? (
             <tr><td colSpan={cols.length + (selectable ? 1 : 0)} className="empty">{t("No rows match the current filters.", "Ninguna fila coincide con los filtros actuales.")}</td></tr>
           ) : sortedRows.map((d) => (
-            <tr key={d.id} className={"clickable" + (isUrgent?.(d) ? " row-urgent" : "")} onClick={() => onOpen(d)}>
+            <tr
+              key={d.id}
+              className={"clickable"
+                + (isUrgent?.(d) ? " row-urgent" : "")
+                + (collapsible && !expanded.has(d.id) ? " row-collapsed" : "")}
+              onClick={() => onOpen(d)}
+            >
               {selectable && (
                 <td onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={!!selected?.has(d.id)} onChange={() => onToggle?.(d.id)} style={{ width: 15, height: 15 }} />
                 </td>
               )}
               {cols.map((c) => (
-                <td key={c.key} data-label={lang === "es" ? c.es : c.en} className={c.key === "__id" ? "ordno" : undefined}>{c.cell(d, ctx)}</td>
+                <td key={c.key} data-label={lang === "es" ? c.es : c.en} className={c.key === "__id" ? "ordno" : undefined}>
+                  {c.cell(d, ctx)}
+                  {/* The chevron sits inside the header cell and stops the
+                      click, so opening the card never opens the order. */}
+                  {collapsible && c.key === "__id" && (
+                    <button
+                      className="row-expand"
+                      onClick={(e) => { e.stopPropagation(); toggleExpanded(d.id); }}
+                      aria-expanded={expanded.has(d.id)}
+                      title={expanded.has(d.id) ? t("Show less", "Ver menos") : t("Show details", "Ver detalles")}
+                    >
+                      {expanded.has(d.id) ? "▾" : "▸"}
+                    </button>
+                  )}
+                </td>
               ))}
             </tr>
           ))}

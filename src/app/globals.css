@@ -664,4 +664,39 @@ table.orders th { text-align: left; }
   table.orders-responsive td.ordno { font-size: 16px; }
   table.orders-responsive td.empty { justify-content: center; }
   table.orders-responsive td.empty::before { content: ""; }
+
+  /* The ID row doubles as the card header on a phone: stage, order type and
+     the branch it ships out of, all on the line the driver already reads. */
+  .row-badges { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+  .row-type { font-size: 11.5px; font-weight: 600; color: var(--gray); text-transform: none; }
+  .store-tag {
+    font-size: 10.5px; font-weight: 800; letter-spacing: .04em;
+    background: var(--accent-soft); color: var(--accent);
+    border-radius: 5px; padding: 1px 5px; white-space: nowrap;
+  }
+  /* Chevron to open a collapsed card. */
+  .row-expand {
+    background: none; border: none; color: var(--gray); cursor: pointer;
+    font-size: 15px; line-height: 1; padding: 4px 2px 4px 8px; flex: 0 0 auto;
+  }
+  /* Collapsed: only the header row shows. The driver taps the chevron for the
+     rest, or the card itself to open the order. */
+  table.orders-responsive tr.row-collapsed td:not(.ordno) { display: none; }
+  table.orders-responsive tr.row-collapsed td.ordno { border-top: none; }
 }
+
+/* Desktop keeps its own Stage / Type / Store columns, so the header badges
+   would just be noise — and the chevron has nothing to collapse. */
+@media (min-width: 641px) {
+  .row-badges, .row-expand { display: none; }
+}
+
+/* "LIVE" — a driver clocked in whose phone is reporting right now. Pulses
+   gently so a dispatcher notices one coming online without watching for it. */
+.live-tag {
+  background: var(--green); color: #fff; font-size: 10px; letter-spacing: .06em;
+  animation: live-pulse 2.4s ease-in-out infinite;
+}
+@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+/* Respect a reduced-motion preference — the colour alone still reads. */
+@media (prefers-reduced-motion: reduce) { .live-tag { animation: none; } }

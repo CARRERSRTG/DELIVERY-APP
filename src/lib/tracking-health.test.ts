@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { trackingGaps } from "./tracking-health";
+import { liveDriverNames, trackingGaps } from "./tracking-health";
 import type { DriverLocation, DriverShift, Profile } from "./types";
 
 const NOW = Date.parse("2026-08-12T18:00:00Z");
@@ -69,5 +69,26 @@ describe("trackingGaps", () => {
       NOW,
     );
     expect(gaps.map((g) => g.driver)).toEqual(["Luis Perez", "Maximo Garza"]);
+  });
+});
+
+describe("liveDriverNames", () => {
+  it("marks a clocked-in driver who is reporting", () => {
+    const live = liveDriverNames(users, [shift("d1", 60)], [fix("d1", 2)], NOW);
+    expect([...live]).toEqual(["Maximo Garza"]);
+  });
+
+  it("drops a driver whose phone went quiet", () => {
+    // Same threshold as the stale warning, so a driver can never be both
+    // "LIVE" and flagged as not reporting.
+    expect(liveDriverNames(users, [shift("d1", 60)], [fix("d1", 40)], NOW).size).toBe(0);
+  });
+
+  it("ignores a driver who clocked out, even with a recent fix", () => {
+    expect(liveDriverNames(users, [shift("d1", 60, true)], [fix("d1", 1)], NOW).size).toBe(0);
+  });
+
+  it("ignores a clocked-in driver who never reported", () => {
+    expect(liveDriverNames(users, [shift("d1", 60)], [], NOW).size).toBe(0);
   });
 });

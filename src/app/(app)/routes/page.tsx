@@ -13,7 +13,7 @@ import { printRouteManifest } from "@/lib/manifest";
 import { fallbackDriverColor, fmtDate, fmtMoney, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
 import { driverOf, groupIntoLoads, hasManualLoads, loadNoOf, nextLoadFor as nextLoadForPure, orderLaneKey as orderLaneKeyPure, planMerge } from "@/lib/route-lanes";
 import { useColWidths } from "@/lib/use-col-widths";
-import { trackingGaps } from "@/lib/tracking-health";
+import { liveDriverNames, trackingGaps } from "@/lib/tracking-health";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import { useStoreMarkers } from "@/lib/useStoreMarkers";
 import type { Delivery, DriverIncident, Profile } from "@/lib/types";
@@ -260,6 +260,14 @@ export default function RoutesPage() {
   }, []);
   const trackingIssues = useMemo(
     () => trackingGaps(users, shifts, driverLocations),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [users, shifts, driverLocations, healthTick],
+  );
+  // Drivers on shift AND reporting — drives the LIVE tag. Recomputed on the
+  // same minute tick so the tag clears by itself when a phone goes quiet, not
+  // only when a new position happens to arrive.
+  const liveNames = useMemo(
+    () => liveDriverNames(users, shifts, driverLocations),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [users, shifts, driverLocations, healthTick],
   );
@@ -1407,6 +1415,17 @@ export default function RoutesPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
                         {u.label}
+                        {/* Clocked in AND reporting right now. Driven by the
+                            realtime location feed, so it appears and clears on
+                            its own — no refresh. */}
+                        {liveNames.has(u.driver) && (
+                          <span
+                            className="sema live-tag"
+                            title={t("On shift and reporting location right now", "En turno y reportando ubicación ahora")}
+                          >
+                            {t("LIVE", "EN VIVO")}
+                          </span>
+                        )}
                         {needsDriver && <span className="sema" style={{ background: "var(--accent)", color: "#fff", fontSize: 10 }}>🧭 {t("route", "ruta")}</span>}
                         {bucket && (
                           <button className="notif-clear" title={t("Rename temp driver", "Renombrar chofer temp")}

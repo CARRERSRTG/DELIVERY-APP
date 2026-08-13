@@ -15,6 +15,35 @@ import type { DriverLocation, DriverShift, Profile } from "@/lib/types";
  * catching up after a tunnel doesn't raise a false alarm. */
 export const STALE_AFTER_MIN = 15;
 
+/** A driver counts as LIVE when they're clocked in AND their phone reported a
+ * position within this many minutes. Same threshold as the stale warning, so
+ * the two can never disagree — a driver is either live or flagged, not both. */
+export const LIVE_WITHIN_MIN = STALE_AFTER_MIN;
+
+/**
+ * Driver names currently on shift and reporting, for the "LIVE" tag on the
+ * dispatcher's driver list. Keyed by name because that's what an order's
+ * assigned_driver holds.
+ */
+export function liveDriverNames(
+  users: Profile[],
+  shifts: DriverShift[],
+  locations: DriverLocation[],
+  now: number = Date.now(),
+  withinMin: number = LIVE_WITHIN_MIN,
+): Set<string> {
+  const onShift = new Set(shifts.filter((s) => !s.ended_at).map((s) => s.driver_id));
+  const nameById = new Map(users.map((u) => [u.id, u.full_name]));
+  const live = new Set<string>();
+  for (const loc of locations) {
+    if (!onShift.has(loc.driver_id)) continue;
+    if ((now - new Date(loc.recorded_at).getTime()) / 60000 > withinMin) continue;
+    const name = nameById.get(loc.driver_id);
+    if (name) live.add(name);
+  }
+  return live;
+}
+
 export interface TrackingGap {
   driverId: string;
   driver: string;
