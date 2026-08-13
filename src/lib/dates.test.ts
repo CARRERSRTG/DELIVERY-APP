@@ -83,32 +83,44 @@ describe("deliveryRisk", () => {
   });
 });
 
-describe("withinRetention — yesterday/today/future, plus a 2-day late grace", () => {
+describe("withinRetention — two days back through tomorrow", () => {
   const TODAY = "2026-07-15";
 
-  it("shows today and future orders", () => {
+  it("shows today and tomorrow", () => {
     expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-15" }), TODAY)).toBe(true);
-    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-20" }), TODAY)).toBe(true);
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-16" }), TODAY)).toBe(true);
   });
 
-  it("shows yesterday for both open and delivered orders", () => {
+  it("hides anything scheduled beyond tomorrow", () => {
+    // These roles work the near term; a delivery next week isn't theirs to act
+    // on yet. Office roles aren't filtered at all.
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-17" }), TODAY)).toBe(false);
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-08-20" }), TODAY)).toBe(false);
+  });
+
+  it("reaches exactly two days back, whatever the stage", () => {
     expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-14" }), TODAY)).toBe(true);
-    expect(withinRetention(mkDelivery({ stage: "delivered", delivery_date: "2026-07-14" }), TODAY)).toBe(true);
-  });
-
-  it("lets a late (undelivered) order linger through 2 days past, then drops it", () => {
-    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-13" }), TODAY)).toBe(true);  // 2 days late
-    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-12" }), TODAY)).toBe(false); // 3 days late → gone
-  });
-
-  it("drops delivered/canceled history the day after yesterday (no grace)", () => {
-    expect(withinRetention(mkDelivery({ stage: "delivered", delivery_date: "2026-07-13" }), TODAY)).toBe(false);
-    expect(withinRetention(mkDelivery({ stage: "canceled", delivery_date: "2026-07-13" }), TODAY)).toBe(false);
-  });
-
-  it("brings a late order back once it's reprogrammed to a future date", () => {
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-13" }), TODAY)).toBe(true);
     expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-12" }), TODAY)).toBe(false);
-    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-18" }), TODAY)).toBe(true);
+  });
+
+  it("treats finished orders the same as open ones inside the window", () => {
+    // The window is about WHEN, not about status — a delivered order two days
+    // back is still recent enough to check.
+    expect(withinRetention(mkDelivery({ stage: "delivered", delivery_date: "2026-07-13" }), TODAY)).toBe(true);
+    expect(withinRetention(mkDelivery({ stage: "canceled", delivery_date: "2026-07-13" }), TODAY)).toBe(true);
+    expect(withinRetention(mkDelivery({ stage: "delivered", delivery_date: "2026-07-12" }), TODAY)).toBe(false);
+  });
+
+  it("brings a slipped order back when it's reprogrammed into the window", () => {
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-12" }), TODAY)).toBe(false);
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-07-16" }), TODAY)).toBe(true);
+  });
+
+  it("handles a month boundary", () => {
+    // String comparison would be wrong here without real date maths.
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-06-29" }), "2026-07-01")).toBe(true);
+    expect(withinRetention(mkDelivery({ stage: "ready", delivery_date: "2026-06-28" }), "2026-07-01")).toBe(false);
   });
 
   it("always keeps an undated draft visible", () => {

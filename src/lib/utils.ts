@@ -324,23 +324,34 @@ export function daysBetween(aISO: string, bISO: string): number {
  * it drops off (unless it's reprogrammed to a future date). */
 export const LATE_GRACE_DAYS = 2;
 
-/** What the working queues (sales board, warehouse, driver) show by default:
- * yesterday, today, and future. A past-due order that hasn't been delivered or
- * canceled gets a short grace — it lingers up to LATE_GRACE_DAYS days late so a
- * slipped delivery can still be worked or reprogrammed — then it disappears
- * from the lists. Moving its delivery date forward (reprogramming) brings it
- * straight back. Undated drafts always stay visible. */
+/** How far back the working queues reach: two days before today. */
+export const RETENTION_DAYS_BACK = 2;
+/** How far ahead they reach: tomorrow, and no further. */
+export const RETENTION_DAYS_AHEAD = 1;
+
+/**
+ * What the working queues (sales board, warehouse, driver) show by default:
+ * a four-day window — two days back through tomorrow.
+ *
+ * These three roles work the near term. Older orders are finished business,
+ * and anything further out isn't theirs to act on yet. Office roles (admin,
+ * manager, logistics, accounting) are not filtered and see everything.
+ *
+ * Undated orders always stay visible — they're still being scheduled, and
+ * hiding one nobody has dated yet would strand it.
+ *
+ * Two ways out of the window: reprogramming a slipped order back into range
+ * brings it straight back, and every one of these screens lets an invoice
+ * search reach past the window for older history.
+ */
 export function withinRetention(
   d: { delivery_date?: string | null; stage?: string | null },
   today: string = todayISO(),
 ): boolean {
-  if (!d.delivery_date) return true;            // undated draft — still being scheduled
-  if (d.delivery_date >= today) return true;    // today or the future
-  const daysLate = daysBetween(today, d.delivery_date);      // ≥1 for past dates
-  const done = d.stage === "delivered" || d.stage === "canceled";
-  // Delivered/canceled history only lingers through yesterday; a still-open
-  // (late) order gets the extra grace days before it drops off.
-  return daysLate <= (done ? 1 : LATE_GRACE_DAYS);
+  if (!d.delivery_date) return true;            // undated — still being scheduled
+  const date = d.delivery_date.slice(0, 10);
+  return date >= shiftDateISO(today, -RETENTION_DAYS_BACK)
+      && date <= shiftDateISO(today, RETENTION_DAYS_AHEAD);
 }
 
 /** Human "2 h 5 min" from a millisecond span (drops zero parts). "—" if invalid. */

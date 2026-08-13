@@ -329,6 +329,15 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-020", title: "Ventas, almacén y chofer ven 2 días atrás hasta mañana",
+      fecha: "2026-08-13", version: "v1.0.6", quien: "Andrés",
+      cambio: "Las tres vistas operativas (Ventas, Almacén, Chofer) muestran una ventana de cuatro días: dos días atrás hasta mañana. Los roles de oficina no tienen filtro y ven todo.",
+      razon: "Recuerda, sales, warehouse y driver solo pueden ver órdenes de 2 días atrás y el día siguiente.",
+      razonTextual: true,
+      consecuencia: "Cambio de fondo: antes veían cualquier fecha futura, ahora se corta en mañana. Hacia atrás antes eran 2 días para órdenes abiertas pero solo 1 para entregadas/canceladas; ahora son 2 parejo, porque la ventana habla de cuándo, no del estado. Escapes: las órdenes sin fecha siempre se ven (están programándose), buscar por factura atraviesa la ventana, y reprogramar una orden hacia dentro la regresa.",
+      revisar: "Riesgo a vigilar: un vendedor que cree una orden para dentro de una semana dejará de verla hasta que falte un día, y si aún no tiene factura tampoco podrá buscarla. Si estorba, ampliar solo el futuro para Ventas sin tocar almacén ni choferes."
+    },
+    {
       id: "D-019", title: "El chofer ve la factura, no el código de orden",
       fecha: "2026-08-13", version: "v1.0.5", quien: "Andrés",
       cambio: "En las listas que ve un chofer, la primera columna muestra el número de factura en lugar del código de orden (#FQ115). El encabezado también cambia a “Factura #”.",

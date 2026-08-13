@@ -167,10 +167,9 @@ export default function OrdersPage() {
         if (me?.role === "warehouse" && !["approved", "fulfilling", "ready", "picked_up", "delivered"].includes(d.stage)) return false;
       }
       if (!needle) {
-        // Sales' default view is scoped to yesterday/today/future (a late order
-        // lingers a couple of days, then drops off unless reprogrammed). Older
-        // history is still there, just reached by searching (e.g. an invoice #)
-        // rather than scrolled to, so the list stays focused on active work.
+        // Sales' default view is scoped to the near term: two days back through
+        // tomorrow. Older history is still there, just reached by searching (e.g.
+        // an invoice #) rather than scrolled to, so the list stays on active work.
         if (!teaching && !adminAllAccess && me?.role === "sales" && !withinRetention(d)) return false;
         return true;
       }

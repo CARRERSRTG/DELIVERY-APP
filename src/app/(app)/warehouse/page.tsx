@@ -62,8 +62,8 @@ export default function WarehousePage() {
       // Searching matches by invoice # specifically and bypasses the date
       // window below — that's the one way to reach older history here.
       if (needle) return (d.invoice_num || "").toLowerCase().includes(needle);
-      // Yesterday / today / future only; a late order lingers a couple of days
-      // then drops off unless it's reprogrammed. Older history via search above.
+      // Near-term work only: two days back through tomorrow. Older history is
+      // reachable by the invoice search above.
       // An admin previewing the warehouse role bypasses the window (sees all).
       if (realRole !== "admin" && !withinRetention(d)) return false;
       return true;

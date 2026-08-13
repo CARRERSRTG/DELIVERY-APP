@@ -422,6 +422,37 @@ vista de Chofer y en el tablero de Órdenes. Los demás roles no cambian.
 
 ---
 
+## D-020 · Ventas, almacén y chofer ven 2 días atrás hasta mañana
+**Fecha:** 2026-08-13 · **Versión:** v1.0.6 · **Pedido por:** Andrés
+
+**Cambio:** Las tres vistas operativas (Ventas, Almacén, Chofer) muestran una
+ventana de cuatro días: **dos días atrás hasta mañana**. Los roles de oficina
+(admin, gerente, logística, contabilidad) no tienen filtro y ven todo.
+
+**Razón (textual):** *"recuerda, sales, warehouse y driver solo pueden ver
+órdenes de 2 días atrás y el día siguiente."*
+
+**Qué cambió respecto a antes:**
+- **Hacia adelante:** antes veían **cualquier** fecha futura; ahora se corta en
+  mañana. Este es el cambio de fondo.
+- **Hacia atrás:** antes eran 2 días para órdenes abiertas pero solo 1 para
+  entregadas/canceladas. Ahora son 2 parejo — la ventana habla de *cuándo*, no
+  del estado.
+
+**Escapes deliberados:**
+- Las órdenes **sin fecha** siempre se ven — están en proceso de programarse, y
+  esconder una que nadie ha fechado la dejaría varada.
+- **Buscar por factura** atraviesa la ventana en las tres pantallas.
+- **Reprogramar** una orden atrasada hacia dentro de la ventana la regresa.
+
+**⚠️ Riesgo que conviene vigilar:** un vendedor que cree una orden para dentro
+de una semana **dejará de verla en su lista** hasta que falte un día. Si no
+tiene factura todavía, tampoco podrá encontrarla buscando. Si eso estorba en la
+práctica, la salida más simple es ampliar solo el futuro para Ventas
+(`RETENTION_DAYS_AHEAD`) sin tocar almacén ni choferes.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
