@@ -684,6 +684,9 @@ export function OrderModal({
   /** What still stands between this order and "delivered", in the order the
    * driver would hit it. Null when nothing does. Drives both the inline
    * warning and the disabled state, so the two can never disagree. */
+  // Signatures are on unless an admin turned them off (see Settings).
+  const signatureOn = settings.pod_signature_enabled !== false;
+
   const podBlocker: string | null = (() => {
     if (!existing) return null;
     if (!podName.trim()) return t("Enter who received the delivery.", "Ingrese quién recibió la entrega.");
@@ -691,25 +694,21 @@ export function OrderModal({
       return t("Enter the address where you actually delivered.", "Ingrese la dirección donde entregó realmente.");
     }
     if (settings.require_pod && !podSig && !(existing.photos?.length)) {
-      return t("A signature or a material photo is required before delivering.", "Se requiere una firma o una foto del material antes de entregar.");
+      // With signatures switched off there's only one way to satisfy this, so
+      // say that rather than offering a choice the driver doesn't have.
+      return signatureOn
+        ? t("A signature or a material photo is required before delivering.", "Se requiere una firma o una foto del material antes de entregar.")
+        : t("A material photo is required before delivering.", "Se requiere una foto del material antes de entregar.");
     }
     return null;
   })();
 
   const deliverWithPod = async () => {
     if (!existing) return;
-    if (!podName.trim()) { notify(t("Enter who received the delivery.", "Ingrese quién recibió la entrega.")); return; }
-    // If the driver flags a different drop-off, the address is required.
-    if (deliveredElsewhere && !deliveredAddress.trim()) {
-      notify(t("Enter the address where you actually delivered.", "Ingrese la dirección donde entregó realmente."));
-      return;
-    }
-    // Optional proof-of-delivery gate (admin setting): require a signature or at
-    // least one material photo before an order can be marked delivered.
-    if (settings.require_pod && !podSig && !(existing.photos?.length)) {
-      notify(t("Proof required: capture a signature or add a material photo before delivering.", "Comprobante requerido: capture una firma o agregue una foto del material antes de entregar."));
-      return;
-    }
+    // Same check that greys out the button and prints the warning above it —
+    // kept in one place so the two can't drift apart and leave a driver
+    // pressing a button that silently refuses.
+    if (podBlocker) { notify(podBlocker); return; }
     setBusy(true);
     // Stamp where the driver actually is. Never blocks: resolves to null if the
     // device refuses, has no signal, or the page isn't served over HTTPS — and
@@ -1937,8 +1936,12 @@ export function OrderModal({
           </div>
               <label>{t("Received by", "Recibido por")}</label>
               <input value={podName} onChange={(e) => setPodName(e.target.value)} placeholder={t("Name of person who received it", "Nombre de quien recibió")} />
-              <label style={{ marginTop: 10 }}>{t("Signature", "Firma")}</label>
-              <SignaturePad onChange={setPodSig} />
+              {signatureOn && (
+                <>
+                  <label style={{ marginTop: 10 }}>{t("Signature", "Firma")}</label>
+                  <SignaturePad onChange={setPodSig} />
+                </>
+              )}
 
               {/* Override: delivered somewhere other than the ordered address. */}
               <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>

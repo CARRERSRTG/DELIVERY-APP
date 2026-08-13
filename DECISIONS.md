@@ -491,6 +491,32 @@ hace falta el trazo real, se agrega.
 
 ---
 
+## D-022 · La firma del cliente se puede apagar
+**Fecha:** 2026-08-13 · **Versión:** v1.1.2 · **Pedido por:** Andrés
+
+**Cambio:** Ajustes → Comprobante de entrega tiene un interruptor nuevo:
+**"Pedir la firma del cliente"**. Encendido por omisión.
+
+**Razón (textual):** *"have customer signature enable and disable in setting."*
+
+**Cómo se relaciona con lo que ya existía:** el comprobante de entrega tiene dos
+mitades — la firma y las fotos del material. `require_pod` dice si se exige
+**algún** comprobante; este ajuste dice si la firma **se ofrece siquiera**.
+
+**Interacción que se hizo explícita:** con la firma apagada **y** el comprobante
+requerido, la única forma de entregar es con **foto del material**. Los Ajustes
+lo advierten en pantalla, y el mensaje que ve el chofer cambia a "Se requiere
+una foto del material" en vez de ofrecerle una opción que ya no tiene.
+
+**Lo que se sigue registrando con la firma apagada:** quién recibió, la hora, y
+la ubicación GPS de la entrega.
+
+**Detalle técnico:** la validación vivía duplicada (una para deshabilitar el
+botón, otra al guardar). Se unificó en una sola, porque dos copias de la misma
+regla terminan divergiendo y dejan un botón que se presiona y no hace nada.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

@@ -390,6 +390,9 @@ export interface Settings {
   /** When true, a driver can't mark an order Delivered until proof exists — at
    * least one material photo OR a captured signature. Off by default. */
   require_pod?: boolean;
+  /** Whether the customer signature pad is offered at delivery. Off means
+   * proof rests on the material photos alone. */
+  pod_signature_enabled?: boolean;
 
   /** Per-user customer visibility on the Accounts page, set by an admin on the
    * Users page. "all" = sees every customer (with a Mine/All toggle); "own" =

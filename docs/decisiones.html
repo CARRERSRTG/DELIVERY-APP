@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-022", title: "La firma del cliente se puede apagar",
+      fecha: "2026-08-13", version: "v1.1.2", quien: "Andrés",
+      cambio: "Ajustes → Comprobante de entrega tiene un interruptor nuevo: “Pedir la firma del cliente”, encendido por omisión.",
+      razon: "Have customer signature enable and disable in setting.",
+      razonTextual: true,
+      consecuencia: "El comprobante tiene dos mitades — la firma y las fotos del material. require_pod dice si se exige algún comprobante; este ajuste dice si la firma se ofrece siquiera. Con la firma apagada y el comprobante requerido, la única forma de entregar es con foto: los Ajustes lo advierten y el mensaje al chofer cambia a “se requiere una foto” en vez de ofrecer una opción que ya no tiene. Con la firma apagada se siguen registrando quién recibió, la hora y la ubicación GPS. De paso se unificó la validación, que vivía duplicada (una para deshabilitar el botón y otra al guardar)."
+    },
+    {
       id: "D-021", title: "“Mi ruta”: el chofer ve el plan, sin poder cambiarlo",
       fecha: "2026-08-13", version: "v1.1.1", quien: "Andrés",
       cambio: "Pestaña nueva “Mi ruta” para el chofer, con el orden y los viajes que planeó logística. Puede ver y completar parada por parada; no puede reordenar, reasignar ni optimizar.",

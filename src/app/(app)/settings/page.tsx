@@ -89,6 +89,34 @@ export default function SettingsPage() {
           />
           {t("Require proof of delivery", "Requerir comprobante de entrega")}
         </label>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 14, marginTop: 10 }}>
+          <input
+            type="checkbox"
+            // Defaults to on: an admin has to deliberately turn signatures off.
+            checked={settings.pod_signature_enabled !== false}
+            onChange={(e) => { saveSettings({ pod_signature_enabled: e.target.checked } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
+            style={{ width: 16, height: 16 }}
+          />
+          {t("Ask for the customer's signature", "Pedir la firma del cliente")}
+        </label>
+        <div className="hint" style={{ marginTop: 6 }}>
+          {t(
+            "Off means drivers don't draw a signature — the delivery is recorded with who received it, the time and the GPS stamp.",
+            "Desactivado, los choferes no capturan firma — la entrega se registra con quién recibió, la hora y la ubicación GPS.",
+          )}
+        </div>
+        {/* The two settings interact: with signatures off, "require proof"
+            can only mean a photo. Said plainly here so nobody discovers it at
+            a customer's door. */}
+        {settings.require_pod && settings.pod_signature_enabled === false && (
+          <div className="hint" style={{ marginTop: 6, color: "var(--amber)", fontWeight: 600 }}>
+            ⚠ {t(
+              "With signatures off and proof required, drivers must add a material photo before they can deliver.",
+              "Con la firma desactivada y el comprobante requerido, los choferes deberán agregar una foto del material para poder entregar.",
+            )}
+          </div>
+        )}
       </div>
 
       <div className="card">
