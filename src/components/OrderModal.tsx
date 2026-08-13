@@ -649,6 +649,21 @@ export function OrderModal({
   };
 
   // Proof of delivery: stamp the signer + signature, then move to delivered.
+  /** What still stands between this order and "delivered", in the order the
+   * driver would hit it. Null when nothing does. Drives both the inline
+   * warning and the disabled state, so the two can never disagree. */
+  const podBlocker: string | null = (() => {
+    if (!existing) return null;
+    if (!podName.trim()) return t("Enter who received the delivery.", "Ingrese quién recibió la entrega.");
+    if (deliveredElsewhere && !deliveredAddress.trim()) {
+      return t("Enter the address where you actually delivered.", "Ingrese la dirección donde entregó realmente.");
+    }
+    if (settings.require_pod && !podSig && !(existing.photos?.length)) {
+      return t("A signature or a material photo is required before delivering.", "Se requiere una firma o una foto del material antes de entregar.");
+    }
+    return null;
+  })();
+
   const deliverWithPod = async () => {
     if (!existing) return;
     if (!podName.trim()) { notify(t("Enter who received the delivery.", "Ingrese quién recibió la entrega.")); return; }
@@ -894,10 +909,16 @@ export function OrderModal({
               )}
             </div>
           </div>
-          <p className="hint" style={{ marginBottom: 16 }}>{t("Print the delivery slip, then close.", "Imprima el comprobante de entrega y luego cierre.")}</p>
+          {/* No slip for drivers — there's no printer in the truck, so the
+              only thing left to do is close. */}
+          {me.role !== "driver" && (
+            <p className="hint" style={{ marginBottom: 16 }}>{t("Print the delivery slip, then close.", "Imprima el comprobante de entrega y luego cierre.")}</p>
+          )}
           <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-            <button className="btn btn-primary" onClick={() => printDeliverySlip(justDelivered, settings, users, lang)}>🖨 {t("Print slip", "Imprimir comprobante")}</button>
-            <button className="btn btn-ghost" onClick={onClose}>{t("Done", "Listo")}</button>
+            {me.role !== "driver" && (
+              <button className="btn btn-primary" onClick={() => printDeliverySlip(justDelivered, settings, users, lang)}>🖨 {t("Print slip", "Imprimir comprobante")}</button>
+            )}
+            <button className={me.role === "driver" ? "btn btn-primary" : "btn btn-ghost"} onClick={onClose}>{t("Done", "Listo")}</button>
           </div>
         </div>
       </div>
@@ -1770,9 +1791,17 @@ export function OrderModal({
                 ? t("📍 Your location will be recorded with this delivery.", "📍 Su ubicación se registrará con esta entrega.")
                 : t("📍 Location can't be recorded here (needs a secure https connection).", "📍 No se puede registrar la ubicación aquí (requiere conexión https segura).")}
             </div>
+            {/* Say what's still missing BEFORE the driver taps. This gate used
+                to be invisible until the button was pressed and a toast said
+                no — which reads as "I pressed delivered and nothing happened". */}
+            {podBlocker && (
+              <div className="hint" style={{ marginTop: 8, color: "var(--amber)", fontWeight: 600 }}>
+                ⚠ {podBlocker}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => { setShowPod(false); setPodName(""); setPodSig(null); setDeliveredElsewhere(false); setDeliveredAddress(""); }} disabled={busy}>{t("Back", "Atrás")}</button>
-              <button className="btn btn-green btn-sm" disabled={busy || !podName.trim()} onClick={deliverWithPod}>{t("Confirm delivered", "Confirmar entregado")}</button>
+              <button className="btn btn-green btn-sm" disabled={busy || !!podBlocker} onClick={deliverWithPod}>{t("Confirm delivered", "Confirmar entregado")}</button>
             </div>
           </div>
         )}
