@@ -58,6 +58,12 @@
     <!-- The notification the foreground service posts (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Lets the app ASK to be exempt from Doze battery optimisation. Without
+         the exemption Android throttles the location service once the screen
+         is off and the phone is still — which is what a truck parked at a long
+         stop looks like. The driver still has to accept the system dialog. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- GPS hardware isn't strictly required: a phone without it still runs
          the app, it just can't contribute to the live map. -->
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />

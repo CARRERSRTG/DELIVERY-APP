@@ -45,10 +45,21 @@ interface RawPosition {
   time?: number | null;
 }
 
+/** Custom plugin (see BatteryGuardPlugin.java) — keeps the location service
+ * alive on phones whose battery managers would otherwise kill it. */
+interface BatteryGuardPlugin {
+  isIgnoringBatteryOptimizations(): Promise<{ ignoring: boolean; manufacturer: string; hasOemSettings: boolean }>;
+  requestIgnoreBatteryOptimizations(): Promise<{ ignoring: boolean; opened?: boolean }>;
+  openOemSettings(): Promise<{ opened: boolean }>;
+}
+
 interface CapacitorGlobal {
   isNativePlatform?: () => boolean;
   getPlatform?: () => string;
-  Plugins?: { BackgroundGeolocation?: BackgroundGeolocationPlugin };
+  Plugins?: {
+    BackgroundGeolocation?: BackgroundGeolocationPlugin;
+    BatteryGuard?: BatteryGuardPlugin;
+  };
 }
 
 function capacitor(): CapacitorGlobal | null {
@@ -128,4 +139,43 @@ export async function startNativeWatch(
 /** Open the OS settings page, so a driver who denied the permission can fix it. */
 export async function openLocationSettings(): Promise<void> {
   await backgroundGeolocation()?.openSettings().catch(() => { /* not fatal */ });
+}
+
+// ---- Battery-optimisation guard --------------------------------------------
+// A foreground service is the strongest guarantee stock Android gives, but
+// Doze and the OEM battery managers (Samsung, Xiaomi, Oppo…) still cut work
+// off on top of it. These expose the two things an app is allowed to do:
+// request the standard exemption, and open the vendor's own screen.
+
+function batteryGuard(): BatteryGuardPlugin | null {
+  return capacitor()?.Plugins?.BatteryGuard ?? null;
+}
+
+export interface BatteryGuardState {
+  /** Exempt from Doze — background location is safe. */
+  ignoring: boolean;
+  manufacturer: string;
+  /** This phone has a vendor auto-start screen worth pointing the driver at. */
+  hasOemSettings: boolean;
+}
+
+/** Current exemption state, or null outside the APK. */
+export async function batteryGuardState(): Promise<BatteryGuardState | null> {
+  const p = batteryGuard();
+  if (!p) return null;
+  try {
+    return await p.isIgnoringBatteryOptimizations();
+  } catch {
+    return null;
+  }
+}
+
+/** Show Android's "allow this app to run in the background?" dialog. */
+export async function requestBatteryExemption(): Promise<void> {
+  await batteryGuard()?.requestIgnoreBatteryOptimizations().catch(() => { /* not fatal */ });
+}
+
+/** Open the manufacturer's auto-start / protected-apps screen. */
+export async function openOemBatterySettings(): Promise<void> {
+  await batteryGuard()?.openOemSettings().catch(() => { /* not fatal */ });
 }

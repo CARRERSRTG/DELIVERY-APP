@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useLiveLocation } from "@/lib/useLiveLocation";
+import { batteryGuardState, openOemBatterySettings, requestBatteryExemption, type BatteryGuardState } from "@/lib/native-bridge";
 import { fmtDuration } from "@/lib/utils";
 
 // ============================================================
@@ -37,10 +38,34 @@ export function ShiftClock({ driverId }: { driverId: string }) {
   // stops it. The driver is told plainly that it's on, never silently.
   const { status: gps, native } = useLiveLocation(!!open);
 
+  // Android throttles background location unless the app is exempt from
+  // battery optimisation, so an unexempt phone silently stops reporting once
+  // the screen goes off. Check on shift start, and re-check when the driver
+  // comes back to the app (i.e. after the system dialog).
+  const [battery, setBattery] = useState<BatteryGuardState | null>(null);
+  useEffect(() => {
+    if (!open || !native) { setBattery(null); return; }
+    let cancelled = false;
+    const check = async () => {
+      const state = await batteryGuardState();
+      if (!cancelled) setBattery(state);
+    };
+    void check();
+    const onFocus = () => void check();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [open, native]);
+
   const doIn = async () => { setBusy(true); await clockIn(driverId); setBusy(false); };
   const doOut = async () => { setBusy(true); await clockOut(driverId); setBusy(false); };
 
   return (
+    <>
     <div
       className="card"
       style={{
@@ -89,5 +114,35 @@ export function ShiftClock({ driverId }: { driverId: string }) {
         </button>
       )}
     </div>
+
+    {/* Android will quietly throttle the location service once the screen is
+        off unless the app is exempt. Surfaced as a fixable prompt rather than
+        letting the truck vanish off the dispatcher's map mid-route. */}
+    {open && battery && !battery.ignoring && (
+      <div className="card" style={{ marginBottom: 12, background: "#fff7ec", borderColor: "var(--amber)" }}>
+        <b style={{ color: "#b9791a" }}>
+          🔋 {t("Your phone may stop sharing your location", "Tu teléfono puede dejar de compartir tu ubicación")}
+        </b>
+        <div className="hint" style={{ marginTop: 4 }}>
+          {t(
+            "Android can pause the app to save battery once the screen is off. Tap Allow so dispatch keeps seeing you all shift.",
+            "Android puede pausar la app para ahorrar batería cuando la pantalla se apaga. Toca Permitir para que logística te siga viendo todo el turno.",
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          <button className="btn btn-primary btn-sm" onClick={() => void requestBatteryExemption()}>
+            {t("Allow", "Permitir")}
+          </button>
+          {/* Samsung/Xiaomi/Oppo add their own killer on top of Android's, on a
+              screen no app is allowed to change — the driver taps through it. */}
+          {battery.hasOemSettings && (
+            <button className="btn btn-ghost btn-sm" onClick={() => void openOemBatterySettings()}>
+              {t(`${battery.manufacturer} settings`, `Ajustes de ${battery.manufacturer}`)}
+            </button>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

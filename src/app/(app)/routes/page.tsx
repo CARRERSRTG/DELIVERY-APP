@@ -13,6 +13,7 @@ import { printRouteManifest } from "@/lib/manifest";
 import { fallbackDriverColor, fmtDate, fmtMoney, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
 import { driverOf, groupIntoLoads, hasManualLoads, loadNoOf, nextLoadFor as nextLoadForPure, orderLaneKey as orderLaneKeyPure, planMerge } from "@/lib/route-lanes";
 import { useColWidths } from "@/lib/use-col-widths";
+import { trackingGaps } from "@/lib/tracking-health";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import { useStoreMarkers } from "@/lib/useStoreMarkers";
 import type { Delivery, DriverIncident, Profile } from "@/lib/types";
@@ -140,7 +141,7 @@ interface RoutePlan {
 }
 
 export default function RoutesPage() {
-  const { me, users, deliveries, settings, saveSettings, updateDelivery, reorderStops, addNote, notify, availability, ready, incidents, addIncident, removeIncident, driverLocations } = useData();
+  const { me, users, deliveries, settings, saveSettings, updateDelivery, reorderStops, addNote, notify, availability, ready, incidents, addIncident, removeIncident, driverLocations, shifts } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
   const [date, setDate] = useState(todayISO());
@@ -249,6 +250,19 @@ export default function RoutesPage() {
   const geocoding = useAutoGeocode(dayOrders, updateDelivery);
   // Every store as a big red landmark point, always shown on the route map.
   const storeMarkers = useStoreMarkers(settings.stores);
+
+  // On-shift drivers whose phone has gone quiet. Recomputed on a timer so the
+  // warning appears as the gap opens, not only when something else rerenders.
+  const [healthTick, setHealthTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setHealthTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const trackingIssues = useMemo(
+    () => trackingGaps(users, shifts, driverLocations),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [users, shifts, driverLocations, healthTick],
+  );
 
   // Where each driver's phone last reported from, so the dispatcher can see
   // the fleet against the routes they planned.
@@ -1260,6 +1274,25 @@ export default function RoutesPage() {
           )}
         </div>
       </div>
+
+      {/* ---------- Drivers who stopped reporting ----------
+           No amount of Android hardening is bulletproof: a battery manager, a
+           flat battery or no signal will still cut the feed. Surfacing it here
+           means a truck goes "not reporting" instead of quietly vanishing. */}
+      {trackingIssues.length > 0 && (
+        <div className="card" style={{ marginBottom: 14, background: "#fff7ec", borderColor: "var(--amber)" }}>
+          <b style={{ color: "#b9791a" }}>
+            📡 {t(`${trackingIssues.length} driver(s) on shift aren't reporting their location`,
+                  `${trackingIssues.length} chofer(es) en turno no están reportando su ubicación`)}
+          </b>
+          <div className="hint" style={{ marginTop: 4 }}>
+            {trackingIssues.map((g) => `${g.driver} (${g.quietForMin == null ? t("no fix yet", "sin señal aún") : t(`${g.quietForMin} min`, `${g.quietForMin} min`)})`).join(" · ")}
+            {" — "}
+            {t("their phone may have paused the app to save battery, or lost signal.",
+               "su teléfono pudo pausar la app para ahorrar batería, o perdió señal.")}
+          </div>
+        </div>
+      )}
 
       {/* ---------- Why-is-it-empty helper ---------- */}
       {dayOrders.length === 0 && (() => {
