@@ -703,7 +703,10 @@ table.orders th { text-align: left; }
 .live-tag {
   background: var(--green); color: #fff; font-size: 10px; letter-spacing: .06em;
   animation: live-pulse 2.4s ease-in-out infinite;
+  /* It's a button: tapping it frames the map on where that driver is now. */
+  border: none; cursor: pointer; font-family: inherit; font-weight: 700;
 }
+.live-tag:hover { filter: brightness(1.12); }
 @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 /* Respect a reduced-motion preference — the colour alone still reads. */
 @media (prefers-reduced-motion: reduce) { .live-tag { animation: none; } }

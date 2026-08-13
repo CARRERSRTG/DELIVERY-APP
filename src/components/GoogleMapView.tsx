@@ -46,12 +46,18 @@ function storeIcon(): string {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+/** Grey once the fix has gone stale — the truck's last known spot, not where
+ * it is. Colour carries that, rather than a subtle fade nobody notices on a
+ * busy map. */
+const STALE_GREY = "#8b95a3";
+
 function truckIcon(color: string, stale?: boolean): string {
+  const fill = stale ? STALE_GREY : color;
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">` +
-    `<g opacity="${stale ? 0.45 : 1}">` +
-    `<circle cx="18" cy="18" r="14" fill="${color}" stroke="#fff" stroke-width="3"/>` +
-    `<text x="18" y="24" text-anchor="middle" font-size="16">🚚</text></g></svg>`;
+    `<g opacity="${stale ? 0.75 : 1}">` +
+    `<circle cx="18" cy="18" r="14" fill="${fill}" stroke="#fff" stroke-width="3"/>` +
+    `<text x="18" y="24" text-anchor="middle" font-size="16"${stale ? ' opacity="0.65"' : ""}>🚚</text></g></svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
@@ -286,8 +292,8 @@ export function GoogleMapView({
       if (d.accuracy_m && d.accuracy_m > 25) {
         liveRef.current.push(new maps.Circle({
           map, center: { lat: d.lat, lng: d.lng }, radius: d.accuracy_m,
-          strokeColor: d.color, strokeWeight: 1, strokeOpacity: stale ? 0.25 : 0.5,
-          fillColor: d.color, fillOpacity: stale ? 0.05 : 0.12, clickable: false,
+          strokeColor: stale ? STALE_GREY : d.color, strokeWeight: 1, strokeOpacity: stale ? 0.25 : 0.5,
+          fillColor: stale ? STALE_GREY : d.color, fillOpacity: stale ? 0.05 : 0.12, clickable: false,
         }));
       }
       liveRef.current.push(new maps.Marker({

@@ -335,12 +335,16 @@ export function LeafletMap({
       liveLayerRef.current = [];
       for (const d of liveDrivers) {
         if (d.lat == null || d.lng == null) continue;
+        // Grey once the fix goes stale: this is where the truck WAS, not where
+        // it is. Matches the Google map so the two never disagree.
         const stale = (d.ageMin ?? 0) > 10;
-        const opacity = stale ? 0.45 : 1;
+        const STALE_GREY = "#8b95a3";
+        const shade = stale ? STALE_GREY : d.color;
+        const opacity = stale ? 0.75 : 1;
         if (d.accuracy_m && d.accuracy_m > 25) {
           const halo = L.circle([d.lat, d.lng], {
-            radius: d.accuracy_m, color: d.color, weight: 1,
-            fillColor: d.color, fillOpacity: stale ? 0.05 : 0.12, opacity: stale ? 0.25 : 0.5,
+            radius: d.accuracy_m, color: shade, weight: 1,
+            fillColor: shade, fillOpacity: stale ? 0.05 : 0.12, opacity: stale ? 0.25 : 0.5,
           }).addTo(mapRef.current!);
           liveLayerRef.current.push(halo);
         }
@@ -348,7 +352,7 @@ export function LeafletMap({
           className: "",
           html:
             `<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;` +
-            `border-radius:50%;background:${d.color};border:3px solid #fff;` +
+            `border-radius:50%;background:${shade};border:3px solid #fff;` +
             `box-shadow:0 2px 8px rgba(0,0,0,.5);font-size:16px;opacity:${opacity}">🚚</div>`,
           iconSize: [34, 34],
           iconAnchor: [17, 17],

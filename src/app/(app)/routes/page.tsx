@@ -271,6 +271,11 @@ export default function RoutesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [users, shifts, driverLocations, healthTick],
   );
+  // Set by tapping a driver's LIVE tag: frame the map on where they are right
+  // now. Cleared as soon as anything else takes over the map, so it's a
+  // one-shot "show me" rather than a mode to get stuck in.
+  const [locateDriver, setLocateDriver] = useState<string | null>(null);
+  useEffect(() => { setLocateDriver(null); }, [selected, selectedOrders]);
 
   // Where each driver's phone last reported from, so the dispatcher can see
   // the fleet against the routes they planned.
@@ -984,7 +989,8 @@ export default function RoutesPage() {
   // differ and the arrow would move the wrong row.
   const move = async (laneKey: string, index: number, dir: -1 | 1) => {
     const stops = byDriver.get(laneKey) ?? [];
-    const list = buildTrips(stops, capacityFor(driverOf(laneKey))).flat();
+    const trips = buildTrips(stops, capacityFor(driverOf(laneKey)));
+    const list = trips.flat();
     const j = index + dir;
     if (j < 0 || j >= list.length) return;
     // Reorder the whole list and renumber it 0..n-1.
@@ -993,10 +999,30 @@ export default function RoutesPage() {
     // The traced path/distance were computed for the old order — a manual
     // nudge no longer matches them, so drop them rather than mislead.
     clearRouteFor(laneKey);
+
+    // Once a lane carries MANUAL truckload numbers (which moving a whole
+    // truckload stamps), the display regroups stops by load_no — so writing a
+    // new sequence alone puts a stop straight back in the load it came from,
+    // and the arrow looks broken. Re-stamp the loads by position, keeping each
+    // truckload's size: a stop nudged past a boundary genuinely moves into the
+    // next load, which is what the dispatcher just asked for. Lanes still split
+    // automatically by capacity are left alone — there, sequence is enough.
+    let loadNoById: Record<string, number | null> | undefined;
+    if (hasManualLoads(stops)) {
+      loadNoById = {};
+      let at = 0;
+      trips.forEach((batch, ti) => {
+        for (let k = 0; k < batch.length; k++) {
+          const d = list[at++];
+          if (d) loadNoById![d.id] = ti + 1 > 1 ? ti + 1 : null;
+        }
+      });
+    }
+
     // One guarded operation for the whole new sequence: the list updates
     // locally right away and is held there until every write lands, so a
     // realtime refetch can't snap the stop back to where it was.
-    await reorderStops(list.map((d) => d.id));
+    await reorderStops(list.map((d) => d.id), loadNoById);
   };
 
   // Move a WHOLE truckload up/down within a driver's day, so the dispatcher
@@ -1191,6 +1217,23 @@ export default function RoutesPage() {
   // What the map frames: the selected drivers' stops + pickups when any are
   // focused, otherwise the whole day.
   const fitTo: [number, number][] = useMemo(() => {
+    // "Where is this driver right now" beats everything else: the dispatcher
+    // asked a direct question and wants the answer centred, not averaged in
+    // with a day's worth of stops. A small box around the point, so the map
+    // zooms IN on the truck instead of framing a single coordinate.
+    if (locateDriver) {
+      const loc = driverLocations.find((l) => {
+        const u = users.find((x) => x.id === l.driver_id);
+        return u?.full_name === locateDriver;
+      });
+      if (loc) {
+        const pad = 0.004; // ≈ 400 m, so the truck sits in a readable frame
+        return [
+          [loc.lat - pad, loc.lng - pad],
+          [loc.lat + pad, loc.lng + pad],
+        ];
+      }
+    }
     // Selected unassigned loads take priority — frame them + their routes.
     if (selectedOrders.size > 0) {
       const pts: [number, number][] = [];
@@ -1213,7 +1256,7 @@ export default function RoutesPage() {
     }
     return points.filter((p) => ids.has(p.id)).map((p) => [p.lat, p.lng] as [number, number]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, selected, selectedOrders, selRouteCache, selPickup, dayOrders]);
+  }, [points, selected, selectedOrders, selRouteCache, selPickup, dayOrders, locateDriver, driverLocations, users]);
 
   if (!me) return null;
   if (!canPlanRoutes(me)) {
@@ -1419,12 +1462,15 @@ export default function RoutesPage() {
                             realtime location feed, so it appears and clears on
                             its own — no refresh. */}
                         {liveNames.has(u.driver) && (
-                          <span
+                          <button
                             className="sema live-tag"
-                            title={t("On shift and reporting location right now", "En turno y reportando ubicación ahora")}
+                            // Tapping the NAME shows their route; tapping this
+                            // answers the other question — where are they now.
+                            onClick={(e) => { e.stopPropagation(); setLocateDriver(u.driver); }}
+                            title={t("Show where this driver is right now", "Ver dónde está este chofer ahora")}
                           >
                             {t("LIVE", "EN VIVO")}
-                          </span>
+                          </button>
                         )}
                         {needsDriver && <span className="sema" style={{ background: "var(--accent)", color: "#fff", fontSize: 10 }}>🧭 {t("route", "ruta")}</span>}
                         {bucket && (
