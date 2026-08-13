@@ -1,0 +1,406 @@
+<title>Bitácora de Decisiones</title>
+<style>
+  /* ---- Tokens: light is the base set, complete on its own ---- */
+  :root {
+    --ground: #f4f6f9;
+    --sheet: #ffffff;
+    --rule: #dde4ee;
+    --rule-strong: #c3cddc;
+    --ink: #152238;
+    --ink-2: #43526b;
+    --ink-3: #6b7686;
+    --accent: #2456c9;
+    --accent-soft: #eaf0fd;
+    --flag: #b06a12;
+    --flag-soft: #fdf3e2;
+    --ok: #1f7d51;
+    --shadow: 0 1px 2px rgba(21, 34, 56, .05);
+  }
+  /* Default "system" viewers land here — no data-theme stamp exists. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0f151d;
+      --sheet: #171e29;
+      --rule: #2a3444;
+      --rule-strong: #3b485c;
+      --ink: #e7ecf3;
+      --ink-2: #b3becd;
+      --ink-3: #8794a6;
+      --accent: #6d9bff;
+      --accent-soft: #1b2740;
+      --flag: #e0a84e;
+      --flag-soft: #2b2413;
+      --ok: #4cc78c;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    }
+  }
+  /* An explicit dark choice wins over a light OS. */
+  :root[data-theme="dark"] {
+    --ground: #0f151d;
+    --sheet: #171e29;
+    --rule: #2a3444;
+    --rule-strong: #3b485c;
+    --ink: #e7ecf3;
+    --ink-2: #b3becd;
+    --ink-3: #8794a6;
+    --accent: #6d9bff;
+    --accent-soft: #1b2740;
+    --flag: #e0a84e;
+    --flag-soft: #2b2413;
+    --ok: #4cc78c;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell { max-width: 1000px; margin: 0 auto; padding: 48px 22px 96px; }
+
+  /* ---- Masthead ---- */
+  .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 20px; margin-bottom: 8px; }
+  .eyebrow {
+    font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 44px); line-height: 1.05; margin: 0;
+    letter-spacing: -.025em; font-weight: 800; text-wrap: balance;
+  }
+  .standfirst {
+    margin: 14px 0 0; max-width: 62ch; color: var(--ink-2); font-size: 16.5px;
+  }
+
+  /* ---- Controls ---- */
+  .controls {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--ground);
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding: 16px 0 14px; border-bottom: 1px solid var(--rule); margin-bottom: 4px;
+  }
+  .search {
+    flex: 1 1 240px; min-width: 0;
+    font: inherit; font-size: 15px; color: var(--ink);
+    background: var(--sheet); border: 1px solid var(--rule-strong);
+    border-radius: 8px; padding: 9px 12px;
+  }
+  .search::placeholder { color: var(--ink-3); }
+  .search:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .chip {
+    font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-2);
+    background: var(--sheet); border: 1px solid var(--rule-strong);
+    border-radius: 999px; padding: 7px 14px; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--ground); }
+  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tally {
+    font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px; color: var(--ink-3); margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- Ledger ---- */
+  .entry {
+    display: grid; grid-template-columns: 92px 1fr; gap: 0 26px;
+    padding: 30px 0; border-bottom: 1px solid var(--rule);
+  }
+  .entry[hidden] { display: none; }
+
+  .folio {
+    font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px; font-weight: 600; color: var(--ink-3);
+    letter-spacing: .02em; padding-top: 3px;
+  }
+  .folio .pending { display: block; margin-top: 8px; color: var(--flag); font-size: 11.5px; letter-spacing: .06em; }
+
+  .entry h2 {
+    margin: 0 0 8px; font-size: 21px; line-height: 1.25;
+    letter-spacing: -.015em; font-weight: 700; text-wrap: balance;
+  }
+  .meta {
+    font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px; color: var(--ink-3); margin: 0 0 18px;
+    display: flex; flex-wrap: wrap; gap: 4px 14px; font-variant-numeric: tabular-nums;
+  }
+
+  .block { margin: 0 0 14px; }
+  .block:last-child { margin-bottom: 0; }
+  .label {
+    font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 5px;
+  }
+  .block p { margin: 0; color: var(--ink-2); }
+
+  /* The reason is why this document exists — the one block that gets fill. */
+  .reason {
+    background: var(--accent-soft);
+    border-radius: 10px; padding: 16px 18px; margin: 0 0 14px;
+  }
+  .reason .label { color: var(--accent); }
+  .reason p { color: var(--ink); font-size: 16.5px; }
+  .reason cite { font-style: italic; color: var(--ink); }
+  .reason.missing { background: var(--flag-soft); }
+  .reason.missing .label { color: var(--flag); }
+
+  .empty {
+    padding: 60px 0; text-align: center; color: var(--ink-3);
+  }
+  .empty[hidden] { display: none; }
+
+  .colophon {
+    margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--rule);
+    font-size: 13.5px; color: var(--ink-3); max-width: 68ch;
+  }
+  .colophon code {
+    font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px; background: var(--sheet); border: 1px solid var(--rule);
+    border-radius: 5px; padding: 1px 5px; color: var(--ink-2);
+  }
+
+  mark { background: var(--accent-soft); color: var(--ink); border-radius: 3px; padding: 0 2px; }
+
+  @media (max-width: 620px) {
+    .shell { padding: 32px 16px 72px; }
+    .entry { grid-template-columns: 1fr; gap: 10px; }
+    .folio { padding-top: 0; }
+    .folio .pending { display: inline; margin: 0 0 0 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="shell">
+  <header class="masthead">
+    <p class="eyebrow">RDZ · Deliveries</p>
+    <h1>Bitácora de Decisiones</h1>
+    <p class="standfirst">
+      Cada cambio de comportamiento del sistema, con el porqué detrás. No es una
+      lista de código: es el registro de las decisiones de negocio, para que
+      nadie revierta por accidente algo que se decidió a propósito.
+    </p>
+  </header>
+
+  <div class="controls">
+    <input class="search" id="q" type="search" placeholder="Buscar por tema, razón o versión…" aria-label="Buscar decisiones" />
+    <button class="chip" id="f-all" aria-pressed="true">Todas</button>
+    <button class="chip" id="f-pending" aria-pressed="false">Falta la razón</button>
+    <span class="tally" id="tally"></span>
+  </div>
+
+  <main id="ledger"></main>
+  <p class="empty" id="empty" hidden>Ninguna decisión coincide con esa búsqueda.</p>
+
+  <footer class="colophon">
+    <p>
+      La fuente de verdad es <code>DECISIONS.md</code> en el repositorio — ahí es
+      donde el asistente lee antes de cambiar comportamiento, y donde te avisará
+      si una petición nueva contradice una decisión anterior. Esta página es una
+      vista de ese archivo para consultarla y compartirla.
+    </p>
+  </footer>
+</div>
+
+<script>
+  // One record per decision. `razonTextual` marks the reason as the requester's
+  // own words rather than a summary — worth preserving, because a paraphrase is
+  // where intent quietly drifts.
+  const DECISIONS = [
+    {
+      id: "D-001", title: "Los choferes no pueden crear órdenes",
+      fecha: "2026-08-11", version: "v0.9.64", quien: "Andrés",
+      cambio: "Se quitó la capacidad de crear órdenes al rol Chofer.",
+      razon: "¿Pueden los choferes agregar entregas si nadie las programó? No, el gerente de logística se encargará de que todos hagan bien su trabajo.",
+      razonTextual: true,
+      consecuencia: "Si un cliente pide algo en ruta, el chofer llama a oficina en vez de registrarlo. Se prefiere eso a que entren órdenes sin pasar por planeación."
+    },
+    {
+      id: "D-002", title: "El recargo por entrega el mismo día queda en $0",
+      fecha: "2026-08-11", version: "v0.9.63", quien: "Andrés",
+      cambio: "La función existe y es configurable en Ajustes, pero el monto queda en 0. Se probó con $35 y se revirtió.",
+      razon: "No, eso del mismo día bórralo o déjalo en 0 para configurarlo más adelante.",
+      razonTextual: true,
+      consecuencia: "El código está completo y probado. Activarla es cambiar un número en Ajustes, no volver a programar."
+    },
+    {
+      id: "D-003", title: "Registro de incidentes de choferes",
+      fecha: "2026-08-11", version: "v0.9.65", quien: "Andrés",
+      cambio: "El gerente de logística puede registrar incidentes con costo estimado, ligados opcionalmente a una orden.",
+      razon: "El gerente de logística debería poder registrar si un chofer hace algo que le cuesta dinero a la empresa… hoy el chofer tuvo mala actitud y en vez de organizar su ruta salió a una entrega y tuvo que regresar al mismo lugar para la siguiente, en vez de hacerlas juntas.",
+      razonTextual: true,
+      consecuencia: "Hoy solo lo ven logística y admin."
+    },
+    {
+      id: "D-004", title: "Cualquier orden se puede programar, aunque no esté lista",
+      fecha: "2026-08-12", version: "v0.9.68", quien: "Andrés",
+      cambio: "El Gestor de Rutas muestra órdenes en borrador y pendientes, no solo las aprobadas. Solo quedan fuera las entregadas, recogidas, canceladas y rechazadas.",
+      razon: "Quiero que todas las órdenes se puedan asignar aunque no estén listas, que se puedan programar en Routes Manager.",
+      razonTextual: true,
+      consecuencia: "Se puede planear una ruta con órdenes que el almacén todavía no prepara. La columna Estado muestra en qué etapa va cada una. Efecto secundario que hubo que resolver: la base de datos rechazaba que logística editara órdenes no aprobadas (migración 042); sin eso, reordenar una parada se revertía sola."
+    },
+    {
+      id: "D-005", title: "Marcar entregadas en lote, solo admin",
+      fecha: "2026-08-12", version: "v0.9.70", quien: "Andrés",
+      cambio: "El admin puede seleccionar varias órdenes y pasarlas todas a Entregada, saltándose el flujo normal.",
+      razon: "Porque apenas se está empezando a implementar el sistema — hay órdenes que ya se entregaron en la vida real antes de que existiera el sistema.",
+      razonTextual: true,
+      consecuencia: "Cada orden registra en su historial quién la marcó y que fue un cierre de implementación. El cierre manual nunca es silencioso.",
+      revisar: "Cuando termine la implementación inicial. Es una herramienta de arranque, no de operación diaria."
+    },
+    {
+      id: "D-006", title: "“Pallets” en ambos idiomas",
+      fecha: "2026-08-12", version: "v0.9.72", quien: "Andrés",
+      cambio: "La interfaz en español dice “Pallets”, no “Tarimas”.",
+      razon: "Cambia las palabras tarimas por pallets independiente del idioma.",
+      razonTextual: true
+    },
+    {
+      id: "D-007", title: "Sin arrastrar en el Gestor de Rutas: solo flechas",
+      fecha: "2026-08-12", version: "v0.9.77", quien: "Andrés",
+      cambio: "Se eliminó arrastrar y soltar filas en la pestaña Rutas. Las paradas se reordenan solo con las flechas ↑/↓.",
+      razon: "No ocupo arrastrar, elimina eso, solo con las flechas.",
+      razonTextual: true,
+      consecuencia: "El arrastre además causaba un bug: al presionar una flecha, el navegador iniciaba el arrastre de la fila en vez de registrar el clic."
+    },
+    {
+      id: "D-008", title: "Migración completa a Google Maps",
+      fecha: "2026-08-12", version: "v0.9.84 – v0.9.91", quien: "Andrés",
+      cambio: "Rutas, distancias, tiempos, geocodificación y el mapa visual pasaron de OpenStreetMap/OSRM a Google (Routes API + Maps JavaScript API).",
+      razon: "Para que en el logistic manager view se calculen las rutas correctamente, con tiempo y distancia reales en tiempo real, y también si hay que hacer un desvío o un regreso por una highway que todo eso se tome en cuenta tal cual como en Google Maps.",
+      razonTextual: true,
+      consecuencia: "Medido en un ciclo de 4 paradas del Valle: Google trazó 123.9 mi / 2h16m donde OSRM decía 122.3 mi / 2h31m — ruta más larga pero 15 min más rápida, por usar velocidades reales de autopista. Costo aceptado: Routes API y Maps JS cobran por uso, mitigado con caché de 10 minutos. Se usan dos llaves de Google: una de servidor y otra de navegador restringida por dominio, porque reusar la de servidor permitiría que alguien la robara y gastara el presupuesto."
+    },
+    {
+      id: "D-009", title: "App Android para choferes con GPS en segundo plano",
+      fecha: "2026-08-12", version: "v0.9.86 – v0.9.89", quien: "Andrés",
+      cambio: "APK que carga el sitio en vivo y agrega rastreo GPS mientras el chofer está en turno.",
+      razon: "Quiero que hagamos una APK para que pueda llevarle el GPS a los conductores… así puedo ver en tiempo real dónde están.",
+      razonTextual: true,
+      consecuencia: "Rastreo atado al turno: arranca al marcar entrada, para al marcar salida. Nunca fuera del horario laboral. Condiciones confirmadas por el negocio: teléfonos de la empresa, y los choferes fueron informados y lo aceptaron. Ningún blindaje es 100% (batería, señal, gestores agresivos de Samsung/Xiaomi), por eso el Gestor de Rutas avisa cuando un chofer deja de reportar en vez de que el camión desaparezca callado."
+    },
+    {
+      id: "D-010", title: "La app del chofer no menciona el rastreo",
+      fecha: "2026-08-12", version: "v0.9.93", quien: "Andrés",
+      cambio: "Se quitó el aviso “Compartiendo tu ubicación” de la tarjeta de turno. Ahora solo muestra el reloj: En turno / Marcar salida.",
+      razon: "No quiero que los conductores sepan del tracking como tal, ahora solo que aparezca como on the clock y clock out y ya.",
+      razonTextual: true,
+      consecuencia: "Se apoya en D-009: los choferes ya fueron informados y lo aceptaron. Lo que se quitó es el recordatorio en pantalla, no el consentimiento. Límite técnico no removible: Android obliga a mostrar una notificación permanente mientras corre el GPS en segundo plano y dibuja su propio indicador en la barra de estado. Ninguna app puede suprimir eso."
+    },
+    {
+      id: "D-011", title: "Tarjetas colapsadas en celular",
+      fecha: "2026-08-12", version: "v0.9.94 – v0.9.95", quien: "Andrés",
+      cambio: "En celular cada orden se pliega a una sola línea: ID, etapa, tipo y sigla de la tienda de origen. Se abre con el chevron.",
+      razon: "Quiero que el tag Ready esté pegadito al ID en esa misma fila, y todas las cargas colapsadas, y también el tipo y una etiqueta pequeña con las siglas de la tienda de donde sale.",
+      razonTextual: true,
+      consecuencia: "En computadora no cambia nada — ahí ya hay columnas de Etapa, Tipo y Tienda."
+    },
+    {
+      id: "D-012", title: "El checkbox solo para quien tiene acciones en lote",
+      fecha: "2026-08-12", version: "v0.9.95", quien: "Andrés",
+      cambio: "La columna de selección múltiple solo aparece para admin, gerente, logística, contabilidad y ventas. Los choferes ya no la ven.",
+      razon: "El checkbox arriba del driver no lo ocupa, nadie lo ocupa, eso es solo para admin para seleccionar varios al mismo tiempo.",
+      razonTextual: true,
+      consecuencia: "Criterio aplicado: un rol ve el checkbox solo si tiene al menos una acción en la barra de lote. Un chofer podía seleccionar filas que ningún botón podía procesar."
+    },
+    {
+      id: "D-013", title: "El costo de entrega queda en blanco hasta que alguien lo elija",
+      fecha: "2026-08-12", version: "v0.9.80", quien: "Andrés",
+      cambio: "El formulario ya no rellena solo el precio de Lista cuando se calculan las millas. Queda vacío hasta que el vendedor elija Lista, Descuento, o escriba un monto.",
+      razon: "Que se quede en blanco el fee a menos que lo seleccione el usuario.",
+      razonTextual: true,
+      consecuencia: "El auto-llenado comprometía en silencio un precio que nadie había acordado con el cliente."
+    },
+    {
+      id: "D-014", title: "Fechas en zona horaria fija del negocio",
+      fecha: "2026-08-12", version: "v0.9.75", quien: "Bug encontrado",
+      cambio: "Las funciones de “hoy” y “atrasado” calculan en America/Chicago, no con el reloj local del dispositivo.",
+      razon: "El servidor (UTC) y el navegador (Central) calculaban “hoy” distinto por las tardes, lo que rompía el renderizado de React y hacía que “hoy” dependiera del reloj del aparato.",
+      razonTextual: false,
+      consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
+    },
+    {
+      id: "D-015", title: "Auto-cancelar órdenes muy atrasadas: apagado",
+      fecha: "—", version: "—", quien: "—",
+      cambio: "Existe la automatización que cancela órdenes con más de 2 días de atraso sin reprogramar, pero está desactivada.",
+      razon: "",
+      razonTextual: false,
+      pendiente: true,
+      consecuencia: "Falta registrar por qué se dejó apagada y qué debe pasar para prenderla."
+    }
+  ];
+
+  const ledger = document.getElementById("ledger");
+  const qBox = document.getElementById("q");
+  const fAll = document.getElementById("f-all");
+  const fPending = document.getElementById("f-pending");
+  const tally = document.getElementById("tally");
+  const empty = document.getElementById("empty");
+
+  let onlyPending = false;
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function render() {
+    ledger.innerHTML = DECISIONS.map((d) => {
+      const meta = [d.fecha, d.version, d.quien].filter((x) => x && x !== "—").map((x) => `<span>${esc(x)}</span>`).join("");
+      const reason = d.pendiente
+        ? `<div class="reason missing"><p class="label">Razón</p><p>Falta registrarla. Una decisión sin porqué es la que alguien revierte por accidente seis meses después.</p></div>`
+        : `<div class="reason"><p class="label">Razón${d.razonTextual ? " · textual" : ""}</p><p>${d.razonTextual ? `<cite>“${esc(d.razon)}”</cite>` : esc(d.razon)}</p></div>`;
+      const extra = d.consecuencia ? `<div class="block"><p class="label">Consecuencia aceptada</p><p>${esc(d.consecuencia)}</p></div>` : "";
+      const revisar = d.revisar ? `<div class="block"><p class="label">Revisar cuando</p><p>${esc(d.revisar)}</p></div>` : "";
+      return `<article class="entry" data-id="${esc(d.id)}" data-pending="${d.pendiente ? "1" : "0"}">
+        <div class="folio">${esc(d.id)}${d.pendiente ? '<span class="pending">FALTA RAZÓN</span>' : ""}</div>
+        <div>
+          <h2>${esc(d.title)}</h2>
+          <p class="meta">${meta}</p>
+          <div class="block"><p class="label">Cambio</p><p>${esc(d.cambio)}</p></div>
+          ${reason}
+          ${extra}
+          ${revisar}
+        </div>
+      </article>`;
+    }).join("");
+    filter();
+  }
+
+  function filter() {
+    const needle = qBox.value.trim().toLowerCase();
+    let shown = 0;
+    for (const el of ledger.querySelectorAll(".entry")) {
+      const matchesText = !needle || el.textContent.toLowerCase().includes(needle);
+      const matchesFlag = !onlyPending || el.dataset.pending === "1";
+      const show = matchesText && matchesFlag;
+      el.hidden = !show;
+      if (show) shown++;
+    }
+    const pending = DECISIONS.filter((d) => d.pendiente).length;
+    tally.textContent = `${shown} de ${DECISIONS.length}` + (pending ? ` · ${pending} sin razón` : "");
+    empty.hidden = shown > 0;
+  }
+
+  qBox.addEventListener("input", filter);
+  fAll.addEventListener("click", () => {
+    onlyPending = false;
+    fAll.setAttribute("aria-pressed", "true");
+    fPending.setAttribute("aria-pressed", "false");
+    filter();
+  });
+  fPending.addEventListener("click", () => {
+    onlyPending = true;
+    fPending.setAttribute("aria-pressed", "true");
+    fAll.setAttribute("aria-pressed", "false");
+    filter();
+  });
+
+  render();
+</script>
