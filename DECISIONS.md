@@ -212,6 +212,14 @@ con las siglas de la tienda de donde sale."*
 **Consecuencia:** en computadora no cambia nada — ahí ya hay columnas de Etapa,
 Tipo y Tienda.
 
+**Refinamiento (2026-08-13, v1.0.0):** *"que siempre al lado del tag de Listo
+también esté el tag del tipo de orden que es."* El tipo se mostraba como texto
+plano mientras la etapa y la tienda sí eran etiquetas — tres datos en una línea
+solo se leen si los tres parecen etiquetas. Ahora es una píldora con contorno
+(secundaria frente a la etapa, que va rellena) y se muestra **siempre**: si la
+orden no tiene tipo, aparece "—" en vez de desaparecer, porque un tipo faltante
+es algo que alguien tiene que llenar.
+
 ---
 
 ## D-012 · El checkbox solo para quien tiene acciones en lote

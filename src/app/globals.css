@@ -672,7 +672,15 @@ table.orders th { text-align: left; }
      instead and sit against the right edge. */
   table.orders-responsive td.ordno { justify-content: flex-start; gap: 8px; }
   .row-badges { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
-  .row-type { font-size: 11.5px; font-weight: 600; color: var(--gray); text-transform: none; }
+  /* Order type reads as a tag beside the stage pill, not as loose text —
+     three badges on one line only scan if all three look like badges. Outlined
+     rather than filled, so it stays clearly secondary to the stage. */
+  .row-type {
+    font-size: 11px; font-weight: 700; color: var(--ink-soft);
+    text-transform: none; letter-spacing: .01em; white-space: nowrap;
+    border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px;
+    background: var(--card);
+  }
   .store-tag {
     font-size: 10.5px; font-weight: 800; letter-spacing: .04em;
     background: var(--accent-soft); color: var(--accent);

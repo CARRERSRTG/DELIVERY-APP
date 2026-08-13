@@ -98,7 +98,9 @@ const ID_COLUMN: OrderColumn = {
         #{orderLabel(d)}
         <span className="row-badges">
           <span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>
-          {d.order_type && <span className="row-type">{d.order_type}</span>}
+          {/* Always present, even when unset — a missing type is worth seeing
+              (someone has to fill it in), not silently hiding. */}
+          <span className="row-type">{d.order_type || "—"}</span>
           {tag && <span className="store-tag" title={d.store ?? undefined}>{tag}</span>}
         </span>
       </>
