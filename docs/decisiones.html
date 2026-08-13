@@ -334,7 +334,7 @@
       cambio: "Al abrir una orden como chofer se quitó el botón “Comprobante”, y recoger pasó de dos toques (Recoger → Confirmar carga) a uno solo.",
       razon: "Cuando abro la orden en el view de conductor, bórrame el slip, y el pickup miro que son 2 botones, entonces solo deja 1 y que de un solo se cambie a recogido.",
       razonTextual: true,
-      consecuencia: "El chofer ya no puede registrar una carga parcial desde ese botón (llevarse 3 de 5 pallets y dividir el resto); toma la carga completa tal como está contada. La oficina conserva el flujo de dos pasos, que es donde dividir una carga tiene sentido. Si la orden no trae conteo, se marca recogida sin escribir un 0 encima."
+      consecuencia: "El chofer ya no puede registrar una carga parcial desde ese botón (llevarse 3 de 5 pallets y dividir el resto); toma la carga completa tal como está contada. La oficina conserva el flujo de dos pasos, que es donde dividir una carga tiene sentido. Si la orden no trae conteo, se marca recogida sin escribir un 0 encima. Añadidos (v1.0.2/v1.0.3): el comprobante también se quitó de la pantalla posterior a la entrega; el mensaje “sin teléfono del cliente” pasó de texto suelto a una píldora con borde punteado, para que la fila quede pareja sin fingir que se puede presionar; y el bloqueo de entrega se hizo visible — require_pod exige firma o foto, pero el botón solo revisaba el nombre, así que se podía presionar y ser rechazado con un aviso fácil de perder (reportado con FQ105). Ahora la condición controla tanto el aviso como el botón deshabilitado."
     },
     {
       id: "D-017", title: "Quien recoge una orden sin chofer, queda como su chofer",

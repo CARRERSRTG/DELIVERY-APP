@@ -2446,7 +2446,12 @@ function DriverDeliveryScreen({
             <a className="btn btn-ghost drv-call" href={`sms:${phone}`}>💬 {t("Text", "Mensaje")}</a>
           </>
         ) : (
-          <span className="hint">{t("No client phone on file.", "Sin teléfono del cliente.")}</span>
+          // Same pill shape as the call/text buttons it replaces, so the row
+          // stays even instead of dropping to loose grey text mid-way through.
+          // Not a button: there's nothing to press, and it shouldn't invite a tap.
+          <span className="btn drv-call drv-none" aria-disabled="true">
+            📵 {t("No client phone", "Sin teléfono")}
+          </span>
         )}
         {dest && (
           <>

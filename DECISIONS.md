@@ -365,6 +365,19 @@ es donde dividir una carga tiene sentido.
 escribir un 0 encima — un número que la oficina no llenó no debe convertirse en
 un número equivocado desde el camión.
 
+**Añadidos (v1.0.2 / v1.0.3):**
+- El comprobante también se quitó de la pantalla posterior a la entrega, que la
+  primera pasada dejó fuera. "Listo" quedó como botón principal.
+- *"Si dice sin teléfono de cliente, hazlo como los demás, como un bubble para
+  que no se mire así de feo."* Era texto gris suelto entre botones; ahora es una
+  píldora de la misma forma pero con borde punteado y sin cursor de clic —
+  mantiene la fila pareja sin fingir que se puede presionar.
+- **Bloqueo de entrega visible:** `require_pod` está activo, así que entregar
+  exige firma o foto. El botón solo revisaba el nombre de quien recibió, así que
+  se podía presionar y ser rechazado con un aviso fácil de perder — se sentía
+  como un botón muerto (reportado con FQ105). Ahora la condición se calcula una
+  vez y controla tanto el aviso en pantalla como el botón deshabilitado.
+
 ---
 
 <!-- PLANTILLA — copia esto para una entrada nueva
