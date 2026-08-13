@@ -380,7 +380,7 @@ export function OrdersTable({
               onClick={() => onOpen(d)}
             >
               {selectable && (
-                <td onClick={(e) => e.stopPropagation()}>
+                <td className="sel-cell" onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={!!selected?.has(d.id)} onChange={() => onToggle?.(d.id)} style={{ width: 15, height: 15 }} />
                 </td>
               )}

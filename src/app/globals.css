@@ -666,8 +666,12 @@ table.orders th { text-align: left; }
   table.orders-responsive td.empty::before { content: ""; }
 
   /* The ID row doubles as the card header on a phone: stage, order type and
-     the branch it ships out of, all on the line the driver already reads. */
-  .row-badges { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+     the branch it ships out of, all on the line the driver already reads.
+     Unlike every other row, the label hugs its value — "ID     #FQ109" spread
+     across the card reads as two unrelated things. The badges take the slack
+     instead and sit against the right edge. */
+  table.orders-responsive td.ordno { justify-content: flex-start; gap: 8px; }
+  .row-badges { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
   .row-type { font-size: 11.5px; font-weight: 600; color: var(--gray); text-transform: none; }
   .store-tag {
     font-size: 10.5px; font-weight: 800; letter-spacing: .04em;
@@ -681,8 +685,11 @@ table.orders th { text-align: left; }
   }
   /* Collapsed: only the header row shows. The driver taps the chevron for the
      rest, or the card itself to open the order. */
-  table.orders-responsive tr.row-collapsed td:not(.ordno) { display: none; }
+  table.orders-responsive tr.row-collapsed td:not(.ordno):not(.sel-cell) { display: none; }
   table.orders-responsive tr.row-collapsed td.ordno { border-top: none; }
+  /* Collapsed, the checkbox rides on the header line instead of owning a row
+     of its own — otherwise bulk-select disappears the moment cards collapse. */
+  table.orders-responsive tr.row-collapsed td.sel-cell { padding: 0; margin: 0; }
 }
 
 /* Desktop keeps its own Stage / Type / Store columns, so the header badges

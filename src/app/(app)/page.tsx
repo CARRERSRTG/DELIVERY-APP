@@ -209,6 +209,11 @@ export default function OrdersPage() {
   if (!me) return null;
   if (me.role === "warehouse") return <div className="empty">{t("Not available for your role — use the Warehouse or Driver view.", "No disponible para su rol — use la vista de Almacén o Chofer.")}</div>;
 
+  // Who actually has something to do with a multi-selection. Drivers don't:
+  // every bulk control in the bar is gated to office roles, so the checkbox
+  // column would select rows nothing could then act on.
+  const bulkCapable = ["admin", "manager", "logistics", "accounting", "sales"].includes(me.role);
+
   // ---- Bulk actions (#1) ----
   const toggle = (id: string) =>
     setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -445,7 +450,12 @@ export default function OrdersPage() {
             onOpen={setOpen}
             empty={t("No orders match this view.", "No hay órdenes en esta vista.")}
             visible={cols}
-            selectable
+            // The checkbox column only earns its space for roles that have a
+            // bulk action in the bar above (approve, cancel, reassign, set a
+            // date, export). A driver has none, so it was pure clutter.
+            selectable={bulkCapable}
+            // Phones: one collapsed card per order, opened with the chevron.
+            collapsible
             selected={selected}
             onToggle={toggle}
             onToggleAll={toggleAll}
