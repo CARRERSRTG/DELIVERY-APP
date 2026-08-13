@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
-import { LeafletMap, type MapPoint } from "@/components/LeafletMap";
+import { MapView, type MapPoint } from "@/components/MapView";
 import { downloadCSV, toCSV } from "@/lib/utils";
 
 // ============================================================
@@ -321,7 +321,7 @@ export default function MarketPage() {
       {err && <div className="card" style={{ borderColor: "var(--red)" }}>{err}</div>}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <LeafletMap points={points} fitTo={fitTo.length ? fitTo : undefined} height={520} onPointClick={(id) => setSelId(id)} />
+        <MapView points={points} fitTo={fitTo.length ? fitTo : undefined} height={520} onPointClick={(id) => setSelId(id)} />
       </div>
 
       {selected && (

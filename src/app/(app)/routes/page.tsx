@@ -6,7 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
 import { canPlanRoutes, stageInfo, stageLabel } from "@/lib/constants";
 import { autoAssign, parseWindow, splitIntoTrips, unavailableDriverNames } from "@/lib/dispatch";
-import { LeafletMap, type MapLine, type MapPoint } from "@/components/LeafletMap";
+import { MapView, type MapLine, type MapPoint } from "@/components/MapView";
 import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
@@ -1440,7 +1440,7 @@ export default function RoutesPage() {
           )}
         </div>
         <div className="card" style={{ flex: "3 1 460px", margin: 0, padding: 0, overflow: "hidden" }}>
-          <LeafletMap points={points} lines={lines} stores={storeMarkers} liveDrivers={liveDrivers} onLineClick={onLineClick} fitTo={fitTo} height={430} onPointClick={(id) => {
+          <MapView points={points} lines={lines} stores={storeMarkers} liveDrivers={liveDrivers} onLineClick={onLineClick} fitTo={fitTo} height={430} onPointClick={(id) => {
             // Click any order pin (assigned or pool) to toggle its PU→DEL view.
             const d = dayOrders.find((x) => x.id === id);
             if (d) toggleOrder(d.id);

@@ -5,7 +5,7 @@ import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { driverNames, stageInfo, stageLabel } from "@/lib/constants";
 import { OrderModal } from "@/components/OrderModal";
-import { LeafletMap, type MapPoint, type MapLine } from "@/components/LeafletMap";
+import { MapView, type MapPoint, type MapLine } from "@/components/MapView";
 import { cityFromAddress, deliveryRisk, fallbackDriverColor, fmtDate, fmtWindows, orderLabel, orderOwner, shiftDateISO, todayISO } from "@/lib/utils";
 import { useAutoGeocode } from "@/lib/useAutoGeocode";
 import { useStoreMarkers } from "@/lib/useStoreMarkers";
@@ -376,7 +376,7 @@ export default function MapPage() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <LeafletMap points={points} lines={lines} stores={storeMarkers} liveDrivers={liveDrivers} fitTo={fitTo} onPointClick={(id) => {
+        <MapView points={points} lines={lines} stores={storeMarkers} liveDrivers={liveDrivers} fitTo={fitTo} onPointClick={(id) => {
           if (id === "__pickup") return;
           const d = dayOrders.find((x) => x.id === id);
           if (!d) return;

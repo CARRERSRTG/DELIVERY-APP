@@ -12,7 +12,7 @@ import { AddressInput } from "@/components/AddressInput";
 import { LocationCombo } from "@/components/LocationCombo";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { SignaturePad } from "@/components/SignaturePad";
-import { LeafletMap } from "@/components/LeafletMap";
+import { MapView } from "@/components/MapView";
 import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
 import { isStoreToStore, orderTypeRule, missingFields, missingKeys, type MissingField } from "@/lib/required";
@@ -1196,7 +1196,7 @@ export function OrderModal({
                 <div className="hint" style={{ marginBottom: 8 }}>
                   {t("Move the mouse to preview the spot, then right-click to drop the pin.", "Mueva el mouse para previsualizar el punto y haga clic derecho para marcarlo.")}
                 </div>
-                <LeafletMap
+                <MapView
                   pickable
                   pickedPoint={pinDraft}
                   center={pinDraft ?? (d.delivery_lat != null && d.delivery_lng != null ? [d.delivery_lat, d.delivery_lng] : undefined)}
@@ -1585,7 +1585,7 @@ export function OrderModal({
                 <div className="hint" style={{ marginBottom: 8 }}>
                   {t("Move the mouse to preview the spot, then right-click to drop the pin — useful when there's no formal address yet (a construction site, a lot).", "Mueva el mouse para previsualizar el punto y haga clic derecho para marcarlo — útil cuando aún no hay una dirección formal (un sitio de construcción, un lote).")}
                 </div>
-                <LeafletMap
+                <MapView
                   pickable
                   pickedPoint={pinDraft}
                   center={pinDraft ?? (d.delivery_lat != null && d.delivery_lng != null ? [d.delivery_lat, d.delivery_lng] : undefined)}
