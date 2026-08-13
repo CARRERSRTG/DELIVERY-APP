@@ -1,14 +1,40 @@
 apply plugin: 'com.android.application'
 
+// Release signing. The keystore path + passwords live in keystore.properties,
+// which is NEVER committed (see .gitignore) — each machine that builds a
+// release keeps its own copy. Without that file the release build falls back
+// to debug signing, so a checkout still builds instead of failing on a
+// credential it can't have.
+//
+// versionCode is what the in-app updater compares. Bump it on every release
+// that drivers should be prompted to install.
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
 android {
     namespace "net.rdztilegroup.deliveries"
     compileSdk rootProject.ext.compileSdkVersion
+
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            release {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "net.rdztilegroup.deliveries"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,6 +46,11 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn("keystore.properties not found — release APK will be debug-signed and CANNOT update an existing install.")
+            }
         }
     }
 }

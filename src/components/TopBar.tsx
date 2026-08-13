@@ -9,6 +9,7 @@ import { usePrefs } from "@/lib/prefs";
 import { avatarColor, initials } from "@/lib/utils";
 import { NotificationBell } from "@/components/NotificationBell";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { AppUpdateBanner } from "@/components/AppUpdateBanner";
 import { PendingDeadlineWatcher } from "@/components/PendingDeadlineWatcher";
 import type { Profile, UserRole } from "@/lib/types";
 
@@ -70,6 +71,7 @@ export function TopBar({ me: propMe }: { me: Profile }) {
   return (
     <>
     <PendingDeadlineWatcher />
+    <AppUpdateBanner />
     <OfflineBanner />
     {teaching && (
       <div style={{ background: "#7c3aed", color: "#fff", textAlign: "center", padding: "6px 12px",

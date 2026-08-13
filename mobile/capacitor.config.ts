@@ -26,6 +26,11 @@ const config: CapacitorConfig = {
     // Keep the driver inside the app: links open in the shell, not a browser
     // tab that would lose their session.
     allowMixedContent: false,
+    // Stamps the WebView's user agent so the web app can tell it's running in
+    // the APK and which build. That's what the in-app update prompt compares
+    // against — no extra plugin, and it works on the very first page load.
+    // KEEP THE NUMBER IN SYNC WITH versionCode IN android/app/build.gradle.
+    appendUserAgent: "RDZDeliveries/1",
   },
   plugins: {
     BackgroundGeolocation: {},
