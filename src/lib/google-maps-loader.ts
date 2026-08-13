@@ -36,6 +36,22 @@ export function loadGoogleMaps(): Promise<typeof google.maps> {
     // Another bundle may have injected it already (e.g. a hot reload).
     if (window.google?.maps) { resolve(window.google.maps); return; }
 
+    // With loading=async Google requires a `callback`: the script's own onload
+    // fires before the API has finished initialising, so resolving there hands
+    // back a half-built namespace and the first map constructor throws.
+    const cbName = `__rdzMapsReady_${Date.now().toString(36)}`;
+    const w = window as unknown as Record<string, unknown>;
+
+    const settle = (fn: () => void) => {
+      delete w[cbName];
+      fn();
+    };
+
+    w[cbName] = () => {
+      if (window.google?.maps) settle(() => resolve(window.google.maps));
+      else settle(() => { loadPromise = null; reject(new Error("Google Maps loaded without the maps namespace")); });
+    };
+
     const params = new URLSearchParams({
       key: BROWSER_MAPS_KEY,
       v: "weekly",
@@ -43,20 +59,15 @@ export function loadGoogleMaps(): Promise<typeof google.maps> {
       language: "es",
       region: "US",
       loading: "async",
+      callback: cbName,
     });
     const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
     script.async = true;
-    script.defer = true;
     script.onerror = () => {
       // Let the next caller retry — a failed load is usually a blocked
       // request or a restricted key, both of which can be fixed live.
-      loadPromise = null;
-      reject(new Error("Google Maps failed to load"));
-    };
-    script.onload = () => {
-      if (window.google?.maps) resolve(window.google.maps);
-      else { loadPromise = null; reject(new Error("Google Maps loaded without the maps namespace")); }
+      settle(() => { loadPromise = null; reject(new Error("Google Maps failed to load")); });
     };
     document.head.appendChild(script);
   });
