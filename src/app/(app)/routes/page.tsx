@@ -1843,7 +1843,7 @@ export default function RoutesPage() {
         // single-stop focus, so the map goes back to this driver's whole day.
         // That's the "tap outside" way back out.
         return (
-          <div className="card" key={u.id} style={{ margin: 0 }} onClick={() => { if (selectedOrders.size) setSelectedOrders(new Set()); }}>
+          <div className="card" key={u.id} style={{ margin: 0 }} onClick={() => setSelectedOrders((prev) => (prev.size ? new Set() : prev))}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
               <button className="btn btn-ghost btn-sm" style={{ padding: "0 6px" }} onClick={() => toggleCollapse(u.key)} title={t("Collapse", "Contraer")}>{isC ? "▸" : "▾"}</button>
               <span
@@ -2041,7 +2041,11 @@ export default function RoutesPage() {
                                 key={d.id}
                                 className="clickable"
                                 style={isolated ? { background: "var(--accent-soft)" } : undefined}
-                                onClick={() => setSelectedOrders(isolated ? new Set() : new Set([d.id]))}
+                                // Stop here: without this the click also reaches
+                                // the card's "tap outside" handler, which sees a
+                                // selection already set and clears it — so moving
+                                // from one stop to the next took two clicks.
+                                onClick={(e) => { e.stopPropagation(); setSelectedOrders(isolated ? new Set() : new Set([d.id])); }}
                                 title={t("Show this stop on the map", "Ver esta parada en el mapa")}
                               >
                                 <td style={{ borderLeft: `4px solid ${tColor}` }}>{d.route_seq != null ? i + 1 : "—"}</td>
