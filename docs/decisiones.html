@@ -338,12 +338,12 @@
     },
     {
       id: "D-015", title: "Auto-cancelar órdenes muy atrasadas: apagado",
-      fecha: "—", version: "—", quien: "—",
+      fecha: "2026-08-12", version: "AUTO_CANCEL_LATE_ENABLED = false", quien: "Andrés",
       cambio: "Existe la automatización que cancela órdenes con más de 2 días de atraso sin reprogramar, pero está desactivada.",
-      razon: "",
-      razonTextual: false,
-      pendiente: true,
-      consecuencia: "Falta registrar por qué se dejó apagada y qué debe pasar para prenderla."
+      razon: "Se apagó porque está en producción la app iniciando y esas órdenes no se cancelaron, sí se entregaron, solo que no se siguieron los pasos en la app.",
+      razonTextual: true,
+      consecuencia: "En claro: durante el arranque hay órdenes que sí se entregaron en la vida real pero quedaron atoradas en una etapa vieja porque nadie las movió en el sistema. Para la automatización se ven idénticas a una orden abandonada; si se prendiera hoy, cancelaría entregas que de hecho se hicieron y dejaría el historial mintiendo. Misma causa raíz que D-005.",
+      revisar: "Cuando (1) se cierre el rezago con la herramienta de D-005, y (2) el equipo lleve un tiempo siguiendo el flujo completo en la app. A partir de ahí una orden vieja y atorada sí significa abandonada. Antes de prenderla, revisar que no quede ninguna entrega real en una etapa vieja."
     }
   ];
 

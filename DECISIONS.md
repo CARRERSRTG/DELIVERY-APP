@@ -261,12 +261,29 @@ lógica de "hoy"/atrasado que se renderice. Usar los helpers de `lib/utils.ts`.
 
 ## D-015 · Auto-cancelar órdenes muy atrasadas: apagado
 **Fecha:** anterior a esta bitácora · **Estado:** `AUTO_CANCEL_LATE_ENABLED = false`
+**Razón registrada:** 2026-08-12 por Andrés
 
 **Situación:** existe la automatización que cancela órdenes con más de 2 días de
 atraso sin reprogramar, pero está desactivada.
 
-**Razón:** ⚠️ RAZÓN PENDIENTE — Andrés dijo que avisaría cuándo activarla.
-Falta registrar por qué se dejó apagada y qué debe pasar para prenderla.
+**Razón (textual):** *"Se apagó porque está en producción la app iniciando y
+esas órdenes no se cancelaron, sí se entregaron, solo que no se siguieron los
+pasos en la app."*
+
+**En claro:** durante el arranque hay órdenes que **sí se entregaron en la vida
+real** pero quedaron atoradas en una etapa vieja porque nadie las movió en el
+sistema. Para la automatización se ven idénticas a una orden abandonada. Si se
+prendiera hoy, cancelaría entregas que de hecho se hicieron — y dejaría el
+historial mintiendo.
+
+**Relación:** misma causa raíz que D-005 (marcar entregadas en lote). Las dos
+existen porque el trabajo real ocurrió antes de que el sistema lo registrara.
+
+**Revisar cuando:** (1) se cierre el rezago con la herramienta de D-005, y
+(2) el equipo lleve un tiempo siguiendo el flujo completo en la app. A partir de
+ahí, una orden vieja y atorada sí significa abandonada, y la automatización
+haría lo correcto. Antes de prenderla, revisar que no quede ninguna entrega real
+en una etapa vieja.
 
 ---
 
