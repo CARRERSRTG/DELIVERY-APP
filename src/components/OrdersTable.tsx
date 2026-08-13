@@ -4,11 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { stageInfo, stageLabel } from "@/lib/constants";
 import { usePrefs } from "@/lib/prefs";
+import { useData } from "@/lib/data-provider";
 import { fmtDate, fmtDateShort, fmtMilitary, fmtMoney, fmtWindows, isOverdue, orderLabel, orderTypeTag, palletVariance, storeTag } from "@/lib/utils";
 import { useColWidthMap } from "@/lib/use-col-widths";
 import type { Delivery } from "@/lib/types";
 
-type Ctx = { lang: "en" | "es"; t: (en: string, es: string) => string };
+type Ctx = {
+  lang: "en" | "es";
+  t: (en: string, es: string) => string;
+  /** Drivers identify a load by the invoice on the paperwork in their hand,
+   * not by the system's order code — so their ID column shows that instead. */
+  byInvoice?: boolean;
+};
 type CellValue = string | number | null;
 
 // ---- Column registry (#13 column customization) ---------------------------
@@ -89,14 +96,19 @@ const ID_COLUMN: OrderColumn = {
   key: "__id",
   en: "ID",
   es: "ID",
-  value: (d) => orderLabel(d),
-  cell: (d, { lang }) => {
+  value: (d, { byInvoice }) => (byInvoice ? (d.invoice_num || orderLabel(d)) : orderLabel(d)),
+  cell: (d, { lang, byInvoice }) => {
     const s = stageInfo(d.stage);
     const tag = storeTag(d.store);
     const late = isOverdue(d);
+    // An order can carry several invoices ("177987, 177986") or none at all.
+    // Falling back to the order code keeps the row from ever going blank.
+    const invoice = (d.invoice_num || "").trim();
     return (
       <>
-        #{orderLabel(d)}
+        {byInvoice
+          ? <span className="id-main" title={invoice || undefined}>{invoice || `#${orderLabel(d)}`}</span>
+          : <>#{orderLabel(d)}</>}
         {/* Type rides with the id — it's part of what the order IS, unlike the
             stage and date, which are where it currently stands. Abbreviated so
             all four facts fit one phone line without growing the card. */}
@@ -227,13 +239,18 @@ export function OrdersTable({
   collapsible?: boolean;
 }) {
   const { lang, t } = usePrefs();
+  const { me } = useData();
   // Which rows the driver has opened. Collapsed is the default, so this only
   // ever holds the handful they're actively looking at.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpanded = (id: string) =>
     setExpanded((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const colw = useColWidthMap(`rtg_colw_${resizeKey}`);
-  const ctx: Ctx = { lang, t };
+  // Drivers read the invoice number off the paperwork; everyone else works
+  // from the order code. Driven by the VIEWER's role, so it follows the
+  // person across the driver view and the orders board alike.
+  const byInvoice = me?.role === "driver";
+  const ctx: Ctx = { lang, t, byInvoice };
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);
   const [filters, setFilters] = useState<Record<string, Set<string>>>({});
@@ -246,7 +263,12 @@ export function OrdersTable({
   const filterBtnRefs = useRef(new Map<string, HTMLButtonElement>());
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const cols = useMemo(() => [ID_COLUMN, ...ORDER_COLUMNS.filter((c) => visible.includes(c.key))], [visible]);
+  const cols = useMemo(() => {
+    // Relabel the first column when it holds an invoice — a header reading
+    // "ID" over an invoice number is worse than no header at all.
+    const idCol = byInvoice ? { ...ID_COLUMN, en: "Invoice #", es: "Factura #" } : ID_COLUMN;
+    return [idCol, ...ORDER_COLUMNS.filter((c) => visible.includes(c.key))];
+  }, [visible, byInvoice]);
 
   const openFilterMenu = (key: string) => {
     if (openFilter === key) { setOpenFilter(null); return; }

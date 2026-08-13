@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-019", title: "El chofer ve la factura, no el código de orden",
+      fecha: "2026-08-13", version: "v1.0.5", quien: "Andrés",
+      cambio: "En las listas que ve un chofer, la primera columna muestra el número de factura en lugar del código de orden (#FQ115). El encabezado también cambia a “Factura #”.",
+      razon: "En driver view, el ID sustitúyelo por el invoice number.",
+      razonTextual: true,
+      consecuencia: "El chofer trae papeles en la mano y los coteja por factura; el código de orden es del sistema, no de la calle. Va por rol y no por pantalla, así que aplica igual en su vista de Chofer y en el tablero de Órdenes; los demás roles no cambian. Sin factura cae al código de orden (hoy ninguna orden en ruta llega sin factura, pero 8 de 41 en total no la traen). Con varias facturas (“177987, 177986”) el texto se recorta en vez de empujar las etiquetas fuera de la pantalla."
+    },
+    {
       id: "D-018", title: "La vista del chofer: sin comprobante y un solo botón para recoger",
       fecha: "2026-08-13", version: "v1.0.1", quien: "Andrés",
       cambio: "Al abrir una orden como chofer se quitó el botón “Comprobante”, y recoger pasó de dos toques (Recoger → Confirmar carga) a uno solo.",

@@ -678,6 +678,12 @@ table.orders th { text-align: left; }
      instead and sit against the right edge. */
   table.orders-responsive td.ordno { justify-content: flex-start; gap: 8px; }
   .row-badges { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+  /* An order can carry several invoices ("177987, 177986"). Let it shrink and
+     clip rather than shove the badges off the right edge; the full value stays
+     available on long-press via the title. */
+  .id-main {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   /* Order type sits with the id as a short outlined tag (CUS / INT / TRA) —
      it says what the order IS, so it belongs beside its number rather than
      with the status badges on the right. */

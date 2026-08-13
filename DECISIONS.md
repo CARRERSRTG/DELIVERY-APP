@@ -396,6 +396,32 @@ un número equivocado desde el camión.
 
 ---
 
+## D-019 · El chofer ve la factura, no el código de orden
+**Fecha:** 2026-08-13 · **Versión:** v1.0.5 · **Pedido por:** Andrés
+
+**Cambio:** En las listas que ve un **chofer**, la primera columna muestra el
+**número de factura** en lugar del código de orden (`#FQ115`). El encabezado
+también cambia a "Factura #".
+
+**Razón (textual):** *"en driver view, el ID sustitúyelo por el invoice
+number."*
+
+**Por qué tiene sentido:** el chofer trae papeles en la mano y los coteja por
+factura; el código de orden es del sistema, no de la calle.
+
+**Va por rol, no por pantalla:** sigue al *usuario*, así que aplica igual en su
+vista de Chofer y en el tablero de Órdenes. Los demás roles no cambian.
+
+**Casos cubiertos:**
+- **Sin factura:** cae al código de orden. Hoy ninguna orden en ruta llega sin
+  factura (verificado: 0 de las que están listas o recogidas), pero 8 de 41 en
+  total no la traen — mejor eso que una fila en blanco.
+- **Varias facturas:** hay órdenes con `177987, 177986`. El texto se recorta con
+  puntos suspensivos en vez de empujar las etiquetas fuera de la pantalla; el
+  valor completo sigue disponible al mantener presionado.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
