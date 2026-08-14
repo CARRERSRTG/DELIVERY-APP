@@ -98,6 +98,14 @@ interface ComputeArgs {
   dateISO?: string | null;
   /** TRAFFIC_AWARE is the balanced default; OPTIMAL is slower + pricier. */
   routingPreference?: "TRAFFIC_AWARE" | "TRAFFIC_AWARE_OPTIMAL";
+  /**
+   * Solve the visiting order, or keep the one given?
+   *
+   * Dispatch wants it solved. A driver looking at the route they were ASSIGNED
+   * does not — re-solving would draw a different order than the plan they're
+   * following, which is worse than no map at all.
+   */
+  optimize?: boolean;
   apiKey: string;
 }
 
@@ -141,7 +149,7 @@ function roughDistance(a: RoutePoint, b: RoutePoint): number {
  * equivalent.
  */
 export async function computeRoute({
-  stops, roundtrip, dateISO, routingPreference = "TRAFFIC_AWARE", apiKey,
+  stops, roundtrip, dateISO, routingPreference = "TRAFFIC_AWARE", optimize = true, apiKey,
 }: ComputeArgs): Promise<ComputedRoute> {
   if (stops.length < 2) {
     return { order: stops.map((s) => s.id), miles: 0, seconds: 0, legs: [], geometry: [], provider: "google", traffic: false };
@@ -153,6 +161,10 @@ export async function computeRoute({
   if (roundtrip) {
     end = start;
     middle = stops.slice(1);
+  } else if (!optimize) {
+    // Order is fixed: the drive simply ends where the list ends.
+    end = stops[stops.length - 1];
+    middle = stops.slice(1, -1);
   } else {
     const rest = stops.slice(1);
     let far = rest[0];
@@ -181,7 +193,7 @@ export async function computeRoute({
   };
   if (middle.length) {
     body.intermediates = middle.map(point);
-    body.optimizeWaypointOrder = true;
+    if (optimize) body.optimizeWaypointOrder = true;
   }
   if (departureTime) body.departureTime = departureTime;
 
@@ -211,7 +223,10 @@ export async function computeRoute({
   // Rebuild the visiting order. optimizedIntermediateWaypointIndex[k] is the
   // position (in the ORIGINAL intermediates array) of the k-th stop actually
   // visited — so it maps the solved order back onto our stop ids.
-  const optimized = resolveOptimizedOrder(route.optimizedIntermediateWaypointIndex, middle.length);
+  // With optimisation off Google echoes the order we sent, so keep ours.
+  const optimized = optimize
+    ? resolveOptimizedOrder(route.optimizedIntermediateWaypointIndex, middle.length)
+    : middle.map((_, i) => i);
   const order = [start.id, ...optimized.map((i) => middle[i].id)];
   if (!roundtrip) order.push(end.id);
 

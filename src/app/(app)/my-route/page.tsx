@@ -6,7 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { canDeliver } from "@/lib/constants";
 import { routeOrder, splitIntoTrips } from "@/lib/dispatch";
 import { groupIntoLoads, hasManualLoads } from "@/lib/route-lanes";
-import { MapView, type MapPoint } from "@/components/MapView";
+import { MapView, type MapLine, type MapPoint } from "@/components/MapView";
 import { OrderModal } from "@/components/OrderModal";
 import { useStoreMarkers } from "@/lib/useStoreMarkers";
 import { fallbackDriverColor, fmtDate, fmtWindows, isOverdue, orderLabel, storeTag, todayISO } from "@/lib/utils";
@@ -61,6 +61,85 @@ export default function MyRoutePage() {
   const next = stops.find((d) => d.stage !== "delivered") ?? null;
 
   const storeMarkers = useStoreMarkers(settings.stores);
+
+  // Which truckload's drive is drawn, and what we know about it. Loaded on
+  // demand — a driver asks for one trip at a time, and each ask costs a
+  // routing call, so nothing is fetched until they tap.
+  const [openTrip, setOpenTrip] = useState<number | null>(null);
+  const [tripRoutes, setTripRoutes] = useState<Record<number, { positions: [number, number][]; miles: number; duration: string; traffic: boolean }>>({});
+  const [tripBusy, setTripBusy] = useState<number | null>(null);
+  const [tripError, setTripError] = useState<string | null>(null);
+
+  /** Where this truckload is loaded — the order's own pickup, else its store. */
+  const pickupFor = async (batch: Delivery[]): Promise<{ lat: number; lng: number } | null> => {
+    const addr = batch.map((d) => (d.pickup_address || "").trim()).find(Boolean)
+      ?? batch.map((d) => settings.stores.find((s) => s.name === d.store)?.address).find(Boolean)
+      ?? "";
+    if (!addr) return null;
+    try {
+      const res = await fetch("/api/geocode-point", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: addr }),
+      });
+      if (!res.ok) return null;
+      const p = await res.json();
+      return typeof p?.lat === "number" && typeof p?.lng === "number" ? p : null;
+    } catch { return null; }
+  };
+
+  const toggleTrip = async (ti: number, batch: Delivery[]) => {
+    if (openTrip === ti) { setOpenTrip(null); return; }
+    setOpenTrip(ti);
+    setTripError(null);
+    if (tripRoutes[ti]) return;                    // already drawn once today
+    const withPin = batch.filter((d) => d.delivery_lat != null && d.delivery_lng != null);
+    if (withPin.length === 0) {
+      setTripError(t("These stops aren't on the map yet.", "Estas paradas aún no están en el mapa."));
+      return;
+    }
+    setTripBusy(ti);
+    try {
+      const depot = await pickupFor(batch);
+      const stopsForCall = [
+        ...(depot ? [{ id: "__pickup__", lat: depot.lat, lng: depot.lng }] : []),
+        ...withPin.map((d) => ({ id: d.id, lat: d.delivery_lat!, lng: d.delivery_lng! })),
+      ];
+      const res = await fetch("/api/optimize-route", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stops: stopsForCall,
+          roundtrip: !!depot,
+          date: batch[0]?.delivery_date ?? todayISO(),
+          // Draw the route they were ASSIGNED. Re-solving it here would show a
+          // different order than the one they're following.
+          optimize: false,
+        }),
+      });
+      const b = await res.json();
+      if (!res.ok) throw new Error(b.error || "Route failed");
+      setTripRoutes((prev) => ({
+        ...prev,
+        [ti]: {
+          positions: ((b.geometry ?? []) as [number, number][]).map(([lng, lat]) => [lat, lng] as [number, number]),
+          miles: b.miles ?? 0,
+          duration: b.duration_text || "",
+          traffic: !!b.traffic,
+        },
+      }));
+    } catch (e) {
+      setTripError(e instanceof Error ? e.message : "Route failed");
+    } finally {
+      setTripBusy(null);
+    }
+  };
+
+  // Only the open truckload is traced, so the map answers one question.
+  const lines: MapLine[] = useMemo(() => {
+    if (openTrip == null) return [];
+    const r = tripRoutes[openTrip];
+    if (!r || r.positions.length < 2) return [];
+    return [{ id: `trip:${openTrip}`, color: "#2456c9", positions: r.positions }];
+  }, [openTrip, tripRoutes]);
 
   // Numbered pins in visiting order. Colour carries state at a glance: done,
   // the one you're heading to, and the rest.
@@ -183,6 +262,7 @@ export default function MyRoutePage() {
           <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 12 }}>
             <MapView
               points={points}
+              lines={lines}
               stores={storeMarkers}
               liveDrivers={liveDrivers}
               fitTo={fitTo}
@@ -198,9 +278,38 @@ export default function MyRoutePage() {
             const pallets = batch.reduce((n, d) => n + Number(d.actual_pallets ?? d.est_pallets ?? 0), 0);
             return (
               <div className="card" key={ti} style={{ marginBottom: 12 }}>
-                <div className="section-label" style={{ marginTop: 0 }}>
-                  🚚 {t("Truckload", "Viaje")} {ti + 1} · {Math.round(pallets)} {t("pallets", "pallets")}
-                </div>
+                {/* Tapping the truckload traces THAT trip on the map and
+                    reports what it costs in time and miles. One trip at a
+                    time, because that's how it's driven. */}
+                <button
+                  onClick={() => void toggleTrip(ti, batch)}
+                  className="section-label"
+                  style={{
+                    marginTop: 0, width: "100%", textAlign: "left", display: "flex",
+                    alignItems: "center", gap: 8, flexWrap: "wrap", cursor: "pointer",
+                    background: "none", border: "none", padding: 0,
+                    color: openTrip === ti ? "var(--accent)" : undefined,
+                  }}
+                  aria-expanded={openTrip === ti}
+                >
+                  <span>{openTrip === ti ? "▾" : "▸"}</span>
+                  <span>🚚 {t("Truckload", "Viaje")} {ti + 1} · {Math.round(pallets)} {t("pallets", "pallets")}</span>
+                  {tripBusy === ti && <span className="hint">{t("measuring…", "midiendo…")}</span>}
+                  {tripRoutes[ti] && (
+                    <span className="hint" style={{ textTransform: "none", letterSpacing: 0 }}>
+                      · {tripRoutes[ti].miles} mi · {tripRoutes[ti].duration}
+                      {tripRoutes[ti].traffic ? ` · ${t("with traffic", "con tráfico")}` : ""}
+                    </span>
+                  )}
+                </button>
+                {openTrip === ti && tripError && (
+                  <div className="hint" style={{ color: "var(--amber)", marginBottom: 6 }}>⚠ {tripError}</div>
+                )}
+                {openTrip === ti && !tripRoutes[ti] && tripBusy !== ti && !tripError && (
+                  <div className="hint" style={{ marginBottom: 6 }}>
+                    {t("Tap again to hide the route.", "Toca de nuevo para ocultar la ruta.")}
+                  </div>
+                )}
                 <div className="bar-list">
                   {batch.map((d, bi) => {
                     const n = startIdx + bi + 1;

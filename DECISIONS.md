@@ -484,10 +484,23 @@ que "Viaje 2" significa lo mismo para los dos. Y el orden ya venía respetando
 la secuencia optimizada (`routeOrder` usa `route_seq`), así que las dos
 pantallas nunca se contradicen.
 
-**Lo que a propósito NO hace:** no dibuja la ruta trazada por carretera. Eso
-costaría una llamada a Google por chofer cada vez que abre la pantalla, y los
-pines numerados ya responden la pregunta "¿en qué orden voy?". Si más adelante
-hace falta el trazo real, se agrega.
+**Lo que a propósito NO hacía:** dibujar la ruta trazada por carretera, por el
+costo de una llamada a Google por chofer cada vez que abriera la pantalla.
+
+**Revisado (2026-08-13, v1.2.1):** *"cuando él presione por ejemplo Truckload 1,
+automáticamente le salga la ruta en el mapa, y tiempo y distancia, y hacer eso
+por truckload."* Se agregó, **bajo demanda**: nada se consulta hasta que el
+chofer toca un viaje, y el resultado se guarda para el resto de la sesión. Así
+se conserva la razón original (no gastar en llamadas que nadie pidió) y se
+obtiene lo que se necesitaba.
+
+**Un detalle que casi rompe el propósito de esta pantalla:** el endpoint de
+rutas **reordena** las paradas — para eso existe. Usarlo tal cual le habría
+dibujado al chofer **una secuencia distinta a la que está siguiendo**. Se
+agregó `optimize: false` para trazar el camino **respetando el orden asignado**.
+Medido en una ruta real del Valle: la secuencia optimizada da 123.9 mi / 2h16m,
+mientras que la asignada da 161.1 mi / 2h50m — dibujar la primera habría sido
+mentirle al chofer sobre su propio día.
 
 ---
 

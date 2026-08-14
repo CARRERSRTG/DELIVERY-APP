@@ -57,7 +57,28 @@ function cacheSet(key: string, payload: Payload) {
 }
 
 // ---- Free fallback router ---------------------------------------------------
-async function viaOSRM(stops: RoutePoint[], roundtrip: boolean): Promise<Payload> {
+async function viaOSRM(stops: RoutePoint[], roundtrip: boolean, optimize = true): Promise<Payload> {
+  // The "trip" service SOLVES the order; "route" walks the stops as given.
+  // Asking trip for a fixed-order path would quietly hand back a different
+  // sequence than the caller asked to draw.
+  if (!optimize) {
+    const path = roundtrip ? [...stops, stops[0]] : stops;
+    const coords = path.map((s) => `${s.lng},${s.lat}`).join(";");
+    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
+    const data = await res.json();
+    const route = data?.routes?.[0];
+    if (!route) throw new Error(data?.message || "Route failed");
+    return {
+      order: stops.map((s) => s.id),
+      miles: Math.round((route.distance / METERS_PER_MILE) * 10) / 10,
+      duration_text: fmtDuration(route.duration),
+      duration_seconds: route.duration,
+      legs: ((route.legs ?? []) as { duration: number }[]).map((l) => l.duration),
+      geometry: (route.geometry?.coordinates ?? []) as [number, number][],
+      provider: "osrm",
+      traffic: false,
+    };
+  }
   const coords = stops.map((s) => `${s.lng},${s.lat}`).join(";");
   const url =
     `https://router.project-osrm.org/trip/v1/driving/${coords}` +
@@ -85,7 +106,7 @@ async function viaOSRM(stops: RoutePoint[], roundtrip: boolean): Promise<Payload
 }
 
 export async function POST(req: Request) {
-  let body: { stops?: RoutePoint[]; roundtrip?: boolean; date?: string | null; traffic_optimal?: boolean };
+  let body: { stops?: RoutePoint[]; roundtrip?: boolean; date?: string | null; traffic_optimal?: boolean; optimize?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -96,12 +117,15 @@ export async function POST(req: Request) {
   );
   const roundtrip = !!body.roundtrip;
   const dateISO = typeof body.date === "string" ? body.date : null;
+  // Default true (dispatch solves the order). A driver drawing the route
+  // they were ASSIGNED passes false, so the line follows their plan.
+  const optimize = body.optimize !== false;
 
   if (stops.length < 2) {
     return NextResponse.json({ order: stops.map((s) => s.id), miles: 0, duration_text: "", duration_seconds: 0, geometry: [], legs: [], provider: "none", traffic: false });
   }
 
-  const key = JSON.stringify([stops.map((s) => [s.id, s.lat.toFixed(5), s.lng.toFixed(5)]), roundtrip, dateISO, !!body.traffic_optimal]);
+  const key = JSON.stringify([stops.map((s) => [s.id, s.lat.toFixed(5), s.lng.toFixed(5)]), roundtrip, dateISO, !!body.traffic_optimal, optimize]);
   const cached = cacheGet(key);
   if (cached) return NextResponse.json({ ...cached, cached: true });
 
@@ -115,6 +139,7 @@ export async function POST(req: Request) {
         roundtrip,
         dateISO,
         routingPreference: body.traffic_optimal ? "TRAFFIC_AWARE_OPTIMAL" : "TRAFFIC_AWARE",
+        optimize,
         apiKey,
       });
       const payload: Payload = {
@@ -137,7 +162,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const payload = await viaOSRM(stops, roundtrip);
+    const payload = await viaOSRM(stops, roundtrip, optimize);
     cacheSet(key, payload);
     // Surfaced so the UI can say the numbers aren't traffic-aware yet.
     return NextResponse.json(googleError ? { ...payload, google_error: googleError } : payload);
