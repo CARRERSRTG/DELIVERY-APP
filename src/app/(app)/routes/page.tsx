@@ -13,6 +13,7 @@ import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
 import { fallbackDriverColor, fmtDate, fmtMoney, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
 import { serviceMin, tripTiming, dayMinutes, RELOAD_MIN } from "@/lib/trip-timing";
+import { buildGeoLoads, fillByCapacity, planCostMi } from "@/lib/route-batching";
 import { driverOf, groupIntoLoads, hasManualLoads, loadNoOf, nextLoadFor as nextLoadForPure, orderLaneKey as orderLaneKeyPure, planMerge } from "@/lib/route-lanes";
 import { useColWidths } from "@/lib/use-col-widths";
 import { liveDriverNames, trackingGaps } from "@/lib/tracking-health";
@@ -151,6 +152,12 @@ interface RoutePlan {
   trips: number;
   /** Per-truckload breakdown, in the order the loads go out. */
   tripStats: TripStat[];
+  /** Stop ids per truckload, so the grouping the batcher chose can be saved.
+   * null = the loads were a person's doing and were left untouched. */
+  loadGroups: string[][] | null;
+  /** Straight-line miles the regrouping saved vs. the old capacity fill.
+   * 0 when nothing was regrouped. */
+  regroupSavedMi: number;
   /** Whole day: driving + unloading + reloading between truckloads. */
   dayMinutes: number;
   /** Estimated arrival time per stop id, "HH:MM". */
@@ -387,7 +394,9 @@ export default function RoutesPage() {
         batch.filter((s) => s.id !== d.id).map((s) => updateDelivery(s.id, { load_no: ti + 1 > 1 ? ti + 1 : null })),
       ));
     }
-    await updateDelivery(d.id, { load_no: load > 1 ? load : null, route_seq: null });
+    // Hand-placed: from here on the optimizer reorders this lane but leaves the
+    // grouping alone, so the dispatcher's call survives pressing Optimize.
+    await updateDelivery(d.id, { load_no: load > 1 ? load : null, route_seq: null, load_auto: false });
     notify(t(`Moved to truckload ${load}`, `Movido al viaje ${load}`));
   };
   // Split a lane's stops into truckloads: by the dispatcher's manual load
@@ -398,9 +407,29 @@ export default function RoutesPage() {
   // single truckload (capacity permitting).
   const combineLoads = async (laneKey: string) => {
     const stops = byDriver.get(laneKey) ?? [];
-    for (const d of stops) if ((d.load_no ?? 1) > 1) await updateDelivery(d.id, { load_no: null, route_seq: null });
+    // Also the way back: with no manual loads left, the next optimize is free
+    // to regroup the lane by area from scratch.
+    for (const d of stops) await updateDelivery(d.id, { load_no: null, route_seq: null, load_auto: false });
     clearRouteFor(laneKey);
     notify(t("Combined into one truckload", "Unido en un solo viaje"));
+  };
+  // Drop a lane's pinned truckloads and let the batcher regroup it by area.
+  //
+  // Needed because pinned loads are deliberately left alone by Optimize — so
+  // without this, a lane whose loads were pinned once could never benefit from
+  // area grouping again, and the Optimize button would look broken.
+  const regroupByArea = async (laneKey: string) => {
+    const stops = byDriver.get(laneKey) ?? [];
+    if (!stops.length) return;
+    setBusyDriver(laneKey);
+    try {
+      await Promise.all(stops.map((d) => updateDelivery(d.id, { load_no: null, route_seq: null, load_auto: false })));
+      clearRouteFor(laneKey);
+    } finally {
+      setBusyDriver(null);
+    }
+    // Re-read: the stops carry fresh load numbers now, and batching reads them.
+    await optimize(laneKey);
   };
   // Split a lane's stops evenly into two manual truckloads (first half → 1,
   // second half → 2), preserving the current order.
@@ -409,7 +438,7 @@ export default function RoutesPage() {
       .sort((a, b) => (a.route_seq ?? 9e9) - (b.route_seq ?? 9e9) || a.order_no - b.order_no);
     if (stops.length < 2) return;
     const half = Math.ceil(stops.length / 2);
-    await Promise.all(stops.map((d, i) => updateDelivery(d.id, { load_no: i < half ? null : 2, route_seq: null })));
+    await Promise.all(stops.map((d, i) => updateDelivery(d.id, { load_no: i < half ? null : 2, route_seq: null, load_auto: false })));
     clearRouteFor(laneKey);
     notify(t("Split into 2 truckloads", "Dividido en 2 viajes"));
   };
@@ -784,9 +813,40 @@ export default function RoutesPage() {
       return profile?.store ? (settings.stores.find((s) => s.name === profile.store)?.address ?? null) : null;
     })();
     const depot = await getDepotCoords(pickupAddr);
-    // No pickup we can geocode — fall back to one open (one-way) route.
-    const batches = depot ? buildTrips(sorted, capacityFor(driver)) : [sorted];
     const byId = new Map(sorted.map((d) => [d.id, d]));
+
+    // WHICH STOPS SHARE A TRUCK.
+    //
+    // The old splitter cut a new load every time the running pallet count hit
+    // capacity, walking the list in whatever order it arrived — so two stops on
+    // the same street could land on different trucks just because the boundary
+    // fell between them. Optimizing afterwards can't undo that: the router only
+    // reorders stops within a load it was handed.
+    //
+    // A grouping a PERSON made is left alone. Only loads the optimizer assigned
+    // (or stops never grouped at all) get regrouped, so a deliberate split
+    // survives pressing Optimize again.
+    const capacity = capacityFor(driver);
+    const manual = hasManualLoads(sorted) && sorted.some((d) => (d.load_no ?? 1) > 1 && !d.load_auto);
+    let batches: Delivery[][];
+    let loadGroups: string[][] | null = null;
+    let regroupSavedMi = 0;
+    if (!depot) {
+      // Nothing to measure distances from — one open (one-way) route.
+      batches = [sorted];
+    } else if (manual) {
+      batches = buildTrips(sorted, capacity);
+    } else {
+      const asStops = sorted.map((d) => ({ id: d.id, lat: d.delivery_lat, lng: d.delivery_lng, pallets: d.actual_pallets ?? d.est_pallets ?? 0 }));
+      const geo = buildGeoLoads(asStops, { lat: depot[0], lng: depot[1] }, capacity);
+      batches = geo.map((load) => load.map((s) => byId.get(s.id)!).filter(Boolean));
+      loadGroups = batches.map((b) => b.map((d) => d.id));
+      // What the regrouping bought, straight-line. Reported only when it's
+      // real, so "optimized" never claims a win it didn't earn.
+      const before = planCostMi({ lat: depot[0], lng: depot[1] }, fillByCapacity(asStops, capacity));
+      const after = planCostMi({ lat: depot[0], lng: depot[1] }, geo);
+      regroupSavedMi = Math.max(0, before - after);
+    }
 
     let miles = 0;
     let seconds = 0;
@@ -871,6 +931,8 @@ export default function RoutesPage() {
       traces,
       trips: batches.length,
       tripStats,
+      loadGroups,
+      regroupSavedMi,
       // The reload between loads is real time too, but it isn't part of any
       // single truckload — so it only shows up in the day total.
       dayMinutes: depot ? dayMinutes(tripStats) : tripStats.reduce((n, t) => n + t.totalMin, 0),
@@ -880,7 +942,17 @@ export default function RoutesPage() {
 
   /** Save a solved plan as the driver's actual route. */
   const applyPlan = async (driver: string, plan: RoutePlan) => {
-    await Promise.all(plan.orderedIds.map((id, i) => updateDelivery(id, { route_seq: i })));
+    if (plan.loadGroups) {
+      // The grouping has to be written down, not just drawn: the board rebuilds
+      // truckloads from load_no, so without this the stops would snap back to a
+      // capacity split the moment anything re-rendered. Stamped as `load_auto`
+      // so a later optimize is still free to regroup them.
+      const loadNoById: Record<string, number | null> = {};
+      plan.loadGroups.forEach((ids, li) => ids.forEach((id) => { loadNoById[id] = li + 1 > 1 ? li + 1 : null; }));
+      await reorderStops(plan.orderedIds, loadNoById, true);
+    } else {
+      await Promise.all(plan.orderedIds.map((id, i) => updateDelivery(id, { route_seq: i })));
+    }
     setRouteInfo((p) => ({ ...p, [driver]: { miles: plan.miles, duration_text: fmtMinutes(plan.seconds / 60), trips: plan.trips, minutes: plan.seconds / 60, dayMinutes: plan.dayMinutes, dayText: fmtMinutes(plan.dayMinutes) } }));
     setRouteTrips((p) => ({ ...p, [driver]: plan.tripStats }));
     setRouteLines((p) => ({ ...p, [driver]: plan.traces }));
@@ -897,9 +969,18 @@ export default function RoutesPage() {
       const before = routeInfo[driver]?.miles ?? null;
       const plan = await computeRoute(driver, stops);
       await applyPlan(driver, plan);
-      // Show the mileage saved vs the previous route (only on a re-optimize).
-      if (before != null && before - plan.miles >= 0.1) {
-        notify(t(`Optimized — saved ${Math.round((before - plan.miles) * 10) / 10} mi`, `Optimizada — ahorro ${Math.round((before - plan.miles) * 10) / 10} mi`));
+      // Two different wins, reported separately because they come from
+      // different places: regrouping decides which stops share a truck,
+      // re-optimizing decides the order within one.
+      const saved = before != null ? Math.round((before - plan.miles) * 10) / 10 : 0;
+      if (plan.regroupSavedMi >= 1 && plan.trips > 1) {
+        const mi = Math.round(plan.regroupSavedMi);
+        notify(t(
+          `Regrouped into ${plan.trips} truckloads by area — about ${mi} mi shorter`,
+          `Reagrupado en ${plan.trips} viajes por zona — unas ${mi} mi menos`,
+        ));
+      } else if (before != null && saved >= 0.1) {
+        notify(t(`Optimized — saved ${saved} mi`, `Optimizada — ahorro ${saved} mi`));
       }
     } catch (e) {
       setErr((e as Error).message);
@@ -1868,6 +1949,8 @@ export default function RoutesPage() {
         const info = routeInfo[u.key];
         const capacity = capacityFor(u.driver);
         const trips = buildTrips(stops, capacity);
+        // A load a person pinned; the optimizer won't regroup those.
+        const pinnedLoads = stops.some((d) => (d.load_no ?? 1) > 1 && !d.load_auto);
         const isC = isCollapsed(u.key);
         const bucket = u.isBucket;
         // A route that isn't on a real driver (a bucket, or one recovered under
@@ -1903,6 +1986,22 @@ export default function RoutesPage() {
               <span className="count-tag">{stops.length} {t("stops", "paradas")}</span>
               {stops.length > 0 && trips.length > 1 && (
                 <span className="sema" style={{ background: "var(--amber)", color: "#fff" }}>{trips.length} {t("truckloads", "viajes")}</span>
+              )}
+              {/* Says who decided the grouping, because it decides what
+                  Optimize is allowed to change. Without this the button looks
+                  broken when it deliberately leaves a hand-made split alone. */}
+              {stops.length > 0 && trips.length > 1 && (
+                pinnedLoads ? (
+                  <span className="sema" style={{ background: "var(--card-hover)", color: "var(--ink-soft)" }}
+                    title={t("You grouped these truckloads, so optimizing only reorders the stops inside them. Use “Combine loads” to let it regroup by area.", "Usted agrupó estos viajes, así que optimizar solo reordena las paradas dentro de ellos. Use “Unir viajes” para que los reagrupe por zona.")}>
+                    📌 {t("loads pinned by you", "viajes fijados por usted")}
+                  </span>
+                ) : (
+                  <span className="sema" style={{ background: "var(--card-hover)", color: "var(--ink-soft)" }}
+                    title={t("Stops were grouped onto trucks by area, so nearby deliveries ride together.", "Las paradas se agruparon en camiones por zona, para que las entregas cercanas viajen juntas.")}>
+                    🧩 {t("grouped by area", "agrupado por zona")}
+                  </span>
+                )
               )}
               {info && (
                 <span
@@ -1950,8 +2049,15 @@ export default function RoutesPage() {
                 </select>
               )}
               {hasManualLoads(stops) ? (
-                <button className="btn btn-ghost btn-sm" title={t("Merge all truckloads back into one", "Unir todos los viajes en uno")}
-                  onClick={() => combineLoads(u.key)}>🔗 {t("Combine loads", "Unir viajes")}</button>
+                <>
+                  {pinnedLoads && stops.length >= 2 && (
+                    <button className="btn btn-ghost btn-sm" disabled={busyDriver === u.key}
+                      title={t("Drop your truckloads and let the optimizer regroup the stops by area", "Descartar sus viajes y dejar que el optimizador reagrupe las paradas por zona")}
+                      onClick={() => regroupByArea(u.key)}>🧩 {t("Regroup by area", "Reagrupar por zona")}</button>
+                  )}
+                  <button className="btn btn-ghost btn-sm" title={t("Merge all truckloads back into one", "Unir todos los viajes en uno")}
+                    onClick={() => combineLoads(u.key)}>🔗 {t("Combine loads", "Unir viajes")}</button>
+                </>
               ) : trips.length === 1 && stops.length >= 2 && (
                 <button className="btn btn-ghost btn-sm" title={t("Split this truckload into two", "Dividir este viaje en dos")}
                   onClick={() => splitLoads(u.key)}>✂ {t("Split into 2", "Dividir en 2")}</button>

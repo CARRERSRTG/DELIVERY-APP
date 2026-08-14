@@ -89,7 +89,10 @@ export interface DataState {
    * `loadNoById` optionally stamps each stop's truckload in the SAME guarded
    * write — needed when reordering whole truckloads, so the new grouping sticks
    * instead of being re-derived from truck capacity. */
-  reorderStops: (orderedIds: string[], loadNoById?: Record<string, number | null>) => Promise<boolean>;
+  /** `loadAuto` records WHO grouped these loads: true = the optimizer (free to
+   * regroup later), false = a person (leave it alone). Omitted leaves it as it
+   * was, for moves that change order without changing the grouping. */
+  reorderStops: (orderedIds: string[], loadNoById?: Record<string, number | null>, loadAuto?: boolean) => Promise<boolean>;
   deleteDelivery: (id: string) => Promise<void>;
   /** Move an order to a new workflow stage and log the event. `extra` merges
    * additional column updates into the SAME write (e.g. proof-of-delivery),
@@ -602,13 +605,16 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // committed sequence. On any failure the previous order is restored, so the
   // list never silently disagrees with the database.
   const reorderStops = useCallback<DataState["reorderStops"]>(
-    async (orderedIds, loadNoById) => {
+    async (orderedIds, loadNoById, loadAuto) => {
       if (!orderedIds.length) return true;
       const seqById = new Map(orderedIds.map((id, i) => [id, i]));
       // The full patch for one stop: its new position, plus its truckload when
       // whole truckloads are being reordered.
-      const patchFor = (id: string): Partial<Delivery> =>
-        loadNoById ? { route_seq: seqById.get(id)!, load_no: loadNoById[id] ?? null } : { route_seq: seqById.get(id)! };
+      const patchFor = (id: string): Partial<Delivery> => ({
+        route_seq: seqById.get(id)!,
+        ...(loadNoById ? { load_no: loadNoById[id] ?? null } : {}),
+        ...(loadAuto === undefined ? {} : { load_auto: loadAuto }),
+      });
       if (teaching) {
         setOverlay((o) => ({
           ...o,

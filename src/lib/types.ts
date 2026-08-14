@@ -109,6 +109,11 @@ export interface Delivery {
    * several routes in a day, each a separate truckload out from the pickup and
    * back. null or 1 = the first load. route_seq is sequenced within the load. */
   load_no: number | null;
+  /** Who decided this order's truckload. true = the optimizer grouped it and
+   * may regroup it; false = a person put it there on purpose, so optimizing
+   * leaves the grouping alone. Without this the two are indistinguishable and
+   * the optimizer must either trample deliberate splits or never regroup. */
+  load_auto: boolean;
   delivery_duration: string | null;
   /** Named dropoff point (saved site name), paired with delivery_address. */
   delivery_name: string | null;

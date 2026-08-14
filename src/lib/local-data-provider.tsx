@@ -156,7 +156,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
 
   // Renumber a route's stops (see the real provider) — one local write, so the
   // whole new sequence lands at once.
-  const reorderStops = useCallback<DataState["reorderStops"]>(async (orderedIds, loadNoById) => {
+  const reorderStops = useCallback<DataState["reorderStops"]>(async (orderedIds, loadNoById, loadAuto) => {
     const s = storeRef.current;
     const seqById = new Map(orderedIds.map((id, i) => [id, i]));
     persist({
@@ -167,6 +167,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
               ...c,
               route_seq: seqById.get(c.id)!,
               ...(loadNoById ? { load_no: loadNoById[c.id] ?? null } : {}),
+              ...(loadAuto === undefined ? {} : { load_auto: loadAuto }),
               updated_at: new Date().toISOString(),
             }
           : c),
@@ -368,7 +369,7 @@ function seedRow(n: number): Delivery {
     pickup_lat: null, pickup_lng: null, pickup_gps_at: null,
     pod_lat: null, pod_lng: null, pod_accuracy: null,
     delivery_lat: null, delivery_lng: null, delivery_pin_source: null,
-    route_seq: null, load_no: null,
+    route_seq: null, load_no: null, load_auto: false,
     created_by: null, assigned_sales_rep: null, approved_by: null, approved_at: null, created_at: now, updated_at: now,
   };
 }

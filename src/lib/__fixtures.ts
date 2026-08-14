@@ -58,6 +58,7 @@ export function mkDelivery(over: Partial<Delivery> = {}): Delivery {
     delivery_pin_source: null,
     route_seq: null,
     load_no: null,
+    load_auto: false,
     created_by: "u-sales",
     assigned_sales_rep: null,
     approved_by: null,

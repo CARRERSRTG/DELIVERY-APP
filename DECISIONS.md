@@ -595,6 +595,51 @@ descargas reales y ajustar el default de 15 min.
 
 ---
 
+## D-025 · Las paradas cercanas viajan juntas (agrupación por zona)
+
+**Fecha:** 2026-08-13 · **Versión:** v1.3.0 · **Pedido por:** Andrés
+
+**Cambio:** "Optimizar ruta" ahora decide **qué paradas comparten camión**, no
+solo el orden dentro de cada viaje. La agrupación usa Clarke–Wright (el
+heurístico estándar de ruteo con capacidad desde un depósito) más un pase
+or-opt que reubica paradas sueltas mientras eso acorte el plan.
+
+**Razón:** *"hay una ruta que hay 2 entregas bien cerca y que pueden ir en el
+mismo viaje y el sistema de optimizar no lo mandó ahí."*
+
+**La causa:** el repartidor viejo (`splitIntoTrips`) recorría la lista **en el
+orden que traía** y cortaba un viaje nuevo cada vez que la suma de pallets
+llegaba a la capacidad. La geografía **nunca entraba en la decisión**. Dos
+entregas de la misma cuadra caían en camiones distintos solo porque el corte de
+capacidad quedó entre ellas — y optimizar después no lo puede arreglar, porque
+el ruteador solo reordena paradas **dentro** del viaje que se le entregó.
+
+**Medido en el tablero real** (Maximo Garza, 2026-08-12, 7 paradas, 12 pallets
+de capacidad): 321 mi → 218 mi en línea recta, **32% menos**. La agrupación
+vieja mandaba una parada de McAllen colgada de un viaje a Brownsville, en dos
+viajes distintos.
+
+**División del trabajo:** aquí se decide *quién viaja con quién* (Google no
+puede: no conoce la capacidad del camión); Google decide *el orden dentro de
+cada camión* con tráfico real. Las distancias de la agrupación son en línea
+recta a propósito — esta etapa solo necesita saber qué paradas están **cerca**,
+y pedirle a Google una matriz completa costaría una llamada por cada par.
+
+**Consecuencia aceptada:** una agrupación hecha **por una persona** se respeta y
+no se reagrupa (columna nueva `load_auto`, migración 045). Sin esa distinción el
+optimizador tenía que elegir entre pisar las divisiones deliberadas del
+despachador o no reagrupar nunca, y ninguna de las dos sirve. Los viajes que ya
+existían quedan marcados como deliberados, que es lo conservador; para soltarlos
+está el botón **"Reagrupar por zona"**, que aparece solo cuando hay viajes
+fijados.
+
+**Revisar cuando:** si aparecen restricciones de ventana horaria duras (un
+cliente que solo recibe de 8 a 10), la agrupación tendrá que considerarlas —
+hoy solo considera capacidad y distancia, y las ventanas se revisan después,
+cuando el tablero marca las paradas que llegan tarde.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

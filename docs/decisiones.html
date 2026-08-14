@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-025", title: "Las paradas cercanas viajan juntas (agrupación por zona)",
+      fecha: "2026-08-13", version: "v1.3.0", quien: "Andrés",
+      cambio: "“Optimizar ruta” ahora decide QUÉ PARADAS COMPARTEN CAMIÓN, no solo el orden dentro de cada viaje. Usa Clarke–Wright (el heurístico estándar de ruteo con capacidad desde un depósito) más un pase or-opt que reubica paradas sueltas mientras eso acorte el plan.",
+      razon: "hay una ruta que hay 2 entregas bien cerca y que pueden ir en el mismo viaje y el sistema de optimizar no lo mandó ahí.",
+      razonTextual: true,
+      consecuencia: "La causa: el repartidor viejo recorría la lista EN EL ORDEN QUE TRAÍA y cortaba viaje nuevo cada vez que los pallets llegaban a la capacidad — la geografía nunca entraba en la decisión, y optimizar después no lo puede arreglar porque el ruteador solo reordena paradas DENTRO del viaje que se le entregó. Medido en el tablero real (Maximo Garza, 7 paradas, capacidad 12): 321 mi → 218 mi en línea recta, 32% menos. División del trabajo: aquí se decide quién viaja con quién (Google no puede, no conoce la capacidad del camión), Google decide el orden dentro de cada camión con tráfico real; las distancias de agrupación son en línea recta a propósito, porque esta etapa solo necesita saber qué paradas están cerca y una matriz completa de Google costaría una llamada por par. Una agrupación hecha POR UNA PERSONA se respeta y no se reagrupa (columna load_auto, migración 045): sin esa distinción el optimizador tenía que elegir entre pisar las divisiones deliberadas del despachador o no reagrupar nunca. Los viajes que ya existían quedan marcados como deliberados, que es lo conservador; para soltarlos está el botón “Reagrupar por zona”. A revisar: si aparecen ventanas horarias duras, la agrupación tendrá que considerarlas — hoy solo considera capacidad y distancia."
+    },
+    {
       id: "D-024", title: "Cada viaje muestra su costo real, descarga incluida",
       fecha: "2026-08-13", version: "v1.2.2", quien: "Andrés",
       cambio: "En Routes Manager cada viaje muestra sus propias millas y su tiempo, desglosado en manejo + descarga, con hora de salida y de regreso al punto de carga. La fila se pinta verde claro conforme cada parada se entrega, y el encabezado del viaje lleva un contador (3/5 entregadas → viaje entregado).",
