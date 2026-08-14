@@ -676,6 +676,49 @@ volver a encender es la firma.
 
 ---
 
+## D-027 · Un latido, para poder distinguir "estacionado" de "muerto"
+
+**Fecha:** 2026-08-14 · **Versión:** v1.3.2 · **Pedido por:** Andrés (diagnóstico)
+
+**Cambio:** (a) el teléfono reporta su posición **al menos cada 5 minutos**
+aunque el camión no se mueva; (b) cada reporte incluye el **nivel de batería**;
+(c) la app detecta y ofrece apagar la **hibernación de Android** ("Pausar la
+actividad de la app si no se usa"), que es un ajuste distinto al de batería.
+
+**Razón:** *"en la app del conductor autorizo el permiso y lo de la batería
+pero aun así se le pausó la app, puedes ver qué pasó."*
+
+**Lo que los datos sí mostraban:** el rastreo solo corre en turno, por diseño.
+El hueco de 32 horas cae fuera de todo turno, así que ese no es el problema. En
+el turno abierto hubo 5 posiciones en 67 minutos, con velocidades de 0 a 1.3
+m/s — el teléfono estuvo prácticamente quieto, y con el filtro de 40 m un
+teléfono quieto **no debe** reportar. Es decir: **los datos no alcanzan para
+probar que se pausó, ni para descartarlo.**
+
+**Ese es el verdadero hallazgo.** Un camión estacionado y una app muerta se ven
+**idénticos**: los dos son silencio. Por eso no se podía responder la pregunta,
+y por eso la bandera de "no reporta" del despachador (15 min) se disparaba con
+choferes que solo estaban descargando. El latido rompe el empate: si falta,
+la app no estaba corriendo, y eso ya es evidencia y no una suposición.
+
+**El hueco real en el código:** la app pedía exención de optimización de batería
+y abría la pantalla del fabricante, pero **nunca revisaba la hibernación** —
+Android 11+, ajuste aparte, y su propia pantalla usa la palabra "pausar". Mide
+si la app se **abre**, no si trabaja; un teléfono en el soporte del camión
+trabaja todo el día y no se abre nunca. Un chofer puede conceder todo y aun así
+quedar pausado por esto.
+
+**Consecuencia aceptada:** un latido cada 5 minutos son ~100 filas por chofer
+por jornada en vez de ~15. Es barato y compra la única señal que hacía falta.
+El latido se estampa con la hora actual porque eso es lo que significa: *ahora
+mismo el chofer sigue aquí y la app sigue viva*.
+
+**Pendiente del usuario:** el aviso de hibernación es código **nativo** — no
+llega hasta que se recompile el APK. El latido y la batería sí llegan de
+inmediato, porque el shell carga el sitio en vivo.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useLiveLocation } from "@/lib/useLiveLocation";
-import { batteryGuardState, openOemBatterySettings, requestBatteryExemption, type BatteryGuardState } from "@/lib/native-bridge";
+import { batteryGuardState, openOemBatterySettings, requestBatteryExemption, requestHibernationExemption, type BatteryGuardState } from "@/lib/native-bridge";
 import { fmtDuration } from "@/lib/utils";
 
 // ============================================================
@@ -109,6 +109,31 @@ export function ShiftClock({ driverId }: { driverId: string }) {
     {/* Android will quietly throttle the location service once the screen is
         off unless the app is exempt. Surfaced as a fixable prompt rather than
         letting the truck vanish off the dispatcher's map mid-route. */}
+    {/* HIBERNATION — a different setting from battery optimisation, and the
+        one whose own screen says "pause". A driver can grant location and the
+        battery exemption and still be paused by this, because Android measures
+        whether the app is OPENED, and a phone in a cradle all day never is.
+        Shown only when the APK could actually read the setting; an older build
+        reports undefined and says nothing rather than nagging blindly. */}
+    {open && battery?.hibernationExempt === false && (
+      <div className="card" style={{ marginBottom: 12, background: "#fff7ec", borderColor: "var(--amber)" }}>
+        <b style={{ color: "#b9791a" }}>
+          ⏸ {t("Android is set to pause this app", "Android está configurado para pausar esta app")}
+        </b>
+        <div className="hint" style={{ marginTop: 4 }}>
+          {t(
+            "Turn OFF “Pause app activity if unused”. Leaving it on lets Android stop the app and take back its permissions, even though you granted them.",
+            "Desactiva “Pausar la actividad de la app si no se usa”. Si queda activado, Android puede detener la app y quitarle los permisos, aunque ya los hayas dado.",
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          <button className="btn btn-primary btn-sm" onClick={() => void requestHibernationExemption()}>
+            {t("Open setting", "Abrir ajuste")}
+          </button>
+        </div>
+      </div>
+    )}
+
     {open && battery && !battery.ignoring && (
       <div className="card" style={{ marginBottom: 12, background: "#fff7ec", borderColor: "var(--amber)" }}>
         <b style={{ color: "#b9791a" }}>

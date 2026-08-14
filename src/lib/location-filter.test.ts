@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { metresBetween, shouldSend } from "./location-filter";
+import { HEARTBEAT_MS, MAX_ACCURACY_M, MIN_INTERVAL_MS, heartbeatDue, metresBetween, shouldSend } from "./location-filter";
 
 describe("metresBetween", () => {
   it("measures a known RGV distance", () => {
@@ -47,5 +47,31 @@ describe("shouldSend", () => {
   it("sends once the truck has moved and enough time passed", () => {
     const last = { ...here, at: now - 60_000 };
     expect(shouldSend({ lat: 26.2065, lng: -98.23 }, last, now)).toBe(true);
+  });
+});
+
+// ---- Heartbeat -------------------------------------------------------------
+// Without one, a parked truck and a killed app are the same thing in the data.
+describe("heartbeat", () => {
+  const here = { lat: 26.2034, lng: -98.23 };
+  const last = { ...here, at: 0 };
+
+  it("writes a fix that hasn't moved once the heartbeat is due", () => {
+    expect(shouldSend(here, last, MIN_INTERVAL_MS)).toBe(false);   // parked, too soon
+    expect(shouldSend(here, last, HEARTBEAT_MS)).toBe(true);       // parked, but overdue
+  });
+
+  it("still refuses a vague fix, heartbeat or not", () => {
+    expect(shouldSend({ ...here, accuracy: MAX_ACCURACY_M + 1 }, last, HEARTBEAT_MS)).toBe(false);
+  });
+
+  it("lands well inside the dispatcher's 15-minute quiet flag", () => {
+    expect(HEARTBEAT_MS).toBeLessThan(15 * 60_000);
+  });
+
+  it("heartbeatDue only fires after something was actually sent", () => {
+    expect(heartbeatDue(null, HEARTBEAT_MS * 10)).toBe(false);
+    expect(heartbeatDue(0, HEARTBEAT_MS - 1)).toBe(false);
+    expect(heartbeatDue(0, HEARTBEAT_MS)).toBe(true);
   });
 });

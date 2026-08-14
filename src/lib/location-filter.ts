@@ -13,6 +13,19 @@ export const MIN_INTERVAL_MS = 25_000;
 export const MAX_ACCURACY_M = 200;
 /** Below this the truck is parked and the GPS is just drifting. */
 export const MIN_MOVE_M = 40;
+/**
+ * Report at least this often even when the truck hasn't moved.
+ *
+ * Without a heartbeat a parked truck and a dead app look IDENTICAL in the
+ * data: both are silence. That ambiguity is what makes "the app paused"
+ * impossible to prove after the fact, and it also makes the dispatcher's
+ * "not reporting" flag fire on drivers who are simply unloading — the flag
+ * trips at 15 minutes and a long stop beats that easily.
+ *
+ * Well under STALE_AFTER_MIN so a heartbeat that slips a little (a phone
+ * throttling timers with the screen off) still lands inside the window.
+ */
+export const HEARTBEAT_MS = 5 * 60_000;
 
 /** Metres between two lat/lng points (haversine). */
 export function metresBetween(aLat: number, aLng: number, bLat: number, bLng: number): number {
@@ -26,7 +39,8 @@ export function metresBetween(aLat: number, aLng: number, bLat: number, bLng: nu
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
-/** Is this fix worth a write? Too soon, too vague, or hasn't moved → no. */
+/** Is this fix worth a write? Too soon, too vague, or hasn't moved → no.
+ * Once the heartbeat is due, standing still is reason enough to write. */
 export function shouldSend(
   fix: { lat: number; lng: number; accuracy?: number | null },
   last: { lat: number; lng: number; at: number } | null,
@@ -35,5 +49,12 @@ export function shouldSend(
   if (fix.accuracy != null && fix.accuracy > MAX_ACCURACY_M) return false;
   if (!last) return true;
   if (now - last.at < MIN_INTERVAL_MS) return false;
+  if (now - last.at >= HEARTBEAT_MS) return true;
   return metresBetween(last.lat, last.lng, fix.lat, fix.lng) >= MIN_MOVE_M;
+}
+
+/** Is a heartbeat overdue? Used to re-send the last known position when the
+ * phone has stopped offering new ones because the truck is standing still. */
+export function heartbeatDue(lastSentAt: number | null, now: number): boolean {
+  return lastSentAt != null && now - lastSentAt >= HEARTBEAT_MS;
 }

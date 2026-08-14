@@ -2,6 +2,7 @@ package net.rdztilegroup.deliveries;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
@@ -40,7 +41,40 @@ public class BatteryGuardPlugin extends Plugin {
         ret.put("ignoring", isExempt());
         ret.put("manufacturer", Build.MANUFACTURER == null ? "" : Build.MANUFACTURER);
         ret.put("hasOemSettings", oemIntent() != null);
+        ret.put("hibernationExempt", isHibernationExempt());
         call.resolve(ret);
+    }
+
+    /**
+     * Ask Android to stop hibernating the app.
+     *
+     * This is NOT the same thing as battery optimisation, and that distinction
+     * is why a driver can grant every permission and still lose tracking:
+     * "Pause app activity if unused" (Android 11+) suspends the app and revokes
+     * its permissions after a stretch of not being OPENED. A driver whose phone
+     * sits in a cradle all day is using the app constantly — but never touching
+     * it, which is what Android actually measures.
+     *
+     * The system screen is the only way to change it; no app may set it.
+     */
+    @PluginMethod
+    public void requestHibernationExemption(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            call.resolve(new JSObject().put("exempt", true).put("opened", false));
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_AUTO_REVOKE_PERMISSIONS);
+            intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve(new JSObject().put("exempt", false).put("opened", true));
+        } catch (Exception e) {
+            // Some builds don't expose the dedicated screen; the app's own
+            // settings page carries the same toggle.
+            openAppSettings();
+            call.resolve(new JSObject().put("exempt", false).put("opened", true));
+        }
     }
 
     /**
@@ -94,6 +128,23 @@ public class BatteryGuardPlugin extends Plugin {
         } catch (Exception e) {
             openAppSettings();
             call.resolve(new JSObject().put("opened", true));
+        }
+    }
+
+    /**
+     * True when the app is exempt from hibernation / permission auto-reset.
+     * Below Android 11 the feature does not exist, so nothing can pause us
+     * this way and the honest answer is "exempt".
+     */
+    private boolean isHibernationExempt() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return true;
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            return pm.isAutoRevokeWhitelisted();
+        } catch (Exception e) {
+            // Unknown is reported as exempt rather than nagging a driver about
+            // a setting we could not read.
+            return true;
         }
     }
 

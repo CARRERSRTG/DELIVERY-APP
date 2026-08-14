@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-027", title: "Un latido, para poder distinguir “estacionado” de “muerto”",
+      fecha: "2026-08-14", version: "v1.3.2", quien: "Andrés (diagnóstico)",
+      cambio: "El teléfono reporta su posición al menos cada 5 minutos aunque el camión no se mueva; cada reporte incluye el nivel de batería; y la app detecta y ofrece apagar la hibernación de Android (“Pausar la actividad de la app si no se usa”), que es un ajuste distinto al de batería.",
+      razon: "en la app del conductor autorizo el permiso y lo de la bateria pero aun asi se le pauso la app puedes ver que paso.",
+      razonTextual: true,
+      consecuencia: "Lo que los datos sí mostraban: el rastreo solo corre en turno, por diseño, y el hueco de 32 horas cae fuera de todo turno. En el turno abierto hubo 5 posiciones en 67 minutos con velocidades de 0 a 1.3 m/s — el teléfono estuvo prácticamente quieto, y con el filtro de 40 m un teléfono quieto NO DEBE reportar. Los datos no alcanzaban para probar que se pausó ni para descartarlo, y ESE es el verdadero hallazgo: un camión estacionado y una app muerta se ven idénticos, los dos son silencio. Eso también hacía que la bandera de “no reporta” (15 min) se disparara con choferes que solo estaban descargando. El hueco real en el código: la app pedía exención de batería y abría la pantalla del fabricante, pero nunca revisaba la hibernación — Android 11+, ajuste aparte, cuya propia pantalla usa la palabra “pausar”; mide si la app se ABRE, no si trabaja, y un teléfono en el soporte del camión trabaja todo el día sin abrirse nunca. Costo aceptado: ~100 filas por chofer por jornada en vez de ~15. El aviso de hibernación es código nativo y no llega hasta recompilar el APK; el latido y la batería llegan de inmediato."
+    },
+    {
       id: "D-026", title: "La firma nace apagada, y entregar es un toque",
       fecha: "2026-08-13", version: "v1.3.1", quien: "Andrés",
       cambio: "La satisfacción del cliente ya no aparece en la vista del chofer; la firma del cliente queda apagada por omisión (migración 046); y cuando no hay nada que capturar, “Entregar” marca la entrega de un solo toque y muestra la pantalla de entregado, sin formulario de por medio.",

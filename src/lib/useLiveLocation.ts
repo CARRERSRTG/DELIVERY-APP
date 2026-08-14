@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useData } from "@/lib/data-provider";
-import { shouldSend, MIN_MOVE_M } from "@/lib/location-filter";
+import { shouldSend, heartbeatDue, HEARTBEAT_MS, MIN_MOVE_M } from "@/lib/location-filter";
 import { isNativeApp, startNativeWatch, type NativeFix } from "@/lib/native-bridge";
 
 // ============================================================
@@ -19,6 +19,29 @@ import { isNativeApp, startNativeWatch, type NativeFix } from "@/lib/native-brid
 
 export type LocationStatus = "off" | "starting" | "live" | "denied" | "unavailable";
 
+interface BatteryManager { level: number }
+
+/**
+ * The phone's battery level, 0–100, or null when the browser won't say.
+ *
+ * Recorded with every fix because it is the first thing anyone asks when a
+ * truck vanishes off the map — "was the phone dead?" — and until now the
+ * column existed but was never filled, so the question had no answer.
+ *
+ * The BatteryManager is cached: `getBattery()` returns a live object, so it is
+ * fetched once and read thereafter.
+ */
+let batteryRef: Promise<BatteryManager | null> | null = null;
+async function batteryPct(): Promise<number | null> {
+  if (typeof navigator === "undefined") return null;
+  const nav = navigator as Navigator & { getBattery?: () => Promise<BatteryManager> };
+  if (!nav.getBattery) return null;
+  batteryRef ??= nav.getBattery().catch(() => null);
+  const b = await batteryRef;
+  if (!b || typeof b.level !== "number") return null;
+  return Math.max(0, Math.min(100, Math.round(b.level * 100)));
+}
+
 /** Watch and report position while `active` is true. */
 export function useLiveLocation(active: boolean): { status: LocationStatus; lastAt: string | null; native: boolean } {
   const { pushLocation } = useData();
@@ -26,6 +49,10 @@ export function useLiveLocation(active: boolean): { status: LocationStatus; last
   const [lastAt, setLastAt] = useState<string | null>(null);
   const [native, setNative] = useState(false);
   const lastRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
+  // The newest fix the phone offered, whether or not it was worth writing.
+  // The heartbeat re-sends this when the truck stops moving and the watcher
+  // therefore stops calling back at all.
+  const latestFixRef = useRef<NativeFix | null>(null);
   // Keep the latest pushLocation without restarting the GPS watch on rerender.
   const pushRef = useRef(pushLocation);
   pushRef.current = pushLocation;
@@ -41,12 +68,45 @@ export function useLiveLocation(active: boolean): { status: LocationStatus; last
     const report = async (fix: NativeFix) => {
       if (cancelled) return;
       setStatus("live");
+      latestFixRef.current = fix;
       const now = Date.now();
       if (!shouldSend({ lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy_m }, lastRef.current, now)) return;
       lastRef.current = { lat: fix.lat, lng: fix.lng, at: now };
-      const ok = await pushRef.current(fix);
+      const ok = await pushRef.current({ ...fix, battery_pct: await batteryPct() });
       if (ok && !cancelled) setLastAt(new Date().toISOString());
     };
+
+    // HEARTBEAT.
+    //
+    // The watcher only calls back when the truck moves 40 m, so a truck parked
+    // at a long stop goes completely silent — indistinguishable in the data
+    // from a phone whose app Android killed. That ambiguity is why "the app
+    // paused" can't be proved after the fact, and it also trips the
+    // dispatcher's 15-minute "not reporting" flag on drivers who are merely
+    // unloading.
+    //
+    // So: while nothing new arrives, re-send the last known position. It is
+    // stamped NOW because that is what it means — as of now, the driver is
+    // still here and the app is still alive. A missing heartbeat is then real
+    // evidence, not a guess.
+    const beat = setInterval(() => {
+      if (cancelled) return;
+      const fix = latestFixRef.current;
+      const last = lastRef.current;
+      if (!fix || !last || !heartbeatDue(last.at, Date.now())) return;
+      const now = Date.now();
+      lastRef.current = { lat: fix.lat, lng: fix.lng, at: now };
+      void (async () => {
+        const ok = await pushRef.current({
+          ...fix,
+          // Standing still, by definition: this is the same point as last time.
+          speed_mps: 0,
+          recorded_at: new Date(now).toISOString(),
+          battery_pct: await batteryPct(),
+        });
+        if (ok && !cancelled) setLastAt(new Date(now).toISOString());
+      })();
+    }, 60_000);
 
     setStatus("starting");
 
@@ -101,6 +161,7 @@ export function useLiveLocation(active: boolean): { status: LocationStatus; last
 
     return () => {
       cancelled = true;
+      clearInterval(beat);
       stopNative?.();
       if (browserWatchId != null) navigator.geolocation.clearWatch(browserWatchId);
     };

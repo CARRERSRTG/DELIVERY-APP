@@ -48,8 +48,9 @@ interface RawPosition {
 /** Custom plugin (see BatteryGuardPlugin.java) — keeps the location service
  * alive on phones whose battery managers would otherwise kill it. */
 interface BatteryGuardPlugin {
-  isIgnoringBatteryOptimizations(): Promise<{ ignoring: boolean; manufacturer: string; hasOemSettings: boolean }>;
+  isIgnoringBatteryOptimizations(): Promise<{ ignoring: boolean; manufacturer: string; hasOemSettings: boolean; hibernationExempt?: boolean }>;
   requestIgnoreBatteryOptimizations(): Promise<{ ignoring: boolean; opened?: boolean }>;
+  requestHibernationExemption?(): Promise<{ exempt: boolean; opened?: boolean }>;
   openOemSettings(): Promise<{ opened: boolean }>;
 }
 
@@ -157,6 +158,15 @@ export interface BatteryGuardState {
   manufacturer: string;
   /** This phone has a vendor auto-start screen worth pointing the driver at. */
   hasOemSettings: boolean;
+  /**
+   * Exempt from hibernation ("Pause app activity if unused") — a SEPARATE
+   * Android 11+ setting from battery optimisation, which is why a driver can
+   * grant everything and still be paused.
+   *
+   * `undefined` on an APK built before this check existed: unknown, so the app
+   * says nothing rather than nagging about a setting it cannot read.
+   */
+  hibernationExempt?: boolean;
 }
 
 /** Current exemption state, or null outside the APK. */
@@ -173,6 +183,13 @@ export async function batteryGuardState(): Promise<BatteryGuardState | null> {
 /** Show Android's "allow this app to run in the background?" dialog. */
 export async function requestBatteryExemption(): Promise<void> {
   await batteryGuard()?.requestIgnoreBatteryOptimizations().catch(() => { /* not fatal */ });
+}
+
+/** Open Android's "pause app activity if unused" screen for this app. */
+export async function requestHibernationExemption(): Promise<void> {
+  const p = batteryGuard();
+  if (!p?.requestHibernationExemption) return;
+  await p.requestHibernationExemption().catch(() => { /* not fatal */ });
 }
 
 /** Open the manufacturer's auto-start / protected-apps screen. */
