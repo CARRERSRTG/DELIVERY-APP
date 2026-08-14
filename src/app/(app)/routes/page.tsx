@@ -12,6 +12,7 @@ import { DispatchBoard, type BoardColumn } from "@/components/DispatchBoard";
 import { GanttTimeline, type GanttRow } from "@/components/GanttTimeline";
 import { printRouteManifest } from "@/lib/manifest";
 import { fallbackDriverColor, fmtDate, fmtMoney, fmtWindows, isOverdue, orderLabel, shiftDateISO, todayISO } from "@/lib/utils";
+import { serviceMin, tripTiming, dayMinutes, RELOAD_MIN } from "@/lib/trip-timing";
 import { driverOf, groupIntoLoads, hasManualLoads, loadNoOf, nextLoadFor as nextLoadForPure, orderLaneKey as orderLaneKeyPure, planMerge } from "@/lib/route-lanes";
 import { useColWidths } from "@/lib/use-col-widths";
 import { liveDriverNames, trackingGaps } from "@/lib/tracking-health";
@@ -56,7 +57,6 @@ const DEFAULT_CAPACITY = 12;
 // the pickup between truckloads. Service (unload) time per stop comes from
 // the order's own delivery_duration.
 const DAY_START_MIN = 8 * 60; // 08:00
-const RELOAD_MIN = 20;
 
 function fmtMinutes(min: number): string {
   const m = Math.round(min);
@@ -71,11 +71,6 @@ function fmtClock(min: number): string {
   const h = Math.floor(total / 60) % 24;
   const mm = total % 60;
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-}
-
-function serviceMin(d: Delivery): number {
-  const m = String(d.delivery_duration ?? "").match(/\d+/);
-  return m ? parseInt(m[0], 10) : 15;
 }
 
 function hexToHsl(hex: string): [number, number, number] {
@@ -130,6 +125,23 @@ interface TripTrace {
   ret: [number, number][];
 }
 
+/** What one truckload actually costs. Wheel time alone understates the day:
+ * a load of six stops spends over an hour standing still being unloaded, and
+ * that time is already programmed per order (delivery_duration). */
+interface TripStat {
+  miles: number;
+  /** Time behind the wheel, pickup out and back. */
+  driveMin: number;
+  /** Time parked, unloading — the sum of this load's stop durations. */
+  serviceMin: number;
+  /** driveMin + serviceMin: the truck is busy this long. */
+  totalMin: number;
+  stops: number;
+  /** Leaves the pickup / back at the pickup, "HH:MM". */
+  start: string;
+  end: string;
+}
+
 /** A fully-solved (but not yet saved) plan for one driver's day. */
 interface RoutePlan {
   orderedIds: string[];
@@ -137,6 +149,10 @@ interface RoutePlan {
   seconds: number;
   traces: TripTrace[];
   trips: number;
+  /** Per-truckload breakdown, in the order the loads go out. */
+  tripStats: TripStat[];
+  /** Whole day: driving + unloading + reloading between truckloads. */
+  dayMinutes: number;
   /** Estimated arrival time per stop id, "HH:MM". */
   etas: Record<string, string>;
 }
@@ -174,7 +190,9 @@ export default function RoutesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<"routes" | "orders" | "board" | "timeline" | "scheduled" | "incidents">("routes");
   const [busyDriver, setBusyDriver] = useState<string | null>(null);
-  const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number; minutes: number }>>({});
+  const [routeInfo, setRouteInfo] = useState<Record<string, { miles: number; duration_text: string; trips: number; minutes: number; dayMinutes: number; dayText: string }>>({});
+  // Per-truckload numbers, keyed by driver then load index.
+  const [routeTrips, setRouteTrips] = useState<Record<string, TripStat[]>>({});
   const [routeLines, setRouteLines] = useState<Record<string, TripTrace[]>>({});
   const [routeEtas, setRouteEtas] = useState<Record<string, Record<string, string>>>({});
   const [depotCoords, setDepotCoords] = useState<Record<string, [number, number]>>({});
@@ -215,7 +233,7 @@ export default function RoutesPage() {
     });
 
   // A newly-viewed date invalidates any optimize summary/trace from before.
-  useEffect(() => { setRouteInfo({}); setRouteLines({}); setRouteEtas({}); setPreview(null); setErr(null); }, [date]);
+  useEffect(() => { setRouteInfo({}); setRouteTrips({}); setRouteLines({}); setRouteEtas({}); setPreview(null); setErr(null); }, [date]);
   // Changing the driver selection drops any half-finished simulation.
   useEffect(() => { setPreview(null); }, [selected]);
 
@@ -691,6 +709,9 @@ export default function RoutesPage() {
   // no longer matches.
   const clearRouteFor = (driver: string) => {
     setRouteInfo((p) => { const { [driver]: _drop, ...rest } = p; return rest; });
+    // Regrouping the loads renumbers them, so per-truckload figures would be
+    // attached to the wrong load — drop them with the rest.
+    setRouteTrips((p) => { const { [driver]: _drop, ...rest } = p; return rest; });
     setRouteLines((p) => { const { [driver]: _drop, ...rest } = p; return rest; });
     setRouteEtas((p) => { const { [driver]: _drop, ...rest } = p; return rest; });
     setPreview(null);
@@ -771,11 +792,13 @@ export default function RoutesPage() {
     let seconds = 0;
     const orderedIds: string[] = [];
     const traces: TripTrace[] = [];
+    const tripStats: TripStat[] = [];
     const etas: Record<string, string> = {};
     let clock = DAY_START_MIN; // arrival clock, continuous across truckloads
 
     for (const batch of batches) {
       if (!batch.length) continue;
+      const tripStart = clock;
       if (batch.length < 2 && !depot) {
         // A single leftover stop with no depot to round-trip from — nothing
         // to optimize between, it just goes next.
@@ -825,21 +848,41 @@ export default function RoutesPage() {
         if (depot || j > 0) clock += (legs[depot ? j : j - 1] ?? 0) / 60;
         etas[stopIds[j]] = fmtClock(clock);
         const stop = byId.get(stopIds[j]);
-        if (stop) clock += serviceMin(stop);
+        if (stop) clock += serviceMin(stop.delivery_duration);
       }
-      if (depot) {
-        clock += (legs[stopIds.length] ?? 0) / 60; // drive back to pickup
-        clock += RELOAD_MIN;                        // reload for the next load
-      }
+      if (depot) clock += (legs[stopIds.length] ?? 0) / 60;  // empty drive back to pickup
+
+      const timing = tripTiming(data.duration_seconds / 60, stopIds.map((id) => byId.get(id)?.delivery_duration));
+      tripStats.push({
+        miles: Math.round(data.miles * 10) / 10,
+        ...timing,
+        stops: stopIds.length,
+        start: fmtClock(tripStart),
+        end: fmtClock(clock),
+      });
+
+      if (depot) clock += RELOAD_MIN;   // reload for the next load
     }
 
-    return { orderedIds, miles: Math.round(miles * 10) / 10, seconds, traces, trips: batches.length, etas };
+    return {
+      orderedIds,
+      miles: Math.round(miles * 10) / 10,
+      seconds,
+      traces,
+      trips: batches.length,
+      tripStats,
+      // The reload between loads is real time too, but it isn't part of any
+      // single truckload — so it only shows up in the day total.
+      dayMinutes: depot ? dayMinutes(tripStats) : tripStats.reduce((n, t) => n + t.totalMin, 0),
+      etas,
+    };
   };
 
   /** Save a solved plan as the driver's actual route. */
   const applyPlan = async (driver: string, plan: RoutePlan) => {
     await Promise.all(plan.orderedIds.map((id, i) => updateDelivery(id, { route_seq: i })));
-    setRouteInfo((p) => ({ ...p, [driver]: { miles: plan.miles, duration_text: fmtMinutes(plan.seconds / 60), trips: plan.trips, minutes: plan.seconds / 60 } }));
+    setRouteInfo((p) => ({ ...p, [driver]: { miles: plan.miles, duration_text: fmtMinutes(plan.seconds / 60), trips: plan.trips, minutes: plan.seconds / 60, dayMinutes: plan.dayMinutes, dayText: fmtMinutes(plan.dayMinutes) } }));
+    setRouteTrips((p) => ({ ...p, [driver]: plan.tripStats }));
     setRouteLines((p) => ({ ...p, [driver]: plan.traces }));
     setRouteEtas((p) => ({ ...p, [driver]: plan.etas }));
   };
@@ -1861,9 +1904,23 @@ export default function RoutesPage() {
               {stops.length > 0 && trips.length > 1 && (
                 <span className="sema" style={{ background: "var(--amber)", color: "#fff" }}>{trips.length} {t("truckloads", "viajes")}</span>
               )}
-              {info && <span className="hint" style={{ marginTop: 0 }}>· {info.miles} mi · {info.duration_text}</span>}
-              {info && info.minutes > 8 * 60 && (
-                <span className="sema" style={{ background: "var(--red)", color: "#fff" }} title={t("This route runs longer than an 8-hour day", "Esta ruta dura más de una jornada de 8 horas")}>
+              {info && (
+                <span
+                  className="hint"
+                  style={{ marginTop: 0 }}
+                  title={t(
+                    `${info.duration_text} driving; the rest is unloading and reloading between truckloads`,
+                    `${info.duration_text} manejando; el resto es descarga y recarga entre viajes`,
+                  )}
+                >
+                  · {info.miles} mi · {info.dayText} {t("day", "jornada")} ({info.duration_text} {t("drive", "manejo")})
+                </span>
+              )}
+              {/* Measured against the WHOLE day. Judging an 8-hour shift on
+                  wheel time alone hid every route that only busts the day
+                  once you count unloading. */}
+              {info && info.dayMinutes > 8 * 60 && (
+                <span className="sema" style={{ background: "var(--red)", color: "#fff" }} title={t("Driving, unloading and reloading run past an 8-hour day", "Manejo, descarga y recarga pasan de una jornada de 8 horas")}>
                   ⚠ {t("over 8 h day", "más de 8 h")}
                 </span>
               )}
@@ -1916,7 +1973,7 @@ export default function RoutesPage() {
             )}
             {info && (
               <div className="hint" style={{ marginBottom: 8 }}>
-                {t("Total (loop from pickup and back)", "Total (ciclo desde recolección y regreso)")}: <b>{info.miles} mi</b> · {info.duration_text}
+                {t("Total (loop from pickup and back)", "Total (ciclo desde recolección y regreso)")}: <b>{info.miles} mi</b> · <b>{info.dayText}</b> {t("on the clock", "de jornada")} ({info.duration_text} {t("driving", "manejando")})
                 {info.trips > 1 && ` · ${info.trips} ${t("round trips back to pickup to reload", "viajes de ida y vuelta a recolección para recargar")}`}
               </div>
             )}
@@ -1995,6 +2052,8 @@ export default function RoutesPage() {
                       const load = batch.reduce((n, d) => n + (d.actual_pallets ?? d.est_pallets ?? 0), 0);
                       const free = Math.max(0, capacity - load);
                       const tColor = tripColor(colorFor(u.driver), ti);
+                      const ts = routeTrips[u.key]?.[ti];
+                      const doneN = batch.filter((d) => d.stage === "delivered").length;
                       return (
                         <Fragment key={ti}>
                           <tr>
@@ -2008,6 +2067,29 @@ export default function RoutesPage() {
                               · {t("loads at pickup ↺", "carga en recolección ↺")}
                               {free > 0 && <span style={{ color: "var(--green)", marginLeft: 6 }}>({free} {t("free", "libres")})</span>}
                               {load > capacity && <span style={{ color: "var(--red)", marginLeft: 6 }}>⚠ {t("over capacity", "sobre capacidad")}</span>}
+                              {/* What THIS load costs: the drive plus the time
+                                  the truck stands still being unloaded, which
+                                  each order already carries as its duration. */}
+                              {ts && (
+                                <span
+                                  style={{ marginLeft: 8, fontWeight: 600, color: "var(--ink-soft)" }}
+                                  title={t(
+                                    `${ts.miles} mi · ${fmtMinutes(ts.driveMin)} driving + ${fmtMinutes(ts.serviceMin)} unloading at ${ts.stops} stops`,
+                                    `${ts.miles} mi · ${fmtMinutes(ts.driveMin)} manejando + ${fmtMinutes(ts.serviceMin)} descargando en ${ts.stops} paradas`,
+                                  )}
+                                >
+                                  ⇥ {ts.miles} mi · ⏱ {fmtMinutes(ts.totalMin)}
+                                  <span style={{ fontWeight: 400, color: "var(--gray)" }}>
+                                    {" "}({fmtMinutes(ts.driveMin)} {t("drive", "manejo")} + {fmtMinutes(ts.serviceMin)} {t("unload", "descarga")}) · {ts.start}–{ts.end}
+                                  </span>
+                                </span>
+                              )}
+                              {/* Progress fills in as stops get delivered. */}
+                              {doneN > 0 && (
+                                <span className="sema" style={{ marginLeft: 8, background: doneN === batch.length ? "var(--green)" : "#e9f7f0", color: doneN === batch.length ? "#fff" : "var(--green)" }}>
+                                  {doneN === batch.length ? `✓ ${t("load delivered", "viaje entregado")}` : `${doneN}/${batch.length} ${t("delivered", "entregadas")}`}
+                                </span>
+                              )}
                               {/* Reorder whole truckloads — which load goes out first. */}
                               {trips.length > 1 && (
                                 <span style={{ float: "right", display: "inline-flex", gap: 3 }}>
@@ -2039,7 +2121,10 @@ export default function RoutesPage() {
                             return (
                               <tr
                                 key={d.id}
-                                className="clickable"
+                                // Delivered stops tint green, so the route
+                                // visibly fills in over the day. Isolating a
+                                // stop still wins — that's a deliberate pick.
+                                className={`clickable${d.stage === "delivered" && !isolated ? " row-done" : ""}`}
                                 style={isolated ? { background: "var(--accent-soft)" } : undefined}
                                 // Stop here: without this the click also reaches
                                 // the card's "tap outside" handler, which sees a

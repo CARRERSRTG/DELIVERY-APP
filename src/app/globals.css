@@ -184,6 +184,12 @@ table.orders tr.row-urgent td { background: #fdeaea; }
 table.orders tr.row-urgent:hover td { background: #fbd8d8; }
 :root[data-theme="dark"] table.orders tr.row-urgent td { background: #3a1f21; }
 :root[data-theme="dark"] table.orders tr.row-urgent:hover td { background: #4a2529; }
+/* Already delivered — the route fills in green as the day gets done, so a
+   dispatcher sees progress without reading a single status cell. */
+table.orders tr.row-done td { background: #e9f7f0; }
+table.orders tr.row-done:hover td { background: #d8f0e4; }
+:root[data-theme="dark"] table.orders tr.row-done td { background: #16352a; }
+:root[data-theme="dark"] table.orders tr.row-done:hover td { background: #1c4535; }
 .ordno { font-weight: 800; font-family: 'Archivo'; }
 
 .empty { text-align: center; color: var(--gray); padding: 40px 10px; font-size: 13px; }

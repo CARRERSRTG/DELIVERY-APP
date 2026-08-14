@@ -559,6 +559,42 @@ cambios se guardaban localmente — no era cierto hasta ahora.
 
 ---
 
+## D-024 · Cada viaje muestra su costo real, descarga incluida
+
+**Fecha:** 2026-08-13 · **Versión:** v1.2.2 · **Pedido por:** Andrés
+
+**Cambio:** en Routes Manager, cada viaje muestra sus propias millas y su tiempo,
+desglosado en manejo + descarga, con hora de salida y de regreso al punto de
+carga. La fila se pinta verde claro conforme cada parada se va entregando, y el
+encabezado del viaje lleva un contador (3/5 entregadas → ✓ viaje entregado).
+
+**Razón:** *"quiero que se mire por viaje distance y time tomando en cuenta que
+cada viaje tiene stops y el tiempo de descarga ya programado, también quiero que
+vaya apareciendo como con un light green la row a medida este se vaya
+entregando."*
+
+**Lo que destapó:** el total por chofer contaba **solo tiempo al volante**, y la
+alerta de "más de 8 h" se medía contra ese número. Pero la descarga ya estaba
+programada en cada orden (`delivery_duration`) y no se estaba sumando en ningún
+lado. Un día de 6 h de manejo con ocho paradas de 30 min son casi 10 h reales y
+el sistema lo daba por bueno. La alerta ahora se mide contra la **jornada
+completa** — manejo + descarga + recarga entre viajes — así que empezará a
+marcar rutas que antes pasaban calladas. Eso no es un falso positivo: es lo que
+llevaba tiempo sin verse.
+
+**Consecuencia aceptada:** una parada sin duración escrita cuenta 15 min por
+omisión, y un "0" también, porque una parada nunca es instantánea; si la oficina
+quiere el número exacto tiene que capturarlo. La recarga entre viajes (20 min)
+sale solo en el total del día, no dentro de ningún viaje, porque no pertenece a
+ninguno. Los números por viaje se borran al reordenar o mover cargas, en vez de
+quedarse pegados al viaje equivocado.
+
+**Revisar cuando:** si la jornada estimada se aleja seguido de la real, el
+problema está en `delivery_duration`, no en el cálculo — ahí conviene medir
+descargas reales y ajustar el default de 15 min.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

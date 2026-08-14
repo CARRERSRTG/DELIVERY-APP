@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-024", title: "Cada viaje muestra su costo real, descarga incluida",
+      fecha: "2026-08-13", version: "v1.2.2", quien: "Andrés",
+      cambio: "En Routes Manager cada viaje muestra sus propias millas y su tiempo, desglosado en manejo + descarga, con hora de salida y de regreso al punto de carga. La fila se pinta verde claro conforme cada parada se entrega, y el encabezado del viaje lleva un contador (3/5 entregadas → viaje entregado).",
+      razon: "quiero que se mire por viaje distance y time tomando en cuenta que cada viaje tiene stops y el tiempo de descarga ya programado, también quiero que vaya apareciendo como con un light green la row a medida este se vaya entregando.",
+      razonTextual: true,
+      consecuencia: "Esto destapó que el total por chofer contaba SOLO tiempo al volante, y que la alerta de “más de 8 h” se medía contra ese número — aunque la descarga ya estaba programada en cada orden y no se sumaba en ningún lado. Un día de 6 h de manejo con ocho paradas de 30 min son casi 10 h reales y el sistema lo daba por bueno. La alerta ahora se mide contra la jornada completa (manejo + descarga + recarga), así que marcará rutas que antes pasaban calladas: no es un falso positivo, es lo que llevaba tiempo sin verse. Una parada sin duración escrita cuenta 15 min por omisión, y un “0” también, porque una parada nunca es instantánea. La recarga entre viajes (20 min) sale solo en el total del día. Los números por viaje se borran al reordenar cargas en vez de quedarse pegados al viaje equivocado. A revisar: si la jornada estimada se aleja seguido de la real, el problema está en delivery_duration, no en el cálculo."
+    },
+    {
       id: "D-023", title: "Las entregas sobreviven a las zonas sin señal",
       fecha: "2026-08-13", version: "v1.2.0", quien: "Riesgo detectado",
       cambio: "Si un chofer marca Recogido o Entregado y no hay señal, la acción se guarda en el teléfono y se envía sola cuando vuelve la conexión. Mientras tanto la orden se ve como completada, para que no la haga dos veces.",
