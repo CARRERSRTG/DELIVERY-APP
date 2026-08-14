@@ -698,8 +698,19 @@ probar que se pausó, ni para descartarlo.**
 **Ese es el verdadero hallazgo.** Un camión estacionado y una app muerta se ven
 **idénticos**: los dos son silencio. Por eso no se podía responder la pregunta,
 y por eso la bandera de "no reporta" del despachador (15 min) se disparaba con
-choferes que solo estaban descargando. El latido rompe el empate: si falta,
-la app no estaba corriendo, y eso ya es evidencia y no una suposición.
+choferes que solo estaban descargando.
+
+> **CORRECCIÓN (2026-08-14, v1.3.7).** Aquí decía que "si falta el latido, la
+> app no estaba corriendo, y eso ya es evidencia". **Eso resultó falso.** El
+> latido es un temporizador de JavaScript, y Android **suspende** los
+> temporizadores del WebView cuando la app pasa a segundo plano. Se midió en
+> producción: posiciones capturadas por el código nativo llegaron a guardarse
+> **78 minutos tarde**, encoladas hasta que la app despertó.
+>
+> Lo correcto: un latido **presente** prueba que la app está viva y en primer
+> plano. Un latido **ausente** NO prueba que esté muerta — puede ser
+> simplemente la pantalla apagada. Un latido confiable en segundo plano
+> necesita trabajo nativo que el plugin de GPS no ofrece. Ver D-031.
 
 **El hueco real en el código:** la app pedía exención de optimización de batería
 y abría la pantalla del fabricante, pero **nunca revisaba la hibernación** —
@@ -849,6 +860,44 @@ desde hace rato.
 coordenadas** y nadie se entera en el momento. Es lo correcto para el chofer,
 pero significa que la ausencia de GPS en una entrega no prueba nada por sí
 sola.
+
+---
+
+## D-031 · Al despertar la app, pide posición de inmediato
+
+**Fecha:** 2026-08-14 · **Versión:** v1.3.7 · **Pedido por:** Andrés (falla reportada)
+
+**Cambio:** cada vez que la app despierta —al abrirla y al volver a ella— pide
+una posición **de inmediato**, en vez de esperar a que el camión se mueva.
+
+**Razón:** *"cerré el app, luego la abrí 30 min después, y la app se tardó 45
+minutos en decirme live de nuevo."*
+
+**La causa, medida:** el vigilante nativo solo avisa después de **40 m de
+movimiento**, y a propósito rechaza la posición cacheada del teléfono (D-?: una
+posición vieja pondría al chofer en la bodega de hace horas). El latido tampoco
+podía rescatarlo: **reenvía la última posición conocida, y tras reiniciar no hay
+ninguna**. Camión parado + app recién abierta = silencio indefinido.
+
+**La excepción es acotada:** al despertar se acepta una posición de hasta **2
+minutos** de antigüedad. Suficientemente reciente para ser donde el chofer está
+de verdad, y muchísimo mejor que nada. El vigilante sigue rechazando posiciones
+cacheadas — esto es una excepción con límite, no un cambio de la regla.
+
+**Lo que esto NO arregla, y hay que decirlo:** en el mismo análisis se
+descubrió que **el latido no funciona en segundo plano**. Es un temporizador de
+JavaScript y Android lo suspende cuando la app no está al frente; se midieron
+posiciones nativas guardadas **78 minutos tarde**, encoladas hasta que la app
+despertó. Eso invalida lo que D-027 afirmaba —que un latido faltante probaba
+que la app estaba muerta— y esa entrada quedó corregida.
+
+**Efecto práctico:** ahora cada vez que el chofer mira el teléfono se registra
+una posición. Eso cubre el caso que dolía (volver y aparecer en el mapa), pero
+**un hueco largo con la pantalla apagada sigue siendo ambiguo**.
+
+**Revisar cuando:** si hace falta rastreo confiable con la pantalla apagada y el
+camión parado, hay que escribir un servicio nativo que reporte por tiempo, no
+por distancia. El plugin actual no lo ofrece.
 
 ---
 

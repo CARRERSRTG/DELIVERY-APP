@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-031", title: "Al despertar la app, pide posición de inmediato",
+      fecha: "2026-08-14", version: "v1.3.7", quien: "Andrés (falla reportada)",
+      cambio: "Cada vez que la app despierta —al abrirla y al volver a ella— pide una posición de inmediato, en vez de esperar a que el camión se mueva. CORRIGE A D-027.",
+      razon: "cerre el app, luego la abri 30 min luego y la app se tardo 45 minutos en decirme live denuevo.",
+      razonTextual: true,
+      consecuencia: "Causa medida: el vigilante nativo solo avisa tras 40 m de MOVIMIENTO y a propósito rechaza la posición cacheada del teléfono; el latido tampoco podía rescatarlo porque reenvía la última posición conocida y tras reiniciar no hay ninguna. Camión parado + app recién abierta = silencio indefinido. La excepción es acotada: al despertar se acepta una posición de hasta 2 minutos de antigüedad — reciente para ser donde el chofer está, y muchísimo mejor que nada; el vigilante sigue rechazando cacheadas. LO QUE NO ARREGLA, y hay que decirlo: el mismo análisis descubrió que el latido NO funciona en segundo plano — es un temporizador de JavaScript y Android lo suspende cuando la app no está al frente; se midieron posiciones nativas guardadas 78 minutos tarde, encoladas hasta que la app despertó. Eso invalida lo que D-027 afirmaba (que un latido faltante probaba que la app estaba muerta) y esa entrada quedó corregida. Efecto práctico: cada vez que el chofer mira el teléfono se registra una posición, lo que cubre el caso que dolía; pero un hueco largo con la pantalla apagada SIGUE SIENDO AMBIGUO. A revisar: rastreo confiable con pantalla apagada y camión parado exige un servicio nativo que reporte por tiempo y no por distancia; el plugin actual no lo ofrece."
+    },
+    {
       id: "D-030", title: "El chofer puede estampar DÓNDE estuvo, aunque la parada ya esté cerrada",
       fecha: "2026-08-14", version: "v1.3.6", quien: "Andrés (falla reportada)",
       cambio: "Un chofer puede hacer una edición sobre su propia parada ya cerrada (picked_up / delivered) SOLO si lo único que cambia son las coordenadas GPS (migración 048). Y un parche de fondo ya no muestra error al chofer.",

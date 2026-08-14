@@ -87,8 +87,14 @@ export function useLiveLocation(active: boolean): { status: LocationStatus; last
     //
     // So: while nothing new arrives, re-send the last known position. It is
     // stamped NOW because that is what it means — as of now, the driver is
-    // still here and the app is still alive. A missing heartbeat is then real
-    // evidence, not a guess.
+    // still here and the app is still alive.
+    //
+    // LIMIT, measured in production: this is a JS timer, and Android suspends
+    // the WebView's timers once the app is backgrounded — fixes captured
+    // natively have shown up over an hour late, queued until the app woke. So
+    // a PRESENT heartbeat proves the app is alive and foregrounded; a MISSING
+    // one does not prove it is dead. Reliable background heartbeats would
+    // need native work the GPS plugin doesn't offer.
     const beat = setInterval(() => {
       if (cancelled) return;
       const fix = latestFixRef.current;
@@ -107,6 +113,44 @@ export function useLiveLocation(active: boolean): { status: LocationStatus; last
         if (ok && !cancelled) setLastAt(new Date(now).toISOString());
       })();
     }, 60_000);
+
+    // SEED A FIX ON EVERY WAKE-UP.
+    //
+    // The watcher only calls back after 40 m of movement, and it deliberately
+    // refuses the phone's cached position. So a driver who reopens the app
+    // while parked reports NOTHING until the truck rolls — which is how a
+    // reopened app took 45 minutes to come back as LIVE.
+    //
+    // The heartbeat can't rescue that either: it re-sends the last known
+    // position, and after a restart there isn't one.
+    //
+    // So ask for a position outright whenever the app wakes: at start, and
+    // every time the driver comes back to it. A fix up to two minutes old is
+    // accepted here — recent enough to be where they actually are, and far
+    // better than the alternative of nothing at all. (The watcher still
+    // refuses cached fixes; this is a bounded exception, not the rule.)
+    const seed = () => {
+      if (cancelled || typeof navigator === "undefined" || !navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const c = pos.coords;
+          void report({
+            lat: c.latitude,
+            lng: c.longitude,
+            accuracy_m: c.accuracy ?? null,
+            speed_mps: c.speed ?? null,
+            heading: c.heading ?? null,
+            recorded_at: new Date(pos.timestamp || Date.now()).toISOString(),
+          });
+        },
+        () => { /* no fix right now; the watcher and the next wake-up still try */ },
+        { enableHighAccuracy: true, maximumAge: 120_000, timeout: 20_000 },
+      );
+    };
+    seed();
+    const onWake = () => { if (!document.hidden) seed(); };
+    window.addEventListener("focus", onWake);
+    document.addEventListener("visibilitychange", onWake);
 
     setStatus("starting");
 
@@ -161,6 +205,8 @@ export function useLiveLocation(active: boolean): { status: LocationStatus; last
 
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onWake);
+      document.removeEventListener("visibilitychange", onWake);
       clearInterval(beat);
       stopNative?.();
       if (browserWatchId != null) navigator.geolocation.clearWatch(browserWatchId);
