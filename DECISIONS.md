@@ -719,6 +719,49 @@ inmediato, porque el shell carga el sitio en vivo.
 
 ---
 
+## D-028 · El chofer no entra hasta que el teléfono pueda reportar
+
+**Fecha:** 2026-08-14 · **Versión:** v1.3.3 · **Pedido por:** Andrés
+
+**Cambio:** dentro del APK, la vista del chofer queda **bloqueada** hasta que el
+teléfono tenga todo lo que hace falta para reportar: ubicación, "permitir
+siempre", notificaciones, exención de batería y **no pausar la app**. Se piden
+**de uno en uno**, en orden, con una alerta que pulsa.
+
+**Razón:** *"haz que la app pida todos esos permisos para que no pase eso, pero
+si él no aprueba los permisos no lo deja pasar, solo para blindar, y ten un
+attention getter para eso."*
+
+**De uno en uno, no todos juntos:** Android **no permite** pedir "permitir
+siempre" antes de que ya esté concedida la ubicación en primer plano — pedirlo
+antes es una negación automática. Cinco botones a la vez le habrían enseñado al
+chofer que cuatro de ellos no hacen nada.
+
+**Los dos límites que evitan que el blindaje sea el problema más grande:**
+
+1. **Solo bloquea lo que puede LEER como denegado.** Lo que el teléfono no
+   tiene (Android 9 no tiene permiso de ubicación en segundo plano; antes de
+   Android 13 no hay permiso de notificaciones) o lo que un APK viejo no sabe
+   contestar, regresa indefinido y **nunca** cuenta en contra. Un chofer
+   bloqueado por un ajuste que no podemos verificar no puede entregar, y eso es
+   peor que un camión sin rastrear. Hay 8 pruebas que fijan exactamente esa
+   regla.
+2. **Solo corre dentro del APK y solo para el rol chofer.** En un navegador
+   ninguno de estos ajustes existe; bloquear ahí dejaría a la oficina fuera de
+   su propio sistema.
+
+**Consecuencia aceptada:** un chofer que se niegue **no puede trabajar** en la
+app. Eso es exactamente lo pedido, y es defendible porque el trabajo del
+despachador depende de ver el camión — pero significa que una negación se
+convierte en una llamada a la oficina, no en un turno sin rastreo. Tras dos
+negativas Android deja de mostrar el diálogo; la pantalla lo detecta y manda a
+los ajustes de la app en vez de dejar al chofer tocando un botón muerto.
+
+**Pendiente del usuario:** es código **nativo** — no llega hasta recompilar el
+APK. El Java ya compila (`compileDebugJavaWithJavac`, BUILD SUCCESSFUL).
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

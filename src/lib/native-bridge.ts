@@ -47,7 +47,31 @@ interface RawPosition {
 
 /** Custom plugin (see BatteryGuardPlugin.java) — keeps the location service
  * alive on phones whose battery managers would otherwise kill it. */
+/**
+ * Everything that has to be true before a shift can be tracked.
+ *
+ * Tri-state on purpose. `undefined` means "this phone has no such setting, or
+ * this APK is too old to read it" — and that must NEVER be treated as denied.
+ * Blocking a driver over something we can't verify would leave them unable to
+ * work, which is a worse failure than the one this guards against.
+ */
+export interface DriverPermissionState {
+  location?: boolean;
+  backgroundLocation?: boolean;
+  notifications?: boolean;
+  battery?: boolean;
+  hibernation?: boolean;
+  manufacturer?: string;
+  hasOemSettings?: boolean;
+  sdk?: number;
+}
+
 interface BatteryGuardPlugin {
+  permissionState?(): Promise<DriverPermissionState>;
+  requestLocation?(): Promise<DriverPermissionState>;
+  requestBackgroundLocation?(): Promise<DriverPermissionState>;
+  requestNotifications?(): Promise<DriverPermissionState>;
+  openAppSettingsPage?(): Promise<{ opened: boolean }>;
   isIgnoringBatteryOptimizations(): Promise<{ ignoring: boolean; manufacturer: string; hasOemSettings: boolean; hibernationExempt?: boolean }>;
   requestIgnoreBatteryOptimizations(): Promise<{ ignoring: boolean; opened?: boolean }>;
   requestHibernationExemption?(): Promise<{ exempt: boolean; opened?: boolean }>;
@@ -183,6 +207,51 @@ export async function batteryGuardState(): Promise<BatteryGuardState | null> {
 /** Show Android's "allow this app to run in the background?" dialog. */
 export async function requestBatteryExemption(): Promise<void> {
   await batteryGuard()?.requestIgnoreBatteryOptimizations().catch(() => { /* not fatal */ });
+}
+
+/**
+ * Read every permission the driver app depends on, or null when there's no
+ * native bridge / the APK predates this check. Null means "don't gate" — see
+ * DriverPermissionState.
+ */
+export async function driverPermissionState(): Promise<DriverPermissionState | null> {
+  const p = batteryGuard();
+  if (!p?.permissionState) return null;
+  try {
+    return await p.permissionState();
+  } catch {
+    return null;
+  }
+}
+
+/** Which requirements are readable AND denied. Empty = nothing to block on. */
+export function missingPermissions(s: DriverPermissionState | null): Array<keyof DriverPermissionState> {
+  if (!s) return [];
+  const keys: Array<keyof DriverPermissionState> = ["location", "backgroundLocation", "notifications", "battery", "hibernation"];
+  return keys.filter((k) => s[k] === false);
+}
+
+export async function requestLocationPermission(): Promise<DriverPermissionState | null> {
+  const p = batteryGuard();
+  if (!p?.requestLocation) return null;
+  return p.requestLocation().catch(() => null);
+}
+
+export async function requestBackgroundLocationPermission(): Promise<DriverPermissionState | null> {
+  const p = batteryGuard();
+  if (!p?.requestBackgroundLocation) return null;
+  return p.requestBackgroundLocation().catch(() => null);
+}
+
+export async function requestNotificationPermission(): Promise<DriverPermissionState | null> {
+  const p = batteryGuard();
+  if (!p?.requestNotifications) return null;
+  return p.requestNotifications().catch(() => null);
+}
+
+/** Last resort for a permission Android refuses to ask for again. */
+export async function openAppSettingsPage(): Promise<void> {
+  await batteryGuard()?.openAppSettingsPage?.().catch(() => { /* not fatal */ });
 }
 
 /** Open Android's "pause app activity if unused" screen for this app. */

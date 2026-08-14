@@ -778,3 +778,35 @@ table.orders th { text-align: left; }
 /* Invoice numbers line up and can run long (several on one order) — they wrap
    instead of clipping, since a partial number is useless. */
 .hdr-chip-num { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* ---- Driver permission gate -------------------------------------------- */
+/* The way into the app when the phone can't report. It has to be impossible
+   to mistake for a dismissible warning — a driver who scrolls past this ends
+   up invisible to dispatch for a whole route. */
+.gate-card {
+  max-width: 520px; margin: 0 auto; text-align: center;
+  border: 2px solid var(--amber); background: #fff9f0;
+}
+:root[data-theme="dark"] .gate-card { background: #2a2113; }
+
+.gate-alarm {
+  font-size: 46px; line-height: 1;
+  animation: gate-pulse 1.4s ease-in-out infinite;
+}
+@keyframes gate-pulse {
+  0%, 100% { transform: scale(1);    opacity: 1;   }
+  50%      { transform: scale(1.14); opacity: .72; }
+}
+
+.gate-row {
+  display: flex; align-items: center; gap: 10px; text-align: left;
+  padding: 11px 12px; border-radius: 10px; margin-top: 8px;
+  border: 1px solid var(--line); background: var(--paper);
+}
+/* Only the step being asked for is lit; the rest are context. */
+.gate-row-now { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(217, 138, 24, .16); }
+.gate-mark { font-size: 18px; font-weight: 800; flex: 0 0 auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gate-alarm { animation: none; }
+}

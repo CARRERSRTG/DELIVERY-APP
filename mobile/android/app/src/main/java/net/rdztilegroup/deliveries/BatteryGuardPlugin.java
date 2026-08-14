@@ -1,5 +1,6 @@
 package net.rdztilegroup.deliveries;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -8,11 +9,16 @@ import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
 
+import androidx.core.content.ContextCompat;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 /**
  * Keeps location reporting alive on phones that fight background work.
@@ -31,8 +37,112 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  * So this exposes: is the app exempt, ask for the exemption, and open the
  * manufacturer's own screen when there is one.
  */
-@CapacitorPlugin(name = "BatteryGuard")
+@CapacitorPlugin(
+    name = "BatteryGuard",
+    permissions = {
+        // Foreground location. COARSE rides along because Android 12+ lets the
+        // driver grant only the approximate one.
+        @Permission(
+            alias = "location",
+            strings = { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION }
+        ),
+        // "Allow all the time". On Android 11+ this CANNOT be bundled with the
+        // dialog above — Android insists it be asked for separately, after
+        // foreground location is already granted.
+        @Permission(
+            alias = "backgroundLocation",
+            strings = { Manifest.permission.ACCESS_BACKGROUND_LOCATION }
+        ),
+        // The foreground service's permanent notification (Android 13+).
+        // Without it the service still runs, but the driver loses the one
+        // visible sign that sharing is on.
+        @Permission(
+            alias = "notifications",
+            strings = { Manifest.permission.POST_NOTIFICATIONS }
+        )
+    }
+)
 public class BatteryGuardPlugin extends Plugin {
+
+    /**
+     * Everything that has to be true for a shift to be trackable, read in one
+     * call so the app can gate on it.
+     *
+     * Each value is a tri-state: true = granted, false = denied, and ABSENT
+     * when this Android version has no such concept. Absent must never be
+     * treated as denied — blocking a driver over a setting that doesn't exist
+     * on their phone would leave them unable to work.
+     */
+    @PluginMethod
+    public void permissionState(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("location", granted(Manifest.permission.ACCESS_FINE_LOCATION)
+            || granted(Manifest.permission.ACCESS_COARSE_LOCATION));
+        // Below Android 10 there is no separate background permission: holding
+        // foreground location is enough.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ret.put("backgroundLocation", granted(Manifest.permission.ACCESS_BACKGROUND_LOCATION));
+        }
+        // Notification permission only exists from Android 13.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ret.put("notifications", granted(Manifest.permission.POST_NOTIFICATIONS));
+        }
+        ret.put("battery", isExempt());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            ret.put("hibernation", isHibernationExempt());
+        }
+        ret.put("manufacturer", Build.MANUFACTURER == null ? "" : Build.MANUFACTURER);
+        ret.put("hasOemSettings", oemIntent() != null);
+        ret.put("sdk", Build.VERSION.SDK_INT);
+        call.resolve(ret);
+    }
+
+    /** Ask for foreground location. */
+    @PluginMethod
+    public void requestLocation(PluginCall call) {
+        requestPermissionForAlias("location", call, "afterLocation");
+    }
+
+    @PermissionCallback
+    private void afterLocation(PluginCall call) {
+        permissionState(call);
+    }
+
+    /**
+     * Ask for "allow all the time".
+     *
+     * Only offered once foreground location is held — asking first is an
+     * automatic denial on Android 11+, which would teach the driver the button
+     * is broken.
+     */
+    @PluginMethod
+    public void requestBackgroundLocation(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) { permissionState(call); return; }
+        if (getPermissionState("location") != PermissionState.GRANTED) {
+            requestPermissionForAlias("location", call, "afterLocation");
+            return;
+        }
+        requestPermissionForAlias("backgroundLocation", call, "afterLocation");
+    }
+
+    /** Ask to post the service's notification (Android 13+). */
+    @PluginMethod
+    public void requestNotifications(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) { permissionState(call); return; }
+        requestPermissionForAlias("notifications", call, "afterLocation");
+    }
+
+    /** Open this app's own settings page, for anything Android refuses to ask
+     * for twice (a permanently denied permission lands here). */
+    @PluginMethod
+    public void openAppSettingsPage(PluginCall call) {
+        openAppSettings();
+        call.resolve(new JSObject().put("opened", true));
+    }
+
+    private boolean granted(String perm) {
+        return ContextCompat.checkSelfPermission(getContext(), perm) == PackageManager.PERMISSION_GRANTED;
+    }
 
     /** Is the app already exempt from battery optimisation? */
     @PluginMethod

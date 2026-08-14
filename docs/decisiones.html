@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-028", title: "El chofer no entra hasta que el teléfono pueda reportar",
+      fecha: "2026-08-14", version: "v1.3.3", quien: "Andrés",
+      cambio: "Dentro del APK, la vista del chofer queda BLOQUEADA hasta que el teléfono tenga todo lo necesario para reportar: ubicación, “permitir siempre”, notificaciones, exención de batería y no pausar la app. Se piden de uno en uno, en orden, con una alerta que pulsa.",
+      razon: "haz que la app pida todos esos permisos para que no pase eso, pero si el no aprueba los permisos no lo deja pasar solo para blindar y ten un attention getter para eso.",
+      razonTextual: true,
+      consecuencia: "De uno en uno y no todos juntos porque Android NO permite pedir “permitir siempre” antes de tener la ubicación en primer plano — pedirlo antes es una negación automática, y cinco botones a la vez le habrían enseñado al chofer que cuatro no hacen nada. Dos límites evitan que el blindaje sea el problema más grande: (1) solo bloquea lo que puede LEER como denegado — lo que el teléfono no tiene (Android 9 sin permiso de segundo plano, antes de Android 13 sin permiso de notificaciones) o lo que un APK viejo no sabe contestar regresa indefinido y nunca cuenta en contra, porque un chofer bloqueado por un ajuste no verificable no puede entregar y eso es peor que un camión sin rastrear (8 pruebas fijan esa regla); (2) solo corre dentro del APK y solo para el rol chofer, porque en un navegador ninguno de estos ajustes existe y bloquear ahí dejaría a la oficina fuera de su propio sistema. Consecuencia aceptada: un chofer que se niegue no puede trabajar en la app — es lo pedido, y significa que una negativa se vuelve una llamada a la oficina en vez de un turno sin rastreo. Tras dos negativas Android deja de mostrar el diálogo; la pantalla lo detecta y manda a los ajustes de la app en vez de dejar un botón muerto. Es código nativo: no llega hasta recompilar el APK."
+    },
+    {
       id: "D-027", title: "Un latido, para poder distinguir “estacionado” de “muerto”",
       fecha: "2026-08-14", version: "v1.3.2", quien: "Andrés (diagnóstico)",
       cambio: "El teléfono reporta su posición al menos cada 5 minutos aunque el camión no se mueva; cada reporte incluye el nivel de batería; y la app detecta y ofrece apagar la hibernación de Android (“Pausar la actividad de la app si no se usa”), que es un ajuste distinto al de batería.",
