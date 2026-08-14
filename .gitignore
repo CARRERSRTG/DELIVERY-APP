@@ -16,3 +16,8 @@ next-env.d.ts
 # Agent tooling / skills (installed locally by marketplace integrations)
 .agents/
 .claude/
+
+# Firebase SERVICE ACCOUNT keys — these can send notifications as you.
+# (google-services.json is NOT here on purpose: it ships inside every APK.)
+*firebase-adminsdk*.json
+service-account*.json

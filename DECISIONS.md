@@ -954,6 +954,52 @@ de verdad — no es un caso raro, es el caso normal.
 
 ---
 
+## D-033 · Push real (FCM), para llegarle a un teléfono que nadie está mirando
+
+**Fecha:** 2026-08-14 · **Versión:** v1.4.0 · **Pedido por:** Andrés
+
+**Cambio:** las asignaciones se envían por Firebase Cloud Messaging, así que el
+aviso llega con la app en segundo plano, cerrada o el teléfono bloqueado.
+
+**Razón:** *"pero si la app no se cierra, solo cambio de app, ¿me aparecen las
+notificaciones?"* — no aparecían. D-032 entregó el aviso por la campanita y una
+notificación del navegador, y esa segunda mitad **solo funciona en primer
+plano**: Android congela el JavaScript del WebView en cuanto el chofer cambia de
+app. Eso no es el caso raro; es el caso normal.
+
+**Por qué FCM y no un servicio que consulte solo:** un consultor nativo
+gastaría batería todo el día preguntando "¿hay algo nuevo?" y aun así llegaría
+tarde. FCM lo entrega el sistema operativo: cero batería mientras no hay nada,
+y llega de inmediato cuando lo hay.
+
+**Sin firebase-admin, a propósito:** la autenticación es firmar un JWT con la
+llave de la cuenta de servicio y cambiarlo por un token. Son ~40 líneas contra
+arrastrar un árbol enorme de dependencias a una función serverless para una
+sola llamada HTTP.
+
+**El envío no acepta destinatario ni mensaje.** `/api/push` recibe **solo el id**
+de una notificación que ya existe; el mensaje y a quién va se releen de la base
+con el rol de servicio. Así nadie puede usarlo para zumbarle a toda la empresa,
+ni para reenviar un aviso viejo (se ignora cualquiera de más de 5 minutos).
+
+**Todo degrada en silencio.** Sin `FIREBASE_SERVICE_ACCOUNT` no hay push, no hay
+error, y la campanita —que es el registro— sigue igual. Sin
+`google-services.json` el APK **compila igual** y solo avisa en el log; aplicar
+el plugin de Google sin ese archivo rompe la compilación de raíz, y una
+computadora sin la config de Firebase tiene que poder compilar.
+
+**Consecuencia aceptada:** un token muerto (app desinstalada) se borra, pero
+**solo** ante `UNREGISTERED`/`NOT_FOUND`. Un límite de cuota o una caída de
+Google **no** borra nada: tratar un fallo temporal como definitivo
+desuscribiría a todos los choferes en silencio y nadie se enteraría hasta que
+alguien se perdiera una ruta.
+
+**Pendiente del usuario:** crear el proyecto de Firebase con su cuenta,
+colocar `google-services.json`, poner `FIREBASE_SERVICE_ACCOUNT` en Vercel y
+recompilar el APK. Pasos exactos en `mobile/README.md`.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

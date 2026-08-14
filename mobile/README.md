@@ -40,6 +40,51 @@ se pierde esta computadora, la llave de depuración se pierde con ella y
 tendrías que desinstalar en TODOS los teléfonos para poder volver a actualizar.
 La llave de release vive en un archivo que puedes respaldar.
 
+
+## Notificaciones push (FCM) — pasos que solo puedes hacer tú
+
+El código ya está listo y **funciona sin esto**: si falta cualquiera de las dos
+piezas, no hay push, no hay error, y la campanita dentro de la app sigue
+guardando todos los avisos. Estos pasos solo encienden el push.
+
+### 1. Crear el proyecto en Firebase (tu cuenta de Google)
+
+1. Entra a <https://console.firebase.google.com> y crea un proyecto
+   (Analytics no hace falta).
+2. **Agregar app → Android.**
+3. Nombre del paquete, **exacto**: `net.rdztilegroup.deliveries`
+   Si no coincide, el push no llega y no hay mensaje de error que lo explique.
+4. Descarga `google-services.json` y ponlo en:
+   `mobile/android/app/google-services.json`
+
+Ese archivo **no es un secreto**: va dentro de cada APK, así que cualquiera con
+el APK puede leerlo. Se puede versionar sin problema.
+
+### 2. La llave del servidor (esta SÍ es secreta)
+
+1. En Firebase: **⚙ Configuración del proyecto → Cuentas de servicio →
+   Generar nueva clave privada.** Descarga el JSON.
+2. En **Vercel → el proyecto → Settings → Environment Variables**, crea:
+   - Nombre: `FIREBASE_SERVICE_ACCOUNT`
+   - Valor: **todo el contenido del JSON**, tal cual, de `{` a `}`
+3. Redeploy.
+
+Esa llave permite enviar notificaciones en nombre de tu proyecto. **Nunca la
+subas al repositorio** ni la pegues en un chat. Pégala directamente en Vercel.
+
+### 3. APK nuevo
+
+El push es código nativo, así que hay que recompilar y subir el APK
+(ver los tres números más arriba: sube `versionCode` a 3, `RDZDeliveries/3` y
+`LATEST_APK_VERSION_CODE`).
+
+### Cómo saber si quedó
+
+Asigna una orden a un chofer con su teléfono **bloqueado**. Si suena, quedó.
+Si no, revisa en este orden: ¿el paquete del paso 1.3 coincide?, ¿el APK que
+tiene el chofer es el nuevo?, ¿`FIREBASE_SERVICE_ACCOUNT` está en Vercel y se
+hizo redeploy?
+
 ## Los tres números tienen que coincidir
 
 Un APK nuevo se anuncia comparando tres valores. Si no coinciden, el aviso

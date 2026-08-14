@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-033", title: "Push real (FCM), para llegarle a un teléfono que nadie está mirando",
+      fecha: "2026-08-14", version: "v1.4.0", quien: "Andrés",
+      cambio: "Las asignaciones se envían por Firebase Cloud Messaging, así que el aviso llega con la app en segundo plano, cerrada o el teléfono bloqueado.",
+      razon: "pero si la app no se cierra solo cambio de app me aparecen las notificaciones?",
+      razonTextual: true,
+      consecuencia: "No aparecían: D-032 entregaba el aviso por la campanita y una notificación del navegador, y esa segunda mitad SOLO funciona en primer plano porque Android congela el JavaScript del WebView en cuanto el chofer cambia de app — que no es el caso raro sino el normal. Se eligió FCM sobre un servicio nativo que consulte solo, porque ese gastaría batería todo el día preguntando y aun así llegaría tarde; FCM lo entrega el sistema operativo. Sin firebase-admin a propósito: autenticar es firmar un JWT y cambiarlo por un token, ~40 líneas contra arrastrar un árbol enorme de dependencias a una función serverless para una sola llamada HTTP. El envío no acepta destinatario ni mensaje: /api/push recibe SOLO el id de una notificación existente y relee de la base a quién va y qué dice, así que no sirve para zumbarle a toda la empresa ni para reenviar avisos viejos (se ignora cualquiera de más de 5 minutos). Todo degrada en silencio: sin FIREBASE_SERVICE_ACCOUNT no hay push ni error y la campanita sigue siendo el registro; sin google-services.json el APK compila igual y solo avisa en el log, porque aplicar el plugin de Google sin ese archivo rompe la compilación y una computadora sin la config debe poder compilar. Consecuencia aceptada: un token muerto se borra SOLO ante UNREGISTERED/NOT_FOUND — un límite de cuota o una caída de Google no borra nada, porque tratar un fallo temporal como definitivo desuscribiría a todos los choferes en silencio."
+    },
+    {
       id: "D-032", title: "Al chofer le avisan cuando le asignan trabajo",
       fecha: "2026-08-14", version: "v1.3.8", quien: "Andrés",
       cambio: "Cuando se le asigna una parada a un chofer le llega una notificación: en la campanita de la app y —si la app está corriendo— como notificación real del teléfono.",

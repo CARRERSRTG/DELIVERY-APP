@@ -1,5 +1,15 @@
 apply plugin: 'com.android.application'
 
+// Firebase (push) is applied ONLY when google-services.json is present.
+// Applying it without the file fails the build outright, so a checkout that
+// hasn't been given the Firebase config still compiles — it just can't push.
+def firebaseConfig = file('google-services.json')
+if (firebaseConfig.exists()) {
+    apply plugin: 'com.google.gms.google-services'
+} else {
+    logger.warn("google-services.json not found - building WITHOUT push notifications.")
+}
+
 // Release signing. The keystore path + passwords live in keystore.properties,
 // which is NEVER committed (see .gitignore) — each machine that builds a
 // release keeps its own copy. Without that file the release build falls back

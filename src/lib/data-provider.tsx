@@ -610,7 +610,18 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         });
         // Never blocks the assignment: a dispatcher's board must not fail
         // because a notification couldn't be written.
-        if (seed) await supabase.from("notifications").insert([seed]).then(() => undefined, () => undefined);
+        if (seed) {
+          // The bell row is the record. The push is best-effort on top: it can
+          // fail (no phone registered, Firebase down) without the assignment
+          // itself looking like it failed.
+          const { data: made } = await supabase.from("notifications").insert([seed]).select("id").maybeSingle();
+          if (made?.id) {
+            void fetch("/api/push", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ notification_id: made.id }),
+            }).catch(() => undefined);
+          }
+        }
       }
       // Record WHICH fields changed, so the activity log / audit is field-level.
       await logEvent(id, "edited", before ? (changedFieldsNote(before as unknown as Record<string, unknown>, patch as Record<string, unknown>) || undefined) : undefined);

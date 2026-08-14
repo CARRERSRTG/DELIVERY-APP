@@ -78,12 +78,21 @@ interface BatteryGuardPlugin {
   openOemSettings(): Promise<{ opened: boolean }>;
 }
 
+/** @capacitor/push-notifications, present only in an APK built with Firebase. */
+interface PushPlugin {
+  requestPermissions(): Promise<{ receive: string }>;
+  register(): Promise<void>;
+  addListener(event: "registration", cb: (t: { value: string }) => void): Promise<{ remove: () => void }>;
+  addListener(event: "registrationError", cb: (e: unknown) => void): Promise<{ remove: () => void }>;
+}
+
 interface CapacitorGlobal {
   isNativePlatform?: () => boolean;
   getPlatform?: () => string;
   Plugins?: {
     BackgroundGeolocation?: BackgroundGeolocationPlugin;
     BatteryGuard?: BatteryGuardPlugin;
+    PushNotifications?: PushPlugin;
   };
 }
 
@@ -264,4 +273,28 @@ export async function requestHibernationExemption(): Promise<void> {
 /** Open the manufacturer's auto-start / protected-apps screen. */
 export async function openOemBatterySettings(): Promise<void> {
   await batteryGuard()?.openOemSettings().catch(() => { /* not fatal */ });
+}
+
+// ---- Push registration ------------------------------------------------------
+
+/**
+ * Ask Firebase for this phone's token and hand it back once.
+ *
+ * Returns null everywhere push isn't available — a browser, or an APK built
+ * before Firebase was wired in. Callers treat null as "no push on this
+ * device", never as an error: the in-app bell is the record either way.
+ */
+export async function registerForPush(onToken: (token: string) => void): Promise<boolean> {
+  const p = capacitor()?.Plugins?.PushNotifications;
+  if (!p) return false;
+  try {
+    const perm = await p.requestPermissions();
+    if (perm.receive !== "granted") return false;
+    await p.addListener("registration", (t) => { if (t?.value) onToken(t.value); });
+    await p.addListener("registrationError", () => { /* nothing to do; bell still works */ });
+    await p.register();
+    return true;
+  } catch {
+    return false;
+  }
 }
