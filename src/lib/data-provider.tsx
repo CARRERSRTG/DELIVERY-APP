@@ -10,11 +10,13 @@ import {
   useState,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { usePrefs } from "@/lib/prefs";
 import type { Delivery, DriverAvailability, DriverIncident, DriverLocation, DriverShift, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
 import { type AppNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner, changedFieldsNote } from "@/lib/utils";
 import { nextOrderCode, codeBand } from "@/lib/order-code";
+import { applyOutbox, isOfflineError, loadOutbox, pendingIds, saveOutbox, type OutboxItem } from "@/lib/outbox";
 import { blankDelivery } from "@/lib/blank-delivery";
 
 const DEFAULT_SETTINGS: Settings = {
@@ -110,6 +112,12 @@ export interface DataState {
   updateUserPermissions: (userId: string, permissions: string[]) => Promise<void>;
   deleteUser: (userId: string) => Promise<boolean>;
 
+  /** Milestones completed with no signal, still waiting to reach the server.
+   * Drives the "saved, will send" banner so a driver can see nothing is lost. */
+  pendingSync: number;
+  /** True while the queue is being replayed. */
+  syncing: boolean;
+
   // live driver GPS
   /** Each driver's most recent position (one entry per driver). */
   driverLocations: DriverLocation[];
@@ -156,6 +164,9 @@ export function useData(): DataState {
 
 export function DataProvider({ children, me }: { children: React.ReactNode; me: Profile | null }) {
   const supabase = useMemo(() => createClient(), []);
+  // Offline messages are read by a driver mid-route, so they follow the
+  // app language like everything else they see.
+  const { lang } = usePrefs();
   const [ready, setReady] = useState(false);
 
   // ---- Admin "view as" sandbox: preview the app as any role, admin-only. ----
@@ -195,6 +206,13 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // flight. Realtime echoes arriving mid-write would otherwise refetch a
   // half-committed snapshot and visibly undo the change.
   const writingRef = useRef(false);
+  // Guards against two flushes overlapping (the timer firing while the
+  // "online" event is already replaying) and double-sending a milestone.
+  const flushingRef = useRef(false);
+  // reloadAll is defined below; the flusher reaches it through a ref so it
+  // doesn't have to be declared before it.
+  const reloadAllRef = useRef<(() => Promise<void>) | null>(null);
+  const logEventRef = useRef<((id: string, kind: string, note?: string) => Promise<void>) | null>(null);
   // Each driver's CURRENT position (one row per driver), for the live map.
   const [driverLocations, setDriverLocations] = useState<DriverLocation[]>([]);
   // ---- Teaching-mode sandbox ----
@@ -251,13 +269,95 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // What the app actually renders. In live mode that's just the real rows; in
   // teaching mode it's the real rows with the local sandbox diff applied on top
   // (hide deleted, patch updated, prepend sandbox-created).
+  // ---- Outbox: milestones completed with no signal -------------------------
+  const [outbox, setOutbox] = useState<OutboxItem[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  // Loaded after mount so the server render and the first client render agree.
+  useEffect(() => { setOutbox(loadOutbox()); }, []);
+
+  const enqueue = useCallback((item: OutboxItem) => {
+    setOutbox((prev) => { const next = [...prev, item]; saveOutbox(next); return next; });
+  }, []);
+
+  /** Message shown when a milestone is stored instead of sent. */
+  const t_offlineSaved = useCallback(
+    () => (lang === "es"
+      ? "Sin señal — guardado y se enviará solo"
+      : "No signal — saved, will send by itself"),
+    [lang],
+  );
+
+  /**
+   * Replay everything waiting. Each item is removed only once the server has
+   * taken it, so a failure mid-queue leaves the rest to try again rather than
+   * dropping work.
+   */
+  const flushOutbox = useCallback(async () => {
+    if (flushingRef.current) return;
+    const items = loadOutbox();
+    if (!items.length) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    flushingRef.current = true;
+    setSyncing(true);
+    let remaining = items;
+    try {
+      for (const it of items) {
+        try {
+          const { error } = await supabase
+            .from("deliveries")
+            .update({ ...it.patch, stage: it.stage })
+            .eq("id", it.deliveryId);
+          if (error) {
+            if (isOfflineError(error)) break;      // still offline — stop, keep the rest
+            // The server refused it (e.g. the order moved on without us).
+            // Retrying forever would never help, so drop it and say so.
+            notify(lang === "es"
+              ? `No se pudo enviar un cambio: ${error.message}`
+              : `A queued change was rejected: ${error.message}`);
+          } else {
+            void logEventRef.current?.(it.deliveryId, it.stage, it.note);
+          }
+          remaining = remaining.filter((r) => r.id !== it.id);
+          saveOutbox(remaining);
+        } catch {
+          break;   // network died again — leave the rest queued
+        }
+      }
+    } finally {
+      setOutbox(remaining);
+      saveOutbox(remaining);
+      flushingRef.current = false;
+      setSyncing(false);
+      if (remaining.length !== items.length) void reloadAllRef.current?.();
+    }
+  }, [supabase, notify, lang]);
+
+  // Try whenever the connection comes back, when the driver returns to the
+  // app, and on a slow timer as a backstop for a flaky signal that never
+  // fires a clean "online" event.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBack = () => void flushOutbox();
+    window.addEventListener("online", onBack);
+    window.addEventListener("focus", onBack);
+    document.addEventListener("visibilitychange", onBack);
+    const id = setInterval(onBack, 60_000);
+    void flushOutbox();
+    return () => {
+      window.removeEventListener("online", onBack);
+      window.removeEventListener("focus", onBack);
+      document.removeEventListener("visibilitychange", onBack);
+      clearInterval(id);
+    };
+  }, [flushOutbox]);
+
   const effectiveDeliveries = useMemo(() => {
-    if (!teaching) return deliveries;
+    if (!teaching) return applyOutbox(deliveries, outbox);
     const base = deliveries
       .filter((c) => !overlay.deleted.has(c.id))
       .map((c) => (overlay.updated[c.id] ? { ...c, ...overlay.updated[c.id] } : c));
     return [...overlay.created, ...base];
-  }, [teaching, deliveries, overlay]);
+  }, [teaching, deliveries, overlay, outbox]);
 
   const reloadAll = useCallback(async () => {
     const [s, p, d, e, n, av, sh, inc, loc] = await Promise.all([
@@ -375,6 +475,10 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     },
     [supabase, me],
   );
+  // Published for the outbox flusher, which is declared above these two and so
+  // can't reference them directly.
+  logEventRef.current = logEvent;
+  reloadAllRef.current = reloadAll;
 
   // ---------------- Notification fan-out ----------------
   // Insert one row per recipient. Realtime pushes them to each user's bell.
@@ -613,8 +717,28 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         });
         return true;
       }
-      const { error } = await supabase.from("deliveries").update(patch).eq("id", id);
+      // A milestone the driver just completed must not be lost to a dead zone.
+      // If the write can't reach the server, it goes to the outbox and replays
+      // when there's signal; the row still reads as done in the meantime.
+      const queueable = stage === "picked_up" || stage === "delivered";
+      let error: { message: string } | null = null;
+      try {
+        const res = await supabase.from("deliveries").update(patch).eq("id", id);
+        error = res.error;
+      } catch (e) {
+        // supabase-js normally returns errors, but a hard network failure can
+        // still throw — treat it the same way.
+        error = { message: e instanceof Error ? e.message : "network error" };
+      }
       if (error) {
+        if (queueable && isOfflineError(error)) {
+          enqueue({
+            id: `q${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            deliveryId: id, stage, patch, note, at: new Date().toISOString(), tries: 0,
+          });
+          notify(t_offlineSaved());
+          return true;   // as far as the driver is concerned, it's done
+        }
         notify(error.message);
         return false;
       }
@@ -815,6 +939,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     shifts, clockIn, clockOut,
     incidents, addIncident, removeIncident,
     driverLocations, pushLocation,
+    pendingSync: outbox.length, syncing,
   };
 
   return (

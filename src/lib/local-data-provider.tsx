@@ -338,6 +338,9 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     shifts: store.shifts ?? [], clockIn, clockOut,
     incidents: store.incidents ?? [], addIncident, removeIncident,
     driverLocations, pushLocation,
+    // Local demo mode writes straight to this browser, so nothing is ever
+    // waiting on a connection.
+    pendingSync: 0, syncing: false,
   }), [ready, me, store, toast, notify, markNotifRead, markAllNotifsRead, pushNotifs, addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote, saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, deleteUser, addAvailability, removeAvailability, clockIn, clockOut, addIncident, removeIncident, driverLocations, pushLocation]);
 
   return (

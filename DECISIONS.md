@@ -517,6 +517,35 @@ regla terminan divergiendo y dejan un botón que se presiona y no hace nada.
 
 ---
 
+## D-023 · Las entregas sobreviven a las zonas sin señal
+**Fecha:** 2026-08-13 · **Versión:** v1.2.0 · **Origen:** riesgo detectado
+
+**Cambio:** Si un chofer marca **Recogido** o **Entregado** y no hay señal, la
+acción se guarda **en el teléfono** y se envía sola cuando vuelve la conexión.
+Mientras tanto la orden se ve como completada, para que no la haga dos veces.
+
+**Razón:** hasta ahora, una entrega marcada en una zona muerta **se perdía**: la
+escritura fallaba, salía un aviso rojo, y si el chofer ya había arrancado el
+trabajo desaparecía. En el Valle con entregas rurales eso no es hipotético.
+
+**Alcance deliberadamente angosto:** solo se encolan los hitos del chofer
+(recogido / entregado). Todo lo demás sigue fallando de frente — un vendedor
+editando una orden o un admin cambiando ajustes ve el error y reintenta; un
+chofer parado en la puerta de un cliente no puede.
+
+**Distinción clave:** solo se encola una falla de **red**. Un rechazo del
+servidor (sin permiso, transición ilegal) **no** se encola, porque reintentarlo
+jamás funcionaría y escondería un problema real detrás de un envío eterno.
+
+**Cuándo se reenvía:** al recuperar conexión, al volver a la app, y cada minuto
+como respaldo para señal intermitente que nunca dispara un evento limpio.
+
+**Lo que ve el chofer:** una barra que dice cuántas entregas están guardadas y
+que se enviarán solas. El aviso viejo de "sin conexión" ya **prometía** que los
+cambios se guardaban localmente — no era cierto hasta ahora.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

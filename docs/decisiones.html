@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-023", title: "Las entregas sobreviven a las zonas sin señal",
+      fecha: "2026-08-13", version: "v1.2.0", quien: "Riesgo detectado",
+      cambio: "Si un chofer marca Recogido o Entregado y no hay señal, la acción se guarda en el teléfono y se envía sola cuando vuelve la conexión. Mientras tanto la orden se ve como completada, para que no la haga dos veces.",
+      razon: "Hasta ahora una entrega marcada en una zona muerta se perdía: la escritura fallaba, salía un aviso rojo, y si el chofer ya había arrancado, el trabajo desaparecía. En el Valle con entregas rurales eso no es hipotético.",
+      razonTextual: false,
+      consecuencia: "Alcance angosto a propósito: solo se encolan los hitos del chofer (recogido/entregado); lo demás sigue fallando de frente, porque un vendedor o un admin ve el error y reintenta, y un chofer en la puerta de un cliente no puede. Solo se encola una falla de RED: un rechazo del servidor no se encola, porque reintentarlo jamás funcionaría y escondería un problema real. Se reenvía al recuperar conexión, al volver a la app, y cada minuto como respaldo. El aviso viejo de “sin conexión” ya prometía que los cambios se guardaban localmente — no era cierto hasta ahora."
+    },
+    {
       id: "D-022", title: "La firma del cliente se puede apagar",
       fecha: "2026-08-13", version: "v1.1.2", quien: "Andrés",
       cambio: "Ajustes → Comprobante de entrega tiene un interruptor nuevo: “Pedir la firma del cliente”, encendido por omisión.",
