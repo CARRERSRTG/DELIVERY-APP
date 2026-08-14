@@ -937,13 +937,20 @@ También se omite cuando no hay a quién avisar: al **quitar** la asignación, e
 un carril temporal que no corresponde a un usuario real, y cuando el propio
 chofer se auto-asigna una orden al recogerla.
 
-**Límite honesto:** la notificación del teléfono solo sale **con la app
-corriendo**. Con la app completamente cerrada Android no tiene qué entregar —
-eso requiere push (FCM), que es trabajo nativo y APK nuevo. La campanita sí
-guarda el aviso siempre.
+**Límite honesto — y es mayor de lo que suena:** la notificación del teléfono
+solo sale con la app **en primer plano**. Android congela el JavaScript del
+WebView en cuanto el chofer cambia a otra app; se midió en producción que
+posiciones capturadas por el código nativo quedaron encoladas **78 minutos**
+hasta que la app se reabrió. Es decir: **cambiar de app es casi lo mismo que
+cerrarla**, y el zumbido llegaría al volver a la app — justo cuando ya no hace
+falta.
 
-**Revisar cuando:** si los choferes empiezan a perderse asignaciones porque
-cierran la app, ahí sí toca FCM.
+Llegarle a un teléfono que nadie está mirando exige **push (FCM)** o un
+servicio nativo que consulte por su cuenta; en ambos casos es trabajo nativo y
+APK nuevo. La campanita es la mitad confiable y siempre guarda el aviso.
+
+**Revisar cuando:** esto es lo primero que hay que atender si el aviso importa
+de verdad — no es un caso raro, es el caso normal.
 
 ---
 

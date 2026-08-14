@@ -22,9 +22,17 @@ import type { Profile } from "@/lib/types";
 //     in eight seconds is how a driver learns to ignore the app. Anything that
 //     arrives together is collapsed into one.
 //
-// LIMIT: this only fires while the app is running. With the app fully closed
-// Android has nothing to deliver — that needs push (FCM), which is native work
-// and a new APK.
+// LIMIT, and it is a bigger one than "while the app is running" suggests:
+// this fires only while the app is IN THE FOREGROUND. Android suspends the
+// WebView's JavaScript the moment the driver switches to another app —
+// measured in production, natively-captured GPS fixes sat queued for 78
+// minutes until the app was reopened. Switching apps is therefore close to the
+// same thing as closing it, and the buzz would land when the driver comes back
+// to the app, which is exactly when they no longer need it.
+//
+// Reaching a phone that isn't being looked at needs push (FCM) or a native
+// poller — either way, native work and a new APK. The in-app bell is the
+// reliable half and always holds the record.
 // ============================================================
 
 /** Wait this long after the first new one, so a batch arrives as one buzz. */
