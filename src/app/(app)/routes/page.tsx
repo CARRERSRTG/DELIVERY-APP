@@ -183,7 +183,7 @@ export default function RoutesPage() {
   // [#, ID, Account, Address(expanded), ETA, Windows, actions]. Address is
   // forced to 92px when collapsed; everything else is sized to show its value
   // in full so Windows and the ↑↓ action arrows never get clipped.
-  const stopCols = useColWidths("rtg_routes_stops6", [40, 96, 152, 240, 56, 110, 150]);
+  const stopCols = useColWidths("rtg_routes_stops7", [40, 96, 140, 70, 240, 56, 110, 150]);
   // Which drivers are highlighted on the map / focused in the tables. Empty
   // set = "no drivers selected" → everything shown at full strength (like
   // OptimoRoute). Selecting some highlights them and dims the rest.
@@ -2024,13 +2024,14 @@ export default function RoutesPage() {
                     expand/contract toggle, so Windows + the action arrows never
                     get pushed off the right edge. Width pinned to the column
                     sum; columns still draggable. */}
-                <table className="orders tbl-resize" style={{ width: stopCols.widths.reduce((sum, w, i) => sum + (i === 3 ? (addrWide ? w : 112) : w), 0) }}>
-                  <colgroup>{stopCols.widths.map((w, i) => <col key={i} style={{ width: i === 3 ? (addrWide ? w : 112) : w }} />)}</colgroup>
+                <table className="orders tbl-resize" style={{ width: stopCols.widths.reduce((sum, w, i) => sum + (i === 4 ? (addrWide ? w : 112) : w), 0) }}>
+                  <colgroup>{stopCols.widths.map((w, i) => <col key={i} style={{ width: i === 4 ? (addrWide ? w : 112) : w }} />)}</colgroup>
                   <thead>
                     <tr>
                       <th>#<span className="col-resizer" onMouseDown={stopCols.startResize(0)} /></th>
                       <th>{t("ID", "ID")}<span className="col-resizer" onMouseDown={stopCols.startResize(1)} /></th>
                       <th>{t("Type", "Tipo")}<span className="col-resizer" onMouseDown={stopCols.startResize(2)} /></th>
+                      <th title={t("Pallets on this stop", "Pallets de esta parada")}>{t("Pallets", "Pallets")}<span className="col-resizer" onMouseDown={stopCols.startResize(3)} /></th>
                       <th>
                         <button
                           className="btn btn-ghost btn-sm"
@@ -2039,10 +2040,10 @@ export default function RoutesPage() {
                           onClick={() => setAddrWide((v) => !v)}
                         >{addrWide ? "⤡" : "⤢"}</button>
                         {t("Address", "Dirección")}
-                        {addrWide && <span className="col-resizer" onMouseDown={stopCols.startResize(3)} />}
+                        {addrWide && <span className="col-resizer" onMouseDown={stopCols.startResize(4)} />}
                       </th>
-                      <th>{t("ETA", "Llegada")}<span className="col-resizer" onMouseDown={stopCols.startResize(4)} /></th>
-                      <th>{t("Windows", "Ventanas")}<span className="col-resizer" onMouseDown={stopCols.startResize(5)} /></th>
+                      <th>{t("ETA", "Llegada")}<span className="col-resizer" onMouseDown={stopCols.startResize(5)} /></th>
+                      <th>{t("Windows", "Ventanas")}<span className="col-resizer" onMouseDown={stopCols.startResize(6)} /></th>
                       <th></th>
                     </tr>
                   </thead>
@@ -2054,12 +2055,23 @@ export default function RoutesPage() {
                       const tColor = tripColor(colorFor(u.driver), ti);
                       const ts = routeTrips[u.key]?.[ti];
                       const doneN = batch.filter((d) => d.stage === "delivered").length;
+                      // A stop with no pallet figure adds 0 to the total, so
+                      // the load looks lighter than it is — say so rather than
+                      // let a truck get planned on an undercount.
+                      const noCount = batch.filter((d) => d.actual_pallets == null && d.est_pallets == null).length;
+                      const estimated = batch.some((d) => d.actual_pallets == null && d.est_pallets != null);
                       return (
                         <Fragment key={ti}>
                           <tr>
-                            <td colSpan={7} style={{ background: "var(--card-hover)", fontWeight: 700, fontSize: 12 }}>
+                            <td colSpan={8} style={{ background: "var(--card-hover)", fontWeight: 700, fontSize: 12 }}>
                               <span style={{ display: "inline-block", width: 11, height: 11, borderRadius: 3, background: tColor, marginRight: 7, verticalAlign: "-1px", boxShadow: "0 0 0 1px var(--line)" }} />
-                              🚚 {t("Truckload", "Viaje")} {ti + 1} — {load}/{capacity} {t("pallets", "pallets")}
+                              🚚 {t("Truckload", "Viaje")} {ti + 1} — {estimated ? "~" : ""}{load}/{capacity} {t("pallets", "pallets")}
+                              {noCount > 0 && (
+                                <span style={{ color: "var(--amber)", marginLeft: 6, fontWeight: 600 }}
+                                  title={t("These stops have no pallet count, so the load total is lower than reality.", "Estas paradas no tienen conteo de pallets, así que el total del viaje es menor que la realidad.")}>
+                                  ⚠ {noCount} {t("without a count", "sin conteo")}
+                                </span>
+                              )}
                               {/* Capacity bar: fills with the load, turns red when over. */}
                               <span title={`${load}/${capacity}`} style={{ display: "inline-block", width: 84, height: 7, borderRadius: 999, background: "var(--line)", verticalAlign: "middle", margin: "0 8px", overflow: "hidden" }}>
                                 <span style={{ display: "block", height: "100%", width: `${Math.min(100, capacity > 0 ? (load / capacity) * 100 : 0)}%`, background: load > capacity ? "var(--red)" : tColor }} />
@@ -2141,6 +2153,18 @@ export default function RoutesPage() {
                                   title={t("Open this order", "Abrir esta orden")}
                                 >#{orderLabel(d)}</td>
                                 <td title={d.order_type || undefined}>{d.order_type || "—"}</td>
+                                {/* Where the truckload's pallet total comes
+                                    from. An estimate is marked so nobody plans
+                                    capacity on a guess thinking it's counted. */}
+                                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                                  {d.actual_pallets != null ? (
+                                    <b title={t("Counted", "Contado")}>{d.actual_pallets}</b>
+                                  ) : d.est_pallets != null ? (
+                                    <span style={{ color: "var(--gray)" }} title={t("Estimate — not counted yet", "Estimado — aún sin contar")}>~{d.est_pallets}</span>
+                                  ) : (
+                                    <span style={{ color: "var(--amber)" }} title={t("No pallet count — this stop adds nothing to the load total", "Sin conteo de pallets — esta parada no suma al total del viaje")}>—</span>
+                                  )}
+                                </td>
                                 <td title={d.delivery_address || undefined}>{d.delivery_address || "—"}</td>
                                 <td style={{ fontWeight: 600, color: late ? "var(--red)" : undefined }} title={late ? t("ETA is after the delivery window", "La llegada es después de la ventana") : undefined}>
                                   {eta ?? "—"}{late ? " ⚠️" : ""}
