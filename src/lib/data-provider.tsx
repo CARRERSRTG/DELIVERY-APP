@@ -12,7 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { usePrefs } from "@/lib/prefs";
 import type { Delivery, DriverAvailability, DriverIncident, DriverLocation, DriverShift, OrderEvent, Profile, Settings, Stage, UserRole } from "@/lib/types";
-import { type AppNotification, notificationsForStage } from "@/lib/notifications";
+import { type AppNotification, assignmentNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner, changedFieldsNote } from "@/lib/utils";
 import { nextOrderCode, codeBand } from "@/lib/order-code";
@@ -595,11 +595,28 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         return false;
       }
       setDeliveries((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+      // Being handed the work is its own event. Every way an order gets a
+      // driver — the modal, Routes Manager, the map, bulk assign — comes
+      // through here, so this is the one place that can't be bypassed.
+      if ("assigned_driver" in patch && patch.assigned_driver !== before?.assigned_driver) {
+        const seed = assignmentNotification({
+          driverName: patch.assigned_driver,
+          order_no: before?.order_no ?? null,
+          order_code: before?.order_code ?? null,
+          delivery_id: id,
+          delivery_date: (patch.delivery_date ?? before?.delivery_date) ?? null,
+          users,
+          actorId: me?.id ?? null,
+        });
+        // Never blocks the assignment: a dispatcher's board must not fail
+        // because a notification couldn't be written.
+        if (seed) await supabase.from("notifications").insert([seed]).then(() => undefined, () => undefined);
+      }
       // Record WHICH fields changed, so the activity log / audit is field-level.
       await logEvent(id, "edited", before ? (changedFieldsNote(before as unknown as Record<string, unknown>, patch as Record<string, unknown>) || undefined) : undefined);
       return true;
     },
-    [supabase, notify, logEvent, teaching, deliveries],
+    [supabase, notify, logEvent, teaching, deliveries, users, me],
   );
 
   // Renumber a route's stops in one shot. The local order is applied FIRST and

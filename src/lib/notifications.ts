@@ -75,3 +75,44 @@ export function notificationsForStage(args: {
   }
   return seeds;
 }
+
+// ---- Assignment ------------------------------------------------------------
+// Stage changes tell people an order MOVED. Being handed the work is a
+// different event entirely, and it was the one nobody was told about: a
+// dispatcher could build a driver's whole day and the driver would only find
+// out by opening the app and looking.
+
+/** The kind used for "a stop was assigned to you". */
+export const ASSIGNED_KIND = "assigned";
+
+/**
+ * Tell a driver a stop is theirs.
+ *
+ * Returns null when there's nobody to tell — an unassignment, a driver name
+ * that doesn't match a real user (Routes Manager allows temporary lanes), or
+ * the driver assigning it to themselves, which happens when they claim an
+ * unowned order at pickup.
+ */
+export function assignmentNotification(args: {
+  driverName: string | null | undefined;
+  order_no: number | null;
+  order_code?: string | null;
+  delivery_id: string | null;
+  delivery_date?: string | null;
+  users: Profile[];
+  actorId: string | null;
+}): NotifSeed | null {
+  const { driverName, order_no, order_code, delivery_id, delivery_date, users, actorId } = args;
+  if (!driverName) return null;
+  const driver = users.find((u) => u.role === "driver" && u.full_name === driverName);
+  if (!driver || driver.id === actorId) return null;
+  const label = order_code ? `#${order_code}` : (order_no != null ? `#${order_no}` : "");
+  const when = delivery_date ? ` for ${delivery_date}` : "";
+  return {
+    user_id: driver.id,
+    delivery_id,
+    order_no,
+    kind: ASSIGNED_KIND,
+    message: `Stop ${label} was assigned to you${when}`,
+  };
+}

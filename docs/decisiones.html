@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-032", title: "Al chofer le avisan cuando le asignan trabajo",
+      fecha: "2026-08-14", version: "v1.3.8", quien: "Andrés",
+      cambio: "Cuando se le asigna una parada a un chofer le llega una notificación: en la campanita de la app y —si la app está corriendo— como notificación real del teléfono.",
+      razon: "quiero que al conductor le caiga una notifiacion cada vez que se le asigne una ruta.",
+      razonTextual: true,
+      consecuencia: "El hueco que tapa: las notificaciones existentes se disparaban por CAMBIO DE ETAPA (aprobada, lista, entregada); que te ENTREGUEN EL TRABAJO es otro evento y era justo el que nadie avisaba — el despachador podía armar el día completo de un chofer y el chofer solo se enteraba abriendo la app. Un solo punto de enganche: todas las formas de asignar (modal, Routes Manager, mapa, asignación masiva) pasan por updateDelivery, así que el aviso no se puede evadir; verificado además que las RLS permiten al despachador escribir una notificación dirigida al chofer, si no la función habría quedado muerta en silencio. Dos cosas que a propósito NO hace: no repite el historial (lo que ya estaba al abrir se marca visto, para que reabrir a mediodía no repita la ruta de la mañana) y no suena una vez por parada (el despachador asigna el día entero de golpe, y ocho zumbidos en ocho segundos es como un chofer aprende a ignorar la app — lo que llega junto se junta en un aviso). Se omite cuando no hay a quién avisar: al quitar la asignación, en un carril temporal sin usuario real, y cuando el chofer se auto-asigna una orden al recogerla. Límite honesto: la notificación del teléfono solo sale con la app corriendo; con la app cerrada Android no tiene qué entregar y eso requiere push (FCM), trabajo nativo y APK nuevo. La campanita sí guarda el aviso siempre."
+    },
+    {
       id: "D-031", title: "Al despertar la app, pide posición de inmediato",
       fecha: "2026-08-14", version: "v1.3.7", quien: "Andrés (falla reportada)",
       cambio: "Cada vez que la app despierta —al abrirla y al volver a ella— pide una posición de inmediato, en vez de esperar a que el camión se mueva. CORRIGE A D-027.",

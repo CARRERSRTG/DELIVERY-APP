@@ -901,6 +901,52 @@ por distancia. El plugin actual no lo ofrece.
 
 ---
 
+## D-032 · Al chofer le avisan cuando le asignan trabajo
+
+**Fecha:** 2026-08-14 · **Versión:** v1.3.8 · **Pedido por:** Andrés
+
+**Cambio:** cuando se le asigna una parada a un chofer, le llega una
+notificación: en la campanita de la app y —si la app está corriendo— como
+notificación real del teléfono.
+
+**Razón:** *"quiero que al conductor le caiga una notificación cada vez que se
+le asigne una ruta."*
+
+**El hueco que tapa:** las notificaciones existentes se disparaban por **cambio
+de etapa** (aprobada, lista, entregada). Que te **entreguen el trabajo** es otro
+evento distinto, y era justo el que nadie avisaba: el despachador podía armar el
+día completo de un chofer y el chofer solo se enteraba abriendo la app a mirar.
+
+**Un solo punto de enganche:** todas las formas de asignar —el modal, Routes
+Manager, el mapa, la asignación masiva— pasan por `updateDelivery`. Poner el
+aviso ahí significa que no se puede evadir por ningún camino. Verificado también
+que las políticas RLS permiten al despachador escribir una notificación dirigida
+al chofer; si no, la función habría quedado muerta en silencio.
+
+**Dos cosas que a propósito NO hace:**
+
+1. **No repite el historial.** Lo que ya estaba en pantalla al abrir se marca
+   como visto; un chofer que reabre a mediodía no recibe otra vez la ruta de la
+   mañana.
+2. **No suena una vez por parada.** El despachador asigna el día entero de un
+   golpe; ocho zumbidos en ocho segundos es exactamente como un chofer aprende a
+   ignorar la app. Lo que llega junto se junta en un solo aviso ("Se te
+   asignaron 3 paradas").
+
+También se omite cuando no hay a quién avisar: al **quitar** la asignación, en
+un carril temporal que no corresponde a un usuario real, y cuando el propio
+chofer se auto-asigna una orden al recogerla.
+
+**Límite honesto:** la notificación del teléfono solo sale **con la app
+corriendo**. Con la app completamente cerrada Android no tiene qué entregar —
+eso requiere push (FCM), que es trabajo nativo y APK nuevo. La campanita sí
+guarda el aviso siempre.
+
+**Revisar cuando:** si los choferes empiezan a perderse asignaciones porque
+cierran la app, ahí sí toca FCM.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

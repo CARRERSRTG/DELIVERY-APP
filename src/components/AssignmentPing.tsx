@@ -1,0 +1,80 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { useData } from "@/lib/data-provider";
+import { usePrefs } from "@/lib/prefs";
+import { ASSIGNED_KIND } from "@/lib/notifications";
+import type { Profile } from "@/lib/types";
+
+// ============================================================
+// Raises a real phone notification when a driver is handed a stop.
+//
+// The in-app bell is the record; this is what actually reaches someone whose
+// phone is face-down in a truck cab. It's the payoff for the notification
+// permission the gate now insists on.
+//
+// TWO THINGS IT MUST NOT DO:
+//
+//  1. Replay history. Everything already on screen when the app opens is
+//     marked seen first, so a driver reopening at noon isn't pinged again for
+//     this morning's route.
+//  2. Ping once per stop. Dispatch assigns a whole day at once; eight buzzes
+//     in eight seconds is how a driver learns to ignore the app. Anything that
+//     arrives together is collapsed into one.
+//
+// LIMIT: this only fires while the app is running. With the app fully closed
+// Android has nothing to deliver — that needs push (FCM), which is native work
+// and a new APK.
+// ============================================================
+
+/** Wait this long after the first new one, so a batch arrives as one buzz. */
+const COLLAPSE_MS = 4000;
+
+export function AssignmentPing({ role }: { role: Profile["role"] }) {
+  const { notifications } = useData();
+  const { t } = usePrefs();
+  const seen = useRef<Set<string>>(new Set());
+  const primed = useRef(false);
+  const pending = useRef<string[]>([]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (role !== "driver") return;
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+
+    // First pass only takes inventory. Whatever was already there is history.
+    if (!primed.current) {
+      for (const n of notifications) seen.current.add(n.id);
+      primed.current = true;
+      if (Notification.permission === "default") void Notification.requestPermission().catch(() => {});
+      return;
+    }
+
+    const fresh = notifications.filter((n) => n.kind === ASSIGNED_KIND && !n.read && !seen.current.has(n.id));
+    for (const n of notifications) seen.current.add(n.id);
+    if (!fresh.length) return;
+
+    pending.current.push(...fresh.map((n) => n.message));
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      const batch = pending.current;
+      pending.current = [];
+      if (!batch.length || Notification.permission !== "granted") return;
+      const body = batch.length === 1
+        ? batch[0]
+        : t(`${batch.length} stops were assigned to you`, `Se te asignaron ${batch.length} paradas`);
+      try {
+        // A fixed tag so a second batch REPLACES the first rather than
+        // stacking — the driver only ever needs the latest count.
+        new Notification(t("New work assigned", "Trabajo nuevo asignado"), { body, tag: "rtg-assigned" });
+      } catch {
+        // Some WebViews refuse to construct one without a service worker. The
+        // in-app bell already has it either way.
+      }
+    }, COLLAPSE_MS);
+  }, [notifications, role, t]);
+
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  return null;
+}
