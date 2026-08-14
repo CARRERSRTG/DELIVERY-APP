@@ -810,6 +810,48 @@ aquí anularía todo el punto.
 
 ---
 
+## D-030 · El chofer puede estampar DÓNDE estuvo, aunque la parada ya esté cerrada
+
+**Fecha:** 2026-08-14 · **Versión:** v1.3.6 · **Pedido por:** Andrés (falla reportada)
+
+**Cambio:** un chofer puede hacer una edición sobre su propia parada ya cerrada
+(`picked_up` / `delivered`) **solo** si lo único que cambia son las coordenadas
+GPS (migración 048). Y un parche de fondo ya no muestra error al chofer.
+
+**Razón:** *"cuando le doy delivered me sale error: no puedes editar órdenes que
+están siendo delivered."*
+
+**Lo que realmente pasaba:** la entrega **sí se guardaba**. Lo que fallaba era el
+parche de GPS que llega un segundo después. El teléfono muchas veces no tiene
+posición en el instante exacto en que el chofer toca Entregar, así que la app
+marca la parada de inmediato y adjunta las coordenadas cuando llegan
+(`attachLateFix`). Para entonces la fila ya está en `delivered`, y el guard no
+tenía ninguna regla de misma-etapa para un chofer sobre una parada cerrada — así
+que rechazaba la escritura y le decía al chofer, de forma alarmante, que algo
+había salido mal con una entrega que ya estaba guardada.
+
+**Lo mismo llevaba pasando con las recogidas, en silencio.**
+
+**Por qué la regla quedó angosta:** habría sido una línea más corta decir
+"los choferes pueden editar órdenes entregadas", y eso habría reabierto todo lo
+que el guard existe para proteger. En vez de eso se comparan **todas** las demás
+columnas: si algo más cambió, se rechaza igual. Verificado contra la base: pasa
+el GPS tardío de entrega y de recogida; siguen rechazados cambiar pallets,
+dirección, precio, borrar la firma, **y GPS+pallets en la misma escritura**.
+
+**Segunda capa, en el cliente:** el parche de fondo ahora es de verdad
+silencioso (`quiet`). Aunque falle por otra razón —sin señal, por ejemplo— el
+chofer no debe ver un error por algo que nunca pidió y que no puede resolver;
+un error ahí se lee como "tu entrega falló" cuando la entrega está guardada
+desde hace rato.
+
+**Consecuencia aceptada:** si el parche falla, la entrega queda **sin
+coordenadas** y nadie se entera en el momento. Es lo correcto para el chofer,
+pero significa que la ausencia de GPS en una entrega no prueba nada por sí
+sola.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

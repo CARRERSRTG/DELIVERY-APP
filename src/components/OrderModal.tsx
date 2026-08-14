@@ -138,9 +138,13 @@ export function OrderModal({
   ) => {
     const gps = await pending;
     if (!gps) return;
+    // Quiet on purpose. This lands seconds after the driver already moved on;
+    // an error toast here reads as "your delivery failed" when the delivery is
+    // long since saved. It said exactly that until v1.3.6.
     await updateDelivery(id, kind === "pickup"
       ? { pickup_lat: gps.lat, pickup_lng: gps.lng, pickup_gps_at: gps.at }
-      : { pod_lat: gps.lat, pod_lng: gps.lng, pod_accuracy: gps.accuracy });
+      : { pod_lat: gps.lat, pod_lng: gps.lng, pod_accuracy: gps.accuracy },
+      { quiet: true });
   };
   // A backdrop click only closes when the press STARTED on the backdrop too —
   // otherwise a click whose mouseup lands on the just-opened overlay (or a drag

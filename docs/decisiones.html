@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-030", title: "El chofer puede estampar DÓNDE estuvo, aunque la parada ya esté cerrada",
+      fecha: "2026-08-14", version: "v1.3.6", quien: "Andrés (falla reportada)",
+      cambio: "Un chofer puede hacer una edición sobre su propia parada ya cerrada (picked_up / delivered) SOLO si lo único que cambia son las coordenadas GPS (migración 048). Y un parche de fondo ya no muestra error al chofer.",
+      razon: "cuando le doy delivered me sale error no puedes editar ordenes que estan siendo delivered.",
+      razonTextual: true,
+      consecuencia: "Lo que realmente pasaba: la entrega SÍ se guardaba; lo que fallaba era el parche de GPS que llega un segundo después. El teléfono muchas veces no tiene posición en el instante en que el chofer toca Entregar, así que la app marca la parada de inmediato y adjunta las coordenadas cuando llegan; para entonces la fila ya está en delivered y el guard no tenía regla de misma-etapa para un chofer sobre una parada cerrada, así que rechazaba la escritura y le decía al chofer que algo salió mal con una entrega que ya estaba guardada. Lo mismo llevaba pasando con las recogidas, en silencio. La regla quedó angosta a propósito: decir “los choferes pueden editar órdenes entregadas” habría sido una línea más corta y habría reabierto todo lo que el guard protege — en vez de eso se comparan TODAS las demás columnas. Verificado contra la base: pasa el GPS tardío de entrega y de recogida; siguen rechazados pallets, dirección, precio, borrar la firma, y GPS+pallets en la misma escritura. Segunda capa en el cliente: el parche de fondo ahora es de verdad silencioso, porque un error por algo que el chofer nunca pidió se lee como “tu entrega falló”. Consecuencia aceptada: si el parche falla, la entrega queda sin coordenadas y nadie se entera en el momento — la ausencia de GPS en una entrega no prueba nada por sí sola."
+    },
+    {
       id: "D-029", title: "La foto se pide donde se puede tomar, y la app se actualiza sola",
       fecha: "2026-08-14", version: "v1.3.4", quien: "Andrés",
       cambio: "La hoja de entrega ahora lleva la cámara adentro; se apagó “requerir comprobante” (migración 047); y una página que quedó vieja lo detecta y se refresca sola, además de avisar cuando hay un APK nuevo.",

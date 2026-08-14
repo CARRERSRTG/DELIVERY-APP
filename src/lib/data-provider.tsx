@@ -81,7 +81,10 @@ export interface DataState {
 
   // delivery CRUD
   addDelivery: (d: Partial<Delivery>) => Promise<Delivery | null>;
-  updateDelivery: (id: string, patch: Partial<Delivery>) => Promise<boolean>;
+  /** `quiet` suppresses the error toast, for background patches the user
+   * never asked for and can do nothing about — a failure there must not look
+   * like a failure of whatever they just did. */
+  updateDelivery: (id: string, patch: Partial<Delivery>, opts?: { quiet?: boolean }) => Promise<boolean>;
   /** Renumber a route's stops: `orderedIds` in their new visiting order gets
    * route_seq 0..n-1. Applied to local state FIRST and held there until every
    * write lands, so a realtime refetch can't interleave and snap stops back to
@@ -574,7 +577,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   );
 
   const updateDelivery = useCallback<DataState["updateDelivery"]>(
-    async (id, patch) => {
+    async (id, patch, opts) => {
       // Teaching mode: record the edit in the local overlay only.
       if (teaching) {
         setOverlay((o) => {
@@ -588,7 +591,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       const before = deliveries.find((c) => c.id === id);
       const { error } = await supabase.from("deliveries").update(patch).eq("id", id);
       if (error) {
-        notify("Error: " + error.message);
+        if (!opts?.quiet) notify("Error: " + error.message);
         return false;
       }
       setDeliveries((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
