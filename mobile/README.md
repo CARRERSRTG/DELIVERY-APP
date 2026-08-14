@@ -19,6 +19,41 @@ APK si cambian los permisos, el ícono o el plugin de GPS.
   siempre ve que está activo.
 - Los choferes fueron informados y lo aceptaron.
 
+
+## ⚠️ El primer APK firmado NO puede actualizar al que está instalado
+
+El APK que traen los teléfonos hoy está firmado con la llave de **depuración**
+(`CN=Android Debug`). Android se niega a actualizar una app si la llave de
+firma cambia — no es un error del build, es la protección que impide que
+alguien reemplace tu app con otra.
+
+Entonces, **una sola vez**:
+
+1. Desinstalar RDZ Deliveries del teléfono.
+2. Instalar el APK **firmado de release**.
+
+De ahí en adelante todas las actualizaciones se instalan encima sin desinstalar.
+
+**Hazlo ahora que hay un chofer, no después con ocho.** La molestia es la misma
+por teléfono; lo que cambia es cuántos teléfonos hay que tocar. Y si algún día
+se pierde esta computadora, la llave de depuración se pierde con ella y
+tendrías que desinstalar en TODOS los teléfonos para poder volver a actualizar.
+La llave de release vive en un archivo que puedes respaldar.
+
+## Los tres números tienen que coincidir
+
+Un APK nuevo se anuncia comparando tres valores. Si no coinciden, el aviso
+miente (o nunca aparece):
+
+| Dónde | Qué |
+|---|---|
+| `mobile/android/app/build.gradle` | `versionCode` |
+| `mobile/capacitor.config.ts` | `appendUserAgent: "RDZDeliveries/<n>"` |
+| `src/lib/app-update.ts` | `LATEST_APK_VERSION_CODE` |
+
+Después de cambiar `capacitor.config.ts` hay que correr `npx cap sync android`,
+o el APK sigue anunciándose con el número viejo.
+
 ## Compilar el APK
 
 Requiere Android Studio (trae su propio JDK) y el SDK de Android.
