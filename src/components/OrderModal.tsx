@@ -1966,6 +1966,32 @@ export function OrderModal({
                 </>
               )}
 
+              {/* The camera belongs HERE, not only further up the order.
+                  A driver who reached this sheet and was told "a material
+                  photo is required" had nowhere in it to take one — so he
+                  typed the name, pressed Confirm, and nothing happened. The
+                  requirement has to be satisfiable where it is demanded. */}
+              {!!settings.require_pod && (
+                <div style={{ marginTop: 12 }}>
+                  <label>
+                    📷 {t("Material photo", "Foto del material")}
+                    {!existing.photos?.length && (
+                      <span style={{ color: "var(--amber)", marginLeft: 6 }}>· {t("required", "requerida")}</span>
+                    )}
+                  </label>
+                  <PhotoUpload
+                    photos={existing.photos ?? []}
+                    disabled={photoBusy}
+                    onChange={async (next) => {
+                      setPhotoBusy(true);
+                      await updateDelivery(existing.id, { photos: next });
+                      setPhotoBusy(false);
+                    }}
+                    t={t}
+                  />
+                </div>
+              )}
+
               {/* Override: delivered somewhere other than the ordered address. */}
               <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>
                 <input type="checkbox" style={{ width: "auto", margin: 0 }} checked={deliveredElsewhere} onChange={(e) => setDeliveredElsewhere(e.target.checked)} />

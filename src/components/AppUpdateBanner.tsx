@@ -1,35 +1,146 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrefs } from "@/lib/prefs";
-import { APK_DOWNLOAD_URL, updateAvailable } from "@/lib/app-update";
+import { APP_VERSION } from "@/lib/constants";
+import {
+  APK_DOWNLOAD_URL,
+  installedApkVersion,
+  safeToReload,
+  updateAvailable,
+  webUpdateAvailable,
+  type VersionInfo,
+} from "@/lib/app-update";
 
 // ============================================================
-// Tells a driver running an OUTDATED APK that a new one is ready.
+// Tells anyone running an outdated app that a newer one exists.
 //
-// Only appears inside the app, and only for a native update — everything else
-// (screens, pricing, routing) already arrives with the deploy, so this stays
-// silent for the changes that ship weekly.
+// TWO different kinds of stale, which people confuse constantly:
 //
-// Tapping Update opens the APK URL: Android's own download manager fetches it
-// and offers to install, so the app needs no install permission of its own.
-// Because the new APK is signed with the same key, it installs OVER the old
-// one and the driver keeps their session.
+//  WEB  — the page is running JavaScript from an earlier deploy. This is the
+//         common one and nobody notices it: the APK shell loads the live site,
+//         so a deploy IS the update, but only for pages loaded after it. A
+//         phone open in a truck cradle since 6 a.m. is still running that
+//         morning's code, with every fix since then sitting on the server.
+//         Fixed by a reload, which the app can do by itself.
+//
+//  APK  — the native shell itself is old (permissions, the GPS plugin, the
+//         battery guard). No reload can fix that; a new APK must be installed.
+//         This is rare and is the only one that needs the driver to act.
+//
+// The web one auto-heals: the moment the app is brought back to the foreground
+// and nothing is half-finished on screen, it reloads. That is chosen carefully
+// — reloading while a signature or a half-typed form is open would throw away
+// exactly the work that is most annoying to redo at a customer's door.
 // ============================================================
+
+/** How often a running page asks whether it has gone stale. */
+const POLL_MS = 5 * 60_000;
 
 export function AppUpdateBanner() {
   const { t } = usePrefs();
-  // Read the user agent after mount: on the server there is no UA to inspect,
-  // and rendering different HTML there than the client would break hydration.
-  const [show, setShow] = useState(false);
+  // Read after mount: the server has no user agent, and rendering different
+  // HTML there than on the client breaks hydration.
+  const [apkStale, setApkStale] = useState(false);
+  const [webStale, setWebStale] = useState(false);
+  const [served, setServed] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  // A page that reloads and STILL looks stale would reload forever. One
+  // automatic attempt; after that the banner asks instead.
+  const reloadedRef = useRef(false);
 
-  useEffect(() => {
-    setShow(updateAvailable(navigator.userAgent));
+  const check = useCallback(async () => {
+    try {
+      const res = await fetch("/api/version", { cache: "no-store" });
+      if (!res.ok) return;
+      const info = (await res.json()) as VersionInfo;
+      setServed(info.web);
+      setWebStale(webUpdateAvailable(APP_VERSION, info.web));
+      // The APK number now comes from the server too, so a phone running an
+      // old PAGE still learns that a new shell was published.
+      const installed = installedApkVersion(navigator.userAgent);
+      setApkStale(installed != null && typeof info.apk === "number" && installed < info.apk);
+    } catch {
+      // Offline, or the deploy is mid-flight. Silence is right: a driver in a
+      // dead zone must not be told their app is broken.
+    }
   }, []);
 
-  if (!show || dismissed) return null;
+  useEffect(() => {
+    // Works even before the first fetch answers, from the build-time constant.
+    setApkStale(updateAvailable(navigator.userAgent));
+    void check();
+    const id = setInterval(() => void check(), POLL_MS);
+    const onBack = () => { if (!document.hidden) void check(); };
+    window.addEventListener("focus", onBack);
+    document.addEventListener("visibilitychange", onBack);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", onBack);
+      document.removeEventListener("visibilitychange", onBack);
+    };
+  }, [check]);
 
+  // Self-heal. Coming back to the app is the safe moment: the driver isn't
+  // mid-tap, and a fresh page is what they expect after switching away.
+  useEffect(() => {
+    if (!webStale || reloadedRef.current) return;
+    const tryReload = () => {
+      if (document.hidden || !safeToReload(document) || reloadedRef.current) return;
+      reloadedRef.current = true;
+      window.location.reload();
+    };
+    const onBack = () => setTimeout(tryReload, 250);
+    document.addEventListener("visibilitychange", onBack);
+    window.addEventListener("focus", onBack);
+    return () => {
+      document.removeEventListener("visibilitychange", onBack);
+      window.removeEventListener("focus", onBack);
+    };
+  }, [webStale]);
+
+  if (dismissed) return null;
+
+  // The APK is the harder problem, so it wins the banner when both are true:
+  // installing the new shell reloads the page anyway.
+  if (apkStale) {
+    return (
+      <Bar>
+        <span>⬆ {t("A new version of the app is available.", "Hay una nueva versión de la app.")}</span>
+        <a href={APK_DOWNLOAD_URL} style={pill}>{t("Update", "Actualizar")}</a>
+        <Dismiss onClick={() => setDismissed(true)} label={t("Later", "Después")} />
+      </Bar>
+    );
+  }
+
+  if (webStale) {
+    return (
+      <Bar>
+        <span>
+          ✨ {t(
+            `Version ${served ?? ""} is ready — you're on ${APP_VERSION}.`,
+            `La versión ${served ?? ""} está lista — estás en la ${APP_VERSION}.`,
+          )}
+        </span>
+        <button onClick={() => window.location.reload()} style={{ ...pill, border: "none", cursor: "pointer" }}>
+          {t("Refresh now", "Actualizar ahora")}
+        </button>
+        <span style={{ opacity: 0.85, fontWeight: 500 }}>
+          {t("(or it updates itself when you come back)", "(o se actualiza sola al volver)")}
+        </span>
+      </Bar>
+    );
+  }
+
+  return null;
+}
+
+const pill: React.CSSProperties = {
+  background: "rgba(255,255,255,.22)", color: "#fff", textDecoration: "none",
+  padding: "3px 12px", borderRadius: 7, fontWeight: 700, fontSize: 13.5,
+};
+
+function Bar({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
@@ -38,23 +149,19 @@ export function AppUpdateBanner() {
         background: "var(--accent)", color: "#fff", fontSize: 13.5, fontWeight: 600,
       }}
     >
-      <span>⬆ {t("A new version of the app is available.", "Hay una nueva versión de la app.")}</span>
-      <a
-        href={APK_DOWNLOAD_URL}
-        style={{
-          background: "rgba(255,255,255,.22)", color: "#fff", textDecoration: "none",
-          padding: "3px 12px", borderRadius: 7, fontWeight: 700,
-        }}
-      >
-        {t("Update", "Actualizar")}
-      </a>
-      <button
-        onClick={() => setDismissed(true)}
-        title={t("Later", "Después")}
-        style={{ background: "none", border: "none", color: "#fff", opacity: 0.85, cursor: "pointer", fontSize: 15, padding: "0 4px" }}
-      >
-        ✕
-      </button>
+      {children}
     </div>
+  );
+}
+
+function Dismiss({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      style={{ background: "none", border: "none", color: "#fff", opacity: 0.85, cursor: "pointer", fontSize: 15, padding: "0 4px" }}
+    >
+      ✕
+    </button>
   );
 }

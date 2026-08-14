@@ -762,6 +762,54 @@ APK. El Java ya compila (`compileDebugJavaWithJavac`, BUILD SUCCESSFUL).
 
 ---
 
+## D-029 · La foto se pide donde se puede tomar, y la app se actualiza sola
+
+**Fecha:** 2026-08-14 · **Versión:** v1.3.4 · **Pedido por:** Andrés
+
+**Cambio:** (a) la hoja de entrega ahora lleva la **cámara adentro**; (b) se
+apagó "requerir comprobante" (migración 047); (c) una página que quedó vieja lo
+**detecta y se refresca sola**, y avisa cuando hay un APK nuevo.
+
+**Razón:** *"el conductor me reporta que no le pregunta quién recibió y que él
+lo pone y no puede avanzar para marcar como delivered… ¿podemos hacer una
+versión que él sepa cuándo se lanzó una nueva versión y él solo se actualice o
+refresque? y también en web igual."*
+
+**El atasco, exactamente:** con la firma apagada (046), `require_pod` solo se
+podía cumplir con una foto. La hoja de entrega **decía** "se requiere una foto
+del material" y **no tenía cámara adentro** — la única estaba más arriba en la
+orden, fuera del popup. El chofer escribía el nombre, presionaba Confirmar, y
+no pasaba nada, sin salida desde donde estaba parado. Eso no era una regla mal
+puesta: era una exigencia hecha en un lugar donde no se podía cumplir.
+
+**Se arregló primero la hoja, después se apagó la regla.** En ese orden a
+propósito: apagar la regla sin arreglar la hoja habría escondido el defecto
+hasta que alguien volviera a encender "requerir comprobante" y el chofer
+quedara atrapado otra vez.
+
+**Dos clases de "versión vieja", que se confunden todo el tiempo:**
+
+- **Web** — la página corre JavaScript de un deploy anterior. Es la común y
+  nadie la nota: el APK carga el sitio en vivo, así que un deploy **es** la
+  actualización, pero solo para páginas cargadas después. Un teléfono abierto
+  en el soporte desde las 6 a.m. sigue corriendo el código de esa mañana. Se
+  cura con un refresco, y ahora la app lo hace sola.
+- **APK** — el shell nativo es viejo (permisos, plugin de GPS, blindaje de
+  batería). Ningún refresco arregla eso; hay que instalar un APK nuevo. Es
+  raro y es el único que requiere que el chofer haga algo.
+
+**Cuándo se refresca solo:** al volver a la app **y** si no hay nada a medias
+en pantalla. Refrescar con una firma o un formulario a medio llenar tiraría
+justo el trabajo más molesto de rehacer, en la puerta de un cliente. Un solo
+intento automático: una página que se recarga y sigue viéndose vieja se
+recargaría para siempre.
+
+**Consecuencia aceptada:** cada página pregunta al servidor cada 5 minutos. Es
+una respuesta de dos campos, sin caché a propósito — una respuesta cacheada
+aquí anularía todo el punto.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

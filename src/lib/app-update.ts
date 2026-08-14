@@ -47,3 +47,38 @@ export function updateAvailable(
   const installed = installedApkVersion(userAgent);
   return installed != null && installed < latest;
 }
+
+// ---- Web version, for pages that are already running ------------------------
+//
+// The APK shell loads the live site, so a deploy IS the update — but only for
+// pages loaded after it. A driver's phone that has been open since 6 a.m. is
+// still running that morning's code, and nothing in the browser tells it so.
+
+/** Answer from /api/version. */
+export interface VersionInfo { web: string; apk: number }
+
+/**
+ * Is the running page older than what the server is serving?
+ *
+ * Deliberately an INEQUALITY, not "less than": versions are strings, and a
+ * rollback is a change the page should also pick up. Anything unreadable is
+ * treated as "no change" — a broken check must never nag on every poll.
+ */
+export function webUpdateAvailable(running: string, served: string | null | undefined): boolean {
+  if (!served || typeof served !== "string") return false;
+  return served.trim() !== running.trim();
+}
+
+/**
+ * Is it safe to reload the page out from under whoever is using it?
+ *
+ * No, if anything is open that holds work in progress — a modal, a signature,
+ * a half-typed form. Reloading through those would throw away exactly the kind
+ * of input that is most annoying to redo, at a customer's door.
+ */
+export function safeToReload(doc: Pick<Document, "querySelector"> | null | undefined): boolean {
+  if (!doc) return false;
+  if (doc.querySelector(".overlay")) return false;          // any modal or sheet
+  const el = doc.querySelector("input:focus, textarea:focus, select:focus");
+  return !el;
+}

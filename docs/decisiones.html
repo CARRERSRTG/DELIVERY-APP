@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-029", title: "La foto se pide donde se puede tomar, y la app se actualiza sola",
+      fecha: "2026-08-14", version: "v1.3.4", quien: "Andrés",
+      cambio: "La hoja de entrega ahora lleva la cámara adentro; se apagó “requerir comprobante” (migración 047); y una página que quedó vieja lo detecta y se refresca sola, además de avisar cuando hay un APK nuevo.",
+      razon: "el conductor me reporta que no le pregunta quien recibio y que el pone y no puede avanzar para marcar como delivered, podemos quitar eso y ademas si el tiene una version vieja podemos hacer una version que el sepa cuando se lanzo una nueva version y el solo se actualice o refresque para que se actualice el apk? y tambien en web igual.",
+      razonTextual: true,
+      consecuencia: "El atasco exacto: con la firma apagada (046), require_pod solo se podía cumplir con una foto; la hoja de entrega DECÍA “se requiere una foto del material” y NO TENÍA CÁMARA ADENTRO — la única estaba más arriba en la orden, fuera del popup. El chofer escribía el nombre, presionaba Confirmar y no pasaba nada, sin salida desde donde estaba parado. No era una regla mal puesta: era una exigencia hecha donde no se podía cumplir. Se arregló primero la hoja y después se apagó la regla, en ese orden a propósito: apagarla sin arreglar la hoja habría escondido el defecto hasta que alguien volviera a encender “requerir comprobante”. Dos clases de versión vieja que se confunden: WEB (la página corre JavaScript de un deploy anterior — la común, y nadie la nota, porque el APK carga el sitio en vivo y un deploy ES la actualización, pero solo para páginas cargadas después; un teléfono abierto desde las 6 a.m. sigue con el código de esa mañana) y APK (el shell nativo es viejo: permisos, GPS, blindaje de batería; ningún refresco lo arregla). Se refresca solo al volver a la app Y si no hay nada a medias en pantalla, porque refrescar con una firma a medio capturar tiraría justo el trabajo más molesto de rehacer; un solo intento automático, para que una página que se recarga y sigue viéndose vieja no se recargue para siempre. Costo: cada página pregunta al servidor cada 5 minutos, sin caché a propósito."
+    },
+    {
       id: "D-028", title: "El chofer no entra hasta que el teléfono pueda reportar",
       fecha: "2026-08-14", version: "v1.3.3", quien: "Andrés",
       cambio: "Dentro del APK, la vista del chofer queda BLOQUEADA hasta que el teléfono tenga todo lo necesario para reportar: ubicación, “permitir siempre”, notificaciones, exención de batería y no pausar la app. Se piden de uno en uno, en orden, con una alerta que pulsa.",
