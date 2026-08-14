@@ -640,6 +640,42 @@ cuando el tablero marca las paradas que llegan tarde.
 
 ---
 
+## D-026 · La firma nace apagada, y entregar es un toque
+
+**Fecha:** 2026-08-13 · **Versión:** v1.3.1 · **Pedido por:** Andrés
+
+**Cambio:** (a) la satisfacción del cliente ya no aparece en la vista del
+chofer; (b) la firma del cliente queda **apagada por omisión** (migración 046);
+(c) cuando no hay nada que capturar, "Entregar" marca la entrega **de un solo
+toque** y muestra la pantalla de entregado, sin formulario de por medio.
+
+**Razón:** *"en la vista de conductor elimina ese customer satisfaction"* y
+*"por default que quede inactivo la firma, entonces al darle delivered de un
+solo el popup de delivered."*
+
+**Por qué la calificación no es del chofer:** puntuar la felicidad del cliente
+es una lectura de la oficina, no algo que se le pide a un chofer parado en la
+puerta. Ventas tampoco la ve; eso ya era así.
+
+**Cuándo NO es un toque:** si la firma está encendida, o si la oficina exige
+comprobante (`require_pod`) y la orden todavía no trae foto, el formulario se
+abre igual y dice qué falta. Un toque nunca vale saltarse la evidencia que la
+oficina pidió. Con `require_pod` encendido —como está hoy— el toque único
+aplica a las órdenes que ya traen foto; para que aplique siempre hay que apagar
+"requerir comprobante" en Ajustes, y esa es una decisión de negocio, no mía.
+
+**Consecuencia aceptada:** en una entrega de un toque **no se captura quién
+recibió**. Se guarda como nulo (no como texto vacío) y la bitácora dice
+"Entregado" en vez de inventar un nombre. La hora, el GPS y el chofer siguen
+quedando registrados. Si un cliente reclama "yo no recibí eso", ese nombre es
+justamente lo que haría falta — por eso la firma sigue siendo un interruptor en
+Ajustes y no se eliminó.
+
+**Revisar cuando:** si aparecen disputas de entrega, lo primero que hay que
+volver a encender es la firma.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

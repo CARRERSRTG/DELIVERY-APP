@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-026", title: "La firma nace apagada, y entregar es un toque",
+      fecha: "2026-08-13", version: "v1.3.1", quien: "Andrés",
+      cambio: "La satisfacción del cliente ya no aparece en la vista del chofer; la firma del cliente queda apagada por omisión (migración 046); y cuando no hay nada que capturar, “Entregar” marca la entrega de un solo toque y muestra la pantalla de entregado, sin formulario de por medio.",
+      razon: "en la vista de conductor elimina ese customer satisfaction / por default que quede inactivo la firma, entonces al darle delivered de un solo el popup de delivered.",
+      razonTextual: true,
+      consecuencia: "Puntuar la felicidad del cliente es una lectura de la oficina, no algo que se le pide a un chofer parado en la puerta. NO es un toque si la firma está encendida, o si la oficina exige comprobante (require_pod) y la orden todavía no trae foto: ahí el formulario se abre igual y dice qué falta, porque un toque nunca vale saltarse la evidencia que la oficina pidió. Con require_pod encendido —como está hoy— el toque único aplica a las órdenes que ya traen foto; para que aplique siempre hay que apagar “requerir comprobante” en Ajustes, y esa es una decisión de negocio. En una entrega de un toque NO se captura quién recibió: se guarda como nulo y la bitácora dice “Entregado” en vez de inventar un nombre; la hora, el GPS y el chofer sí quedan. Si un cliente reclama “yo no recibí eso”, ese nombre es justamente lo que haría falta — por eso la firma sigue siendo un interruptor y no se eliminó. A revisar: si aparecen disputas de entrega, lo primero que hay que volver a encender es la firma."
+    },
+    {
       id: "D-025", title: "Las paradas cercanas viajan juntas (agrupación por zona)",
       fecha: "2026-08-13", version: "v1.3.0", quien: "Andrés",
       cambio: "“Optimizar ruta” ahora decide QUÉ PARADAS COMPARTEN CAMIÓN, no solo el orden dentro de cada viaje. Usa Clarke–Wright (el heurístico estándar de ruteo con capacidad desde un depósito) más un pase or-opt que reubica paradas sueltas mientras eso acorte el plan.",

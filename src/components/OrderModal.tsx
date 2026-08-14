@@ -684,12 +684,28 @@ export function OrderModal({
   /** What still stands between this order and "delivered", in the order the
    * driver would hit it. Null when nothing does. Drives both the inline
    * warning and the disabled state, so the two can never disagree. */
-  // Signatures are on unless an admin turned them off (see Settings).
-  const signatureOn = settings.pod_signature_enabled !== false;
+  // Signatures are OFF unless an admin turns them on (see Settings). Off by
+  // default because most deliveries here don't need one, and an empty
+  // signature box between the driver and "delivered" is pure friction.
+  const signatureOn = settings.pod_signature_enabled === true;
+
+  /**
+   * Is there anything left to actually collect at the tailgate?
+   *
+   * With signatures off and the proof requirement already met — either the
+   * office doesn't demand proof, or the photos are already on the order — the
+   * popup would only ask for a name nobody made mandatory. So pressing
+   * Delivered goes straight through instead of putting a form in the way.
+   *
+   * When proof IS still owed, the sheet opens and says so; one tap is never
+   * worth letting a delivery skip the evidence the office asked for.
+   */
+  const podOwed = !!settings.require_pod && !existing?.photos?.length;
+  const podFormNeeded = signatureOn || podOwed;
 
   const podBlocker: string | null = (() => {
     if (!existing) return null;
-    if (!podName.trim()) return t("Enter who received the delivery.", "Ingrese quién recibió la entrega.");
+    if (podFormNeeded && !podName.trim()) return t("Enter who received the delivery.", "Ingrese quién recibió la entrega.");
     if (deliveredElsewhere && !deliveredAddress.trim()) {
       return t("Enter the address where you actually delivered.", "Ingrese la dirección donde entregó realmente.");
     }
@@ -718,7 +734,7 @@ export function OrderModal({
     if (!gps) void attachLateFix(existing.id, eventual, "pod");
     const altAddr = deliveredElsewhere ? deliveredAddress.trim() : "";
     const pod = {
-      pod_received_by: podName.trim(),
+      pod_received_by: podName.trim() || null,
       pod_signature: podSig,
       pod_delivered_at: new Date().toISOString(),
       pod_lat: gps?.lat ?? null,
@@ -730,7 +746,9 @@ export function OrderModal({
     const note = altAddr
       ? t(`⚠ Delivered at a DIFFERENT address: ${altAddr} (ordered: ${existing.delivery_address || "—"}). Received by ${podName.trim()}`,
           `⚠ Entregado en OTRA dirección: ${altAddr} (pedido: ${existing.delivery_address || "—"}). Recibido por ${podName.trim()}`)
-      : t(`Received by ${podName.trim()}`, `Recibido por ${podName.trim()}`);
+      : podName.trim()
+        ? t(`Received by ${podName.trim()}`, `Recibido por ${podName.trim()}`)
+        : t("Delivered", "Entregado");
     // Persist POD fields + the stage move in ONE write so nothing clobbers them.
     const ok = await setStage(existing.id, "delivered", note, pod);
     setBusy(false);
@@ -926,9 +944,11 @@ export function OrderModal({
         <div className="modal" style={{ maxWidth: 460, textAlign: "center" }}>
           <div style={{ fontSize: 44 }}>✅</div>
           <h3 style={{ marginTop: 8 }}>{t("Delivered", "Entregado")} #{orderLabel(justDelivered)}</h3>
-          <div className="sub" style={{ justifyContent: "center" }}>
-            {t("Received by", "Recibido por")} <b>{justDelivered.pod_received_by}</b>
-          </div>
+          {justDelivered.pod_received_by && (
+            <div className="sub" style={{ justifyContent: "center" }}>
+              {t("Received by", "Recibido por")} <b>{justDelivered.pod_received_by}</b>
+            </div>
+          )}
           {justDelivered.pod_signature && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={justDelivered.pod_signature} alt={t("Signature", "Firma")} style={{ maxHeight: 110, background: "#fff", border: "1px solid var(--line)", borderRadius: 8, margin: "10px auto 0", display: "block" }} />
@@ -952,7 +972,7 @@ export function OrderModal({
       setShowCancel={setShowCancel}
       cancelReason={cancelReason}
       onPrint={() => printDeliverySlip(existing, settings, users, lang)}
-      onRequestDeliver={() => setShowPod(true)}
+      onRequestDeliver={() => { if (podFormNeeded) setShowPod(true); else void deliverWithPod(); }}
       podOpen={showPod}
       readyConfirmOpen={showReadyConfirm}
       onRequestReady={() => { setReadyPallets(String(existing.actual_pallets ?? existing.est_pallets ?? "")); setShowReadyConfirm(true); }}
@@ -1131,7 +1151,10 @@ export function OrderModal({
               </>
             )}
 
-            {existing.stage === "delivered" && me.role !== "sales" && (
+            {/* Not for drivers: rating the customer's happiness is the office's
+                call, not something to ask a driver to score on the doorstep.
+                Sales don't see it either. */}
+            {existing.stage === "delivered" && me.role !== "sales" && me.role !== "driver" && (
               <>
                 <div className="section-label">⭐ {t("Customer satisfaction", "Satisfacción del cliente")}</div>
                 <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 8 }}>

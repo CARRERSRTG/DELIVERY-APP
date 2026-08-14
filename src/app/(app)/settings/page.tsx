@@ -93,8 +93,8 @@ export default function SettingsPage() {
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 14, marginTop: 10 }}>
           <input
             type="checkbox"
-            // Defaults to on: an admin has to deliberately turn signatures off.
-            checked={settings.pod_signature_enabled !== false}
+            // Defaults to OFF: an admin has to deliberately ask for signatures.
+            checked={settings.pod_signature_enabled === true}
             onChange={(e) => { saveSettings({ pod_signature_enabled: e.target.checked } as Partial<Settings>); notify(t("Saved", "Guardado")); }}
             style={{ width: 16, height: 16 }}
           />
@@ -102,14 +102,14 @@ export default function SettingsPage() {
         </label>
         <div className="hint" style={{ marginTop: 6 }}>
           {t(
-            "Off means drivers don't draw a signature — the delivery is recorded with who received it, the time and the GPS stamp.",
-            "Desactivado, los choferes no capturan firma — la entrega se registra con quién recibió, la hora y la ubicación GPS.",
+            "Off (the default) means the driver taps Delivered once and it's done — recorded with the time and the GPS stamp. On, they're asked for a name and a signature.",
+            "Desactivado (por omisión) el chofer toca Entregado una vez y listo — se registra con la hora y la ubicación GPS. Activado, se le pide nombre y firma.",
           )}
         </div>
         {/* The two settings interact: with signatures off, "require proof"
             can only mean a photo. Said plainly here so nobody discovers it at
             a customer's door. */}
-        {settings.require_pod && settings.pod_signature_enabled === false && (
+        {settings.require_pod && settings.pod_signature_enabled !== true && (
           <div className="hint" style={{ marginTop: 6, color: "var(--amber)", fontWeight: 600 }}>
             ⚠ {t(
               "With signatures off and proof required, drivers must add a material photo before they can deliver.",
