@@ -153,3 +153,33 @@ describe("impossible jumps", () => {
     expect(s.miles).toBeGreaterThan(40);
   });
 });
+
+describe("jitter is not a teleport", () => {
+  it("ignores two fixes a fraction of a second apart", () => {
+    // Straight from production: 21.7 m in 0.30 s implies 160 mph. Dividing by
+    // a near-zero time makes any GPS wobble look supersonic, and the day was
+    // flagged for a jump that never happened.
+    const s = summarizeTrack([
+      { lat: 25.9589943, lng: -97.5096401, at: new Date(T0).toISOString() },
+      { lat: 25.9588708, lng: -97.5098081, at: new Date(T0 + 300).toISOString() },
+    ]);
+    expect(s.teleports).toBe(0);
+  });
+
+  it("ignores two fixes with the very same timestamp", () => {
+    const s = summarizeTrack([
+      { lat: 25.9589, lng: -97.5097, at: new Date(T0).toISOString() },
+      { lat: 25.9589, lng: -97.5097, at: new Date(T0).toISOString() },
+    ]);
+    expect(s.teleports).toBe(0);
+    expect(Number.isFinite(s.miles)).toBe(true);
+  });
+
+  it("still catches a jump that is actually far", () => {
+    const s = summarizeTrack([
+      { lat: 25.9589, lng: -97.5099, at: new Date(T0).toISOString() },
+      { lat: 15.7667, lng: -86.7849, at: new Date(T0 + 30 * 60_000).toISOString() },
+    ]);
+    expect(s.teleports).toBe(1);
+  });
+});

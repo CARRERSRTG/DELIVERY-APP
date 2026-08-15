@@ -1032,10 +1032,23 @@ reloj, así que la distancia se mide en línea recta entre puntos sueltos y sale
    que está a media milla, no.
 
 **Lo que destapó al primer intento:** correrlo sobre el día real dio **4,936
-millas**. Diez de las posiciones de la cuenta del chofer están a ~1,300 millas
-del Valle (Honduras), con precisión de 3.6 a 20 m, y un par separado por 33
-minutos. Eso no es deriva de GPS. Sin la regla del salto imposible, ese dato se
-habría promediado dentro de un KPI de kilometraje y nadie lo habría visto.
+millas**. Diez posiciones de la cuenta del chofer estaban a ~1,300 millas del
+Valle (Honduras), con precisión de 3.6 a 20 m. Sin la regla del salto
+imposible, eso se habría promediado dentro de un KPI de kilometraje y nadie lo
+habría visto.
+
+> **Resuelto (2026-08-14):** eran **pruebas del propio dueño**, no una segunda
+> sesión de un chofer. Las 10 filas se borraron a petición suya; el día real
+> quedó en **17.9 millas**. La regla se queda: no dependía de que hubiera algo
+> turbio, sino de que un solo punto imposible arruina todos los números que
+> vienen después.
+
+**Un falso positivo que salió al limpiar:** con los datos ya buenos seguía
+marcando un salto. Eran dos posiciones separadas por **0.30 segundos y 21.7
+metros** — temblor de GPS. Dividir entre un tiempo casi cero hace que cualquier
+tembleque parezca supersónico. Ahora la prueba de velocidad **solo aplica a
+partir de una milla**: un salto que de verdad significa otro dispositivo es de
+cientos de millas, nunca de metros.
 
 **Consecuencia aceptada:** con la densidad de datos de hoy, la mayoría de los
 días van a salir marcados como bosquejo, y el bloque "sin determinar" será

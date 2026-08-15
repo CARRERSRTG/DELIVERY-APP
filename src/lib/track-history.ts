@@ -41,6 +41,16 @@ export const MAX_ACCURACY_M = 200;
  * look at instead of quietly inflating a mileage figure.
  */
 export const MAX_SPEED_MPH = 100;
+/**
+ * ...but only over a real distance.
+ *
+ * Two fixes 0.3 seconds and 21 metres apart imply 160 mph, and that is GPS
+ * jitter, not a jump — dividing by a near-zero time makes any wobble look
+ * supersonic. A jump that actually means a second device is hundreds of miles,
+ * never metres, so requiring a mile before the speed test even applies costs
+ * nothing and stops the rule crying wolf on its own noise.
+ */
+export const MIN_TELEPORT_MI = 1;
 
 export interface Stop {
   at: LatLng;
@@ -133,7 +143,8 @@ export function summarizeTrack(raw: Fix[]): TrackSummary {
     // distance is thrown away — counting it would put thousands of miles on a
     // truck that never moved them — and the time is unaccounted for, because
     // we no longer know which of the two positions was the real one.
-    if ((metres / 1609.344) / (mins / 60) > MAX_SPEED_MPH) {
+    const jumpMi = metres / 1609.344;
+    if (jumpMi >= MIN_TELEPORT_MI && jumpMi / (mins / 60) > MAX_SPEED_MPH) {
       teleports++;
       unknownMinutes += mins;
       closeStop();
