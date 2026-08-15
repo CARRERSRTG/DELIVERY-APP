@@ -136,7 +136,7 @@ const ID_COLUMN: OrderColumn = {
             <span className="drv-l">
               {tag && <span className="store-tag" title={d.store ?? undefined}>{tag}</span>}
             </span>
-            <span className="drv-r">ID #{orderLabel(d)}</span>
+            <span className="drv-r drv-code">ID #{orderLabel(d)}</span>
           </span>
         ) : (
           <>
@@ -289,7 +289,10 @@ export function OrdersTable({
   // Drivers read the invoice number off the paperwork; everyone else works
   // from the order code. Driven by the VIEWER's role, so it follows the
   // person across the driver view and the orders board alike.
-  const byInvoice = me?.role === "driver";
+  // The invoice is what everyone actually quotes — the customer on the phone,
+  // the warehouse on the paperwork, the driver at the tailgate. The order code
+  // is still shown, just as the second line rather than the headline.
+  const byInvoice = true;
   const ctx: Ctx = { lang, t, byInvoice };
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc" | null>(null);

@@ -308,34 +308,38 @@ export function daysBetween(aISO: string, bISO: string): number {
  * it drops off (unless it's reprogrammed to a future date). */
 export const LATE_GRACE_DAYS = 2;
 
-/** How far back the working queues reach: two days before today. */
-export const RETENTION_DAYS_BACK = 2;
-/** How far ahead they reach: tomorrow, and no further. */
-export const RETENTION_DAYS_AHEAD = 1;
+/** How far back the working queues reach: yesterday. */
+export const RETENTION_DAYS_BACK = 1;
 
 /**
  * What the working queues (sales board, warehouse, driver) show by default:
- * a four-day window — two days back through tomorrow.
+ * yesterday, today, and everything still to come.
  *
- * These three roles work the near term. Older orders are finished business,
- * and anything further out isn't theirs to act on yet. Office roles (admin,
- * manager, logistics, accounting) are not filtered and see everything.
+ * The floor is what matters. These roles work the near term, and a list that
+ * reaches weeks back buries today's work under finished business — which is
+ * exactly what it was doing. Yesterday stays because a stop that slipped past
+ * midnight is still live work.
+ *
+ * There is deliberately NO ceiling. It used to stop at tomorrow, on the
+ * reasoning that anything further out wasn't theirs to act on yet; in practice
+ * a driver wanting to see what's coming had no way to, and a warehouse
+ * preparing ahead couldn't either.
+ *
+ * Office roles (admin, manager, logistics, accounting) are never filtered.
  *
  * Undated orders always stay visible — they're still being scheduled, and
  * hiding one nobody has dated yet would strand it.
  *
- * Two ways out of the window: reprogramming a slipped order back into range
- * brings it straight back, and every one of these screens lets an invoice
- * search reach past the window for older history.
+ * Two ways past the floor: reprogramming a slipped order forward brings it
+ * straight back, and every one of these screens lets an invoice search reach
+ * into older history.
  */
 export function withinRetention(
   d: { delivery_date?: string | null; stage?: string | null },
   today: string = todayISO(),
 ): boolean {
   if (!d.delivery_date) return true;            // undated — still being scheduled
-  const date = d.delivery_date.slice(0, 10);
-  return date >= shiftDateISO(today, -RETENTION_DAYS_BACK)
-      && date <= shiftDateISO(today, RETENTION_DAYS_AHEAD);
+  return d.delivery_date.slice(0, 10) >= shiftDateISO(today, -RETENTION_DAYS_BACK);
 }
 
 /** Human "2 h 5 min" from a millisecond span (drops zero parts). "—" if invalid. */

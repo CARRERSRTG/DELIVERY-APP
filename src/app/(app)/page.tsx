@@ -167,10 +167,15 @@ export default function OrdersPage() {
         if (me?.role === "warehouse" && !["approved", "fulfilling", "ready", "picked_up", "delivered"].includes(d.stage)) return false;
       }
       if (!needle) {
-        // Sales' default view is scoped to the near term: two days back through
-        // tomorrow. Older history is still there, just reached by searching (e.g.
-        // an invoice #) rather than scrolled to, so the list stays on active work.
-        if (!teaching && !adminAllAccess && me?.role === "sales" && !withinRetention(d)) return false;
+        // The working roles see yesterday onward. Older history is still
+        // there, reached by searching (an invoice #) rather than scrolled to,
+        // so the list stays on active work.
+        //
+        // This used to name sales only, which is why a driver's list still
+        // reached back weeks: the driver page filtered, this one didn't, and
+        // this is the one they land on.
+        const nearTerm = me?.role === "sales" || me?.role === "driver" || me?.role === "warehouse";
+        if (!teaching && !adminAllAccess && nearTerm && !withinRetention(d)) return false;
         return true;
       }
       // Sales can only search 30 days back; older orders stay out of reach.

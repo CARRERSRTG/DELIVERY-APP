@@ -773,9 +773,13 @@ table.orders th { text-align: left; }
      hiding by name too — desktop already has its own Type column. */
   .row-badges, .row-expand, .row-type { display: none; }
   /* Desktop already has Stage / Type / Store / Date columns of its own, so the
-     paired header collapses back to the one thing the column is for. */
-  .drv-head { display: block; }
-  .drv-head .drv-l, .drv-head .drv-r:not(.drv-inv) { display: none; }
+     paired header collapses to the two things this column is for: the invoice
+     everyone quotes, and the order code underneath it. Dropping the code here
+     would leave no way to read it at all on a desktop. */
+  .drv-head { display: block; text-align: left; }
+  .drv-head .drv-l, .drv-head .drv-r:not(.drv-inv):not(.drv-code) { display: none; }
+  .drv-head .drv-inv, .drv-head .drv-code { display: block; text-align: left; }
+  .drv-head .drv-code { font-size: 11px; font-weight: 600; color: var(--gray); }
 }
 
 /* "LIVE" — a driver clocked in whose phone is reporting right now. Pulses
