@@ -134,7 +134,10 @@ const ID_COLUMN: OrderColumn = {
             </span>
 
             <span className="drv-l">
-              {tag && <span className="store-tag" title={d.store ?? undefined}>{tag}</span>}
+              {/* The full store name, not "BRO". The three-letter tag exists
+                  for cramped desktop columns; this line has room, and a
+                  driver shouldn't have to decode an abbreviation. */}
+              {d.store && <span className="store-tag">{d.store}</span>}
             </span>
             <span className="drv-r drv-code">ID #{orderLabel(d)}</span>
           </span>
@@ -463,9 +466,14 @@ export function OrdersTable({
               {cols.map((c) => (
                 <td key={c.key} data-label={lang === "es" ? c.es : c.en} className={c.key === "__id" ? (byInvoice ? "ordno ordno-drv" : "ordno") : undefined}>
                   {c.cell(d, ctx)}
-                  {/* The chevron sits inside the header cell and stops the
-                      click, so opening the card never opens the order. */}
-                  {collapsible && c.key === "__id" && (
+                  {/* The chevron is only offered where the extra rows are
+                      worth unfolding. On the invoice-led card the header
+                      already carries stage, type, store, date, invoice and
+                      order id — everything else is one tap away in the order
+                      itself, so the chevron was a fourth line that opened
+                      what nobody was asking for.
+                      It stops the click, so expanding never opens the order. */}
+                  {collapsible && !byInvoice && c.key === "__id" && (
                     <button
                       className="row-expand"
                       onClick={(e) => { e.stopPropagation(); toggleExpanded(d.id); }}

@@ -80,16 +80,24 @@ export default function DriverPage() {
   return (
     <>
       {me.role === "driver" && <ShiftClock driverId={me.id} />}
+      {/* A driver sees only their own stops, so a heading reading "Driver" and
+          a store filter over a list that is already one person's work were
+          both taking space and answering nothing. The office roles that share
+          this screen still get the filter. */}
       <div className="page-head">
-        <h2>{t("Driver", "Chofer")} <span className="count-tag">{rows.length}</span></h2>
+        {me.role === "driver" ? <span /> : (
+          <h2>{t("Driver", "Chofer")} <span className="count-tag">{rows.length}</span></h2>
+        )}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, display: "flex", alignItems: "center", gap: 8 }}>
-            {t("Store", "Tienda")}
-            <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} style={{ width: "auto" }}>
-              <option value="">{t("All stores", "Todas las tiendas")}</option>
-              {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-            </select>
-          </label>
+          {me.role !== "driver" && (
+            <label style={{ margin: 0, textTransform: "none", letterSpacing: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              {t("Store", "Tienda")}
+              <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} style={{ width: "auto" }}>
+                <option value="">{t("All stores", "Todas las tiendas")}</option>
+                {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+              </select>
+            </label>
+          )}
           {canCreate(me) && (
             <button className="btn btn-primary" onClick={() => setCreating(true)}>+ {t("New order", "Nueva orden")}</button>
           )}
