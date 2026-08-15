@@ -54,7 +54,12 @@ export function AssignmentPing({ role }: { role: Profile["role"] }) {
     if (!primed.current) {
       for (const n of notifications) seen.current.add(n.id);
       primed.current = true;
-      if (Notification.permission === "default") void Notification.requestPermission().catch(() => {});
+      // Deliberately NOT asking for permission here. A permission prompt
+      // raised from an effect is a modal the user never invited, and in an
+      // Android WebView it can block the page outright. Since v1.4.0 the real
+      // delivery path is FCM, whose permission the driver grants through the
+      // gate on a screen built for it — this only rides along when the answer
+      // is already yes.
       return;
     }
 

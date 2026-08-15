@@ -50,7 +50,23 @@ export function NotificationBell() {
   useEffect(() => {
     if (!open) return;
     const reposition = () => {
-      if (btnRef.current) setAnchor(btnRef.current.getBoundingClientRect());
+      const r = btnRef.current?.getBoundingClientRect();
+      if (!r) return;
+      // ONLY when it actually moved.
+      //
+      // The scroll listener below is registered in the CAPTURE phase on
+      // window, so it also catches scrolling inside the panel's own list —
+      // which is where a driver scrolls. getBoundingClientRect() hands back a
+      // new object every call, so setting it unconditionally re-rendered the
+      // top bar, the portal and the whole notification list on every scroll
+      // event. At 60 events a second that locked the app up on a phone.
+      //
+      // The button doesn't move when an inner list scrolls, so this drops
+      // almost all of those renders.
+      setAnchor((prev) =>
+        prev && prev.top === r.top && prev.left === r.left && prev.right === r.right && prev.width === r.width
+          ? prev
+          : r);
     };
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
