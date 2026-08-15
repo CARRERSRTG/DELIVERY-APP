@@ -109,28 +109,59 @@ const ID_COLUMN: OrderColumn = {
         {/* The number is the thing being looked up, so it never truncates —
             an order can carry several invoices ("177966, 177987") and a driver
             matching paperwork needs to read all of them. It wraps instead. */}
-        {byInvoice
-          ? <span className="id-main">{invoice || `#${orderLabel(d)}`}</span>
-          : <>#{orderLabel(d)}</>}
-        {/* Status stack, right-aligned: where the order stands, then what it
-            is. The type sits under the stage where there's room for its full
-            name rather than a three-letter guess. */}
-        <span className="row-badges">
-          <span className="row-badge-line">
-            <span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>
+        {byInvoice ? (
+          // The driver's card header, three paired lines. Each line answers a
+          // question on the left and gives the matching number on the right,
+          // so the whole card can be read down one edge instead of hunted
+          // through: what state / which invoice, what kind / which day, which
+          // branch / which order.
+          <span className="drv-head">
+            <span className="drv-l">
+              <span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>
+            </span>
+            {/* An order can carry several invoices ("177966, 177987"). A driver
+                matches paperwork against this, so it wraps rather than
+                truncating — all of them have to be readable. */}
+            <span className="drv-r drv-inv">{invoice ? `INV ${invoice}` : "—"}</span>
+
+            <span className="drv-l"><span className="row-type">{d.order_type || "—"}</span></span>
+            <span className="drv-r">
+              {d.delivery_date ? (
+                <span className={"row-date" + (late ? " late" : "")} title={fmtDate(d.delivery_date)}>
+                  {lang === "es" ? "Entrega: " : "Del Date: "}{fmtDateShort(d.delivery_date, lang)}
+                </span>
+              ) : "—"}
+            </span>
+
+            <span className="drv-l">
+              {tag && <span className="store-tag" title={d.store ?? undefined}>{tag}</span>}
+            </span>
+            <span className="drv-r">ID #{orderLabel(d)}</span>
           </span>
-          <span className="row-badge-line">
-            {d.delivery_date && (
-              <span className={"row-date" + (late ? " late" : "")} title={fmtDate(d.delivery_date)}>
-                {fmtDateShort(d.delivery_date, lang)}
+        ) : (
+          <>
+            #{orderLabel(d)}
+            {/* Status stack, right-aligned: where the order stands, then what
+                it is. Mobile-only; desktop has its own Stage/Type/Store
+                columns. */}
+            <span className="row-badges">
+              <span className="row-badge-line">
+                <span className="sema" style={{ background: s.color, color: "#fff" }}>{stageLabel(d.stage, lang)}</span>
               </span>
-            )}
-            {tag && <span className="store-tag" title={d.store ?? undefined}>{tag}</span>}
-          </span>
-          <span className="row-badge-line">
-            <span className="row-type">{d.order_type || "—"}</span>
-          </span>
-        </span>
+              <span className="row-badge-line">
+                {d.delivery_date && (
+                  <span className={"row-date" + (late ? " late" : "")} title={fmtDate(d.delivery_date)}>
+                    {fmtDateShort(d.delivery_date, lang)}
+                  </span>
+                )}
+                {tag && <span className="store-tag" title={d.store ?? undefined}>{tag}</span>}
+              </span>
+              <span className="row-badge-line">
+                <span className="row-type">{d.order_type || "—"}</span>
+              </span>
+            </span>
+          </>
+        )}
       </>
     );
   },
@@ -427,7 +458,7 @@ export function OrdersTable({
                 </td>
               )}
               {cols.map((c) => (
-                <td key={c.key} data-label={lang === "es" ? c.es : c.en} className={c.key === "__id" ? "ordno" : undefined}>
+                <td key={c.key} data-label={lang === "es" ? c.es : c.en} className={c.key === "__id" ? (byInvoice ? "ordno ordno-drv" : "ordno") : undefined}>
                   {c.cell(d, ctx)}
                   {/* The chevron sits inside the header cell and stops the
                       click, so opening the card never opens the order. */}

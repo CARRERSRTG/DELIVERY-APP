@@ -729,6 +729,29 @@ table.orders th { text-align: left; }
     background: var(--accent-soft); color: var(--accent);
     border-radius: 5px; padding: 1px 5px; white-space: nowrap;
   }
+  /* The driver's card header: two columns, three lines, paired.
+       Programmed        INV #12345
+       Customer          Del Date: Aug14
+       Bro               ID #FQ122
+     Left says what it IS, right says which NUMBER — so a driver scans one
+     edge instead of reading the whole block. The label is suppressed
+     (.ordno-drv below): a "#" floating over a three-line grid labels
+     nothing. */
+  .drv-head {
+    display: grid; grid-template-columns: auto 1fr;
+    align-items: center; gap: 5px 10px; width: 100%;
+  }
+  .drv-l { justify-self: start; min-width: 0; }
+  .drv-r {
+    justify-self: end; text-align: right;
+    font-size: 12.5px; font-weight: 700; color: var(--ink-soft);
+    white-space: normal; overflow-wrap: anywhere; line-height: 1.25;
+  }
+  /* The invoice is the thing being looked up, so it gets the weight. */
+  .drv-inv { font-size: 15px; font-weight: 800; color: var(--text); font-family: 'Archivo', sans-serif; }
+  table.orders-responsive td.ordno-drv::before { content: ""; display: none; }
+  table.orders-responsive td.ordno-drv { display: block; }
+
   /* Chevron to open a collapsed card. */
   .row-expand {
     background: none; border: none; color: var(--gray); cursor: pointer;
@@ -749,6 +772,10 @@ table.orders th { text-align: left; }
   /* .row-type sits outside .row-badges (it belongs with the id), so it needs
      hiding by name too — desktop already has its own Type column. */
   .row-badges, .row-expand, .row-type { display: none; }
+  /* Desktop already has Stage / Type / Store / Date columns of its own, so the
+     paired header collapses back to the one thing the column is for. */
+  .drv-head { display: block; }
+  .drv-head .drv-l, .drv-head .drv-r:not(.drv-inv) { display: none; }
 }
 
 /* "LIVE" — a driver clocked in whose phone is reporting right now. Pulses
