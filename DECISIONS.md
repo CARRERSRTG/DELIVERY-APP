@@ -1000,6 +1000,51 @@ recompilar el APK. Pasos exactos en `mobile/README.md`.
 
 ---
 
+## D-034 · Recorrido del chofer: reconstruido, y honesto sobre lo que no sabe
+
+**Fecha:** 2026-08-14 · **Versión:** v1.4.4 · **Pedido por:** Andrés
+
+**Cambio:** pestaña **Recorrido** (admin / gerente / logística): por chofer y
+día, el trazo en el mapa, millas, tiempo manejando, tiempo detenido, las
+paradas con su duración, y las órdenes entregadas ese día.
+
+**Razón:** *"hazme el back route del chofer: si se ha movido, qué rutas hizo,
+millas recorridas, tiempo en movimiento, tiempo en las tiendas."*
+
+**Es una reconstrucción, no una grabación,** y la pantalla lo dice antes de
+mostrar los números. El teléfono reporta cuando el camión **se mueve**, no por
+reloj, así que la distancia se mide en línea recta entre puntos sueltos y sale
+**menor** que la carretera.
+
+**Lo que se niega a hacer, que es lo importante:**
+
+1. **No adivina en los huecos.** Un tramo sin posiciones puede ser el camión
+   parado o la app dormida mientras manejaba (D-031); los datos no distinguen.
+   Meter esos minutos en "tiempo en tiendas" inventaría tiempo que el chofer
+   nunca pasó parado; meterlos en manejo inventaría millas. Se muestran como
+   **"sin determinar"**, con su propio recuadro. El trazo del mapa también se
+   **corta** en esos tramos: una línea recta cruzando una hora inexplicada
+   sería una carretera que el camión nunca tomó.
+2. **No acepta saltos imposibles.** Más de 100 mph entre dos puntos se excluye
+   de la distancia y se cuenta aparte, con una bandera roja.
+3. **No le pone nombre a una parada** si no hay una dirección conocida a menos
+   de 400 m. Una parada sin nombre es honesta; una etiquetada con un cliente
+   que está a media milla, no.
+
+**Lo que destapó al primer intento:** correrlo sobre el día real dio **4,936
+millas**. Diez de las posiciones de la cuenta del chofer están a ~1,300 millas
+del Valle (Honduras), con precisión de 3.6 a 20 m, y un par separado por 33
+minutos. Eso no es deriva de GPS. Sin la regla del salto imposible, ese dato se
+habría promediado dentro de un KPI de kilometraje y nadie lo habría visto.
+
+**Consecuencia aceptada:** con la densidad de datos de hoy, la mayoría de los
+días van a salir marcados como bosquejo, y el bloque "sin determinar" será
+grande. Es incómodo a propósito: mide qué tan poco sabemos, y es el mejor
+argumento para el reporte por tiempo (servicio nativo) que D-031 dejó
+pendiente.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.4.3";
+export const APP_VERSION = "1.4.4";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -107,6 +107,9 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   // Personal work summary — not shown to sales/manager (redundant with their
   // Orders default view) or warehouse (outside its restricted nav).
   { id: "summary",   label: "📈 Summary",   label_es: "📈 Resumen",    href: "/summary", roles: ["admin", "driver"], group: "general" },
+  // After-the-fact view of where a truck actually went. Dispatch-side only —
+  // it is a review tool, not something a driver needs mid-route.
+  { id: "track",     label: "🛣 Track",     label_es: "🛣 Recorrido",  href: "/track", roles: ["admin", "manager", "logistics"], group: "general" },
   // Account is reached by clicking your own name/avatar in the top bar (see
   // TopBar) rather than a nav tab.
 ];

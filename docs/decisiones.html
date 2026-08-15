@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-034", title: "Recorrido del chofer: reconstruido, y honesto sobre lo que no sabe",
+      fecha: "2026-08-14", version: "v1.4.4", quien: "Andrés",
+      cambio: "Pestaña Recorrido (admin/gerente/logística): por chofer y día, el trazo en el mapa, millas, tiempo manejando, tiempo detenido, las paradas con su duración, y las órdenes entregadas ese día.",
+      razon: "also make me the back route of the driver, if he has moved what routes he made, miles moved, time moving, time at the stores.",
+      razonTextual: true,
+      consecuencia: "Es una RECONSTRUCCIÓN, no una grabación, y la pantalla lo dice antes de mostrar los números: el teléfono reporta cuando el camión SE MUEVE, no por reloj, así que la distancia va en línea recta entre puntos sueltos y sale menor que la carretera. Se niega a hacer tres cosas: (1) no adivina en los huecos — un tramo sin posiciones puede ser el camión parado o la app dormida mientras manejaba (D-031), y meter esos minutos en “tiempo en tiendas” inventaría tiempo que nunca pasó parado, así que se muestran como “sin determinar” y el trazo del mapa SE CORTA ahí, porque una línea recta cruzando una hora inexplicada sería una carretera que el camión nunca tomó; (2) no acepta saltos imposibles — más de 100 mph se excluye de la distancia y se marca con bandera roja; (3) no nombra una parada sin una dirección conocida a menos de 400 m, porque una parada sin nombre es honesta y una etiquetada con un cliente a media milla no lo es. Lo que destapó al primer intento: correrlo sobre el día real dio 4,936 MILLAS, porque diez posiciones de la cuenta del chofer están a ~1,300 millas del Valle (Honduras) con precisión de 3.6 a 20 m y un par separado por 33 minutos — eso no es deriva de GPS, y sin la regla del salto imposible se habría promediado dentro de un KPI y nadie lo habría visto. Consecuencia aceptada: con la densidad de datos actual, la mayoría de los días saldrán marcados como bosquejo y el bloque “sin determinar” será grande — incómodo a propósito, porque mide qué tan poco sabemos y es el mejor argumento para el reporte por tiempo que D-031 dejó pendiente."
+    },
+    {
       id: "D-033", title: "Push real (FCM), para llegarle a un teléfono que nadie está mirando",
       fecha: "2026-08-14", version: "v1.4.0", quien: "Andrés",
       cambio: "Las asignaciones se envían por Firebase Cloud Messaging, así que el aviso llega con la app en segundo plano, cerrada o el teléfono bloqueado.",
