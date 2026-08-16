@@ -6,7 +6,7 @@ import { usePrefs } from "@/lib/prefs";
 import { createClient } from "@/lib/supabase/client";
 import { MapView, type MapLine, type MapPoint } from "@/components/MapView";
 import { useStoreMarkers } from "@/lib/useStoreMarkers";
-import { orderLabel, todayISO, shiftDateISO } from "@/lib/utils";
+import { orderLabel, todayISO, shiftDateISO, fmtDateShort } from "@/lib/utils";
 import { nameStop, summarizeTrack, type Fix, type TrackSummary } from "@/lib/track-history";
 
 // ============================================================
@@ -18,6 +18,9 @@ import { nameStop, summarizeTrack, type Fix, type TrackSummary } from "@/lib/tra
 // is built to say so — an honest "we don't know" beats a confident number
 // nobody should act on.
 // ============================================================
+
+/** How many days back the quick-pick strip reaches. */
+const DAY_STRIP = 13;
 
 function fmtMin(m: number): string {
   const n = Math.round(m);
@@ -75,6 +78,38 @@ export default function TrackPage() {
     })();
     return () => { cancelled = true; };
   }, [driverId, date]);
+
+  // Which of the recent days this driver actually reported on. A date picker
+  // that lets you land on an empty day is a date picker that wastes clicks —
+  // the strip below marks the days worth opening.
+  const [daysWithData, setDaysWithData] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!driverId) { setDaysWithData(new Set()); return; }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("driver_locations")
+        .select("recorded_at")
+        .eq("driver_id", driverId)
+        .gte("recorded_at", `${shiftDateISO(todayISO(), -DAY_STRIP)}T00:00:00-05:00`)
+        .limit(20000);
+      if (cancelled) return;
+      const set = new Set<string>();
+      for (const r of data ?? []) {
+        // Business time, not the browser's: a fix at 7pm Chicago is still that
+        // day even when the office reviewing it sits in another zone.
+        set.add(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(new Date(r.recorded_at as string)));
+      }
+      setDaysWithData(set);
+    })();
+    return () => { cancelled = true; };
+  }, [driverId]);
+
+  const strip = useMemo(
+    () => Array.from({ length: DAY_STRIP + 1 }, (_, i) => shiftDateISO(todayISO(), -i)),
+    [],
+  );
 
   const summary: TrackSummary = useMemo(() => summarizeTrack(fixes), [fixes]);
 
@@ -139,12 +174,41 @@ export default function TrackPage() {
     <>
       <div className="page-head">
         <h2>🛣 {t("Driver track", "Recorrido del chofer")}</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <select value={driverId} onChange={(e) => setDriverId(e.target.value)} style={{ width: "auto" }}>
             {drivers.map((d) => <option key={d.id} value={d.id}>{d.full_name}</option>)}
           </select>
+          <button className="btn btn-ghost btn-sm" title={t("Previous day", "Día anterior")}
+            onClick={() => setDate((d) => shiftDateISO(d, -1))}>◀</button>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "auto" }} />
+          {/* Never past today: there is no track for a day that hasn't happened. */}
+          <button className="btn btn-ghost btn-sm" disabled={date >= todayISO()} title={t("Next day", "Día siguiente")}
+            onClick={() => setDate((d) => shiftDateISO(d, 1))}>▶</button>
+          <button className="btn btn-ghost btn-sm" disabled={date === todayISO()}
+            onClick={() => setDate(todayISO())}>{t("Today", "Hoy")}</button>
         </div>
+      </div>
+
+      {/* Two weeks at a glance. A day with no fixes is dimmed rather than
+          hidden — knowing the driver reported nothing on Tuesday is itself
+          the answer to a question, and hiding it would look like the day
+          never existed. */}
+      <div className="filters filters-oneline" style={{ marginBottom: 14 }}>
+        {strip.map((d) => {
+          const has = daysWithData.has(d);
+          return (
+            <button
+              key={d}
+              className={"chip" + (d === date ? " on" : "")}
+              style={!has && d !== date ? { opacity: 0.45 } : undefined}
+              title={has ? d : t(`${d} — nothing reported`, `${d} — sin reportes`)}
+              onClick={() => setDate(d)}
+            >
+              {d === todayISO() ? t("Today", "Hoy") : fmtDateShort(d, lang)}
+              {has && <span className="cnt">•</span>}
+            </button>
+          );
+        })}
       </div>
 
       {err && <div className="card" style={{ borderColor: "var(--red)" }}><b style={{ color: "var(--red)" }}>{err}</b></div>}
