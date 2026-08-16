@@ -10,6 +10,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DriverGate } from "@/components/DriverGate";
 import { AssignmentPing } from "@/components/AssignmentPing";
 import { PushRegistrar } from "@/components/PushRegistrar";
+import { LocationTracker } from "@/components/LocationTracker";
 import type { Profile } from "@/lib/types";
 
 const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
@@ -40,6 +41,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <AssignmentPing role={me.role} />
         {/* Records which phone to push to. Inert outside the APK. */}
         <PushRegistrar me={me} />
+        {/* Position sharing for the whole shift. Must be mounted ABOVE the
+            pages: on a single screen it stopped on every navigation. */}
+        {me.role === "driver" && <LocationTracker me={me} />}
         {/* Drivers don't get in until their phone can actually report. Only
             they are gated: nobody else's work depends on background GPS, and
             the gate is inert outside the APK anyway. */}

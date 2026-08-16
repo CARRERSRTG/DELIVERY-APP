@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
-import { useLiveLocation } from "@/lib/useLiveLocation";
-import { batteryGuardState, openOemBatterySettings, requestBatteryExemption, requestHibernationExemption, type BatteryGuardState } from "@/lib/native-bridge";
+import { batteryGuardState, isNativeApp, openOemBatterySettings, requestBatteryExemption, requestHibernationExemption, type BatteryGuardState } from "@/lib/native-bridge";
 import { fmtDuration } from "@/lib/utils";
 
 // ============================================================
@@ -34,9 +33,12 @@ export function ShiftClock({ driverId }: { driverId: string }) {
 
   const elapsed = open ? now - new Date(open.started_at).getTime() : 0;
 
-  // Position sharing runs exactly as long as the shift does — clocking out
-  // stops it. The driver is told plainly that it's on, never silently.
-  const { status: gps, native } = useLiveLocation(!!open);
+  // Position sharing is NOT started here. It lives in the layout
+  // (LocationTracker) so it survives the driver navigating to My route —
+  // starting it from a single screen used to tear the service down on every
+  // navigation. This card only needs to know whether it's running natively,
+  // to decide which battery prompts are worth showing.
+  const native = isNativeApp();
 
   // Android throttles background location unless the app is exempt from
   // battery optimisation, so an unexempt phone silently stops reporting once

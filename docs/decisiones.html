@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-035", title: "El rastreo vive sobre las pantallas, no dentro de una",
+      fecha: "2026-08-16", version: "v1.5.0", quien: "Andrés (auditoría)",
+      cambio: "El rastreo de posición se movió al layout de la app. Antes corría dentro de ShiftClock, que solo se renderiza en la pantalla de Órdenes.",
+      razon: "revisa bien la configuracion del driver app / con el gps y asi.",
+      razonTextual: true,
+      consecuencia: "El defecto exacto: en cuanto el chofer tocaba “Mi ruta”, Next desmontaba la pantalla de Órdenes, corría la limpieza del hook, disparaba removeWatcher() y Android derribaba el servicio en primer plano — con el chofer todavía en turno. El camión desaparecía del despacho hasta que volviera, y al volver el vigilante arranca de cero: rechaza la posición cacheada y espera 40 m de movimiento, así que un camión parado seguía invisible. Eso explica el reporte de “tardó 45 minutos en decir LIVE otra vez” mejor que lo que le atribuimos en D-031: el sueño del JavaScript en segundo plano es real y está medido, pero esta causa es NUESTRA y es mayor — no hacía falta ni cambiar de app, bastaba tocar una pestaña. Ahora solo detienen el rastreo las dos cosas que deben: marcar salida o cerrar la app. Un chofer previsualizado por un admin NO se rastrea, porque el layout usa el rol real del servidor y no el rol que el admin está viendo. Lo demás revisado y correcto: los tres números de versión coinciden (APK 2), el APK publicado responde, el manifiesto trae ubicación en segundo plano y el servicio declara foregroundServiceType, y Capacitor sí concede geolocalización al WebView cuando la app ya tiene el permiso — de lo que depende el arranque inmediato de D-031. Pendiente: sin google-services.json el APK va sin push y hay 0 teléfonos registrados; versionName en Gradle quedó en 1.3.5."
+    },
+    {
       id: "D-034", title: "Recorrido del chofer: reconstruido, y honesto sobre lo que no sabe",
       fecha: "2026-08-14", version: "v1.4.4", quien: "Andrés",
       cambio: "Pestaña Recorrido (admin/gerente/logística): por chofer y día, el trazo en el mapa, millas, tiempo manejando, tiempo detenido, las paradas con su duración, y las órdenes entregadas ese día.",

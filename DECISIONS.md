@@ -1058,6 +1058,47 @@ pendiente.
 
 ---
 
+## D-035 · El rastreo vive sobre las pantallas, no dentro de una
+
+**Fecha:** 2026-08-16 · **Versión:** v1.5.0 · **Pedido por:** Andrés (auditoría)
+
+**Cambio:** el rastreo de posición se movió al layout de la app. Antes corría
+dentro de `ShiftClock`, que solo se renderiza en la pantalla de Órdenes.
+
+**Razón:** *"revisa bien la configuración del driver app… con el GPS y así."*
+
+**El defecto, exactamente:** en cuanto el chofer tocaba **"Mi ruta"**, Next
+desmontaba la pantalla de Órdenes, se ejecutaba la limpieza del hook,
+`removeWatcher()` disparaba y **Android derribaba el servicio en primer
+plano** — con el chofer todavía en turno. El camión desaparecía del despacho
+hasta que volviera. Y al volver el vigilante arranca de cero: rechaza la
+posición cacheada y espera 40 m de movimiento, así que un camión parado se
+quedaba invisible mientras siguiera parado.
+
+**Eso explica el reporte de "tardó 45 minutos en decir LIVE otra vez"** mejor
+que lo que le atribuimos en D-031. El sueño del JavaScript en segundo plano es
+real y está medido, pero **esta causa es nuestra y es mayor**: no hacía falta
+ni cambiar de app, bastaba con tocar una pestaña.
+
+**Ahora** solo detienen el rastreo las dos cosas que deben: marcar salida, o
+cerrar la app.
+
+**Un chofer previsualizado por un admin no se rastrea:** el layout usa el rol
+real del servidor, no el rol que el admin está viendo. Nadie queda geolocalizado
+por curiosear una vista.
+
+**Lo demás que se revisó y está bien:** los tres números de versión coinciden
+(APK 2), el APK publicado responde, el manifiesto trae los permisos de
+ubicación en segundo plano y el servicio declara `foregroundServiceType`, y
+Capacitor sí concede geolocalización al WebView cuando la app ya tiene el
+permiso — que es de lo que depende el arranque inmediato de D-031.
+
+**Pendiente conocido:** sin `google-services.json` el APK va sin push y hay 0
+teléfonos registrados; `versionName` en Gradle quedó en 1.3.5 y conviene
+alinearlo en la próxima compilación.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
