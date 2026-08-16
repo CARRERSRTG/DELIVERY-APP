@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { SecurityLog } from "@/components/SecurityLog";
 import { useRouter } from "next/navigation";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
@@ -117,6 +118,11 @@ export default function AuditPage() {
           </div>
         </div>
       )}
+    
+      {/* Order history is above; this is the other kind of "who did what" —
+          who changed someone's access. Admin-only, and it renders nothing for
+          anyone else. */}
+      <SecurityLog />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logSecurity } from "@/lib/security-log-server";
 import { emailForUsername, isValidUsername, normalizeUsername } from "@/lib/username";
 
 const ROLES = ["admin", "manager", "sales", "warehouse", "driver", "logistics", "accounting"] as const;
@@ -109,6 +110,14 @@ export async function POST(req: Request) {
       .update({ store, full_name: full_name || username || email.split("@")[0], role, username: username || null })
       .eq("id", newUserId);
   }
+
+  await logSecurity({
+    actorId: user.id,
+    targetId: newUserId,
+    targetName: full_name || username || email,
+    kind: "user_created",
+    detail: `${role}${username ? ` · @${username}` : ` · ${email}`}${store ? ` · ${store}` : ""}`,
+  });
 
   // Return the password so the admin can hand it to the user. `signInWith` is
   // what they should actually be told to type — for a username account the

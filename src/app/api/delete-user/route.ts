@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logSecurity } from "@/lib/security-log-server";
 
 export async function POST(req: Request) {
   // 1) Caller must be a signed-in admin.
@@ -46,6 +47,10 @@ export async function POST(req: Request) {
     );
   }
 
+  // Read the name BEFORE deleting: the row goes with the account, and the
+  // whole value of this entry is being readable afterwards.
+  const { data: prof } = await admin.from("profiles").select("full_name, role").eq("id", userId).maybeSingle();
+
   try {
     const { error } = await admin.auth.admin.deleteUser(userId);
     if (error) {
@@ -55,6 +60,14 @@ export async function POST(req: Request) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: "Delete failed: " + msg }, { status: 500 });
   }
+
+  await logSecurity({
+    actorId: user.id,
+    targetId: null,                    // the account no longer exists to point at
+    targetName: prof?.full_name ?? null,
+    kind: "user_removed",
+    detail: prof?.role ? String(prof.role) : null,
+  });
 
   return NextResponse.json({ ok: true });
 }

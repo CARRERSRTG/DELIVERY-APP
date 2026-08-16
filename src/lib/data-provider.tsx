@@ -16,6 +16,7 @@ import { type AppNotification, assignmentNotification, notificationsForStage } f
 import { canTransition } from "@/lib/constants";
 import { orderOwner, changedFieldsNote } from "@/lib/utils";
 import { deviceId } from "@/lib/device-id";
+import { change, type SecurityKind } from "@/lib/security-log";
 import { nextOrderCode, codeBand } from "@/lib/order-code";
 import { applyOutbox, isOfflineError, loadOutbox, pendingIds, saveOutbox, type OutboxItem } from "@/lib/outbox";
 import { blankDelivery } from "@/lib/blank-delivery";
@@ -888,6 +889,22 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     [notify, reloadAll],
   );
 
+  // Role, store, permissions and name are written straight from the browser,
+  // so they are logged here rather than in an API route. Never blocks the
+  // change it describes: a missing line beats a refused edit.
+  const logSecurityClient = useCallback(async (
+    targetId: string, kind: SecurityKind, detail: string | null,
+  ) => {
+    if (!me) return;
+    const target = users.find((u) => u.id === targetId);
+    try {
+      await supabase.from("security_events").insert({
+        actor_id: me.id, target_id: targetId,
+        target_name: target?.full_name ?? null, kind, detail,
+      });
+    } catch { /* logging must never be the thing that fails */ }
+  }, [supabase, me, users]);
+
   const setUserIdentity = useCallback<DataState["setUserIdentity"]>(async (id, patch) => {
     const res = await fetch("/api/user-identity", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -912,11 +929,13 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
 
   const updateUserRole = useCallback<DataState["updateUserRole"]>(
     async (userId, role) => {
+      const before = users.find((u) => u.id === userId)?.role ?? null;
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
       const { error } = await supabase.from("profiles").update({ role }).eq("id", userId);
-      if (error) { notify(error.message); reloadAll(); }
+      if (error) { notify(error.message); reloadAll(); return; }
+      void logSecurityClient(userId, "role_changed", change(before, role));
     },
-    [supabase, notify, reloadAll],
+    [supabase, notify, reloadAll, users, logSecurityClient],
   );
 
   const updateUserName = useCallback<DataState["updateUserName"]>(
@@ -930,20 +949,24 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
 
   const updateUserStore = useCallback<DataState["updateUserStore"]>(
     async (userId, store) => {
+      const before = users.find((u) => u.id === userId)?.store ?? null;
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, store } : u)));
       const { error } = await supabase.from("profiles").update({ store }).eq("id", userId);
-      if (error) { notify(error.message); reloadAll(); }
+      if (error) { notify(error.message); reloadAll(); return; }
+      void logSecurityClient(userId, "store_changed", change(before, store));
     },
-    [supabase, notify, reloadAll],
+    [supabase, notify, reloadAll, users, logSecurityClient],
   );
 
   const updateUserPermissions = useCallback<DataState["updateUserPermissions"]>(
     async (userId, permissions) => {
+      const before = users.find((u) => u.id === userId)?.permissions ?? [];
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, permissions } : u)));
       const { error } = await supabase.from("profiles").update({ permissions }).eq("id", userId);
-      if (error) { notify(error.message); reloadAll(); }
+      if (error) { notify(error.message); reloadAll(); return; }
+      void logSecurityClient(userId, "permissions_changed", change(before, permissions));
     },
-    [supabase, notify, reloadAll],
+    [supabase, notify, reloadAll, users, logSecurityClient],
   );
 
   const deleteUser = useCallback<DataState["deleteUser"]>(

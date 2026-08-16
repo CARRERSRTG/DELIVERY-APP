@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logSecurity } from "@/lib/security-log-server";
+import { change } from "@/lib/security-log";
 import { emailForUsername, isSyntheticEmail, isValidUsername, normalizeUsername } from "@/lib/username";
 
 // ============================================================
@@ -141,6 +143,15 @@ export async function POST(req: Request) {
         { status: taken ? 409 : 500 },
       );
     }
+  }
+
+  const { data: prof } = await admin.from("profiles").select("full_name").eq("id", id).maybeSingle();
+  const targetName = prof?.full_name ?? null;
+  if (nextEmail && nextEmail !== currentEmail.toLowerCase()) {
+    await logSecurity({ actorId: user.id, targetId: id, targetName, kind: "email_changed", detail: change(currentEmail, nextEmail) });
+  }
+  if (wantsUsername) {
+    await logSecurity({ actorId: user.id, targetId: id, targetName, kind: "username_changed", detail: change(profile?.username ?? null, username) });
   }
 
   return NextResponse.json({

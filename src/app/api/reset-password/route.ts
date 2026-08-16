@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logSecurity } from "@/lib/security-log-server";
 
 // ============================================================
 // An admin sets a new password for someone who can't reset their own.
@@ -50,6 +51,10 @@ export async function POST(req: Request) {
   const password = generatePassword();
   const { error } = await admin.auth.admin.updateUserById(id, { password });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // The record is that a reset HAPPENED, never what it produced.
+  const { data: prof } = await admin.from("profiles").select("full_name").eq("id", id).maybeSingle();
+  await logSecurity({ actorId: user.id, targetId: id, targetName: prof?.full_name ?? null, kind: "password_reset" });
 
   // Deliberately NOT signing their other sessions out. A driver mid-route with
   // the app open is not who this is for — they're locked out at the login
