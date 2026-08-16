@@ -30,6 +30,11 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
   const confirmAction = useConfirm();
 
   const [signIn, setSignIn] = useState<SignIn | null>(null);
+  // Controlled, not defaultValue: signIn is fetched AFTER mount, and React
+  // never refreshes an uncontrolled input. The email box showed blank for
+  // everyone who had one, so "clearing" it was a no-op on something that
+  // already looked cleared.
+  const [emailDraft, setEmailDraft] = useState("");
   const [newPass, setNewPass] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -45,6 +50,7 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
   }, [u.id]);
 
   useEffect(() => { void refreshSignIn(); }, [refreshSignIn]);
+  useEffect(() => { setEmailDraft(signIn?.email ?? ""); }, [signIn]);
 
   if (!me) return null;
   const info = ROLE_INFO[u.role];
@@ -96,7 +102,8 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
             <label>{t("Email", "Correo")}</label>
             <input
               type="email"
-              defaultValue={signIn?.email ?? ""}
+              value={emailDraft}
+              onChange={(e) => setEmailDraft(e.target.value)}
               placeholder={signIn?.synthetic ? t("none on file", "ninguno registrado") : ""}
               onBlur={async (e) => {
                 const v = e.target.value.trim().toLowerCase();
@@ -108,7 +115,7 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
                   if (!u.username) {
                     notify(t("Give them a username first - with no email they would have no way to sign in.",
                              "Ponle primero un usuario - sin correo no tendria forma de entrar."));
-                    e.target.value = signIn?.email ?? "";
+                    setEmailDraft(signIn?.email ?? "");
                     return;
                   }
                   const ok = await confirmAction(
@@ -116,7 +123,7 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
                       `${u.full_name} entrara como "${u.username}" y ya no podra restablecer su propia contrasena. Quitar el correo?`),
                     { confirmLabel: t("Remove email", "Quitar correo") },
                   );
-                  if (!ok) { e.target.value = signIn?.email ?? ""; return; }
+                  if (!ok) { setEmailDraft(signIn?.email ?? ""); return; }
                   await setUserIdentity(u.id, { email: null });
                 } else {
                   await setUserIdentity(u.id, { email: v });
@@ -124,6 +131,24 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
                 void refreshSignIn();
               }}
             />
+            {/* Clearing the box works too, but a button is discoverable and
+                says what it does. */}
+            {signIn && !signIn.synthetic && u.username && (
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ marginTop: 6 }}
+                onClick={async () => {
+                  const ok = await confirmAction(
+                    t(`${u.full_name} will sign in as "${u.username}" and can no longer reset their own password. Remove the email?`,
+                      `${u.full_name} entrara como "${u.username}" y ya no podra restablecer su propia contrasena. Quitar el correo?`),
+                    { confirmLabel: t("Remove email", "Quitar correo") },
+                  );
+                  if (!ok) return;
+                  await setUserIdentity(u.id, { email: null });
+                  void refreshSignIn();
+                }}
+              >{t(`Remove email — sign in as "${u.username}"`, `Quitar correo — entrar como "${u.username}"`)}</button>
+            )}
             {/* Said here rather than discovered the day they forget. */}
             {signIn && !signIn.can_reset_own_password && (
               <div className="hint" style={{ color: "#b9791a", fontWeight: 600 }}>
