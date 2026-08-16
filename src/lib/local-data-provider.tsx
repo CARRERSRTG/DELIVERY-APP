@@ -264,6 +264,9 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     return { ok: true };
   }, [persist]);
 
+  // Demo mode has no auth, so there is no password to reset.
+  const resetUserPassword = useCallback<DataState["resetUserPassword"]>(async () => ({ ok: false, error: "Not available in demo mode" }), []);
+
   const addUser = useCallback<DataState["addUser"]>(async (input) => {
     const s = storeRef.current;
     const name = input.full_name.trim() || input.username || (input.email ?? "").split("@")[0] || "User";
@@ -341,7 +344,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     ready, me, realRole: me.role, viewAs: null, setViewAs: () => {}, teaching: false, setTeaching: () => {}, clearTrainingData: async () => {}, settings: store.settings, users: store.users, deliveries: store.deliveries, events: store.events,
     notifications: store.notifications.filter((n) => n.user_id === me.id),
     toast, notify, markNotifRead, markAllNotifsRead, pushNotifs,
-    addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote, setUserIdentity,
+    addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote, setUserIdentity, resetUserPassword,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
     availability: store.availability ?? [], addAvailability, removeAvailability,
     shifts: store.shifts ?? [], clockIn, clockOut,

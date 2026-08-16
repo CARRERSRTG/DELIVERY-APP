@@ -115,6 +115,9 @@ export interface DataState {
   addUser: (input: { email?: string; username?: string; full_name: string; role: UserRole; password?: string; store?: string | null; quiet?: boolean }) => Promise<{ ok: boolean; email?: string; username?: string | null; signInWith?: string; password?: string; can_reset_own_password?: boolean; error?: string }>;
   /** Change how someone signs in. Admin only; never touches passwords. */
   setUserIdentity: (id: string, patch: { username?: string | null; email?: string | null }) => Promise<{ ok: boolean; error?: string }>;
+  /** Give someone a new password, generated server-side and returned once.
+   * For the account with no email that can't reset its own. */
+  resetUserPassword: (id: string) => Promise<{ ok: boolean; password?: string; error?: string }>;
   updateUserRole: (userId: string, role: Profile["role"]) => Promise<void>;
   updateUserName: (userId: string, name: string) => Promise<void>;
   /** Assign the store a warehouse worker / driver is scoped to (null = none). */
@@ -891,6 +894,16 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     return { ok: true };
   }, [notify, reloadAll]);
 
+  const resetUserPassword = useCallback<DataState["resetUserPassword"]>(async (id) => {
+    const res = await fetch("/api/reset-password", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { notify("Error: " + (data.error || res.statusText)); return { ok: false, error: data.error }; }
+    return { ok: true, password: data.password };
+  }, [notify]);
+
   const updateUserRole = useCallback<DataState["updateUserRole"]>(
     async (userId, role) => {
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
@@ -989,7 +1002,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, clearTrainingData, settings, users, deliveries: effectiveDeliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote,
-    saveSettings, addUser, setUserIdentity, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
+    saveSettings, addUser, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
     availability, addAvailability, removeAvailability,
     shifts, clockIn, clockOut,
     incidents, addIncident, removeIncident,

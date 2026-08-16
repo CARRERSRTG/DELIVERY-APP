@@ -12,7 +12,7 @@ import type { Profile, UserRole } from "@/lib/types";
 const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 
 export default function UsersPage() {
-  const { me, users, settings, addUser, setUserIdentity, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser, saveSettings } = useData();
+  const { me, users, settings, addUser, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser, saveSettings } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
   const [email, setEmail] = useState("");
@@ -22,6 +22,7 @@ export default function UsersPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<{ signInWith: string; password: string; canReset: boolean } | null>(null);
+  const [newPass, setNewPass] = useState<{ name: string; signInWith: string; password: string } | null>(null);
   // Which user's permissions panel is expanded.
   const [perms, setPerms] = useState<string | null>(null);
   const [bulk, setBulk] = useState(false);
@@ -134,6 +135,26 @@ export default function UsersPage() {
           >
             🔑 {extra.length ? `+${extra.length}` : t("Permissions", "Permisos")}
           </button>
+          {/* The answer to "if they want a reset they just call me": an account
+              with no email can't be sent a link, so the office sets one here.
+              The password is generated server-side and shown once. */}
+          {!LOCAL_MODE && (
+            <button
+              className="btn btn-ghost btn-sm"
+              title={t("Set a new password and show it once", "Poner una contraseña nueva y mostrarla una vez")}
+              onClick={async () => {
+                if (!(await confirmAction(
+                  t(`Give ${u.full_name} a new password? Their current one stops working immediately.`,
+                    `¿Dar a ${u.full_name} una contraseña nueva? La actual deja de servir de inmediato.`),
+                  { confirmLabel: t("New password", "Nueva contraseña") },
+                ))) return;
+                const res = await resetUserPassword(u.id);
+                if (res.ok && res.password) {
+                  setNewPass({ name: u.full_name, signInWith: u.username || "", password: res.password });
+                }
+              }}
+            >🔒 {t("Password", "Contraseña")}</button>
+          )}
           {u.id !== me.id && (
             <button className="btn btn-danger btn-sm" onClick={async () => {
               if (await confirmAction(
@@ -233,6 +254,33 @@ export default function UsersPage() {
             ? t("In local demo mode users are created instantly in this browser. Switch to any of them from the yellow “View as” bar at the top.", "En modo demo local los usuarios se crean al instante en este navegador. Cámbialos desde la barra amarilla “Ver como” arriba.")
             : t("The account is created active — no email confirmation needed. Give the person their email + password below and they can sign in right away.", "La cuenta se crea activa — sin confirmación por correo. Entrega a la persona su correo + contraseña de abajo y podrá iniciar sesión de inmediato.")}
         </div>
+
+        {/* Shown once, right after a reset. Deliberately a blocking panel and
+            not a toast: a password that scrolls away four seconds later is a
+            second phone call. */}
+        {newPass && (
+          <div className="overlay" onClick={() => setNewPass(null)}>
+            <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ marginTop: 0 }}>🔒 {t("New password for", "Nueva contraseña para")} {newPass.name}</h3>
+              {newPass.signInWith && (
+                <div className="detail-row"><span className="dk">{t("Signs in with", "Entra con")}</span><span className="dv">{newPass.signInWith}</span></div>
+              )}
+              <div className="detail-row">
+                <span className="dk">{t("Password", "Contraseña")}</span>
+                <span className="dv" style={{ fontFamily: "monospace", fontSize: 17 }}>{newPass.password}</span>
+              </div>
+              <div className="hint" style={{ marginTop: 6 }}>
+                {t("Shown once. Their old password stopped working the moment you pressed the button.",
+                   "Se muestra una sola vez. La contraseña anterior dejó de servir en cuanto presionaste el botón.")}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <button className="btn btn-ghost btn-sm"
+                  onClick={() => navigator.clipboard?.writeText(newPass.password)}>📋 {t("Copy", "Copiar")}</button>
+                <button className="btn btn-primary btn-sm" onClick={() => setNewPass(null)}>{t("Done", "Listo")}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {created && (
           <div className="card" style={{ marginTop: 14, marginBottom: 0, background: "var(--accent-soft)", borderColor: "var(--accent)" }}>
