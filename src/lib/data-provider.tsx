@@ -376,7 +376,13 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const reloadAll = useCallback(async () => {
     const [s, p, d, e, n, av, sh, inc, loc] = await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
-      supabase.from("profiles").select("id, full_name, role, store, avatar_url").order("full_name"),
+      // `username` and `permissions` were missing here, and both are read by
+      // the UI. The username never reached the browser, so the Users dialog
+      // showed an empty box for a name that WAS saved, hid the "remove email"
+      // button, and turned clearing an email into "give them a username
+      // first" — a message about a value that was sitting in the database all
+      // along. Select what the app actually uses.
+      supabase.from("profiles").select("id, full_name, username, role, store, permissions, avatar_url").order("full_name"),
       // Teaching mode never loads from the DB — the live (non-training) rows are
       // always the base, and the sandbox lives only in the local overlay.
       supabase.from("deliveries").select("*").eq("is_training", false).order("order_no", { ascending: false }),

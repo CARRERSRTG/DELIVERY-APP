@@ -27,7 +27,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, role, avatar_url")
+    // permissions + store come along because `me` is what every capability
+    // check runs against — without them an admin's own extra grants and store
+    // scope silently read as absent.
+    .select("id, full_name, username, role, store, permissions, avatar_url")
     .eq("id", user.id)
     .maybeSingle();
 
