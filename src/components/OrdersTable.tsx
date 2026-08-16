@@ -104,6 +104,15 @@ const ID_COLUMN: OrderColumn = {
     // An order can carry several invoices ("177987, 177986") or none at all.
     // Falling back to the order code keeps the row from ever going blank.
     const invoice = (d.invoice_num || "").trim();
+    // An order can carry several invoices ("178137, 178138, 178139"). Showing
+    // them all is right on a phone card, where the driver matches paperwork
+    // against every one of them and there is a line to spare — but on the
+    // desktop table it stretched the column wide enough to squeeze every other
+    // column. There, two are shown and the rest are a "+N" the full list hovers
+    // out of.
+    const invParts = invoice ? invoice.split(",").map((x) => x.trim()).filter(Boolean) : [];
+    const invHead = invParts.slice(0, 2).join(", ");
+    const invRest = invParts.length - 2;
     return (
       <>
         {/* The number is the thing being looked up, so it never truncates —
@@ -122,7 +131,19 @@ const ID_COLUMN: OrderColumn = {
             {/* An order can carry several invoices ("177966, 177987"). A driver
                 matches paperwork against this, so it wraps rather than
                 truncating — all of them have to be readable. */}
-            <span className="drv-r drv-inv">{invoice ? `INV ${invoice}` : "—"}</span>
+            <span className="drv-r drv-inv" title={invParts.length > 2 ? invoice : undefined}>
+              {invoice ? (
+                <>
+                  {/* Phone: every number, wrapping. */}
+                  <span className="inv-all">INV {invoice}</span>
+                  {/* Desktop: two, then a count that the title reveals. */}
+                  <span className="inv-short">
+                    INV {invHead}
+                    {invRest > 0 && <span className="inv-more">+{invRest}</span>}
+                  </span>
+                </>
+              ) : "—"}
+            </span>
 
             <span className="drv-l"><span className="row-type">{d.order_type || "—"}</span></span>
             <span className="drv-r">

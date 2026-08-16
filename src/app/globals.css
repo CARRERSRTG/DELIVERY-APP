@@ -752,6 +752,10 @@ table.orders th { text-align: left; }
   table.orders-responsive td.ordno-drv::before { content: ""; display: none; }
   table.orders-responsive td.ordno-drv { display: block; }
 
+  /* On a phone the card has a line to spare, so every invoice is shown and
+     wraps — the driver matches paperwork against all of them. */
+  .inv-short { display: none; }
+
   /* Chevron to open a collapsed card. */
   .row-expand {
     background: none; border: none; color: var(--gray); cursor: pointer;
@@ -780,6 +784,22 @@ table.orders th { text-align: left; }
   .drv-head .drv-l, .drv-head .drv-r:not(.drv-inv):not(.drv-code) { display: none; }
   .drv-head .drv-inv, .drv-head .drv-code { display: block; text-align: left; }
   .drv-head .drv-code { font-size: 11px; font-weight: 600; color: var(--gray); }
+  /* The desktop column is a column, not a card: three invoices spelled out
+     pushed Stage, Type, Store and Account off to the right. Two, then a count
+     you hover for the rest. */
+  .inv-all { display: none; }
+  .inv-short { display: inline; white-space: nowrap; }
+  .inv-more {
+    margin-left: 5px; font-size: 10.5px; font-weight: 800; vertical-align: 1px;
+    background: var(--accent-soft); color: var(--accent);
+    border-radius: 5px; padding: 0 5px; cursor: help;
+  }
+  /* Hard cap, so the column can't grow back on an order with unusually long
+     invoice numbers. Enough for two plus the "+N"; anything longer clips and
+     the full list is on the tooltip either way. */
+  table.orders td.ordno-drv, table.orders th:first-of-type {
+    max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+  }
 }
 
 /* "LIVE" — a driver clocked in whose phone is reporting right now. Pulses
