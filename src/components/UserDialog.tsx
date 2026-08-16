@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
@@ -25,7 +25,7 @@ const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 interface SignIn { email: string; synthetic: boolean; can_reset_own_password: boolean; last_sign_in_at: string | null }
 
 export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () => void }) {
-  const { me, settings, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser, saveSettings } = useData();
+  const { me, notify, settings, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser, saveSettings } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
 
@@ -33,20 +33,18 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
   const [newPass, setNewPass] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // The email lives in auth, not on the profile, so it has to be fetched.
-  useEffect(() => {
+  // The email lives in auth, not on the profile, so it has to be fetched -
+  // and re-fetched after any change, or the dialog keeps showing the address
+  // that was just replaced.
+  const refreshSignIn = useCallback(async () => {
     if (LOCAL_MODE) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/user-identity?id=${encodeURIComponent(u.id)}`);
-        if (!res.ok) return;
-        const data = (await res.json()) as SignIn;
-        if (!cancelled) setSignIn(data);
-      } catch { /* the rest of the dialog still works */ }
-    })();
-    return () => { cancelled = true; };
+    try {
+      const res = await fetch(`/api/user-identity?id=${encodeURIComponent(u.id)}`);
+      if (res.ok) setSignIn((await res.json()) as SignIn);
+    } catch { /* the rest of the dialog still works */ }
   }, [u.id]);
+
+  useEffect(() => { void refreshSignIn(); }, [refreshSignIn]);
 
   if (!me) return null;
   const info = ROLE_INFO[u.role];
@@ -81,10 +79,12 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
                 defaultValue={u.username ?? ""}
                 placeholder={t("none — signs in with email", "ninguno — entra con correo")}
                 autoCapitalize="none" autoCorrect="off" spellCheck={false}
-                onBlur={(e) => {
+                onBlur={async (e) => {
                   const v = e.target.value.trim().toLowerCase();
                   if (v === (u.username ?? "")) return;
-                  void setUserIdentity(u.id, { username: v || null });
+                  await setUserIdentity(u.id, { username: v || null });
+                  // A rename can move the sign-in address with it.
+                  void refreshSignIn();
                 }}
               />
             </div>
@@ -98,10 +98,30 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
               type="email"
               defaultValue={signIn?.email ?? ""}
               placeholder={signIn?.synthetic ? t("none on file", "ninguno registrado") : ""}
-              onBlur={(e) => {
+              onBlur={async (e) => {
                 const v = e.target.value.trim().toLowerCase();
-                if (!v || v === (signIn?.email ?? "")) return;
-                void setUserIdentity(u.id, { email: v });
+                if (v === (signIn?.email ?? "")) return;
+                // Emptying the field means "sign in with the username from now
+                // on". It used to be silently ignored, which looked exactly
+                // like a save that failed.
+                if (!v) {
+                  if (!u.username) {
+                    notify(t("Give them a username first - with no email they would have no way to sign in.",
+                             "Ponle primero un usuario - sin correo no tendria forma de entrar."));
+                    e.target.value = signIn?.email ?? "";
+                    return;
+                  }
+                  const ok = await confirmAction(
+                    t(`${u.full_name} will sign in as "${u.username}" and can no longer reset their own password. Remove the email?`,
+                      `${u.full_name} entrara como "${u.username}" y ya no podra restablecer su propia contrasena. Quitar el correo?`),
+                    { confirmLabel: t("Remove email", "Quitar correo") },
+                  );
+                  if (!ok) { e.target.value = signIn?.email ?? ""; return; }
+                  await setUserIdentity(u.id, { email: null });
+                } else {
+                  await setUserIdentity(u.id, { email: v });
+                }
+                void refreshSignIn();
               }}
             />
             {/* Said here rather than discovered the day they forget. */}

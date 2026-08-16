@@ -81,19 +81,44 @@ export async function POST(req: Request) {
   }
 
   // ---- Email --------------------------------------------------------------
-  const wantsEmail = body.email !== undefined && body.email !== null && body.email.trim() !== "";
-  const email = wantsEmail ? body.email!.trim().toLowerCase() : "";
+  // Three different intents, and the difference matters:
+  //   absent  - don't touch it
+  //   a value - set it
+  //   null/"" - REMOVE it: this person signs in with their username from now on
+  const emailGiven = body.email !== undefined;
+  const emailRaw = (body.email ?? "").trim();
+  const clearingEmail = emailGiven && emailRaw === "";
+  const wantsEmail = emailGiven && emailRaw !== "";
+  const email = wantsEmail ? emailRaw.toLowerCase() : "";
   if (wantsEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
 
-  // A real email always wins: giving someone a proper address is also giving
-  // them the ability to reset their own password, which a derived one can
-  // never do. Otherwise, a username change moves the derived address with it —
-  // but only when the address WAS derived. Rewriting a real email because
-  // someone edited a username would be silent account theft.
+  // Whose username applies after this call - the one being set, or the one
+  // already on file.
+  const { data: profile } = await admin.from("profiles").select("username").eq("id", id).maybeSingle();
+  const effectiveUsername = wantsUsername ? username : ((profile?.username as string | null) ?? null);
+
+  // Removing the email is the ONLY way to turn an email account into a
+  // username account, and it has to be explicit. A username edit alone never
+  // rewrites a real address - doing that as a side effect of renaming would be
+  // silent account theft - but clearing the email field is someone saying
+  // exactly what they mean.
+  //
+  // Refused without a username, because the alternative is an account with no
+  // way at all to sign in.
+  if (clearingEmail && !effectiveUsername) {
+    return NextResponse.json({
+      error: "Give this person a username first - removing their email would leave no way to sign in.",
+    }, { status: 400 });
+  }
+
+  // A real email otherwise wins: giving someone a proper address is also
+  // giving them the ability to reset their own password, which a derived one
+  // can never do.
   let nextEmail: string | null = null;
   if (wantsEmail) nextEmail = email;
+  else if (clearingEmail) nextEmail = emailForUsername(effectiveUsername!);
   else if (wantsUsername && username && isSyntheticEmail(currentEmail)) nextEmail = emailForUsername(username);
 
   if (nextEmail && nextEmail !== currentEmail.toLowerCase()) {
