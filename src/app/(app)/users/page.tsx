@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { UserDialog } from "@/components/UserDialog";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
-import { useConfirm } from "@/lib/confirm";
-import { CAPABILITIES, ROLE_CAPS, ROLE_INFO, ROLE_ORDER, extraCaps, roleLabel } from "@/lib/constants";
+import { ROLE_INFO, ROLE_ORDER, extraCaps, roleLabel } from "@/lib/constants";
 import { avatarColor, initials } from "@/lib/utils";
 import { UsersImportModal } from "@/components/UsersImportModal";
 import type { Profile, UserRole } from "@/lib/types";
@@ -12,9 +12,8 @@ import type { Profile, UserRole } from "@/lib/types";
 const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 
 export default function UsersPage() {
-  const { me, users, settings, addUser, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser, saveSettings } = useData();
+  const { me, users, settings, addUser } = useData();
   const { lang, t } = usePrefs();
-  const confirmAction = useConfirm();
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
@@ -22,9 +21,8 @@ export default function UsersPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<{ signInWith: string; password: string; canReset: boolean } | null>(null);
-  const [newPass, setNewPass] = useState<{ name: string; signInWith: string; password: string } | null>(null);
-  // Which user's permissions panel is expanded.
-  const [perms, setPerms] = useState<string | null>(null);
+  // The person being configured, if any.
+  const [editing, setEditing] = useState<Profile | null>(null);
   const [bulk, setBulk] = useState(false);
   const [groupByStore, setGroupByStore] = useState(true);
 
@@ -71,135 +69,37 @@ export default function UsersPage() {
     }
   };
 
+  // Name and role. Nothing else.
+  //
+  // Every control that used to live here now lives in the dialog: with
+  // twenty-nine people on the list, a row carrying two text boxes and three
+  // dropdowns turned the one thing anyone scans for — a name — into the
+  // smallest item on the line.
   const renderRow = (u: Profile) => {
     const info = ROLE_INFO[u.role];
     const extra = extraCaps(u);
     return (
-      <div key={u.id}>
-        <div className="user-row" style={{ marginBottom: perms === u.id ? 0 : undefined }}>
-          <span className="avatar" style={{ background: avatarColor(u.full_name || "?") }}>{initials(u.full_name || "?")}</span>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <input
-              defaultValue={u.full_name}
-              onBlur={(e) => e.target.value.trim() && e.target.value !== u.full_name && updateUserName(u.id, e.target.value.trim())}
-              style={{ fontWeight: 700, maxWidth: 240 }}
-            />
-            {/* The login name, for people with no company address. Blank means
-                they sign in with their email. Renaming it also moves the
-                address they sign in at — the API keeps the two together, so
-                this can't quietly lock someone out. */}
-            {!LOCAL_MODE && (
-              <input
-                defaultValue={u.username ?? ""}
-                placeholder={t("username (optional)", "usuario (opcional)")}
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                onBlur={(e) => {
-                  const v = e.target.value.trim().toLowerCase();
-                  if (v === (u.username ?? "")) return;
-                  void setUserIdentity(u.id, { username: v || null });
-                }}
-                style={{ maxWidth: 240, marginTop: 4, fontSize: 12 }}
-                title={t("Sign-in name for someone with no email", "Nombre de acceso para quien no tiene correo")}
-              />
-            )}
-          </div>
-          <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value as UserRole)} style={{ maxWidth: 170 }}>
-            {ROLE_ORDER.map((r) => <option key={r} value={r}>{roleLabel(r, lang)}</option>)}
-          </select>
-          {(u.role === "warehouse" || u.role === "driver" || u.role === "sales") && (
-            <select value={u.store ?? ""} onChange={(e) => updateUserStore(u.id, e.target.value || null)} style={{ maxWidth: 150 }} title={t("Assigned store", "Tienda asignada")}>
-              <option value="">{t("All stores", "Todas las tiendas")}</option>
-              {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-            </select>
-          )}
-          {/* Customer visibility on the Accounts page. Admin always sees all;
-              Manager/Logistics can be scoped to only their own customers. */}
-          {(u.role === "manager" || u.role === "logistics") && (
-            <select
-              value={settings.customer_scope?.[u.id] ?? "all"}
-              onChange={(e) => saveSettings({ customer_scope: { ...(settings.customer_scope ?? {}), [u.id]: e.target.value as "all" | "own" } })}
-              style={{ maxWidth: 160 }}
-              title={t("Customer visibility", "Visibilidad de clientes")}
-            >
-              <option value="all">{t("All customers", "Todos los clientes")}</option>
-              <option value="own">{t("Own customers only", "Solo sus clientes")}</option>
-            </select>
-          )}
-          <span className="sema" style={{ background: info.color, color: "#fff" }}>{roleLabel(u.role, lang)}</span>
-          <button
-            className={"btn btn-sm " + (extra.length ? "btn-amber" : "btn-ghost")}
-            onClick={() => setPerms(perms === u.id ? null : u.id)}
-            title={t("Grant extra permissions", "Otorgar permisos extra")}
-          >
-            🔑 {extra.length ? `+${extra.length}` : t("Permissions", "Permisos")}
-          </button>
-          {/* The answer to "if they want a reset they just call me": an account
-              with no email can't be sent a link, so the office sets one here.
-              The password is generated server-side and shown once. */}
-          {!LOCAL_MODE && (
-            <button
-              className="btn btn-ghost btn-sm"
-              title={t("Set a new password and show it once", "Poner una contraseña nueva y mostrarla una vez")}
-              onClick={async () => {
-                if (!(await confirmAction(
-                  t(`Give ${u.full_name} a new password? Their current one stops working immediately.`,
-                    `¿Dar a ${u.full_name} una contraseña nueva? La actual deja de servir de inmediato.`),
-                  { confirmLabel: t("New password", "Nueva contraseña") },
-                ))) return;
-                const res = await resetUserPassword(u.id);
-                if (res.ok && res.password) {
-                  setNewPass({ name: u.full_name, signInWith: u.username || "", password: res.password });
-                }
-              }}
-            >🔒 {t("Password", "Contraseña")}</button>
-          )}
-          {u.id !== me.id && (
-            <button className="btn btn-danger btn-sm" onClick={async () => {
-              if (await confirmAction(
-                t(`Remove ${u.full_name}? This deletes their login.`, `¿Eliminar a ${u.full_name}? Esto borra su acceso.`),
-                { danger: true, confirmLabel: t("Remove", "Eliminar") },
-              )) await deleteUser(u.id);
-            }}>{t("Remove", "Eliminar")}</button>
-          )}
-        </div>
-
-        {perms === u.id && (
-          <div className="perm-panel">
-            <div className="hint" style={{ marginBottom: 10 }}>
-              {t(
-                `Extra permissions for ${u.full_name}, on top of what the ${roleLabel(u.role, lang)} role already allows. Role-granted ones are locked on.`,
-                `Permisos extra para ${u.full_name}, además de lo que el rol ${roleLabel(u.role, lang)} ya permite. Los del rol están fijos.`,
-              )}
-            </div>
-            <div className="grid g2">
-              {CAPABILITIES.map((c) => {
-                const fromRole = ROLE_CAPS[u.role].includes(c.key);
-                const granted = fromRole || !!u.permissions?.includes(c.key);
-                return (
-                  <label key={c.key} className={"perm-opt " + (fromRole ? "locked" : "")}>
-                    <input
-                      type="checkbox"
-                      checked={granted}
-                      disabled={fromRole}
-                      onChange={(e) => {
-                        const cur = (u.permissions ?? []).filter((p) => p !== c.key);
-                        updateUserPermissions(u.id, e.target.checked ? [...cur, c.key] : cur);
-                      }}
-                    />
-                    <span>
-                      <b>{lang === "es" ? c.es : c.en}</b>
-                      {fromRole && <span className="sema" style={{ background: "var(--gray)", color: "#fff", marginLeft: 6 }}>{t("from role", "del rol")}</span>}
-                      <span className="hint" style={{ display: "block" }}>{lang === "es" ? c.desc_es : c.desc_en}</span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+      <button
+        key={u.id}
+        className="user-row user-row-click"
+        onClick={() => setEditing(u)}
+        title={t("Open and configure", "Abrir y configurar")}
+      >
+        <span className="avatar" style={{ background: avatarColor(u.full_name || "?") }}>{initials(u.full_name || "?")}</span>
+        <span style={{ flex: 1, minWidth: 0, fontWeight: 700, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {u.full_name}
+          {u.username && <span className="hint" style={{ marginLeft: 8, fontWeight: 500 }}>@{u.username}</span>}
+        </span>
+        {/* A quiet marker that this person was given something beyond their
+            role — otherwise the only way to know is to open all of them. */}
+        {extra.length > 0 && (
+          <span className="sema" style={{ background: "var(--amber)", color: "#fff" }} title={t("Extra permissions", "Permisos extra")}>
+            🔑 +{extra.length}
+          </span>
         )}
-      </div>
+        <span className="sema" style={{ background: info.color, color: "#fff" }}>{roleLabel(u.role, lang)}</span>
+        <span className="hint" style={{ marginTop: 0 }}>›</span>
+      </button>
     );
   };
 
@@ -255,33 +155,6 @@ export default function UsersPage() {
             : t("The account is created active — no email confirmation needed. Give the person their email + password below and they can sign in right away.", "La cuenta se crea activa — sin confirmación por correo. Entrega a la persona su correo + contraseña de abajo y podrá iniciar sesión de inmediato.")}
         </div>
 
-        {/* Shown once, right after a reset. Deliberately a blocking panel and
-            not a toast: a password that scrolls away four seconds later is a
-            second phone call. */}
-        {newPass && (
-          <div className="overlay" onClick={() => setNewPass(null)}>
-            <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
-              <h3 style={{ marginTop: 0 }}>🔒 {t("New password for", "Nueva contraseña para")} {newPass.name}</h3>
-              {newPass.signInWith && (
-                <div className="detail-row"><span className="dk">{t("Signs in with", "Entra con")}</span><span className="dv">{newPass.signInWith}</span></div>
-              )}
-              <div className="detail-row">
-                <span className="dk">{t("Password", "Contraseña")}</span>
-                <span className="dv" style={{ fontFamily: "monospace", fontSize: 17 }}>{newPass.password}</span>
-              </div>
-              <div className="hint" style={{ marginTop: 6 }}>
-                {t("Shown once. Their old password stopped working the moment you pressed the button.",
-                   "Se muestra una sola vez. La contraseña anterior dejó de servir en cuanto presionaste el botón.")}
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button className="btn btn-ghost btn-sm"
-                  onClick={() => navigator.clipboard?.writeText(newPass.password)}>📋 {t("Copy", "Copiar")}</button>
-                <button className="btn btn-primary btn-sm" onClick={() => setNewPass(null)}>{t("Done", "Listo")}</button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {created && (
           <div className="card" style={{ marginTop: 14, marginBottom: 0, background: "var(--accent-soft)", borderColor: "var(--accent)" }}>
             <b>{t("Account ready — share these credentials", "Cuenta lista — comparte estas credenciales")}</b>
@@ -330,6 +203,15 @@ export default function UsersPage() {
       </div>
 
       {bulk && <UsersImportModal onClose={() => setBulk(false)} />}
+    
+      {/* Everything about one person, opened from the list. Re-read from
+          `users` on each render so an edit shows immediately. */}
+      {editing && (
+        <UserDialog
+          user={users.find((x) => x.id === editing.id) ?? editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </>
   );
 }

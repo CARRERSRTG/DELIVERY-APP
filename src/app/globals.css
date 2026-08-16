@@ -861,3 +861,13 @@ table.orders th { text-align: left; }
 @media (prefers-reduced-motion: reduce) {
   .gate-alarm { animation: none; }
 }
+
+/* A user row is now a button: name and role, opening the dialog that holds
+   everything else. */
+.user-row-click {
+  width: 100%; border: 1px solid var(--line); background: var(--card);
+  border-radius: 10px; cursor: pointer; text-align: left;
+  transition: background .12s ease, border-color .12s ease;
+}
+.user-row-click:hover { background: var(--card-hover); border-color: var(--rule-strong, var(--accent)); }
+.user-row-click:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

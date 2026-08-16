@@ -18,6 +18,38 @@ import { emailForUsername, isSyntheticEmail, isValidUsername, normalizeUsername 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Read how someone signs in today.
+ *
+ * The email lives in auth, not in `profiles`, so the office had no way to see
+ * what address an account actually uses — only to overwrite it blind.
+ */
+export async function GET(req: Request) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (me?.role !== "admin") return NextResponse.json({ error: "Admins only." }, { status: 403 });
+
+  const id = new URL(req.url).searchParams.get("id") ?? "";
+  if (!id) return NextResponse.json({ error: "Missing user." }, { status: 400 });
+
+  const admin = createAdminClient();
+  const { data } = await admin.auth.admin.getUserById(id);
+  if (!data?.user) return NextResponse.json({ error: "No such user." }, { status: 404 });
+
+  const email = data.user.email ?? "";
+  const synthetic = isSyntheticEmail(email);
+  return NextResponse.json({
+    // A derived address is machinery, not a contact. Reporting it as this
+    // person's email would put it on a customer form one day.
+    email: synthetic ? "" : email,
+    synthetic,
+    can_reset_own_password: !synthetic,
+    last_sign_in_at: data.user.last_sign_in_at ?? null,
+  });
+}
+
 export async function POST(req: Request) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
