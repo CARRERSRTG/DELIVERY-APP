@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { emailForUsername, isValidUsername, normalizeUsername } from "@/lib/username";
 
 const ROLES = ["admin", "manager", "sales", "warehouse", "driver", "logistics", "accounting"] as const;
 type Role = (typeof ROLES)[number];
@@ -32,19 +33,35 @@ export async function POST(req: Request) {
   }
 
   // 2) Validate input.
-  let body: { email?: string; full_name?: string; role?: string; password?: string; store?: string | null };
+  let body: { email?: string; username?: string; full_name?: string; role?: string; password?: string; store?: string | null };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
-  const email = (body.email || "").trim().toLowerCase();
   const full_name = (body.full_name || "").trim();
   const role: Role = ROLES.includes(body.role as Role) ? (body.role as Role) : "sales";
   const store = (body.store || "").trim() || null;
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+
+  // A person with no email signs in with a username, at an address derived
+  // from it. Warehouse and drivers rarely have a company address; making one
+  // up for them was the alternative, and then nobody remembers it.
+  const username = body.username ? normalizeUsername(body.username) : "";
+  const typedEmail = (body.email || "").trim().toLowerCase();
+  if (!username && !typedEmail) {
+    return NextResponse.json({ error: "Enter an email address or a username." }, { status: 400 });
+  }
+  if (username && !isValidUsername(username)) {
+    return NextResponse.json({
+      error: "Username must be 3–30 characters: letters, numbers, dot, dash or underscore, starting with a letter or number.",
+    }, { status: 400 });
+  }
+  if (typedEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(typedEmail)) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
+  // A real address wins when both are given: only a real one can carry a
+  // password-reset link.
+  const email = typedEmail || emailForUsername(username);
   const wanted = (body.password || "").trim();
   if (wanted && wanted.length < 6) {
     return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
@@ -89,10 +106,21 @@ export async function POST(req: Request) {
   // fresh profile row here. Best-effort — a failure here doesn't undo the login.
   if (newUserId) {
     await admin.from("profiles")
-      .update({ store, full_name: full_name || email.split("@")[0], role })
+      .update({ store, full_name: full_name || username || email.split("@")[0], role, username: username || null })
       .eq("id", newUserId);
   }
 
-  // Return the password so the admin can hand it to the user.
-  return NextResponse.json({ ok: true, email, password, id: newUserId });
+  // Return the password so the admin can hand it to the user. `signInWith` is
+  // what they should actually be told to type — for a username account the
+  // derived address is an implementation detail nobody should have to know.
+  return NextResponse.json({
+    ok: true,
+    email,
+    username: username || null,
+    signInWith: username || email,
+    password,
+    id: newUserId,
+    // Said plainly so it isn't discovered the day someone forgets a password.
+    can_reset_own_password: !!typedEmail,
+  });
 }

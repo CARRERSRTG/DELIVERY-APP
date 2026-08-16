@@ -12,15 +12,16 @@ import type { Profile, UserRole } from "@/lib/types";
 const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 
 export default function UsersPage() {
-  const { me, users, settings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser, saveSettings } = useData();
+  const { me, users, settings, addUser, setUserIdentity, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser, saveSettings } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<UserRole>("sales");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+  const [created, setCreated] = useState<{ signInWith: string; password: string; canReset: boolean } | null>(null);
   // Which user's permissions panel is expanded.
   const [perms, setPerms] = useState<string | null>(null);
   const [bulk, setBulk] = useState(false);
@@ -49,10 +50,22 @@ export default function UsersPage() {
 
   const submit = async () => {
     setBusy(true);
-    const res = await addUser({ email, full_name: name, role, password: password.trim() || undefined });
+    const res = await addUser({
+      email: email.trim() || undefined,
+      username: username.trim() || undefined,
+      full_name: name, role, password: password.trim() || undefined,
+    });
     setBusy(false);
     if (res.ok) {
-      if (!LOCAL_MODE && res.email && res.password) setCreated({ email: res.email, password: res.password });
+      if (!LOCAL_MODE && res.password) {
+        setCreated({
+          // What they should TYPE. For a username account the derived address
+          // is an implementation detail nobody should have to know or repeat.
+          signInWith: res.signInWith || res.email || "",
+          password: res.password,
+          canReset: res.can_reset_own_password !== false,
+        });
+      }
       setEmail(""); setName(""); setRole("sales"); setPassword("");
     }
   };
@@ -70,6 +83,26 @@ export default function UsersPage() {
               onBlur={(e) => e.target.value.trim() && e.target.value !== u.full_name && updateUserName(u.id, e.target.value.trim())}
               style={{ fontWeight: 700, maxWidth: 240 }}
             />
+            {/* The login name, for people with no company address. Blank means
+                they sign in with their email. Renaming it also moves the
+                address they sign in at — the API keeps the two together, so
+                this can't quietly lock someone out. */}
+            {!LOCAL_MODE && (
+              <input
+                defaultValue={u.username ?? ""}
+                placeholder={t("username (optional)", "usuario (opcional)")}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                onBlur={(e) => {
+                  const v = e.target.value.trim().toLowerCase();
+                  if (v === (u.username ?? "")) return;
+                  void setUserIdentity(u.id, { username: v || null });
+                }}
+                style={{ maxWidth: 240, marginTop: 4, fontSize: 12 }}
+                title={t("Sign-in name for someone with no email", "Nombre de acceso para quien no tiene correo")}
+              />
+            )}
           </div>
           <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value as UserRole)} style={{ maxWidth: 170 }}>
             {ROLE_ORDER.map((r) => <option key={r} value={r}>{roleLabel(r, lang)}</option>)}
@@ -149,7 +182,9 @@ export default function UsersPage() {
     );
   };
 
-  const canSubmit = LOCAL_MODE ? !!name.trim() : !!email.trim();
+  // Either identifier will do. Requiring an email was what forced the office
+  // to invent addresses for warehouse staff and drivers who don't have one.
+  const canSubmit = LOCAL_MODE ? !!name.trim() : (!!email.trim() || !!username.trim());
 
   return (
     <>
@@ -162,7 +197,21 @@ export default function UsersPage() {
         <h2>{t("Create a user", "Crear un usuario")}</h2>
         <div className="grid g4">
           <div className="field"><label>{t("Full name", "Nombre completo")}</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" /></div>
-          <div className="field"><label>{t("Email", "Correo")}{LOCAL_MODE ? ` (${t("optional", "opcional")})` : ""}</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@company.com" /></div>
+          <div className="field">
+            <label>{t("Email", "Correo")} {t("(or username below)", "(o usuario abajo)")}</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@company.com" />
+          </div>
+          <div className="field">
+            <label>{t("Username", "Usuario")}</label>
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="maximo"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+          </div>
           <div className="field">
             <label>{t("Role", "Rol")}</label>
             <select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
@@ -188,15 +237,26 @@ export default function UsersPage() {
         {created && (
           <div className="card" style={{ marginTop: 14, marginBottom: 0, background: "var(--accent-soft)", borderColor: "var(--accent)" }}>
             <b>{t("Account ready — share these credentials", "Cuenta lista — comparte estas credenciales")}</b>
-            <div className="detail-row"><span className="dk">{t("Email", "Correo")}</span><span className="dv">{created.email}</span></div>
+            <div className="detail-row"><span className="dk">{t("Sign in with", "Entrar con")}</span><span className="dv">{created.signInWith}</span></div>
             <div className="detail-row"><span className="dk">{t("Password", "Contraseña")}</span><span className="dv" style={{ fontFamily: "monospace", fontSize: 15 }}>{created.password}</span></div>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="btn btn-sm btn-ghost" onClick={() => navigator.clipboard?.writeText(`${created.email} / ${created.password}`)}>
+              <button className="btn btn-sm btn-ghost" onClick={() => navigator.clipboard?.writeText(`${created.signInWith} / ${created.password}`)}>
                 📋 {t("Copy", "Copiar")}
               </button>
               <button className="btn btn-sm" onClick={() => setCreated(null)}>{t("Dismiss", "Cerrar")}</button>
             </div>
             <div className="hint">{t("This password is shown only once. The user can change it later.", "Esta contraseña se muestra solo una vez. El usuario puede cambiarla después.")}</div>
+            {/* Said at the moment of creation, not discovered the day they
+                forget it. A derived address receives no mail, so no reset link
+                can ever reach them. */}
+            {!created.canReset && (
+              <div className="hint" style={{ color: "#b9791a", fontWeight: 600, marginTop: 6 }}>
+                ⚠ {t(
+                  "This account has no email, so it can never reset its own password — an admin has to set a new one.",
+                  "Esta cuenta no tiene correo, así que nunca podrá restablecer su propia contraseña — un admin tendrá que ponerle una nueva.",
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

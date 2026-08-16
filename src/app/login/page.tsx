@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { loginEmail } from "@/lib/username";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { VersionFooter } from "@/components/VersionFooter";
@@ -33,6 +34,12 @@ export default function LoginPage() {
   const forgot = async () => {
     setMsg("");
     if (!email) { setMsg("Enter your email first, then click 'Forgot password'."); return; }
+    // A derived address receives no mail, so a reset link would go nowhere.
+    // Saying so beats a cheerful "check your email" that never arrives.
+    if (!email.includes("@")) {
+      setMsg("That account signs in with a username and has no email — ask an admin to set a new password.");
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
@@ -55,7 +62,10 @@ export default function LoginPage() {
         setMsg("Account created. Check your email if confirmation is required, then sign in.");
         setMode("signin");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        // A username is turned into its derived address here; a real email is
+        // passed through untouched. Nothing is looked up, so there's no way to
+        // probe the app for who works here.
+        const { error } = await supabase.auth.signInWithPassword({ email: loginEmail(email), password });
         if (error) throw error;
         if (remember) localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
         else localStorage.removeItem(REMEMBERED_EMAIL_KEY);
@@ -86,12 +96,15 @@ export default function LoginPage() {
           </div>
         )}
         <div style={{ marginBottom: 12 }}>
-          <label>Email</label>
+          <label>Email or username</label>
           <input
-            type="email"
+            type="text"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@company.com"
+            placeholder="you@company.com  ·  maximo"
           />
         </div>
         <div style={{ marginBottom: 16 }}>

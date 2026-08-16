@@ -4,6 +4,10 @@ export type UserRole = "admin" | "manager" | "sales" | "warehouse" | "driver" | 
 export interface Profile {
   id: string;
   full_name: string;
+  /** Login name for people with no email address. They sign in as
+   * `<username>@users.rdztilegroup.net` (see lib/username), which is derived,
+   * never looked up. Null for anyone who signs in with a real email. */
+  username?: string | null;
   role: UserRole;
   /** Extra capabilities granted to this specific person by an admin, on top of
    * whatever their role already allows (see Capability in lib/constants). */

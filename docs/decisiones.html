@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-038", title: "Entrar con usuario, para quien no tiene correo",
+      fecha: "2026-08-16", version: "v1.6.0", quien: "Andrés",
+      cambio: "Un usuario se puede crear con NOMBRE DE USUARIO en vez de correo, y el admin puede editar usuario y correo de cualquiera desde Usuarios. La pantalla de acceso acepta las dos formas.",
+      razon: "dejame editar username emails y asi en user, si quiero en vez de un email crear un username.",
+      razonTextual: true,
+      consecuencia: "Supabase identifica a las personas por correo y eso no se negocia; almacén y choferes rara vez tienen dirección de empresa, así que la oficina terminaba inventándoles correos que después nadie recuerda. Quien no tiene correo recibe uno sintético DERIVADO de su usuario (maximo entra como maximo@users.rdztilegroup.net). Derivado y no consultado, que es lo importante: la pantalla de acceso construye la dirección sola, así que NO EXISTE ningún endpoint que conteste “¿este usuario existe?” y no hay nada que sondear para sacar la lista de quién trabaja aquí. El costo es real: una persona sin correo NO PUEDE restablecer su propia contraseña — ningún enlace le llega y un admin tiene que ponerle una nueva; la app lo dice AL CREAR LA CUENTA, no el día que se le olvide. Dos reglas evitan un bloqueo silencioso: renombrar el usuario mueve también la dirección de acceso pero SOLO si era derivada (reescribir un correo real por editar un campo de usuario sería robarle la cuenta a esa persona), y un correo real siempre gana sobre el usuario porque dar una dirección de verdad es devolverle a la persona su capacidad de recuperar la contraseña. El usuario se valida angosto (3–30, letras, dígitos, punto, guion, guion bajo): se vuelve la parte local de una dirección, y algo exótico ahí produce una cuenta que se ve bien y no puede entrar."
+    },
+    {
       id: "D-037", title: "El GPS reporta por reloj, no solo por movimiento",
       fecha: "2026-08-16", version: "v1.5.3 · APK 3", quien: "Andrés",
       cambio: "El código nativo entrega una posición cada 2 minutos, se mueva o no el camión, además del reporte por distancia que ya existía.",

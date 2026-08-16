@@ -1180,6 +1180,47 @@ o app caída — en vez de ser indistinguible de una parada normal.
 
 ---
 
+## D-038 · Entrar con usuario, para quien no tiene correo
+
+**Fecha:** 2026-08-16 · **Versión:** v1.6.0 · **Pedido por:** Andrés
+
+**Cambio:** un usuario se puede crear con **nombre de usuario en vez de correo**,
+y el admin puede editar usuario y correo de cualquiera desde Usuarios. La
+pantalla de acceso acepta las dos formas.
+
+**Razón:** *"déjame editar username, emails y así en user; si quiero, en vez de
+un email crear un username."*
+
+**El problema real:** Supabase identifica a las personas por correo y eso no se
+negocia. Almacén y choferes rara vez tienen dirección de empresa, así que la
+oficina terminaba **inventándoles correos** que después nadie recuerda.
+
+**La solución:** quien no tiene correo recibe uno **sintético derivado** de su
+usuario — `maximo` entra como `maximo@users.rdztilegroup.net`.
+
+**Derivado, no consultado, y eso es lo importante:** la pantalla de acceso
+construye la dirección sola. Así **no existe ningún endpoint que conteste "¿este
+usuario existe?"**, y por lo tanto no hay nada que sondear para sacar la lista
+de quién trabaja aquí.
+
+**El costo, y es real:** una persona sin correo **no puede restablecer su propia
+contraseña**. Ningún enlace puede llegarle; un admin tiene que ponerle una
+nueva. La app lo dice **al crear la cuenta**, no el día que se le olvide.
+
+**Dos reglas que evitan un bloqueo silencioso:**
+
+1. **Renombrar el usuario mueve también la dirección de acceso**, pero **solo si
+   era derivada**. Reescribir un correo real porque alguien editó un campo de
+   usuario sería robarle la cuenta a esa persona.
+2. **Un correo real siempre gana** sobre el usuario: dar una dirección de verdad
+   es también devolverle a esa persona la capacidad de recuperar su contraseña.
+
+**Consecuencia aceptada:** el usuario se valida angosto (3–30, letras, dígitos,
+punto, guion, guion bajo). Se vuelve la parte local de una dirección, y algo
+exótico ahí produce una cuenta que se ve bien y **no puede entrar**.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

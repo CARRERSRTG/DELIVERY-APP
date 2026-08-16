@@ -257,14 +257,21 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     persist({ ...s, settings: { ...s.settings, ...patch } });
   }, [persist]);
 
+  // Demo mode has no auth at all, so identity is just a label on the row.
+  const setUserIdentity = useCallback<DataState["setUserIdentity"]>(async (id, patch) => {
+    const s = storeRef.current;
+    persist({ ...s, users: s.users.map((u) => (u.id === id ? { ...u, username: patch.username ?? u.username ?? null } : u)) });
+    return { ok: true };
+  }, [persist]);
+
   const addUser = useCallback<DataState["addUser"]>(async (input) => {
     const s = storeRef.current;
-    const name = input.full_name.trim() || input.email.split("@")[0];
+    const name = input.full_name.trim() || input.username || (input.email ?? "").split("@")[0] || "User";
     if (s.users.some((u) => u.full_name.toLowerCase() === name.toLowerCase())) {
       notify("A user with that name already exists.");
       return { ok: false };
     }
-    const user: Profile = { id: uid(), full_name: name, role: input.role, store: input.store ?? null };
+    const user: Profile = { id: uid(), full_name: name, username: input.username ?? null, role: input.role, store: input.store ?? null };
     persist({ ...s, users: [...s.users, user] });
     if (!input.quiet) notify(`User "${name}" created`);
     return { ok: true };
@@ -334,7 +341,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     ready, me, realRole: me.role, viewAs: null, setViewAs: () => {}, teaching: false, setTeaching: () => {}, clearTrainingData: async () => {}, settings: store.settings, users: store.users, deliveries: store.deliveries, events: store.events,
     notifications: store.notifications.filter((n) => n.user_id === me.id),
     toast, notify, markNotifRead, markAllNotifsRead, pushNotifs,
-    addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote,
+    addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote, setUserIdentity,
     saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
     availability: store.availability ?? [], addAvailability, removeAvailability,
     shifts: store.shifts ?? [], clockIn, clockOut,
