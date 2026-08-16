@@ -1136,6 +1136,50 @@ el rastro corresponda a **un** camión.
 
 ---
 
+## D-037 · El GPS reporta por reloj, no solo por movimiento
+
+**Fecha:** 2026-08-16 · **Versión:** v1.5.3 · APK 3 · **Pedido por:** Andrés
+
+**Cambio:** el código nativo entrega una posición **cada 2 minutos**, se mueva o
+no el camión, además del reporte por distancia que ya existía.
+
+**Razón:** *"haz lo del GPS por tiempo."* Cada día salía con ~390 minutos "sin
+determinar" en el Recorrido, porque un camión parado no reportaba nada y un
+hueco podía ser tanto una parada como la app muerta.
+
+**El hallazgo que lo hace obvio:** leyendo el plugin, en Android hace esto:
+
+```java
+locationRequest.setInterval(1000);                       // pide GPS CADA SEGUNDO
+locationRequest.setPriority(PRIORITY_HIGH_ACCURACY);     // a máxima precisión
+locationRequest.setSmallestDisplacement(distanceFilter); // pero solo ENTREGA a 40 m
+```
+
+**El GPS ya venía corriendo a tope cada segundo.** El filtro de 40 m no ahorraba
+batería: solo **tiraba** posiciones ya calculadas. Los 390 minutos no eran
+desconocidos, eran descartados. Esto no gasta más batería — deja de tirar lo
+que ya se paga.
+
+**Por qué nativo y no un temporizador de JavaScript:** el latido anterior era un
+`setInterval`, y Android **suspende** esos temporizadores en cuanto la app pasa
+a segundo plano — justo cuando más falta hacía. Ahora el pulso viene de código
+nativo que sigue corriendo; los eventos se encolan y se vacían al despertar
+**con su hora de captura intacta**, así que el rastro queda bien aunque la
+subida llegue a ráfagas.
+
+**Se ofrece cada 2 min, se guarda cada 5:** cada posición pasa igual por el
+filtro de envío, así que un camión parado escribe una fila cada 5 minutos
+(~100 filas por jornada). Ofrecer más seguido de lo que se guarda sirve para
+otra cosa: un camión que arranca se nota a los 2 minutos, no a los 5.
+
+**Consecuencia aceptada:** más filas y una subida en ráfagas cuando el teléfono
+estuvo dormido. A cambio, un hueco largo por fin **significa algo** — sin señal,
+o app caída — en vez de ser indistinguible de una parada normal.
+
+**Pendiente del usuario:** es nativo. Requiere compilar y subir el **APK 3**.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

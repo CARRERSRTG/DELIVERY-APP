@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { shouldSend, heartbeatDue, HEARTBEAT_MS, MIN_MOVE_M } from "@/lib/location-filter";
-import { isNativeApp, startNativeWatch, type NativeFix } from "@/lib/native-bridge";
+import { isNativeApp, startNativeWatch, startTimedPositions, type NativeFix } from "@/lib/native-bridge";
 
 // ============================================================
 // Shares the driver's position with the office WHILE THEY ARE ON SHIFT.
@@ -18,6 +18,24 @@ import { isNativeApp, startNativeWatch, type NativeFix } from "@/lib/native-brid
 // ============================================================
 
 export type LocationStatus = "off" | "starting" | "live" | "denied" | "unavailable";
+
+/**
+ * How often the native side offers a position regardless of movement.
+ *
+ * Note this is the OFFER rate, not the storage rate: each one still goes
+ * through shouldSend, so a parked truck is written once per HEARTBEAT_MS
+ * (5 min) and the two-minute offers in between are dropped. Roughly 100 rows
+ * across an eight-hour day.
+ *
+ * That indirection is the point. The heartbeat used to be a JavaScript timer,
+ * and Android suspends those the moment the app is backgrounded — so it never
+ * fired when it was most needed. Now the beat comes from native code that
+ * keeps running, and shouldSend simply decides which offers are worth a row.
+ *
+ * Offering more often than the heartbeat also means a truck that starts moving
+ * is noticed within two minutes rather than five.
+ */
+const TIMED_INTERVAL_MS = 120_000;
 
 interface BatteryManager { level: number }
 
@@ -62,6 +80,7 @@ export function useLiveLocation(active: boolean): { status: LocationStatus; last
 
     let cancelled = false;
     let stopNative: (() => void) | null = null;
+    let stopTimed: (() => void) | null = null;
     let browserWatchId: number | null = null;
 
     // Shared by both sources: filter, then write.
@@ -172,7 +191,27 @@ export function useLiveLocation(active: boolean): { status: LocationStatus; last
           MIN_MOVE_M,
         );
         if (cancelled) { stop?.(); return; }
-        if (stop) { stopNative = stop; setNative(true); return; }
+        if (stop) {
+          stopNative = stop;
+          setNative(true);
+          // Distance reporting alone leaves a parked truck silent for hours.
+          // This adds a fix on a clock, so a stop is a stop rather than a
+          // hole. Its own timestamps survive the app being backgrounded, so
+          // the track is right even when the upload arrives in bursts.
+          const stopClock = await startTimedPositions((f) => {
+            void report({
+              lat: f.lat,
+              lng: f.lng,
+              accuracy_m: f.accuracy ?? null,
+              speed_mps: f.speed ?? null,
+              heading: f.bearing ?? null,
+              recorded_at: new Date(f.time ?? Date.now()).toISOString(),
+            });
+          }, TIMED_INTERVAL_MS);
+          if (cancelled) stopClock?.();
+          else stopTimed = stopClock;
+          return;
+        }
         // No plugin despite being native — fall through to the browser API.
       }
 
@@ -208,6 +247,7 @@ export function useLiveLocation(active: boolean): { status: LocationStatus; last
       window.removeEventListener("focus", onWake);
       document.removeEventListener("visibilitychange", onWake);
       clearInterval(beat);
+      stopTimed?.();
       stopNative?.();
       if (browserWatchId != null) navigator.geolocation.clearWatch(browserWatchId);
     };

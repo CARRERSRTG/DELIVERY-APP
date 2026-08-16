@@ -9,7 +9,16 @@ import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
 
+import android.location.Location;
+import android.os.Looper;
+
 import androidx.core.content.ContextCompat;
+
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -138,6 +147,99 @@ public class BatteryGuardPlugin extends Plugin {
     public void openAppSettingsPage(PluginCall call) {
         openAppSettings();
         call.resolve(new JSObject().put("opened", true));
+    }
+
+    // ---- Time-based position reporting ------------------------------------
+    //
+    // The GPS plugin reports on DISTANCE: it asks Android for a fix every
+    // second at high accuracy, then throws away everything that hasn't moved
+    // 40 m. So a parked truck reports nothing, and a day comes back with six
+    // hours nobody can account for — while the battery for those six hours has
+    // already been spent computing positions we discarded.
+    //
+    // This adds a second subscription that reports on TIME instead. It costs
+    // effectively nothing: Play Services merges both requests, and the
+    // high-accuracy one-second request is already there.
+    //
+    // The fixes are handed to the web layer, which uploads them. Android
+    // suspends that layer in the background, but the events queue and flush on
+    // wake with the capture time intact — measured in production at over an
+    // hour late and still correctly stamped. Reporting every couple of minutes
+    // keeps that queue in the dozens, not the thousands.
+
+    private FusedLocationProviderClient fused;
+    private LocationCallback timedCallback;
+
+    /** Start reporting a position every `intervalMs`, moving or not. */
+    @PluginMethod
+    public void startTimedPositions(PluginCall call) {
+        if (!granted(Manifest.permission.ACCESS_FINE_LOCATION) && !granted(Manifest.permission.ACCESS_COARSE_LOCATION)) {
+            call.reject("Location permission not granted");
+            return;
+        }
+        long interval = call.getLong("intervalMs", 120000L);
+        stopTimed();
+        try {
+            fused = LocationServices.getFusedLocationProviderClient(getContext());
+            LocationRequest req = LocationRequest.create();
+            req.setInterval(interval);
+            req.setFastestInterval(interval);
+            // BALANCED, not HIGH_ACCURACY: the other subscription already runs
+            // the GPS flat out, so asking for high accuracy here would buy
+            // nothing and cost battery on any day it doesn't.
+            req.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+            // Zero on purpose. Distance is the other subscription's job; this
+            // one exists precisely to report a truck that ISN'T moving.
+            req.setSmallestDisplacement(0f);
+
+            timedCallback = new LocationCallback() {
+                @Override
+                public void onLocationResult(LocationResult result) {
+                    Location loc = result == null ? null : result.getLastLocation();
+                    if (loc == null) return;
+                    JSObject fix = new JSObject();
+                    fix.put("lat", loc.getLatitude());
+                    fix.put("lng", loc.getLongitude());
+                    fix.put("accuracy", loc.hasAccuracy() ? loc.getAccuracy() : null);
+                    fix.put("speed", loc.hasSpeed() ? loc.getSpeed() : null);
+                    fix.put("bearing", loc.hasBearing() ? loc.getBearing() : null);
+                    // The capture time, never the delivery time — the whole
+                    // point is that these arrive late and must still say when
+                    // the truck was actually there.
+                    fix.put("time", loc.getTime());
+                    notifyListeners("timedPosition", fix, true);
+                }
+            };
+            fused.requestLocationUpdates(req, timedCallback, Looper.getMainLooper());
+            call.resolve(new JSObject().put("started", true).put("intervalMs", interval));
+        } catch (SecurityException e) {
+            call.reject("Location permission refused by the system");
+        } catch (Exception e) {
+            call.reject(e.getMessage() == null ? "Could not start timed positions" : e.getMessage());
+        }
+    }
+
+    /** Stop it. Called on clock-out; leaving it running would report a driver
+     * on their own time. */
+    @PluginMethod
+    public void stopTimedPositions(PluginCall call) {
+        stopTimed();
+        call.resolve(new JSObject().put("stopped", true));
+    }
+
+    private void stopTimed() {
+        try {
+            if (fused != null && timedCallback != null) fused.removeLocationUpdates(timedCallback);
+        } catch (Exception ignored) {
+            // Already gone; nothing to undo.
+        }
+        timedCallback = null;
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        stopTimed();
+        super.handleOnDestroy();
     }
 
     private boolean granted(String perm) {

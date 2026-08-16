@@ -66,7 +66,18 @@ export interface DriverPermissionState {
   sdk?: number;
 }
 
+/** One fix from the native time-based reporter. */
+export interface TimedFix {
+  lat: number; lng: number;
+  accuracy?: number | null; speed?: number | null; bearing?: number | null;
+  /** Epoch ms when the position was CAPTURED, not when it reached us. */
+  time?: number | null;
+}
+
 interface BatteryGuardPlugin {
+  startTimedPositions?(opts: { intervalMs: number }): Promise<{ started: boolean }>;
+  stopTimedPositions?(): Promise<{ stopped: boolean }>;
+  addListener?(event: "timedPosition", cb: (f: TimedFix) => void): Promise<{ remove: () => void }>;
   permissionState?(): Promise<DriverPermissionState>;
   requestLocation?(): Promise<DriverPermissionState>;
   requestBackgroundLocation?(): Promise<DriverPermissionState>;
@@ -296,5 +307,39 @@ export async function registerForPush(onToken: (token: string) => void): Promise
     return true;
   } catch {
     return false;
+  }
+}
+
+// ---- Time-based position reporting -----------------------------------------
+
+/**
+ * Ask the native side to report a position every `intervalMs`, moving or not.
+ *
+ * The GPS plugin reports on DISTANCE, so a parked truck says nothing and hours
+ * of a day come back unaccounted for. This fills those in. The fixes arrive
+ * late when the app is backgrounded — Android suspends the WebView — but each
+ * carries its own capture time, so the track is right even though the upload
+ * is bursty.
+ *
+ * Returns a stop function, or null where it isn't available (a browser, or an
+ * APK built before this existed).
+ */
+export async function startTimedPositions(
+  onFix: (fix: TimedFix) => void,
+  intervalMs = 120_000,
+): Promise<(() => void) | null> {
+  const p = batteryGuard();
+  if (!p?.startTimedPositions || !p.addListener) return null;
+  try {
+    const handle = await p.addListener("timedPosition", (f) => {
+      if (typeof f?.lat === "number" && typeof f?.lng === "number") onFix(f);
+    });
+    await p.startTimedPositions({ intervalMs });
+    return () => {
+      try { handle.remove(); } catch { /* shutting down */ }
+      void p.stopTimedPositions?.().catch(() => { /* shutting down */ });
+    };
+  } catch {
+    return null;
   }
 }

@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-037", title: "El GPS reporta por reloj, no solo por movimiento",
+      fecha: "2026-08-16", version: "v1.5.3 · APK 3", quien: "Andrés",
+      cambio: "El código nativo entrega una posición cada 2 minutos, se mueva o no el camión, además del reporte por distancia que ya existía.",
+      razon: "haz lo del gps por tiempo.",
+      razonTextual: true,
+      consecuencia: "Cada día salía con ~390 minutos “sin determinar” en el Recorrido, porque un camión parado no reportaba y un hueco podía ser una parada o la app muerta. El hallazgo que lo hace obvio: el plugin pide GPS CADA SEGUNDO a máxima precisión y solo ENTREGA a los 40 m — o sea que el GPS ya venía corriendo a tope y el filtro no ahorraba batería, solo tiraba posiciones ya calculadas. Los 390 minutos no eran desconocidos, eran descartados; esto no gasta más batería, deja de tirar lo que ya se paga. Se hizo NATIVO y no con un temporizador de JavaScript porque Android suspende esos temporizadores en segundo plano, justo cuando más falta hacen; ahora el pulso viene de código nativo que sigue corriendo, y los eventos se encolan y se vacían al despertar CON SU HORA DE CAPTURA INTACTA, así que el rastro queda bien aunque la subida llegue a ráfagas. Se ofrece cada 2 min y se guarda cada 5 (~100 filas por jornada): ofrecer más seguido de lo que se guarda sirve para notar en 2 minutos, y no en 5, que un camión arrancó. Consecuencia aceptada: más filas y subidas en ráfagas cuando el teléfono estuvo dormido — a cambio, un hueco largo por fin SIGNIFICA algo (sin señal o app caída) en vez de ser indistinguible de una parada. Requiere compilar y subir el APK 3."
+    },
+    {
       id: "D-036", title: "Solo el teléfono que marcó entrada reporta",
       fecha: "2026-08-16", version: "v1.5.1", quien: "Andrés",
       cambio: "El turno guarda QUÉ TELÉFONO marcó entrada, y solo ese reporta posición (migración 050). Además, un navegador nunca rastrea: solo el APK.",
