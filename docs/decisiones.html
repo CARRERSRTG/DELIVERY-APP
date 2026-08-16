@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-036", title: "Solo el teléfono que marcó entrada reporta",
+      fecha: "2026-08-16", version: "v1.5.1", quien: "Andrés",
+      cambio: "El turno guarda QUÉ TELÉFONO marcó entrada, y solo ese reporta posición (migración 050). Además, un navegador nunca rastrea: solo el APK.",
+      razon: "tambien por ejemplo, yo me meto en la cuenta de maximo el conductor, pero si el le dio clock in la app va a ser inteligente y solo va a reconocer esa sesion de el?",
+      razonTextual: true,
+      consecuencia: "NO lo era: la única condición era “rol chofer + turno abierto”, así que cualquier dispositivo con esa sesión reportaba — y ya había pasado. Cuando el dueño entró a la cuenta del chofer a probar, su dispositivo empezó a mandar posiciones, y por eso un día salió en 4,936 millas con puntos a 1,300 millas de distancia; en su momento se trató como dato sucio y se borró, pero la causa de raíz es esta. Dos capas: (1) vinculación al dispositivo — al marcar entrada se guarda un id opaco de la instalación, aleatorio y en almacenamiento local, que no es huella ni identidad, y solo ese teléfono reporta durante ese turno; (2) solo el APK — un navegador es alguien REVISANDO, no manejando, y además solo el APK puede reportar con la pantalla apagada, así que esto deja fuera para siempre a la laptop de la oficina. Desconocido = permisivo a propósito: un turno abierto antes de que existiera la columna, o un teléfono que no puede guardar almacenamiento local, siguen rastreando — dejar a oscuras a un chofer real a media ruta sería peor que la mezcla que esto evita. Consecuencia aceptada: si el chofer reinstala la app a media jornada, su id cambia y deja de reportar hasta que vuelva a marcar entrada."
+    },
+    {
       id: "D-035", title: "El rastreo vive sobre las pantallas, no dentro de una",
       fecha: "2026-08-16", version: "v1.5.0", quien: "Andrés (auditoría)",
       cambio: "El rastreo de posición se movió al layout de la app. Antes corría dentro de ShiftClock, que solo se renderiza en la pantalla de Órdenes.",

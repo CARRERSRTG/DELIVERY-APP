@@ -174,7 +174,7 @@ describe("driverKpis", () => {
 describe("driverShiftKpis", () => {
   const mkShift = (over: Partial<DriverShift> = {}): DriverShift => ({
     id: "s1", driver_id: "u1", started_at: "2026-08-01T08:00:00.000Z",
-    ended_at: "2026-08-01T16:00:00.000Z", note: null, created_at: "2026-08-01T08:00:00.000Z", ...over,
+    ended_at: "2026-08-01T16:00:00.000Z", note: null, device_id: null, created_at: "2026-08-01T08:00:00.000Z", ...over,
   });
   const nameOf = (id: string) => (id === "u1" ? "Alex" : undefined);
 

@@ -15,6 +15,7 @@ import type { Delivery, DriverAvailability, DriverIncident, DriverLocation, Driv
 import { type AppNotification, assignmentNotification, notificationsForStage } from "@/lib/notifications";
 import { canTransition } from "@/lib/constants";
 import { orderOwner, changedFieldsNote } from "@/lib/utils";
+import { deviceId } from "@/lib/device-id";
 import { nextOrderCode, codeBand } from "@/lib/order-code";
 import { applyOutbox, isOfflineError, loadOutbox, pendingIds, saveOutbox, type OutboxItem } from "@/lib/outbox";
 import { blankDelivery } from "@/lib/blank-delivery";
@@ -941,7 +942,8 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const clockIn = useCallback<DataState["clockIn"]>(async (driverId) => {
     // Guard against a second open shift (also enforced by a partial unique index).
     if (shifts.some((sh) => sh.driver_id === driverId && !sh.ended_at)) return;
-    const { error } = await supabase.from("driver_shifts").insert({ driver_id: driverId });
+    // Which phone started the shift — only it reports position for it.
+    const { error } = await supabase.from("driver_shifts").insert({ driver_id: driverId, device_id: deviceId() });
     if (error) { notify("Error: " + error.message); return; }
     await reloadAll();
   }, [supabase, shifts, notify, reloadAll]);

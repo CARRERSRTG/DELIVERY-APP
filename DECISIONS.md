@@ -1099,6 +1099,43 @@ alinearlo en la próxima compilación.
 
 ---
 
+## D-036 · Solo el teléfono que marcó entrada reporta
+
+**Fecha:** 2026-08-16 · **Versión:** v1.5.1 · **Pedido por:** Andrés
+
+**Cambio:** el turno guarda **qué teléfono** marcó entrada, y solo ese reporta
+posición (migración 050). Además, **un navegador nunca rastrea**: solo el APK.
+
+**Razón:** *"yo me meto en la cuenta de Maximo el conductor, pero si él le dio
+clock in, ¿la app va a ser inteligente y solo va a reconocer esa sesión de él?"*
+— **No lo era.** La única condición era "rol chofer + turno abierto", así que
+**cualquier** dispositivo con esa sesión abierta reportaba.
+
+**Ya había pasado.** Cuando el dueño entró a la cuenta del chofer a probar, su
+dispositivo empezó a mandar posiciones: por eso un día salió en **4,936 millas**
+con puntos a 1,300 millas de distancia. En su momento lo tratamos como dato
+sucio y se borró; la causa de raíz es esta.
+
+**Dos capas, a propósito:**
+
+1. **Vinculación al dispositivo.** Al marcar entrada se guarda un id opaco de la
+   instalación (aleatorio, en el almacenamiento local — no es huella digital ni
+   identidad). Solo ese teléfono reporta durante ese turno.
+2. **Solo el APK.** Un navegador es alguien **revisando**, no alguien
+   manejando; además solo el APK puede reportar con la pantalla apagada. Esto
+   deja fuera para siempre a la laptop de la oficina.
+
+**Desconocido = permisivo, y es deliberado:** un turno abierto antes de que
+existiera la columna, o un teléfono que no puede guardar almacenamiento local,
+siguen rastreando igual. Dejar a oscuras a un chofer real a media ruta sería
+peor que la mezcla que esto evita.
+
+**Consecuencia aceptada:** si el chofer reinstala la app a media jornada, su id
+cambia y deja de reportar hasta que vuelva a marcar entrada. Es el precio de que
+el rastro corresponda a **un** camión.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

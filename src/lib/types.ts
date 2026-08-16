@@ -211,6 +211,11 @@ export interface DriverShift {
   started_at: string;
   ended_at: string | null;
   note: string | null;
+  /** Opaque per-install id of the phone that clocked in. Only that phone
+   * reports position for this shift, so a second device signed into the same
+   * account (the office checking something) doesn't mix its own position into
+   * the driver's day. Null = unknown, which tracks permissively. */
+  device_id: string | null;
   created_at: string;
 }
 

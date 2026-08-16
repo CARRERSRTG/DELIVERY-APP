@@ -7,6 +7,7 @@ import { type AppNotification, notificationsForStage } from "@/lib/notifications
 import { canTransition } from "@/lib/constants";
 import { orderOwner, todayISO } from "@/lib/utils";
 import { nextOrderCode } from "@/lib/order-code";
+import { deviceId } from "@/lib/device-id";
 import { DEMO_USERS, demoDeliveries, demoNotifications, demoSettings, uid } from "@/lib/demo-data";
 
 // ============================================================
@@ -309,7 +310,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
   const clockIn = useCallback<DataState["clockIn"]>(async (driverId) => {
     const s = storeRef.current;
     if ((s.shifts ?? []).some((sh) => sh.driver_id === driverId && !sh.ended_at)) return;
-    const row: DriverShift = { id: uid(), driver_id: driverId, started_at: new Date().toISOString(), ended_at: null, note: null, created_at: new Date().toISOString() };
+    const row: DriverShift = { id: uid(), driver_id: driverId, started_at: new Date().toISOString(), ended_at: null, note: null, device_id: deviceId(), created_at: new Date().toISOString() };
     persist({ ...s, shifts: [row, ...(s.shifts ?? [])] });
   }, [persist]);
   const clockOut = useCallback<DataState["clockOut"]>(async (driverId) => {

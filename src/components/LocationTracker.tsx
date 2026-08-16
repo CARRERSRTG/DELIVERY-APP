@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import { useData } from "@/lib/data-provider";
 import { useLiveLocation } from "@/lib/useLiveLocation";
+import { deviceId, isShiftDevice } from "@/lib/device-id";
+import { isNativeApp } from "@/lib/native-bridge";
 import type { Profile } from "@/lib/types";
 
 // ============================================================
@@ -29,10 +31,29 @@ import type { Profile } from "@/lib/types";
 
 export function LocationTracker({ me }: { me: Profile }) {
   const { shifts } = useData();
-  const open = useMemo(
-    () => shifts.some((s) => s.driver_id === me.id && !s.ended_at),
-    [shifts, me.id],
-  );
-  useLiveLocation(open);
+
+  const track = useMemo(() => {
+    const shift = shifts.find((s) => s.driver_id === me.id && !s.ended_at);
+    if (!shift) return false;
+    // ONLY THE PHONE THAT CLOCKED IN.
+    //
+    // A driver's account can be signed in on more than one device — the office
+    // logs in to look at something. Without this, every one of them reports
+    // position for the same shift, and the day's track ends up stitched from
+    // two places at once. That really happened: one day came out at 4,936
+    // miles with fixes 1,300 miles apart.
+    //
+    // Unknown on either side is permissive: a shift opened before this
+    // existed, or a phone that can't keep local storage, keeps working. Going
+    // dark on a real driver mid-route would be worse than the mixing it
+    // prevents.
+    if (!isShiftDevice(shift.device_id, deviceId())) return false;
+    // A browser is someone reviewing, not someone driving. Only the APK can
+    // report with the screen off anyway, so this costs nothing real and shuts
+    // the office's laptop out of the driver's track for good.
+    return isNativeApp();
+  }, [shifts, me.id]);
+
+  useLiveLocation(track);
   return null;
 }

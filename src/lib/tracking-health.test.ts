@@ -16,6 +16,7 @@ const shift = (driver_id: string, startedMinAgo: number, ended = false): DriverS
   started_at: minsAgo(startedMinAgo),
   ended_at: ended ? minsAgo(1) : null,
   note: null,
+  device_id: null,
   created_at: minsAgo(startedMinAgo),
 });
 
