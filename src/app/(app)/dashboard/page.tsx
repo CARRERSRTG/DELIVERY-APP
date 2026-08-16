@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AttentionPanel } from "@/components/AttentionPanel";
 import { useRouter } from "next/navigation";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
@@ -192,6 +193,9 @@ export default function DashboardPage() {
 
   return (
     <>
+      {/* Above the KPIs on purpose: these are the things nothing else would
+          have told anyone about. Renders nothing when the board is healthy. */}
+      <AttentionPanel onOpen={(d) => openOrder(d.id)} />
       <div className="page-head">
         <h2>{t("Dashboard", "Panel")}</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
