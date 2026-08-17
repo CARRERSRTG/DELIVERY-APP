@@ -1893,8 +1893,17 @@ export function OrderModal({
           </div>
         )}
 
-        {/* ---------- RE-DELIVERY: record a repeat (warehouse/office + the driver) ---------- */}
-        {!editing && existing && existing.stage === "delivered" && (canFulfill(me) || canApprove(me) || canDeliver(me)) && (
+        {/* ---------- RE-DELIVERY: record a repeat ----------
+            Shown to exactly the roles the DATABASE allows to log one. The
+            guard (see the deliveries_guard_stage trigger) accepts warehouse,
+            manager and driver, with admin bypassing it entirely.
+            It used to be gated on capabilities — canFulfill || canApprove ||
+            canDeliver — which also let accounting and logistics in through
+            "approve". Verified against the live database: both are refused
+            with "Not allowed to log this re-delivery", so those two roles had
+            a button that could only ever throw. */}
+        {!editing && existing && existing.stage === "delivered"
+          && ["admin", "manager", "warehouse", "driver"].includes(me.role) && (
           showRedeliver ? (
             <div className="field" style={{ marginTop: 14 }}>
               <label>{t("Why does this order need to be delivered again?", "¿Por qué debe entregarse esta orden de nuevo?")}</label>
