@@ -243,7 +243,7 @@
     {
       id: "D-004", title: "Cualquier orden se puede programar, aunque no esté lista",
       fecha: "2026-08-12", version: "v0.9.68", quien: "Andrés",
-      cambio: "El Gestor de Rutas muestra órdenes en borrador y pendientes, no solo las aprobadas. Solo quedan fuera las entregadas, recogidas, canceladas y rechazadas.",
+      cambio: "El Gestor de Rutas muestra órdenes pendientes y sin preparar, no solo las aprobadas. CORREGIDO (v1.8.3): originalmente incluía los BORRADORES, y eso estaba mal leído — el dueño aclaró que “sí los pedí, pero no los que están como draft, porque no están creados”. Un borrador no se ha enviado, así que no es una orden todavía; lo que sí se pedía era no tener que esperar al almacén. Solo quedan fuera las entregadas, recogidas, canceladas y rechazadas.",
       razon: "Quiero que todas las órdenes se puedan asignar aunque no estén listas, que se puedan programar en Routes Manager.",
       razonTextual: true,
       consecuencia: "Se puede planear una ruta con órdenes que el almacén todavía no prepara. La columna Estado muestra en qué etapa va cada una. Efecto secundario que hubo que resolver: la base de datos rechazaba que logística editara órdenes no aprobadas (migración 042); sin eso, reordenar una parada se revertía sola."

@@ -74,9 +74,17 @@ al mismo lugar para la siguiente, en vez de hacerlas juntas."*
 ## D-004 · Cualquier orden se puede programar, aunque no esté lista
 **Fecha:** 2026-08-12 · **Versión:** v0.9.68 · **Pedido por:** Andrés
 
-**Cambio:** El Gestor de Rutas muestra órdenes en borrador y pendientes, no solo
-las aprobadas. Solo quedan fuera las entregadas, recogidas, canceladas y
+**Cambio:** El Gestor de Rutas muestra órdenes pendientes y sin preparar, no
+solo las aprobadas. Quedan fuera las entregadas, recogidas, canceladas y
 rechazadas.
+
+> **CORREGIDO (2026-08-17, v1.8.3).** Esto originalmente incluía los
+> **borradores**, y estaba mal leído de mi parte. El dueño lo aclaró: *"sí los
+> pedí, pero no los que están como draft, porque no están creados"*. Un
+> borrador no se ha enviado — no es una orden todavía, y planear un camión
+> alrededor de algo con lo que nadie se ha comprometido no es planear. Lo que
+> sí se pedía era no tener que esperar al almacén: una orden pendiente o sin
+> preparar sigue siendo programable.
 
 **Razón (textual):** *"quiero que todas las órdenes se puedan asignar aunque no
 estén listas, que se puedan programar en Routes Manager."*

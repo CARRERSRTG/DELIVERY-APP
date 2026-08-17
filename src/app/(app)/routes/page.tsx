@@ -50,7 +50,11 @@ const SEL_PALETTE = ["#2456c9", "#0f8a8a", "#d1782e", "#7c4dbc", "#1f9d61", "#d6
 // (rejected/canceled) — so an order still in draft/pending, not yet approved or
 // prepared, can be dropped onto a route ahead of time. The warehouse still has
 // to get it ready before it actually ships; this just lets dispatch pre-plan it.
-const ROUTE_STAGES: Delivery["stage"][] = ["draft", "pending", "approved", "fulfilling", "ready"];
+// Drafts are excluded: a draft hasn't been submitted, so it isn't an order yet
+// — planning a truck around one is planning around something nobody has
+// committed to. Pending and unprepared orders DO belong here, which was the
+// actual point of D-004: dispatch shouldn't have to wait for the warehouse.
+const ROUTE_STAGES: Delivery["stage"][] = ["pending", "approved", "fulfilling", "ready"];
 // Used whenever a driver has no capacity set yet in Settings.
 const DEFAULT_CAPACITY = 12;
 

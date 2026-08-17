@@ -7,12 +7,31 @@
 // of them say nothing new.
 // ============================================================
 
-/** Don't write more often than this, however many fixes the phone offers. */
-export const MIN_INTERVAL_MS = 25_000;
+/**
+ * Don't write more often than this, however many fixes the phone offers.
+ *
+ * Ten seconds, not twenty-five. This is what actually decides how precise a
+ * driven route can ever be: at 30 mph a point every 25 s left 400 m of road
+ * unrecorded between them, which is a straight line across streets the truck
+ * never took. At 10 s it's about 130 m — close enough to see the roads taken.
+ *
+ * The battery argument for a longer gap doesn't hold: the GPS runs at high
+ * accuracy every second regardless (see the plugin's LocationRequest), so a
+ * longer gap doesn't save power, it only throws away positions already paid
+ * for. What it costs is rows — about 1,500 a day per driver instead of 170.
+ */
+export const MIN_INTERVAL_MS = 10_000;
 /** Coarser than this is a cell-tower guess, not a position — ignore it. */
 export const MAX_ACCURACY_M = 200;
-/** Below this the truck is parked and the GPS is just drifting. */
-export const MIN_MOVE_M = 40;
+/**
+ * Below this the truck is parked and the GPS is just drifting.
+ *
+ * Twenty-five metres rather than forty: at forty, a turn through an
+ * intersection could pass unrecorded, and the trace cut the corner. Still well
+ * clear of the drift a parked phone shows at the 4–10 m accuracy these fixes
+ * report.
+ */
+export const MIN_MOVE_M = 25;
 /**
  * Report at least this often even when the truck hasn't moved.
  *

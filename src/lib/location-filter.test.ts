@@ -75,3 +75,29 @@ describe("heartbeat", () => {
     expect(heartbeatDue(0, HEARTBEAT_MS)).toBe(true);
   });
 });
+
+// ---- Precision --------------------------------------------------------------
+describe("how precise a driven route can be", () => {
+  const here = { lat: 26.2034, lng: -98.23 };
+
+  it("writes a moving truck every 10 seconds, not every 25", () => {
+    // This constant, not the GPS, is what limits the trace. At 30 mph a
+    // 25-second gap left 400 m of road unrecorded between two points.
+    const last = { ...here, at: 0 };
+    const moved = { lat: 26.2034, lng: -98.2295 };   // ~50 m east
+    expect(shouldSend(moved, last, 9_000)).toBe(false);
+    expect(shouldSend(moved, last, 10_000)).toBe(true);
+  });
+
+  it("still refuses a parked truck's drift", () => {
+    // 25 m is well clear of what a stationary phone wanders at 4-10 m accuracy.
+    const last = { ...here, at: 0 };
+    const drift = { lat: 26.20342, lng: -98.23002 };  // a couple of metres
+    expect(shouldSend(drift, last, 60_000)).toBe(false);
+  });
+
+  it("keeps the parked heartbeat as the way a stopped truck stays visible", () => {
+    const last = { ...here, at: 0 };
+    expect(shouldSend(here, last, HEARTBEAT_MS)).toBe(true);
+  });
+});

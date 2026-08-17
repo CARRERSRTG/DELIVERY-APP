@@ -35,7 +35,7 @@ export type LocationStatus = "off" | "starting" | "live" | "denied" | "unavailab
  * Offering more often than the heartbeat also means a truck that starts moving
  * is noticed within two minutes rather than five.
  */
-const TIMED_INTERVAL_MS = 120_000;
+const TIMED_INTERVAL_MS = 60_000;
 
 interface BatteryManager { level: number }
 
