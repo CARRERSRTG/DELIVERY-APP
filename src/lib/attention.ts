@@ -55,9 +55,11 @@ export function missingPin(deliveries: Delivery[]): Delivery[] {
  * during the backlog import — those never had proof and never will, and
  * flagging 35 of them would bury the ones that matter.
  *
- * With signatures off and proof not required, this is the expected outcome
- * rather than a fault. It is surfaced anyway so the count is visible before a
- * customer disputes one, instead of after.
+ * ONLY meaningful when the office actually asks for proof. With signatures and
+ * `require_pod` both off, a delivery with nothing attached is the configured
+ * outcome, not a fault — flagging it would be the app arguing with a setting
+ * its owner chose, every single day, until they stopped reading the panel.
+ * See `attentionItems`.
  */
 export function deliveredWithoutProof(deliveries: Delivery[]): Delivery[] {
   return deliveries.filter((d) =>
@@ -69,11 +71,24 @@ export function deliveredWithoutProof(deliveries: Delivery[]): Delivery[] {
     !(d.photos?.length));
 }
 
-/** Everything above, in the order it should be acted on. */
-export function attentionItems(deliveries: Delivery[], today: string = todayISO()): AttentionItem[] {
+/**
+ * Everything above, in the order it should be acted on.
+ *
+ * `proofRequired` reflects the settings: missing proof is only worth raising
+ * when the office asked for proof in the first place. Otherwise the panel
+ * would spend every day complaining about a switch its owner deliberately
+ * turned off, and a panel that is wrong daily is a panel nobody opens.
+ */
+export function attentionItems(
+  deliveries: Delivery[],
+  today: string = todayISO(),
+  proofRequired = false,
+): AttentionItem[] {
   return [
     ...overdueUnassigned(deliveries, today).map((delivery) => ({ kind: "overdue_unassigned" as const, delivery })),
     ...missingPin(deliveries).map((delivery) => ({ kind: "no_pin" as const, delivery })),
-    ...deliveredWithoutProof(deliveries).map((delivery) => ({ kind: "no_proof" as const, delivery })),
+    ...(proofRequired
+      ? deliveredWithoutProof(deliveries).map((delivery) => ({ kind: "no_proof" as const, delivery }))
+      : []),
   ];
 }

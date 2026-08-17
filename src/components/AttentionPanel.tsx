@@ -26,11 +26,14 @@ const STYLE: Record<AttentionKind, { icon: string; color: string; bg: string }> 
 };
 
 export function AttentionPanel({ onOpen }: { onOpen?: (d: Delivery) => void }) {
-  const { deliveries } = useData();
+  const { deliveries, settings } = useData();
   const { t } = usePrefs();
   const [dismissed, setDismissed] = useState(false);
 
-  const items = useMemo(() => attentionItems(deliveries), [deliveries]);
+  // Missing proof is only a fault when proof was asked for. With both
+  // switches off it is exactly what the settings say should happen.
+  const proofRequired = settings.require_pod === true || settings.pod_signature_enabled === true;
+  const items = useMemo(() => attentionItems(deliveries, undefined, proofRequired), [deliveries, proofRequired]);
 
   const label: Record<AttentionKind, { title: string; why: string }> = {
     overdue_unassigned: {

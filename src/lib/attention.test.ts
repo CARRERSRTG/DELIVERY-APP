@@ -73,13 +73,37 @@ describe("deliveredWithoutProof", () => {
 });
 
 describe("attentionItems", () => {
+  const noProof = mk({ id: "a", stage: "delivered", pod_delivered_at: "2026-08-14T19:32:00Z" });
+  const overdue = mk({ id: "b", stage: "approved", delivery_date: "2026-08-05", assigned_driver: null, delivery_lat: 25.9, delivery_lng: -97.5 });
+
   it("puts overdue work ahead of bookkeeping", () => {
-    const items = attentionItems([
-      mk({ id: "a", stage: "delivered", pod_delivered_at: "2026-08-14T19:32:00Z" }),
-      mk({ id: "b", stage: "approved", delivery_date: "2026-08-05", assigned_driver: null, delivery_lat: 25.9, delivery_lng: -97.5 }),
-    ], TODAY);
+    const items = attentionItems([noProof, overdue], TODAY, true);
     expect(items[0].kind).toBe("overdue_unassigned");
     expect(items[items.length - 1].kind).toBe("no_proof");
+  });
+
+  it("says nothing about missing proof when no proof was asked for", () => {
+    // Signatures and require_pod are both off by choice, so a delivery with
+    // nothing attached is the configured outcome. Raising it every day would
+    // be the app arguing with its owner's own setting until they stopped
+    // reading the panel.
+    const items = attentionItems([noProof], TODAY, false);
+    expect(items).toEqual([]);
+  });
+
+  it("defaults to staying quiet about it", () => {
+    expect(attentionItems([noProof], TODAY)).toEqual([]);
+  });
+
+  it("still raises it once proof IS required", () => {
+    // Then a delivery with nothing attached really is a rule going unmet.
+    expect(attentionItems([noProof], TODAY, true).map((i) => i.kind)).toEqual(["no_proof"]);
+  });
+
+  it("keeps raising the other two either way", () => {
+    for (const required of [true, false]) {
+      expect(attentionItems([overdue], TODAY, required).map((i) => i.kind)).toEqual(["overdue_unassigned"]);
+    }
   });
 
   it("is empty on a healthy board", () => {
