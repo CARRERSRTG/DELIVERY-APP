@@ -361,6 +361,21 @@ table.orders th { text-align: left; }
   background: rgba(15,23,42,.72); color: #fff; font-weight: 800; font-size: 12px; line-height: 1;
 }
 .photo-del:hover { background: var(--red); }
+/* Who took the photo, over the bottom of it. A delivery photo is partly a
+   claim about who stands behind it, and the URL alone made every picture
+   anonymous. */
+.photo-by {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 3px 5px 4px;
+  background: linear-gradient(to top, rgba(15,23,42,.86), rgba(15,23,42,0));
+  color: #fff; font-size: 9.5px; font-weight: 700; line-height: 1.15;
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  pointer-events: none;
+}
+.photo-by-role {
+  display: block; font-weight: 500; opacity: .8; font-size: 8.5px;
+  text-transform: uppercase; letter-spacing: .04em;
+}
 .photo-add {
   width: 96px; height: 96px; border-radius: 10px; border: 1px dashed var(--line);
   background: var(--paper); color: var(--gray); font-size: 22px;

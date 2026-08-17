@@ -177,6 +177,11 @@ export interface Delivery {
   delivery_lng: number | null;
   delivery_pin_source: "geocoded" | "manual" | null;
 
+  /** Who took each photo, keyed by its URL. Written automatically whenever
+   * photos are saved (see data-provider). Absent for anything uploaded before
+   * this existed — an unattributed photo, not a wrong one. */
+  photo_meta?: Record<string, { by: string; at: string }> | null;
+
   created_by: string | null;
   /** Set when an office/admin/driver creates the order on behalf of a sales
    * rep (see OrderModal's Sales Rep picker). `created_by` always stays the

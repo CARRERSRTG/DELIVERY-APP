@@ -46,12 +46,16 @@ export function PhotoUpload({
   onChange,
   disabled,
   max = 6,
+  credits,
   t,
 }: {
   photos: string[];
   onChange: (next: string[]) => void;
   disabled?: boolean;
   max?: number;
+  /** Who took each photo, keyed by URL. A caption goes under any photo that
+   * has one — the point of a delivery photo is partly who stands behind it. */
+  credits?: Record<string, { name: string; role: string } | undefined>;
   t: (en: string, es: string) => string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -89,6 +93,14 @@ export function PhotoUpload({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={src} alt={`photo ${i + 1}`} onClick={() => window.open(src, "_blank")} />
             {!disabled && <button className="photo-del" onClick={() => remove(i)} title={t("Remove", "Quitar")}>✕</button>}
+            {/* Photos taken before attribution existed have no caption rather
+                than a guessed one. */}
+            {credits?.[src] && (
+              <span className="photo-by" title={`${credits[src]!.name} · ${credits[src]!.role}`}>
+                {credits[src]!.name}
+                <span className="photo-by-role">{credits[src]!.role}</span>
+              </span>
+            )}
           </div>
         ))}
         {!disabled && !full && (

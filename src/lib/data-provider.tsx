@@ -592,7 +592,8 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   );
 
   const updateDelivery = useCallback<DataState["updateDelivery"]>(
-    async (id, patch, opts) => {
+    async (id, patchIn, opts) => {
+      let patch = patchIn;
       // Teaching mode: record the edit in the local overlay only.
       if (teaching) {
         setOverlay((o) => {
@@ -604,6 +605,25 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         return true;
       }
       const before = deliveries.find((c) => c.id === id);
+
+      // Stamp WHO took each new photo. Done here rather than at each call
+      // site because every uploader — the driver's card, the delivery sheet,
+      // the office view — goes through this one write, and an attribution
+      // that depends on remembering to add it is an attribution that goes
+      // missing.
+      //
+      // Keyed by URL and merged, so removing a photo drops its entry and the
+      // survivors keep their authors.
+      if (patch.photos && me) {
+        const prevMeta = before?.photo_meta ?? {};
+        const now = new Date().toISOString();
+        const meta: Record<string, { by: string; at: string }> = {};
+        for (const url of patch.photos) {
+          meta[url] = prevMeta[url] ?? { by: me.id, at: now };
+        }
+        patch = { ...patch, photo_meta: meta };
+      }
+
       const { error } = await supabase.from("deliveries").update(patch).eq("id", id);
       if (error) {
         if (!opts?.quiet) notify("Error: " + error.message);

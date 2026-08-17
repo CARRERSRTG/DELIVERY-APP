@@ -707,6 +707,24 @@ export function OrderModal({
   const podOwed = !!settings.require_pod && !existing?.photos?.length;
   const podFormNeeded = signatureOn || podOwed;
 
+  /**
+   * Who took each photo, ready for the grid.
+   *
+   * Resolved here rather than stored on the row: a name and a role change over
+   * time, and the caption should show what someone IS, not what their title
+   * was the day they pressed the shutter.
+   */
+  const photoCredits = useMemo(() => {
+    const meta = existing?.photo_meta;
+    if (!meta) return undefined;
+    const out: Record<string, { name: string; role: string } | undefined> = {};
+    for (const [url, info] of Object.entries(meta)) {
+      const who = users.find((u) => u.id === info?.by);
+      if (who) out[url] = { name: who.full_name, role: roleLabel(who.role, lang) };
+    }
+    return out;
+  }, [existing?.photo_meta, users, lang]);
+
   const podBlocker: string | null = (() => {
     if (!existing) return null;
     if (podFormNeeded && !podName.trim()) return t("Enter who received the delivery.", "Ingrese quién recibió la entrega.");
@@ -1142,6 +1160,7 @@ export function OrderModal({
                 </div>
                 <PhotoUpload
                   photos={existing.photos ?? []}
+                  credits={photoCredits}
                   disabled={!canDeliver(me) || photoBusy}
                   onChange={async (next) => {
                     setPhotoBusy(true);
@@ -1985,6 +2004,7 @@ export function OrderModal({
                   </label>
                   <PhotoUpload
                     photos={existing.photos ?? []}
+                    credits={photoCredits}
                     disabled={photoBusy}
                     onChange={async (next) => {
                       setPhotoBusy(true);
