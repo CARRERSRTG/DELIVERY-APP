@@ -1075,7 +1075,7 @@ export function OrderModal({
                   {existing?.order_type && <span className="hdr-chip">{existing.order_type}</span>}
                   {existing?.invoice_num && (
                     <span className="hdr-chip hdr-chip-num">
-                      # {existing.invoice_num}
+                      INV {existing.invoice_num}
                     </span>
                   )}
                 </>

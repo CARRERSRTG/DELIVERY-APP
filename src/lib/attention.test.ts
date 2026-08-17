@@ -110,3 +110,21 @@ describe("attentionItems", () => {
     expect(attentionItems([mk({ stage: "ready", delivery_date: TODAY, assigned_driver: "Maximo Garza", delivery_lat: 25.9, delivery_lng: -97.5 })], TODAY)).toEqual([]);
   });
 });
+
+describe("missingPin covers what Routes Manager can plan", () => {
+  it("catches a PENDING order with no coordinates", () => {
+    // FQ503: pending, dated for tomorrow, full Weslaco address, no pin. It is
+    // schedulable, so the optimizer would load it into a route and silently
+    // drop it — and the old rule started at "approved", so nothing said so.
+    expect(missingPin([mk({ stage: "pending", delivery_lat: null })])).toHaveLength(1);
+  });
+
+  it("still ignores drafts", () => {
+    expect(missingPin([mk({ stage: "draft", delivery_lat: null })])).toHaveLength(0);
+  });
+
+  it("ignores an order already out on a truck", () => {
+    // Picked up: the driver has it, a missing pin is no longer actionable.
+    expect(missingPin([mk({ stage: "picked_up", delivery_lat: null })])).toHaveLength(0);
+  });
+});

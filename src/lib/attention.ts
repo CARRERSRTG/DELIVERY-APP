@@ -24,6 +24,16 @@ export interface AttentionItem {
 const OPEN: Delivery["stage"][] = ["approved", "fulfilling", "ready", "picked_up"];
 
 /**
+ * Stages Routes Manager will plan a truck around (see ROUTE_STAGES).
+ *
+ * Wider than OPEN by one: a PENDING order is schedulable, so it can be loaded
+ * into a route — and if it has no coordinates the optimizer drops it without a
+ * word. FQ503 was exactly that: pending, dated for tomorrow, a full Weslaco
+ * address, and invisible to routing. OPEN didn't cover it.
+ */
+const PLANNABLE: Delivery["stage"][] = ["pending", "approved", "fulfilling", "ready"];
+
+/**
  * Past its delivery date with no driver.
  *
  * The date has to be BEFORE today, not merely today: an order dated today with
@@ -41,11 +51,12 @@ export function overdueUnassigned(deliveries: Delivery[], today: string = todayI
  * Live work with no coordinates.
  *
  * The route optimizer skips these without a word, so a stop can be scheduled,
- * loaded and never routed. Undated drafts are excluded — nobody has committed
- * to those yet.
+ * loaded and never routed. Measured against what Routes Manager can PLAN, not
+ * what is approved: a pending order is schedulable too. Drafts are excluded —
+ * they aren't orders yet.
  */
 export function missingPin(deliveries: Delivery[]): Delivery[] {
-  return deliveries.filter((d) => OPEN.includes(d.stage) && d.delivery_lat == null);
+  return deliveries.filter((d) => PLANNABLE.includes(d.stage) && d.delivery_lat == null);
 }
 
 /**
