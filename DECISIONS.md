@@ -1221,6 +1221,78 @@ exótico ahí produce una cuenta que se ve bien y **no puede entrar**.
 
 ---
 
+## D-039 · Registro de cambios de acceso
+
+**Fecha:** 2026-08-16 · **Versión:** v1.7.0 · **Pedido por:** Andrés
+
+**Cambio:** Un registro aparte anota quién cambió roles, permisos, usuario y correo, y quién restableció contraseñas. Se ve en Auditoría, solo para admins.
+
+**Razón:** registro de seguridad: quién cambió el acceso de alguien y cuándo
+
+**Consecuencia aceptada:** Un admin podía restablecer contraseñas, cambiar correos y roles, y NADA quedaba escrito. La Auditoría solo cubría órdenes, así que la pregunta “¿quién le cambió el rol a esta persona?” no tenía respuesta. Es angosto a propósito: solo lo que cambia qué puede alcanzar alguien o cómo entra — un registro que anota todo no lo lee nadie. Nunca guarda una contraseña: el registro es que HUBO un restablecimiento, no lo que produjo. Es de solo lectura por construcción, y se verificó en vez de suponerse: se sembró una fila y, actuando como admin, se corrió DELETE y UPDATE sobre toda la tabla — ambos devolvieron sin error (RLS afecta cero filas en silencio) y la fila sobrevivió intacta. Un admin tampoco puede firmar una entrada a nombre de otro. El nombre de quien fue eliminado se guarda en la fila y no se busca después: su perfil se va con la cuenta, y esa entrada es la que más vale poder leer meses después.
+
+---
+
+## D-040 · Las fotos dicen quién las tomó
+
+**Fecha:** 2026-08-16 · **Versión:** v1.7.2 · **Pedido por:** Andrés
+
+**Cambio:** Cada foto muestra el nombre y el puesto de quien la subió, sobre la miniatura y en el visor.
+
+**Razón:** *"cuando alguien suba foto que aparezca quien la subio y el puesto"*
+
+**Consecuencia aceptada:** El campo de fotos era una lista de URLs y nada más, así que ninguna imagen tenía autor. El registro de actividad anota que “photos” cambió y por quién, pero no CUÁL foto — FQ114 tiene seis de esas entradas del mismo chofer en diez minutos, y no había forma de ligar un nombre a ninguna. Se estampa en el proveedor y no en cada pantalla: la tarjeta del chofer, la hoja de entrega y la vista de oficina escriben por el mismo punto, y una atribución que depende de acordarse de agregarla es una que se pierde. El nombre y el puesto se resuelven AL MOSTRARLOS, no se congelan en la fila: el pie debe decir lo que la persona ES, no lo que decía su puesto el día que apretó el botón. Las fotos anteriores quedan sin pie, no con uno inventado.
+
+---
+
+## D-041 · Las fotos se abren y se pueden acercar
+
+**Fecha:** 2026-08-16 · **Versión:** v1.7.3 · **Pedido por:** Andrés
+
+**Cambio:** Tocar una foto abre un visor a pantalla completa con zoom (pellizco, doble toque, rueda o botones), desplazamiento y flechas entre fotos. La firma de una entrega también.
+
+**Razón:** *"le doy click a la foto y no me abre, quiero que me abra como pop up y hasta me deje darle zoom"*
+
+**Consecuencia aceptada:** Tocar la foto llamaba a window.open, que dentro del WebView de Android no hace absolutamente nada: sin manejador de popups, sin pestaña nueva y sin error. La foto simplemente no era clicable justo en el dispositivo donde una foto de entrega importa. El zoom se implementó en vez de dejárselo al navegador porque un WebView con viewport fijo no hace pinch sobre un elemento de la página, y la foto es exactamente lo que alguien necesita agrandar: un número de lote, una esquina golpeada, un remito. El zoom se reinicia al pasar de foto — arrastrarlo deja al lector en medio de una imagen que todavía no ha visto. La firma se mostraba a 90px de alto y sin clic, que no es un tamaño al que nadie pueda verificar una firma.
+
+---
+
+## D-042 · La selección múltiple es para quien despacha
+
+**Fecha:** 2026-08-16 · **Versión:** v1.7.6 · **Pedido por:** Andrés
+
+**Cambio:** Se quitó la columna de casillas a vendedor y contabilidad. La conservan admin, gerente y logística.
+
+**Razón:** *"quitale a ellos, a vendedor y accounting"*
+
+**Consecuencia aceptada:** Vendedor la tenía para UNA sola acción (enviar a aprobación) — toda una columna de pantalla para un botón. Contabilidad la tenía para aprobar, cancelar y fijar fecha, que son decisiones que conviene tomar orden por orden y no de ocho en ocho. Ninguno pierde capacidades: las siguen teniendo desde la orden misma. También se quitó a contabilidad de esos tres botones de la barra, porque sin casilla ya no puede seleccionar nada y las ramas quedaban inalcanzables — le habrían dicho al siguiente que lea el código que contabilidad aprueba en lote. Chofer y almacén nunca la tuvieron: todos los controles de la barra están reservados a roles de oficina, así que la columna seleccionaría filas sobre las que no podrían actuar.
+
+---
+
+## D-043 · Fuera la satisfacción del cliente
+
+**Fecha:** 2026-08-16 · **Versión:** v1.7.7 · **Pedido por:** Andrés
+
+**Cambio:** Se quitaron las estrellas y el comentario de la orden, y los cinco indicadores que los mostraban.
+
+**Razón:** *"en el view de ordenes se sigue viendo lo de satisfaccion del cliente"*
+
+**Consecuencia aceptada:** Se verificó antes de borrarlo: 0 de 53 órdenes han tenido alguna vez calificación o comentario. Nunca se usó. Sin forma de capturarla, los indicadores solo podían mostrar un guion para siempre, así que se fueron con ella: el recuadro de flota, la línea de tendencia, la columna por chofer, la celda de promedio y “% Calif.” en la tabla de calidad, más sus tres columnas del CSV. Las columnas csat_rating y csat_comment se quedan en la base, así que no se pierde nada si vuelve. Quitar celdas de tablas es donde este tipo de cambio se rompe, así que se contaron después en vez de confiar en la compilación — aparecieron dos huérfanos que TypeScript y el build aceptaron sin quejarse: un encabezado sin celda debajo, y la estrella del promedio de flota escondida en la fila de totales.
+
+---
+
+## D-044 · Contabilidad revisa y aprueba; no crea
+
+**Fecha:** 2026-08-16 · **Versión:** v1.8.0 · **Pedido por:** Andrés
+
+**Cambio:** Contabilidad ya no ve el enlace de seguimiento del cliente, ni el botón Duplicar, ni puede crear órdenes.
+
+**Razón:** *"el de contabilidad no tiene que ver eso de copiar enlace / y de hecho ellos tampoco pueden duplicar ordenes ni crear"*
+
+**Consecuencia aceptada:** El enlace de seguimiento es herramienta de ventas y despacho: contabilidad factura la entrega, no le dice al cliente dónde va el camión. Crear y Duplicar salían de la misma capacidad, así que quitar “create” del rol eliminó ambos, más el “+ Nueva orden” y el envío masivo a aprobación. Eso resultó ser un desajuste entre interfaz y base de datos, no un cambio de política: se simuló un alta como contabilidad contra la base real y SIEMPRE estuvo prohibida — “Only sales, managers or drivers can create orders”. La app ofrecía dos botones que la base reventaba, y la descripción del rol decía “Como Oficina” y listaba “Crear órdenes” entre sus permisos. Ninguna de las dos cosas era cierta.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
