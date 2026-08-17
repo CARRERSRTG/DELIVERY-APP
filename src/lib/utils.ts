@@ -299,6 +299,26 @@ export function deliveryRisk(d: Delivery, now: Date = new Date()): DeliveryRisk 
   return null;
 }
 
+/**
+ * Is this order actually waiting for a driver?
+ *
+ * "No driver assigned" is not the same question. A draft has no driver either,
+ * but nobody has committed to it — it hasn't been submitted, approved or
+ * promised to anyone — so counting it as work awaiting dispatch puts orders on
+ * the "unscheduled" list that nobody is supposed to schedule yet.
+ *
+ * Finished and abandoned orders are excluded for the same reason: they are not
+ * waiting for anything.
+ *
+ * NOTE: Routes Manager deliberately DOES show drafts, so a dispatcher can
+ * pre-plan work the warehouse hasn't prepared (D-004). This is about the
+ * "unscheduled" views, not about what can be planned.
+ */
+export function awaitingDriver(d: { assigned_driver?: string | null; stage?: string | null }): boolean {
+  if (d.assigned_driver) return false;
+  return !["draft", "delivered", "canceled", "rejected"].includes(d.stage ?? "");
+}
+
 /** Whole days between two ISO timestamps (a - b), floored. */
 export function daysBetween(aISO: string, bISO: string): number {
   return Math.floor((new Date(aISO).getTime() - new Date(bISO).getTime()) / 86_400_000);

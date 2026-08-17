@@ -10,7 +10,7 @@ import { OrdersTable, ORDER_COLUMNS, DEFAULT_COLUMNS } from "@/components/Orders
 import { OrdersBoard } from "@/components/OrdersBoard";
 import { OrderModal } from "@/components/OrderModal";
 import { ImportOrdersModal } from "@/components/ImportOrdersModal";
-import { daysBetween, deliveryColumns, downloadCSV, LATE_GRACE_DAYS, orderLabel, isOverdue, isPendingUrgent, isToday, orderOwner, shiftDateISO, toCSV, todayISO, withinRetention } from "@/lib/utils";
+import { awaitingDriver, daysBetween, deliveryColumns, downloadCSV, LATE_GRACE_DAYS, orderLabel, isOverdue, isPendingUrgent, isToday, orderOwner, shiftDateISO, toCSV, todayISO, withinRetention } from "@/lib/utils";
 import { exportExcelByEmployee, exportPDFByEmployee } from "@/lib/export";
 import type { Delivery, Stage, UserRole } from "@/lib/types";
 
@@ -199,7 +199,9 @@ export default function OrdersPage() {
       if (activeFilter !== "all" && d.stage !== activeFilter) return false;
       if (preset === "today" && !isToday(d.delivery_date)) return false;
       if (preset === "overdue" && !isOverdue(d)) return false;
-      if (preset === "unassigned" && d.assigned_driver) return false;
+      // A draft has no driver either, but it isn't waiting for one — nobody
+      // has submitted it. It was showing up as work to schedule.
+      if (preset === "unassigned" && !awaitingDriver(d)) return false;
       if (preset === "mine" && orderOwner(d) !== me?.id) return false;
       return true;
     });

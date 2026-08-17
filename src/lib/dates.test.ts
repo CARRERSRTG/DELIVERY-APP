@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { localISO, todayISO, isToday, isOverdue, deliveryRisk, withinRetention } from "@/lib/utils";
+import { localISO, todayISO, isToday, isOverdue, deliveryRisk, withinRetention, awaitingDriver } from "@/lib/utils";
 import { mkDelivery } from "@/lib/__fixtures";
 
 // Regression cover for a real bug: dates were derived with toISOString(), which
@@ -128,5 +128,33 @@ describe("withinRetention — yesterday, today, and everything ahead", () => {
 
   it("always keeps an undated draft visible", () => {
     expect(withinRetention(mkDelivery({ stage: "draft", delivery_date: null }), TODAY)).toBe(true);
+  });
+});
+
+// ---- awaitingDriver ---------------------------------------------------------
+describe("awaitingDriver", () => {
+  it("counts live work with nobody driving it", () => {
+    expect(awaitingDriver({ assigned_driver: null, stage: "approved" })).toBe(true);
+    expect(awaitingDriver({ assigned_driver: null, stage: "ready" })).toBe(true);
+  });
+
+  it("does NOT count a draft", () => {
+    // The reported bug: a draft has no driver either, but nobody has submitted
+    // it, so it was appearing on the "unscheduled" list as work to assign.
+    expect(awaitingDriver({ assigned_driver: null, stage: "draft" })).toBe(false);
+  });
+
+  it("does not count finished or abandoned orders", () => {
+    for (const stage of ["delivered", "canceled", "rejected"]) {
+      expect(awaitingDriver({ assigned_driver: null, stage })).toBe(false);
+    }
+  });
+
+  it("does not count an order that already has a driver", () => {
+    expect(awaitingDriver({ assigned_driver: "Maximo Garza", stage: "ready" })).toBe(false);
+  });
+
+  it("treats a missing stage as not waiting, rather than guessing", () => {
+    expect(awaitingDriver({ assigned_driver: null })).toBe(true);
   });
 });

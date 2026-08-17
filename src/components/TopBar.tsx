@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { TABS, ROLE_INFO, ROLE_ORDER, extraCaps, roleHome, roleLabel } from "@/lib/constants";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
-import { avatarColor, initials } from "@/lib/utils";
+import { avatarColor, awaitingDriver, initials } from "@/lib/utils";
 import { NotificationBell } from "@/components/NotificationBell";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { AppUpdateBanner } from "@/components/AppUpdateBanner";
@@ -35,9 +35,8 @@ export function TopBar({ me: propMe }: { me: Profile }) {
     const today = iso(now);
     const tomorrow = iso(new Date(now.getTime() + 86400000));
     return deliveries.filter((d) =>
-      !d.assigned_driver &&
-      (d.delivery_date === today || d.delivery_date === tomorrow) &&
-      !["delivered", "canceled", "rejected"].includes(d.stage),
+      awaitingDriver(d) &&
+      (d.delivery_date === today || d.delivery_date === tomorrow),
     ).length;
   })();
 
