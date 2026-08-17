@@ -100,6 +100,15 @@ label { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: bloc
 .btn-back-account:active { transform: translateY(0); }
 
 .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 80px; }
+/* On a wide monitor the 1180px cap left a third of the screen empty while the
+   orders table scrolled sideways to reach columns that would have fitted. The
+   table sizes its own columns and scrolls inside its container, so the fix is
+   to give the container the room the screen already has.
+   Still capped: past ~1600px a row gets so wide that the eye loses the line it
+   is reading between the id on the left and the date on the right. */
+@media (min-width: 1280px) {
+  .wrap { max-width: min(1600px, 95vw); }
+}
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
 .card h2 { font-size: 15px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
 .grid { display: grid; gap: 12px; }

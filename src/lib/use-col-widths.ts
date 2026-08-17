@@ -45,18 +45,46 @@ export function useColWidths(storageKey: string, defaults: number[]) {
 
 // Same idea, but keyed by column KEY instead of index — for tables whose column
 // set is dynamic (e.g. the Orders table's user-toggled columns).
+/**
+ * A sensible width per column, by what it actually holds.
+ *
+ * Every column used to default to 150px, so "SO #" — almost always a dash —
+ * claimed exactly as much of the screen as a customer name. On a wide monitor
+ * that pushed real columns off the right edge and made the table scroll to
+ * reach data that would otherwise have fitted.
+ *
+ * A resize is still remembered per column; these are only the starting points.
+ */
+export const COLUMN_WIDTHS: Record<string, number> = {
+  __id: 190,      // invoice numbers, sometimes two, with the order code beneath
+  stage: 118,     // a pill
+  type: 104,      // Customer / Intertienda / Transfer
+  store: 150,
+  account: 210,   // company names run long — this is the one that needs room
+  so: 82,
+  po: 82,
+  invoice: 120,
+  date: 128,
+  windows: 128,
+  pallets: 88,
+  fee: 84,
+  driver: 140,
+  contact: 130,
+  address: 240,
+};
+
 export function useColWidthMap(storageKey: string, defaultWidth = 150) {
   const [widths, setWidths] = useState<Record<string, number>>(() => {
     try { const raw = localStorage.getItem(storageKey); if (raw) return JSON.parse(raw); } catch { /* ignore */ }
     return {};
   });
-  const widthOf = (key: string) => widths[key] ?? defaultWidth;
+  const widthOf = (key: string) => widths[key] ?? COLUMN_WIDTHS[key] ?? defaultWidth;
 
   const startResize = (key: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
-    const base = widths[key] ?? defaultWidth;
+    const base = widths[key] ?? COLUMN_WIDTHS[key] ?? defaultWidth;
     const onMove = (ev: MouseEvent) => {
       setWidths((w) => ({ ...w, [key]: Math.max(16, base + (ev.clientX - startX)) }));
     };
