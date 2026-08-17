@@ -146,10 +146,6 @@ export default function SummaryPage() {
                 <div className="kpi"><b>{Math.round(perf.k.miles)}</b><span>{t("Miles driven", "Millas recorridas")}</span></div>
                 <div className="kpi"><b>{Math.round(perf.k.pallets)}</b><span>{t("Pallets moved", "Pallets movidos")}</span></div>
                 <div className="kpi">
-                  <b style={{ color: "var(--amber)" }}>{perf.k.avgCsat == null ? "—" : `★ ${perf.k.avgCsat.toFixed(1)}`}</b>
-                  <span>{t("Client rating", "Calificación")}{perf.k.csatCount > 0 ? ` (${perf.k.csatCount})` : ""}</span>
-                </div>
-                <div className="kpi">
                   <b>{perf.k.utilizationPct == null ? "—" : `${Math.round(perf.k.utilizationPct)}%`}</b>
                   <span>{t("Truck used", "Uso del camión")}</span>
                 </div>

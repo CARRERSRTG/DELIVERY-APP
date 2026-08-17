@@ -153,9 +153,6 @@ export function OrderModal({
   // otherwise a click whose mouseup lands on the just-opened overlay (or a drag
   // release) would instantly close the modal that the same click just opened.
   const overlayDownRef = useRef(false);
-  // Customer-satisfaction rating on a delivered order (local mirror so the
-  // stars light up instantly; also persisted).
-  const [csatRating, setCsatRating] = useState<number | null>(existing?.csat_rating ?? null);
   // Local mirrors of the drive-to-pickup / arrival stamps, so the "En route" /
   // "Arrived" indicator updates instantly (the `existing` prop isn't re-synced
   // from the store while the modal stays open).
@@ -1214,36 +1211,12 @@ export function OrderModal({
               </>
             )}
 
-            {/* Not for drivers: rating the customer's happiness is the office's
-                call, not something to ask a driver to score on the doorstep.
-                Sales don't see it either. */}
-            {existing.stage === "delivered" && me.role !== "sales" && me.role !== "driver" && (
-              <>
-                <div className="section-label">⭐ {t("Customer satisfaction", "Satisfacción del cliente")}</div>
-                <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 8 }}>
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button
-                      key={n}
-                      title={`${n}`}
-                      onClick={() => { setCsatRating(n); updateDelivery(existing.id, { csat_rating: n }); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 26, lineHeight: 1, padding: 0, color: (csatRating ?? 0) >= n ? "var(--amber)" : "var(--line)" }}
-                    >★</button>
-                  ))}
-                  {csatRating != null && (
-                    <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }}
-                      onClick={() => { setCsatRating(null); updateDelivery(existing.id, { csat_rating: null, csat_comment: null }); }}>
-                      {t("Clear", "Borrar")}
-                    </button>
-                  )}
-                </div>
-                <input
-                  defaultValue={existing.csat_comment ?? ""}
-                  placeholder={t("Optional comment from the customer…", "Comentario opcional del cliente…")}
-                  onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (existing.csat_comment ?? null)) updateDelivery(existing.id, { csat_comment: v }); }}
-                  style={{ marginBottom: 14, maxWidth: 460 }}
-                />
-              </>
-            )}
+            {/* Customer satisfaction was removed from the order view. In
+                fifty-three orders it was never once filled in — a control
+                nobody uses still costs a reading of the screen every time
+                someone opens a delivered order. The csat_rating /
+                csat_comment columns are left in place, so nothing is lost if
+                it ever comes back. */}
 
             {/* Private notes (the old Activity & notes): only visible to the
                 order's creator, an admin, or the office manager. */}

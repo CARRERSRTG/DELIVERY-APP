@@ -171,18 +171,18 @@ export default function DashboardPage() {
     const qual = new Map(quality.map((d) => [d.driver, d]));
     const headers = [
       "Driver", "Orders", "Delivered", "On-time %", "Avg delay (min)", "Stops/route", "Miles",
-      "Revenue", "$/mi", "Pallet util %", "Fuel", "Cost/delivery", "Avg rating", "CSAT count",
+      "Revenue", "$/mi", "Pallet util %", "Fuel", "Cost/delivery", 
       "On-clock (min)", "Active (min)", "Idle (min)", "Active %", "Deliveries/hr",
-      "Drive→pickup (min)", "Transit (min)", "Dwell (min)", "POD compliance %", "Rated %",
+      "Drive→pickup (min)", "Transit (min)", "Dwell (min)", "POD compliance %",
       "Redeliveries", "Redelivery %", "Short loads", "GPS checked", "GPS off",
     ];
     const rows = [...names].map((name) => {
       const p = perf.get(name); const i = idl.get(name); const q = qual.get(name);
       return [
         name, p?.orders ?? "", p?.delivered ?? "", p?.onTimePct ?? "", p?.avgDelayMin ?? "", p?.avgStops ?? "", p?.miles ?? "",
-        p?.revenue ?? "", p?.revPerMile ?? "", p?.utilizationPct ?? "", p?.fuelCost ?? "", p?.costPerDelivery ?? "", p?.avgCsat ?? "", p?.csatCount ?? "",
+        p?.revenue ?? "", p?.revPerMile ?? "", p?.utilizationPct ?? "", p?.fuelCost ?? "", p?.costPerDelivery ?? "",
         i?.onClockMin ?? "", i?.activeMin ?? "", i?.idleMin ?? "", i?.activePct ?? "", i?.perActiveHr ?? "",
-        q?.avgDriveToPickupMin ?? "", q?.avgTransitMin ?? "", q?.avgDwellMin ?? "", q?.podCompliancePct ?? "", q?.csatResponsePct ?? "",
+        q?.avgDriveToPickupMin ?? "", q?.avgTransitMin ?? "", q?.avgDwellMin ?? "", q?.podCompliancePct ?? "",
         q?.redeliveries ?? "", q?.redeliveryPct ?? "", q?.shortLoads ?? "", q?.podGpsChecked ?? "", q?.podGpsFar ?? "",
       ];
     });
@@ -293,7 +293,6 @@ export default function DashboardPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <TrendRow label={t("Deliveries", "Entregas")} values={trend.map((p) => p.delivered)} last={trend[trend.length - 1]?.delivered ?? null} color="var(--accent)" />
                 <TrendRow label={t("On-time %", "A tiempo %")} values={trend.map((p) => p.onTimePct)} last={trend[trend.length - 1]?.onTimePct ?? null} suffix="%" color="var(--green)" />
-                <TrendRow label={t("Avg rating", "Calif. prom.")} values={trend.map((p) => p.avgCsat)} last={trend[trend.length - 1]?.avgCsat ?? null} suffix="★" color="var(--amber)" />
               </div>
             )}
           </div>
@@ -312,7 +311,6 @@ export default function DashboardPage() {
                   <Kpi n={fleet.avgCostPer == null ? "—" : fmtMoney(fleet.avgCostPer)} label={t("Cost / delivery", "Costo / entrega")} small />
                   <Kpi n={fleet.avgOnTime == null ? "—" : `${fleet.avgOnTime}%`} label={t("Avg on-time", "A tiempo prom.")} tone={fleet.avgOnTime != null && fleet.avgOnTime < 80 ? "amber" : "green"} />
                   <Kpi n={fleet.avgUtil == null ? "—" : `${fleet.avgUtil}%`} label={t("Avg utilization", "Utilización prom.")} tone={fleet.avgUtil != null && fleet.avgUtil > 100 ? "red" : "accent"} />
-                  <Kpi n={fleet.avgCsat == null ? "—" : `${fleet.avgCsat}★`} label={t("Avg rating", "Calificación prom.")} tone="green" small />
                   <Kpi n={fleet.avgPerActiveHr == null ? "—" : fleet.avgPerActiveHr} label={t("Deliveries / active hr", "Entregas / hora activa")} tone="accent" small />
                   <Kpi n={fleet.totalIdleMin ? fmtDuration(fleet.totalIdleMin * 60_000) : "—"} label={t("Total idle time", "Tiempo inactivo total")} tone={fleet.totalIdleMin > 0 ? "amber" : undefined} small />
                   <Kpi n={fleet.avgPod == null ? "—" : `${fleet.avgPod}%`} label={t("POD compliance", "Comprobante entrega")} tone={fleet.avgPod != null && fleet.avgPod < 90 ? "amber" : "green"} small />
@@ -335,7 +333,6 @@ export default function DashboardPage() {
                         <th>{t("Util.", "Util.")}</th>
                         <th>{t("Fuel", "Comb.")}</th>
                         <th>{t("Cost/del", "Costo/ent")}</th>
-                        <th>{t("Rating", "Calif.")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -360,7 +357,6 @@ export default function DashboardPage() {
                           <td style={d.utilizationPct != null && d.utilizationPct > 100 ? { color: "var(--red)", fontWeight: 700 } : undefined}>{d.utilizationPct == null ? "—" : `${d.utilizationPct}%`}</td>
                           <td>{d.fuelCost == null ? "—" : fmtMoney(d.fuelCost)}</td>
                           <td>{d.costPerDelivery == null ? "—" : fmtMoney(d.costPerDelivery)}</td>
-                          <td style={d.avgCsat != null && fleet.avgCsat != null ? (d.avgCsat >= fleet.avgCsat ? { color: "var(--green)", fontWeight: 700 } : { color: "var(--amber)", fontWeight: 700 }) : undefined}>{d.avgCsat == null ? "—" : `${d.avgCsat}★`}</td>
                         </tr>
                         );
                       })}
@@ -379,7 +375,7 @@ export default function DashboardPage() {
                         <td>{fleet.avgUtil == null ? "—" : `${fleet.avgUtil}%`}</td>
                         <td>{fleet.fuelCost == null ? "—" : fmtMoney(fleet.fuelCost)}</td>
                         <td>{fleet.avgCostPer == null ? "—" : fmtMoney(fleet.avgCostPer)}</td>
-                        <td>{fleet.avgCsat == null ? "—" : `${fleet.avgCsat}★`}</td>
+                        
                       </tr>
                     </tfoot>
                   </table>
@@ -452,7 +448,6 @@ export default function DashboardPage() {
                       <th title={t("Pickup → delivered", "Recogida → entregado")}>{t("Transit", "Tránsito")}</th>
                       <th title={t("Arrived → delivered (service time)", "Llegada → entregado (tiempo de servicio)")}>{t("Dwell", "En parada")}</th>
                       <th title={t("Deliveries with a signature or photo", "Entregas con firma o foto")}>{t("POD %", "% Comp.")}</th>
-                      <th title={t("Deliveries that got a rating", "Entregas que recibieron calificación")}>{t("Rated %", "% Calif.")}</th>
                       <th title={t("Second-attempt deliveries", "Entregas en segundo intento")}>{t("Redeliv.", "Reenvíos")}</th>
                       <th title={t("Loaded fewer pallets than ordered", "Cargó menos pallets de las pedidas")}>{t("Short loads", "Carga corta")}</th>
                       <th title={t("Deliveries stamped far from the destination address", "Entregas marcadas lejos de la dirección de destino")}>{t("GPS off", "GPS lejos")}</th>
@@ -466,7 +461,6 @@ export default function DashboardPage() {
                         <td>{d.avgTransitMin == null ? "—" : fmtDuration(d.avgTransitMin * 60_000)}</td>
                         <td>{d.avgDwellMin == null ? "—" : fmtDuration(d.avgDwellMin * 60_000)}</td>
                         <td style={d.podCompliancePct != null && d.podCompliancePct < 90 ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{d.podCompliancePct == null ? "—" : `${d.podCompliancePct}%`}</td>
-                        <td>{d.csatResponsePct == null ? "—" : `${d.csatResponsePct}%`}</td>
                         <td style={d.redeliveries ? { color: "var(--red)", fontWeight: 700 } : undefined}>{d.redeliveries || "—"}{d.redeliveryPct ? ` (${d.redeliveryPct}%)` : ""}</td>
                         <td style={d.shortLoads ? { color: "var(--amber)", fontWeight: 700 } : undefined}>{d.shortLoads || "—"}</td>
                         <td style={d.podGpsFar ? { color: "var(--red)", fontWeight: 700 } : undefined} title={d.podGpsChecked ? `${d.podGpsFar}/${d.podGpsChecked} ${t("checked", "verificadas")}` : t("no GPS data yet", "sin datos GPS aún")}>{d.podGpsChecked === 0 ? "—" : (d.podGpsFar || "0")}</td>
