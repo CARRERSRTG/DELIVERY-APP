@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { PhotoLightbox } from "@/components/PhotoLightbox";
 
 // ============================================================
 // Photos of the material, taken by the driver.
@@ -59,6 +60,7 @@ export function PhotoUpload({
   t: (en: string, es: string) => string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -91,7 +93,9 @@ export function PhotoUpload({
         {photos.map((src, i) => (
           <div className="photo-item" key={i}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt={`photo ${i + 1}`} onClick={() => window.open(src, "_blank")} />
+            {/* window.open does nothing inside the Android WebView, so the
+                photo simply wasn't clickable on the one device it matters on. */}
+            <img src={src} alt={`photo ${i + 1}`} onClick={() => setViewing(i)} />
             {!disabled && <button className="photo-del" onClick={() => remove(i)} title={t("Remove", "Quitar")}>✕</button>}
             {/* Photos taken before attribution existed have no caption rather
                 than a guessed one. */}
@@ -123,6 +127,17 @@ export function PhotoUpload({
       {err && <div className="hint" style={{ color: "var(--red)" }}>{err}</div>}
       {full && <div className="hint">{t(`Maximum ${max} photos.`, `Máximo ${max} fotos.`)}</div>}
       {photos.length === 0 && disabled && <div className="hint">{t("No photos.", "Sin fotos.")}</div>}
+
+      {viewing !== null && photos[viewing] && (
+        <PhotoLightbox
+          photos={photos}
+          index={viewing}
+          credits={credits}
+          onIndex={setViewing}
+          onClose={() => setViewing(null)}
+          t={t}
+        />
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { printDeliverySlip } from "@/lib/slip";
 import { AddressInput } from "@/components/AddressInput";
 import { LocationCombo } from "@/components/LocationCombo";
 import { PhotoUpload } from "@/components/PhotoUpload";
+import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { SignaturePad } from "@/components/SignaturePad";
 import { MapView } from "@/components/MapView";
 import { suggestDriver, windowConflicts } from "@/lib/dispatch";
@@ -112,6 +113,8 @@ export function OrderModal({
   const [noteText, setNoteText] = useState("");
   const [notingBusy, setNotingBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  // A signature shown 90px tall isn't a signature anyone can check.
+  const [viewSig, setViewSig] = useState(false);
   const [showPinPicker, setShowPinPicker] = useState(false);
   const [pinDraft, setPinDraft] = useState<[number, number] | null>(null);
   const [pinLookupBusy, setPinLookupBusy] = useState(false);
@@ -1851,7 +1854,16 @@ export function OrderModal({
             )}
             {existing.pod_signature && (
               // eslint-disable-next-line @next/next/no-img-element
-              <div style={{ marginTop: 8 }}><img src={existing.pod_signature} alt="signature" style={{ maxHeight: 90, background: "#fff", border: "1px solid var(--line)", borderRadius: 8 }} /></div>
+              <div style={{ marginTop: 8 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={existing.pod_signature}
+                  alt="signature"
+                  onClick={() => setViewSig(true)}
+                  title={t("Open full size", "Ver en grande")}
+                  style={{ maxHeight: 90, background: "#fff", border: "1px solid var(--line)", borderRadius: 8, cursor: "zoom-in" }}
+                />
+              </div>
             )}
           </div>
         )}
@@ -1965,6 +1977,16 @@ export function OrderModal({
         )}
       </div>
     </div>
+
+    {viewSig && existing?.pod_signature && (
+      <PhotoLightbox
+        photos={[existing.pod_signature]}
+        index={0}
+        onIndex={() => undefined}
+        onClose={() => setViewSig(false)}
+        t={t}
+      />
+    )}
 
     {/* CONFIRM-PALLETS POPUP — opens after pressing "Mark ready". The only way
         out is Confirm or Discard; a backdrop click does nothing on purpose. */}
