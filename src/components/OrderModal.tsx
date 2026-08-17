@@ -728,6 +728,43 @@ export function OrderModal({
     return out;
   }, [existing?.photo_meta, users, lang]);
 
+  /**
+   * The order's history as one list, oldest first.
+   *
+   * Creation and approval live on the delivery row while everything else lives
+   * in the event log, so they were rendered as two separate blocks — and the
+   * event block runs newest-first. The result read backwards through its own
+   * middle. Merging them and sorting by time is the only way the sequence
+   * means anything.
+   */
+  const orderTimeline = useMemo(() => {
+    if (!existing) return [];
+    type Row = { key: string; label: string; by: string | null; at: string; note?: string | null };
+    const rows: Row[] = [];
+    if (existing.created_at) {
+      rows.push({ key: "created", label: t("Created by", "Creado por"), by: existing.created_by, at: existing.created_at });
+    }
+    if (existing.approved_at) {
+      rows.push({ key: "approved", label: t("Approved by", "Aprobado por"), by: existing.approved_by, at: existing.approved_at });
+    }
+    for (const e of events) {
+      // Creation and approval already have a row of their own above; only drop
+      // the approval event when that row is actually shown, so an approval is
+      // never hidden entirely.
+      if (e.kind === "created") continue;
+      if (e.kind === "approved" && existing.approved_at) continue;
+      rows.push({ key: e.id, label: eventLabel(e.kind, lang), by: e.created_by, at: e.created_at, note: e.note });
+    }
+    // Creation is pinned first no matter what the clock says. An auto-approving
+    // store stamps approved_at during creation, and on FQ119 it landed two
+    // seconds EARLIER — so a faithful sort put "Approved" above "Created",
+    // which is the same kind of nonsense this whole change set out to fix.
+    // An order cannot precede its own creation.
+    const rank = (r: Row) => (r.key === "created" ? 0 : 1);
+    return rows.sort((a, b) =>
+      rank(a) - rank(b) || new Date(a.at).getTime() - new Date(b.at).getTime());
+  }, [existing, events, lang, t]);
+
   const podBlocker: string | null = (() => {
     if (!existing) return null;
     if (podFormNeeded && !podName.trim()) return t("Enter who received the delivery.", "Ingrese quién recibió la entrega.");
@@ -1229,23 +1266,23 @@ export function OrderModal({
                 {t("Post", "Enviar")}
               </button>
             </div>
-            <div className="detail-row"><span className="dk">{t("Created by", "Creado por")}</span><span className="dv">{userName(existing.created_by)}{roleTag(existing.created_by)} · {fmtDateTime(existing.created_at)}</span></div>
+            {/* Assignment has no timestamp, so it isn't a step in the story —
+                it stays a plain fact above it. */}
             {existing.assigned_sales_rep && (
               <div className="detail-row"><span className="dk">{t("Assigned to", "Asignado a")}</span><span className="dv">{userName(existing.assigned_sales_rep)}{roleTag(existing.assigned_sales_rep)}</span></div>
             )}
-            {existing.approved_at && (
-              <div className="detail-row"><span className="dk">{t("Approved by", "Aprobado por")}</span><span className="dv">{userName(existing.approved_by)}{roleTag(existing.approved_by)} · {fmtDateTime(existing.approved_at)}</span></div>
-            )}
-            {/* The dedicated "Created by" / "Approved by" rows above already show
-                those, so drop their events here to avoid showing them twice.
-                Only drop "approved" when the Approved-by row is actually shown
-                (approved_at set), so approval is never hidden entirely. */}
-            {events.filter((e) => e.kind !== "created" && !(e.kind === "approved" && existing.approved_at)).map((e) => (
-              <div className="log-row" key={e.id}>
-                <span style={{ fontWeight: 700, minWidth: 90 }}>{eventLabel(e.kind, lang)}</span>
-                <span style={{ color: "var(--gray)" }}>{userName(e.created_by)}{roleTag(e.created_by)}</span>
-                <span style={{ color: "var(--gray)" }}>{fmtDateTime(e.created_at)}</span>
-                {e.note && <span>— {e.note}</span>}
+            {/* ONE timeline, oldest first — the order the work actually
+                happened in.
+                It used to read in two directions at once: "Created" and
+                "Approved" were pinned on top ascending, then the events ran
+                newest-first underneath, so a delivery at 1:32pm appeared ABOVE
+                the pickup at 10:21am that made it possible. */}
+            {orderTimeline.map((row) => (
+              <div className="log-row" key={row.key}>
+                <span style={{ fontWeight: 700, minWidth: 90 }}>{row.label}</span>
+                <span style={{ color: "var(--gray)" }}>{userName(row.by)}{roleTag(row.by)}</span>
+                <span style={{ color: "var(--gray)" }}>{fmtDateTime(row.at)}</span>
+                {row.note && <span>— {row.note}</span>}
               </div>
             ))}
               </>
