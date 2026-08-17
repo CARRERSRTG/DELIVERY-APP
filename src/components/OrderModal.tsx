@@ -1168,10 +1168,13 @@ export function OrderModal({
               </div>
             )}
             {/* Sending live tracking is limited to office (manager), logistics,
-                admin and drivers — sales & warehouse only get "Copy link" below. */}
-            {me.role !== "sales" && me.role !== "warehouse" && (
+                admin and drivers. Sales & warehouse only get "Copy link" below;
+                accounting gets neither — it bills for the delivery, it doesn't
+                tell the customer where the truck is. */}
+            {me.role !== "sales" && me.role !== "warehouse" && me.role !== "accounting" && (
               <ShareTracking order={existing} enabled={!!settings.rc_auto_sms_enabled} notify={notify} t={t} />
             )}
+            {me.role !== "accounting" && (
             <div style={{ marginTop: 10 }}>
               <button className="btn btn-ghost btn-sm" onClick={() => {
                 const url = `${location.origin}/track/${existing.id}`;
@@ -1181,6 +1184,7 @@ export function OrderModal({
                 );
               }}>🔗 {t("Copy tracking link", "Copiar enlace")}</button>
             </div>
+            )}
             {canDeliver(me) && me.role !== "driver" && existing.delivery_address && (
               <NavButtons
                 origin={(existing.pickup_address || settings.stores.find((s) => s.name === existing.store)?.address || existing.store || "").trim()}

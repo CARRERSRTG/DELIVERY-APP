@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.7.7";
+export const APP_VERSION = "1.8.0";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -122,7 +122,7 @@ export const ROLE_INFO: Record<UserRole, { label: string; label_es: string; colo
   warehouse: { label: "Warehouse",      label_es: "Almacén",           color: "var(--teal)",   desc: "Prepares approved orders",                 desc_es: "Prepara las órdenes aprobadas" },
   driver:    { label: "Driver",         label_es: "Chofer",            color: "var(--amber)",  desc: "Delivers orders and can log new ones",     desc_es: "Entrega órdenes y puede registrar nuevas" },
   logistics: { label: "Logistics Manager", label_es: "Gerente de Logística", color: "var(--green)", desc: "Assigns and optimizes driver routes",  desc_es: "Asigna y optimiza las rutas de los choferes" },
-  accounting: { label: "Accounting",     label_es: "Contabilidad",      color: "var(--ink-soft)", desc: "Like Office, without dashboard/accounts/audit", desc_es: "Como Oficina, sin panel/cuentas/auditoría" },
+  accounting: { label: "Accounting",     label_es: "Contabilidad",      color: "var(--ink-soft)", desc: "Reviews and approves; doesn't create orders", desc_es: "Revisa y aprueba; no crea órdenes" },
 };
 
 export function roleLabel(role: UserRole, lang: Lang): string {
@@ -225,7 +225,6 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, { en: string; es: string }[]>
     { en: "View the dispatch map", es: "Ver el mapa de despacho" },
   ],
   accounting: [
-    { en: "Create orders", es: "Crear órdenes" },
     { en: "Approve orders", es: "Aprobar órdenes" },
     { en: "Reject with a reason", es: "Rechazar con motivo" },
     { en: "See every order", es: "Ver todas las órdenes" },
@@ -288,7 +287,9 @@ export const ROLE_CAPS: Record<UserRole, Capability[]> = {
   logistics: ["route_plan", "approve"],
   // Accounting: same as Office Manager but WITHOUT the dashboard (and no
   // Accounts / Audit tabs — see TABS). Can create, approve and see every order.
-  accounting: ["create", "approve"],
+  // Accounting reviews and approves; it does not open orders. Creating one
+  // means committing the company to a delivery, which is a sales/office call.
+  accounting: ["approve"],
 };
 
 /** Minimal shape needed to test a capability. */
