@@ -213,10 +213,20 @@ export default function OrdersPage() {
   if (!me) return null;
   if (me.role === "warehouse") return <div className="empty">{t("Not available for your role — use the Warehouse or Driver view.", "No disponible para su rol — use la vista de Almacén o Chofer.")}</div>;
 
-  // Who actually has something to do with a multi-selection. Drivers don't:
-  // every bulk control in the bar is gated to office roles, so the checkbox
-  // column would select rows nothing could then act on.
-  const bulkCapable = ["admin", "manager", "logistics", "accounting", "sales"].includes(me.role);
+  // Who gets the checkbox column.
+  //
+  // Kept to the roles that dispatch work. Sales had it for a single action
+  // (submit for approval) — a whole column of screen for one button — and
+  // accounting had it for approve / cancel / set-date, which are decisions
+  // worth making one order at a time rather than eight at once.
+  //
+  // Drivers and warehouse never had it: every control in the bulk bar is
+  // gated to office roles, so the column would select rows nothing could
+  // then act on.
+  //
+  // The bar's own buttons are gated to the same roles, so this is the single
+  // switch — nothing below can be reached without it.
+  const bulkCapable = ["admin", "manager", "logistics"].includes(me.role);
 
   // ---- Bulk actions (#1) ----
   const toggle = (id: string) =>
@@ -427,10 +437,10 @@ export default function OrdersPage() {
           {canCreate(me) && (
             <button className="btn btn-ghost btn-sm" disabled={bulkBusy} onClick={() => bulkStage("pending")}>{t("Submit for approval", "Enviar a aprobación")}</button>
           )}
-          {["manager", "admin", "logistics", "accounting"].includes(me.role) && (
+          {["manager", "admin", "logistics"].includes(me.role) && (
             <button className="btn btn-green btn-sm" disabled={bulkBusy} onClick={() => bulkStage("approved")}>{t("Approve", "Aprobar")}</button>
           )}
-          {["manager", "admin", "logistics", "accounting"].includes(me.role) && (
+          {["manager", "admin", "logistics"].includes(me.role) && (
             <button className="btn btn-danger btn-sm" disabled={bulkBusy} onClick={async () => {
               if (await confirmAction(t(`Cancel ${chosen.length} selected order(s)?`, `¿Cancelar ${chosen.length} orden(es) seleccionada(s)?`), { danger: true, confirmLabel: t("Cancel orders", "Cancelar órdenes") })) bulkStage("canceled");
             }}>{t("Cancel", "Cancelar")}</button>
@@ -438,7 +448,7 @@ export default function OrdersPage() {
           {me.role === "admin" && (
             <button className="btn btn-green btn-sm" disabled={bulkBusy} onClick={bulkMarkDelivered} title={t("Close orders already delivered before the system (onboarding)", "Cerrar órdenes ya entregadas antes del sistema (implementación)")}>✅ {t("Mark delivered", "Marcar entregadas")}</button>
           )}
-          {(me.role === "manager" || me.role === "admin" || me.role === "logistics" || me.role === "accounting") && (
+          {(me.role === "manager" || me.role === "admin" || me.role === "logistics") && (
             <label style={{ margin: 0, display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }} title={t("Set delivery date on all selected", "Fijar fecha de entrega en las seleccionadas")}>
               📅
               <input type="date" disabled={bulkBusy} onChange={(e) => { if (e.target.value) bulkSetDate(e.target.value); e.target.value = ""; }} style={{ width: "auto", padding: "4px 6px" }} />
