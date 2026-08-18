@@ -1,0 +1,10 @@
+{
+  "_comment": "Ids de la documentacion viva en Notion. No son secretos: sin el token no sirven de nada. El token va en NOTION_TOKEN.",
+  "raiz": "3c069c11-154f-812a-8684-e0d5737b3dbf",
+  "arquitectura": "3c069c11-154f-8167-8053-cd7d9866bcb1",
+  "estado": "3c069c11-154f-8154-a2f6-ce49ce1a1161",
+  "setup": "3c069c11-154f-81ae-bb6d-e6ace809a80f",
+  "decisiones": "3c069c11-154f-817a-bd57-f3b00dd7a539",
+  "changelog": "3c069c11-154f-8182-86bf-c8ad154fa31d",
+  "proximos": "3c069c11-154f-8124-81dc-e9da872980ed"
+}

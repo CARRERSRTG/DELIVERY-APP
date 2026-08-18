@@ -18,7 +18,16 @@ Secciones: 📐 Arquitectura · 🗺️ Estado actual · ⚙️ Setup ·
 ### Reglas
 
 1. **Cada cambio de código actualiza Notion en la misma sesión**, sin que nadie
-   lo pida. Como mínimo: una fila nueva en el Changelog.
+   lo pida. Como mínimo, después de commitear:
+
+   ```bash
+   NOTION_TOKEN=ntn_... node scripts/notion/sync.mjs
+   ```
+
+   Eso agrega las decisiones y los commits nuevos. **Las páginas de prosa
+   (Arquitectura, Estado actual, Setup, Próximos pasos) el script no las puede
+   tocar** — si el cambio las afecta, se editan a mano. Detalle en
+   `scripts/notion/README.md`.
 2. **El historial nunca se borra.** Changelog y ADR solo crecen. Una decisión
    que cambia se marca *Reemplazada* y se escribe una nueva; un dato equivocado
    se corrige **con una nota dentro de la misma entrada**, no reescribiendo.
