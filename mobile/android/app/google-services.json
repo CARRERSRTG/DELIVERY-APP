@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1089079324305",
+    "project_id": "rdz-deliveries",
+    "storage_bucket": "rdz-deliveries.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1089079324305:android:8c06b49499c2a648a75930",
+        "android_client_info": {
+          "package_name": "net.rdztilegroup.deliveries"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzS1orvQs_gXvMXAzgTiZbirBivWnYU_E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
