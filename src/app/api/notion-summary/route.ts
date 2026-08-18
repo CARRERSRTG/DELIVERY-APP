@@ -33,7 +33,20 @@ async function authorized(req: Request): Promise<boolean> {
 
 async function post(req: Request): Promise<NextResponse> {
   if (!(await authorized(req))) return NextResponse.json({ error: "Not allowed." }, { status: 401 });
-  if (!notionConfigured()) return NextResponse.json({ skipped: "Notion not configured" });
+  if (!notionConfigured()) {
+    // Name the missing variable rather than saying "not configured". The vague
+    // version sent someone hunting through three possible causes; this points
+    // straight at one. Only NAMES are reported, never values, and the route
+    // already requires an admin session or the cron secret to get this far.
+    const missing = (["NOTION_TOKEN", "NOTION_DATABASE_ID"] as const).filter((k) => !process.env[k]);
+    return NextResponse.json({
+      skipped: "Notion not configured",
+      missing,
+      hint: "Add them in Vercel → Settings → Environment Variables (tick Production), then redeploy — new variables only reach a NEW deployment.",
+      deployment: process.env.VERCEL_ENV ?? "local",
+      cron_secret_set: !!process.env.CRON_SECRET,
+    });
+  }
 
   // The date to report on: today in business time, or ?date=YYYY-MM-DD to
   // re-run a day by hand.
