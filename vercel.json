@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/notion-summary", "schedule": "0 1 * * *" }
+  ]
+}
