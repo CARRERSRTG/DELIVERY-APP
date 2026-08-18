@@ -1301,6 +1301,44 @@ exótico ahí produce una cuenta que se ve bien y **no puede entrar**.
 
 ---
 
+## D-045 · El PO es obligatorio en Intertienda
+
+**Fecha:** 2026-08-17 · **Versión:** v1.8.6 · **Pedido por:** Andrés
+
+**Cambio:** una orden Intertienda no se puede enviar sin **PO #**. Con eso, se
+auto-aprueba como cualquier otra.
+
+**Razón:** *"todas las tiendas están de auto approved pero no pasó hoy con unas
+órdenes que agregaron."*
+
+**Lo que estaba pasando:** existía una regla —**sin registrar en esta
+bitácora**— que decía que una Intertienda sin PO no se auto-aprueba y se va a
+Pendiente. Pero la validación de campos pedía otra cosa: *"cualquiera de PO # /
+SO # / Factura #"*. Así que una Intertienda con solo factura **pasaba la
+validación** y luego fallaba la otra regla, cayendo en Pendiente **sin ninguna
+explicación**. Dos reglas discutiendo sobre la misma orden.
+
+**Cuánto costaba:** las 7 órdenes Intertienda del 17 de agosto (FQ501, FQ503 a
+FQ508) quedaron pendientes y alguien las aprobó a mano, una por una. En el
+histórico, de 24 Intertienda solo 10 traían PO — 14 pasaron por ese trámite.
+Y desde afuera se veía como si el auto-aprobado estuviera roto, que es
+exactamente lo que se reportó.
+
+**Por qué obligatorio y no quitar la regla:** el dueño lo eligió así. Si el PO
+importa para contabilidad en las transferencias entre tiendas, pedirlo al
+crear es más barato que perseguirlo después — y elimina la categoría entera de
+"quedó pendiente y nadie sabe por qué".
+
+**Cómo se implementó:** una regla de documento nueva, `docRef: "po"`,
+configurable desde la página de Datos como las demás. No quedó escondida en el
+código: un admin puede cambiarla si mañana la política cambia.
+
+**Consecuencia aceptada:** si el PO todavía no existe cuando se captura la
+orden, no se puede enviar — hay que guardarla como borrador y volver. Es el
+precio de que ninguna quede detenida en silencio.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

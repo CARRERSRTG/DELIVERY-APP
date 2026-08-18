@@ -184,8 +184,15 @@ export function OrderModal({
   // A store can be flagged "auto-approve" (Data page) — orders sold from it
   // skip manager approval and are created already Approved, for any creator.
   const storeAutoApprove = !!settings.stores.find((s) => s.name === d.store)?.auto_approve;
-  // Business rule: an Intertienda order must carry a PO # before it can be
-  // auto-approved — without one it goes to Pending for manual handling.
+  // Belt and braces. The PO is now a REQUIRED field for Intertienda (the "po"
+  // docRef rule), so submitting without one is refused before this is reached
+  // and it should never fire. Kept because the alternative — if validation is
+  // ever bypassed — is auto-approving a transfer with no paperwork, and the
+  // wrong outcome there is worse than an extra approval step.
+  //
+  // Until today this rule ran ALONE: validation accepted "any one of PO / SO /
+  // invoice", so an Intertienda with only an invoice passed, then landed in
+  // Pending with no explanation. Seven orders on 2026-08-17 alone.
   const intertiendaNeedsPo = d.order_type === "Intertienda" && !(d.po2 || "").trim();
 
   // Store-to-store moves (Intertienda / Transfer) have no external customer, so

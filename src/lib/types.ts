@@ -307,9 +307,10 @@ export interface OrderTypeRule {
   /** Which document reference the type uses:
    *  - "invoice": Invoice # (and a delivery fee) required
    *  - "any": any one of PO # / SO # / Invoice #
+   *  - "po": PO # required, specifically
    *  - "none": no document reference required (shows the PO/SO/Invoice fields)
    *  - "estimate": shows a single optional Estimate # field instead */
-  docRef?: "invoice" | "any" | "none" | "estimate";
+  docRef?: "invoice" | "any" | "po" | "none" | "estimate";
   /** The rep's own store is the DESTINATION, not the origin (a "receiving"
    * branch move, e.g. Intertienda). On a new order the delivery defaults to the
    * rep's store and the rep chooses the "Sold From" (origin) store instead of

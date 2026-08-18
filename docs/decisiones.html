@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-045", title: "El PO es obligatorio en Intertienda",
+      fecha: "2026-08-17", version: "v1.8.6", quien: "Andrés",
+      cambio: "Una orden Intertienda no se puede enviar sin PO #. Con eso, se auto-aprueba como cualquier otra.",
+      razon: "mira que todas las tiendas estan de auto approved pero no paso hoy con unas ordenes que agregaron",
+      razonTextual: true,
+      consecuencia: "Existía una regla —SIN REGISTRAR en esta bitácora— que decía que una Intertienda sin PO no se auto-aprueba y se va a Pendiente. Pero la validación de campos pedía otra cosa: “cualquiera de PO # / SO # / Factura #”. Así que una Intertienda con solo factura pasaba la validación y luego fallaba la otra regla, cayendo en Pendiente SIN NINGUNA EXPLICACIÓN: dos reglas discutiendo sobre la misma orden. Costo real: las 7 órdenes Intertienda del 17 de agosto (FQ501, FQ503–FQ508) quedaron pendientes y alguien las aprobó a mano una por una; en el histórico, de 24 Intertienda solo 10 traían PO. Desde afuera se veía como si el auto-aprobado estuviera roto, que es exactamente lo que se reportó. Se eligió hacerlo obligatorio en vez de quitar la regla: si el PO importa para contabilidad en las transferencias, pedirlo al crear es más barato que perseguirlo después, y elimina la categoría entera de “quedó pendiente y nadie sabe por qué”. Se implementó como una regla de documento nueva (docRef: “po”) configurable desde la página de Datos, no escondida en el código. Consecuencia aceptada: si el PO todavía no existe al capturar, la orden no se puede enviar — hay que guardarla como borrador y volver."
+    },
+    {
       id: "D-044", title: "Contabilidad revisa y aprueba; no crea",
       fecha: "2026-08-16", version: "v1.8.0", quien: "Andrés",
       cambio: "Contabilidad ya no ve el enlace de seguimiento del cliente, ni el botón Duplicar, ni puede crear órdenes.",

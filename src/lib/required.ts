@@ -13,7 +13,7 @@ import type { Delivery, OrderTypeRule } from "@/lib/types";
 //   • Est. Pallets
 //
 // Document reference — depends on the order type:
-//   • Intra-Tienda  → ANY ONE of PO # / SO # / Invoice #
+//   • Intra-Tienda  → PO # (see the "po" rule; it used to accept any one)
 //   • Transfer / Customer (picked up by the customer themselves) → optional (nothing required)
 //   • Everything else (Delivery…) → Invoice # required
 //
@@ -92,6 +92,15 @@ export function missingFields(d: Partial<Delivery>, rules?: OrderTypeRules): Mis
     // required (and never flagged) — a PO # or Invoice # is what we ask for.
     if (!filled(d.po2) && !filled(d.so_num) && !filled(d.invoice_num)) {
       out.push({ key: "doc_ref", en: "PO # or Invoice # (any one)", es: "PO # o Factura # (cualquiera)" });
+    }
+  } else if (docRef === "po") {
+    // The PO specifically, not "any one document". Intertienda used "any", so
+    // an order carrying only an invoice passed validation — and then failed a
+    // SEPARATE rule that auto-approval needs a PO, landing in Pending with no
+    // explanation. Two rules disagreeing about the same order; this is the one
+    // that now decides.
+    if (!filled(d.po2)) {
+      out.push({ key: "po2", en: "PO #", es: "PO #" });
     }
   } else if (docRef === "invoice") {
     // Regular customer delivery — the customer invoice is required, and the

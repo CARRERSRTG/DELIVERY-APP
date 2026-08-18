@@ -235,6 +235,7 @@ function OrderTypesRulesEditor({
                   <select value={r.docRef} onChange={(e) => update(i, { docRef: e.target.value as OrderTypeRule["docRef"] })} style={{ width: "auto" }}>
                     <option value="invoice">{t("Invoice # required", "Factura # requerida")}</option>
                     <option value="any">{t("Any one of PO# / SO# / Invoice#", "Cualquiera de PO# / SO# / Factura #")}</option>
+                    <option value="po">{t("PO # required", "PO # requerido")}</option>
                     <option value="none">{t("No document required", "Sin documento requerido")}</option>
                     <option value="estimate">{t("Estimate # (single field)", "Estimación # (campo único)")}</option>
                   </select>

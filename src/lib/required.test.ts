@@ -130,3 +130,41 @@ describe("missingKeys", () => {
     expect(missingKeys(complete, RULES).size).toBe(0);
   });
 });
+
+// ---- docRef: "po" -----------------------------------------------------------
+describe("a type that requires the PO specifically", () => {
+  const rules = { Intertienda: { storeToStore: true, docRef: "po" as const, homeIsDestination: true } };
+  const base = {
+    order_type: "Intertienda", store: "RDZ Brownsville",
+    pickup_name: "RDZ Brownsville", pickup_address: "3913 North Expy, Brownsville",
+    delivery_address: "1102 W Expressway 83, Weslaco",
+    delivery_date: "2026-08-18", delivery_windows: "0830-1730", est_pallets: 6,
+  };
+
+  it("asks for the PO when it's missing", () => {
+    expect(missingFields(base, rules).map((m) => m.key)).toContain("po2");
+  });
+
+  it("is NOT satisfied by an invoice alone", () => {
+    // The exact shape of FQ503: an invoice, no PO. Under the old "any one"
+    // rule it passed validation and then silently failed to auto-approve,
+    // because a separate rule wanted the PO. Now one rule decides.
+    expect(missingFields({ ...base, invoice_num: "178156" }, rules).map((m) => m.key)).toContain("po2");
+  });
+
+  it("is satisfied by the PO", () => {
+    expect(missingFields({ ...base, po2: "PO-991" }, rules).map((m) => m.key)).not.toContain("po2");
+  });
+
+  it("still collects no customer contact for a store-to-store type", () => {
+    const keys = missingFields({ ...base, po2: "PO-991" }, rules).map((m) => m.key);
+    expect(keys).not.toContain("contact");
+    expect(keys).not.toContain("delivery_phone");
+  });
+
+  it("leaves the other types alone", () => {
+    const all = { Customer: { storeToStore: false, docRef: "invoice" as const }, ...rules };
+    const cust = missingFields({ ...base, order_type: "Customer", contact: "Ana", delivery_phone: "9561234567", delivery_fee: 0, invoice_num: "1" }, all);
+    expect(cust.map((m) => m.key)).toEqual([]);
+  });
+});
