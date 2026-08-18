@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { TABS, ROLE_INFO, ROLE_ORDER, extraCaps, roleHome, roleLabel } from "@/lib/constants";
@@ -22,6 +22,20 @@ export function TopBar({ me: propMe }: { me: Profile }) {
   const me = ctxMe ?? propMe;
   const role = ROLE_INFO[me.role];
   const [generalOpen, setGeneralOpen] = useState(false);
+  // The menu hangs from the button's RIGHT edge and grows leftwards, which
+  // runs it off the window whenever the button sits near the left edge — and
+  // on a wrapped tab row it always does. Measured once on open and flipped to
+  // grow rightwards instead when there isn't room.
+  const generalMenuRef = useRef<HTMLDivElement>(null);
+  const [generalFlip, setGeneralFlip] = useState(false);
+  useEffect(() => {
+    if (!generalOpen) { setGeneralFlip(false); return; }
+    const el = generalMenuRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    // 8px so it never sits flush against the edge either.
+    if (r.left < 8) setGeneralFlip(true);
+  }, [generalOpen]);
   // Navigating away closes the menu (covers back/forward too).
   useEffect(() => { setGeneralOpen(false); }, [pathname]);
 
@@ -122,7 +136,16 @@ export function TopBar({ me: propMe }: { me: Profile }) {
                 <>
                   {/* Click anywhere else to dismiss. */}
                   <div style={{ position: "fixed", inset: 0, zIndex: 70 }} onClick={() => setGeneralOpen(false)} />
-                  <div className="col-menu" style={{ zIndex: 71, right: 0, left: "auto", minWidth: 190 }} role="menu">
+                  <div
+                    ref={generalMenuRef}
+                    className="col-menu"
+                    style={{
+                      zIndex: 71,
+                      minWidth: 190,
+                      ...(generalFlip ? { left: 0, right: "auto" } : { right: 0, left: "auto" }),
+                    }}
+                    role="menu"
+                  >
                     {generalTabs.map((tb) => (
                       <Link
                         key={tb.id}
