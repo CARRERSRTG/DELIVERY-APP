@@ -1339,6 +1339,40 @@ precio de que ninguna quede detenida en silencio.
 
 ---
 
+## D-046 · La documentación viva se mantiene en Notion
+**Fecha:** 2026-08-18 · **Versión:** v1.9.2 · **Pedido por:** Andrés
+
+**Cambio:** el estado del proyecto se documenta en Notion, y actualizarlo pasa a
+ser parte de cada cambio de código, no una tarea aparte. Seis secciones:
+Arquitectura, Estado actual, Setup, Decisiones (ADR), Changelog y Próximos
+pasos. La regla quedó escrita en `CLAUDE.md` para que una sesión nueva del
+asistente la recoja sin que nadie se la repita.
+
+**Razón (textual):** *"tan completa que si pierdo el historial del chat,
+cualquier persona (o tú mismo en una sesión nueva) pueda entender el estado
+completo de la app y continuar el trabajo solo leyendo Notion"*.
+
+El problema real: casi todo el porqué de este sistema vivía en un historial de
+chat. El repositorio dice qué hace el código, nunca qué se descartó ni por qué.
+Perder ese hilo significaba volver a discutir decisiones ya tomadas.
+
+**Por qué Notion y no solo archivos en el repo:** la gente de operaciones no
+abre GitHub. `DECISIONS.md` sigue siendo el original de los ADR — Notion es su
+espejo consultable, filtrable y compartible.
+
+**Por qué bases de datos para ADR y Changelog:** son las dos cosas que solo
+crecen. Como base se filtran por fecha, versión y área; como página serían un
+muro de texto imposible de recorrer a los seis meses.
+
+**Consecuencia aceptada:** hay dos lugares que mantener sincronizados, y una
+documentación a medio actualizar miente peor que no tener ninguna. Por eso la
+regla es "en la misma sesión", no "cuando se pueda".
+
+**Revisar cuando:** si el mantenimiento se empieza a saltar, la salida es
+generar el Changelog desde `git log` automáticamente en vez de a mano.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-046", title: "La documentación viva se mantiene en Notion",
+      fecha: "2026-08-18", version: "v1.9.2", quien: "Andrés",
+      cambio: "El estado del proyecto se documenta en Notion —Arquitectura, Estado actual, Setup, Decisiones, Changelog y Próximos pasos— y actualizarlo pasa a ser parte de cada cambio de código, no una tarea aparte.",
+      razon: "tan completa que si pierdo el historial del chat, cualquier persona (o tú mismo en una sesión nueva) pueda entender el estado completo de la app y continuar el trabajo solo leyendo Notion",
+      razonTextual: true,
+      consecuencia: "Casi todo el porqué de este sistema vivía en un historial de chat. El repositorio dice qué hace el código, nunca qué se descartó ni por qué, así que perder ese hilo significaba volver a discutir decisiones ya tomadas. Se eligió Notion y no solo archivos en el repo porque la gente de operaciones no abre GitHub; DECISIONS.md sigue siendo el original de los ADR y Notion es su espejo consultable. Decisiones y Changelog se hicieron bases de datos porque son las dos cosas que solo crecen: como base se filtran por fecha, versión y área; como página serían un muro de texto imposible de recorrer a los seis meses. La regla quedó escrita en CLAUDE.md para que una sesión nueva del asistente la recoja sin que nadie se la repita. Consecuencia aceptada: hay dos lugares que mantener sincronizados, y una documentación a medio actualizar miente peor que no tener ninguna — por eso la regla es “en la misma sesión”, no “cuando se pueda”."
+    },
+    {
       id: "D-045", title: "El PO es obligatorio en Intertienda",
       fecha: "2026-08-17", version: "v1.8.6", quien: "Andrés",
       cambio: "Una orden Intertienda no se puede enviar sin PO #. Con eso, se auto-aprueba como cualquier otra.",
