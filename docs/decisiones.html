@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-049", title: "Pallets y documento bloquean de verdad al enviar a aprobación",
+      fecha: "2026-08-18", version: "v1.9.5", quien: "Andrés",
+      cambio: "Una orden ya no puede pasar de draft a pending (ni de rejected a pending, el mismo botón de reenviar) si le falta el número de pallets (est_pallets > 0) o el documento que le corresponda según su tipo (PO/SO/Factura — la regla de D-045, sin tocar). Nuevo: submitBlockers() en src/lib/required.ts, un subconjunto de missingFields() que rechaza en vez de listar-y-dejar-continuar. Guardar como borrador sigue sin pedir nada.",
+      razon: "Reportado en modo de entrenamiento: una orden se envió a aprobación sin pallets. La causa real no era el modo de entrenamiento: había dos caminos hacia Pending, y solo uno validaba (con un diálogo \"¿Continuar de todos modos?\" descartable). Crear-y-enviar pasaba por passesChecks(); reabrir un borrador y tocar \"Enviar a aprobación\" llamaba a move(\"pending\") directo a setStage(), sin ninguna validación.",
+      razonTextual: false,
+      consecuencia: "El resto de los campos requeridos (contacto, teléfono, direcciones, fecha, ventana, costo de entrega) siguen siendo advertencia descartable, no bloqueo — fuera del alcance de este reporte. No se hizo la factura obligatoria por sí sola: forzarla revertiría D-045 (8 de 41 órdenes históricas no traen factura al crearse). Un solo punto de aplicación en la interfaz (OrderModal.tsx) cubre ambos proveedores de datos y el modo de entrenamiento, porque ninguno de los dos providers valida campos en setStage — solo la legalidad del cambio de etapa. Nueve tests nuevos en required.test.ts para submitBlockers(). No hay test de componente para \"guardar borrador no pide nada\" — el proyecto no tiene un patrón establecido de pruebas de componente."
+    },
+    {
       id: "D-048", title: "Sentry conectado (errores + tracing)",
       fecha: "2026-08-18", version: "v1.9.4", quien: "Andrés",
       cambio: "Se instaló @sentry/nextjs con instrumentation.ts/instrumentation-client.ts/sentry.server.config.ts/sentry.edge.config.ts, global-error.tsx, y next.config.mjs envuelto en withSentryConfig. El ErrorBoundary ya no solo loguea a consola: manda la excepción a Sentry con el rol del usuario y el build de APK como tags. Alcance deliberado: solo errores + tracing, nada de Session Replay/Logging/Profiling todavía.",

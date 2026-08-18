@@ -16,7 +16,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { MapView } from "@/components/MapView";
 import { suggestDriver, windowConflicts } from "@/lib/dispatch";
 import { checkSchedule } from "@/lib/scheduling";
-import { isStoreToStore, orderTypeRule, missingFields, missingKeys, type MissingField } from "@/lib/required";
+import { isStoreToStore, orderTypeRule, missingFields, missingKeys, submitBlockers, type MissingField } from "@/lib/required";
 import { captureLocationSplit, geoAvailable, mapLink, type GeoStamp } from "@/lib/geo";
 import type { AccountRecord, Delivery, NamedLocation, NoteRole, Profile, RoleNote, Settings, Stage } from "@/lib/types";
 
@@ -281,9 +281,25 @@ export function OrderModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNew, settings.order_types.length]);
 
-  /** Shared pre-submit gate. Nothing hard-blocks — the rep is told exactly
-   * what's missing / conflicting and chooses whether to continue. */
+  /** Hard gate (D-049): pallets and the document reference actually refuse a
+   * draft → pending submission — there's nothing to plan a truck for or bill
+   * against without them. Every other required field stays a dismissible
+   * warning below. Never called for a draft save. */
+  const blockSubmit = (draft: Partial<Delivery>): boolean => {
+    const blockers = submitBlockers(draft, settings.order_type_rules);
+    if (!blockers.length) return false;
+    const list = blockers.map((m) => `• ${t(m.en, m.es)}`).join("\n");
+    notify(t(
+      `Can't submit for approval — still missing:\n\n${list}`,
+      `No se puede enviar a aprobación — todavía falta:\n\n${list}`,
+    ));
+    return true;
+  };
+
+  /** Shared pre-submit gate. Pallets/document hard-block (above); everything
+   * else is listed and the rep chooses whether to continue. */
   const passesChecks = async (draft: Draft): Promise<boolean> => {
+    if (blockSubmit(draft)) return false;
     // 1. Required fields — list them and let the rep decide.
     const miss = computeMissing(draft);
     if (miss.length) {
@@ -533,6 +549,10 @@ export function OrderModal({
 
   const move = async (to: Stage, note?: string) => {
     if (!existing) return;
+    // Submitting (or resubmitting) into Pending goes through the same hard
+    // gate as creating an order there — this is the button a draft actually
+    // leaves through, and it used to skip validation entirely (D-049).
+    if (to === "pending" && blockSubmit(existing)) return;
     setBusy(true);
     // Stamp the driver's location when they collect the load (never blocks).
     let extra: Partial<Delivery> | undefined;

@@ -1426,6 +1426,74 @@ como con FCM.
 **Revisar cuando:** llegue `SENTRY_PROJECT` — agregarlo a Vercel activa las
 dos advertencias que hoy imprime el build.
 
+**Nota (2026-08-18, mismo día):** `SENTRY_PROJECT=javascript-nextjs` ya está en
+Vercel. El build confirmado subiendo source maps sin advertencias, y un error
+de prueba disparado a través de la app real (no un script aparte) llegó al
+dashboard. Cerrado.
+
+---
+
+## D-049 · Pallets y documento bloquean de verdad al enviar a aprobación
+**Fecha:** 2026-08-18 · **Versión:** v1.9.5 · **Pedido por:** Andrés
+
+**Cambio:** una orden ya no puede pasar de `draft` a `pending` (ni de
+`rejected` a `pending`, el mismo botón de reenviar) si le falta el número de
+pallets (`est_pallets`, debe ser > 0) o el documento que le corresponda según
+su tipo (PO/SO/Factura — la regla de D-045, sin tocar). Nuevo:
+`submitBlockers()` en `src/lib/required.ts`, un subconjunto de
+`missingFields()` que en vez de listar-y-dejar-continuar, **rechaza** con un
+mensaje que dice exactamente qué falta. Guardar como borrador sigue sin pedir
+nada — eso no cambió.
+
+**Razón:** reportado en modo de entrenamiento: una orden se envió a
+aprobación sin pallets. Investigando se encontró que la causa no era el modo
+de entrenamiento — es que había **dos caminos distintos** para llegar a
+Pending, y solo uno de los dos validaba, y ese validaba con un diálogo
+"¿Continuar de todos modos?" que cualquiera podía aceptar sin corregir nada:
+
+1. Crear una orden nueva y enviarla directo → pasaba por `passesChecks()`,
+   que ya calculaba `missingFields()` (pallets estaba ahí desde antes) pero
+   solo como advertencia descartable.
+2. Abrir un borrador ya guardado y tocar "Enviar a aprobación" → llamaba a
+   `move("pending")`, que iba derecho a `setStage()` **sin pasar por
+   ninguna validación**, ni siquiera la advertencia descartable.
+
+El segundo camino es casi seguro por dónde pasó esta orden: se guarda como
+borrador (sin pedir nada, correcto), se reabre después, y "Enviar a
+aprobación" no revisaba nada en absoluto.
+
+**Por qué bloquea al enviar y no al guardar borrador:** un borrador existe
+para guardar algo incompleto y volver (D-004, D-045); exigir todo desde el
+guardado inicial volvería a atorar órdenes que alguien está armando a medias.
+El bloqueo se agregó en el único lugar por el que pasan los dos caminos hacia
+Pending (`passesChecks()` para crear/editar, y directamente en `move()` para
+el botón de reenviar), reutilizando `missingFields()` en vez de duplicar la
+lógica del documento por tipo.
+
+**Por qué NO se hizo la factura obligatoria por sí sola:** no era lo pedido,
+y forzarla revertiría D-045 (8 de 41 órdenes históricas no traen factura al
+crearse) — seguiría aceptando PO o SO en su lugar, sin cambios en esa regla.
+
+**Consecuencia aceptada:** el resto de los campos requeridos (contacto,
+teléfono, direcciones, fecha, ventana, costo de entrega) **siguen siendo
+advertencia descartable**, no bloqueo — fuera del alcance de este reporte. Es
+un solo punto de aplicación en la interfaz (`OrderModal.tsx`), no en cada
+proveedor de datos: los dos proveedores (`data-provider.tsx` y
+`local-data-provider.tsx`) nunca validaron campos en `setStage`, solo la
+legalidad del cambio de etapa — la validación de campos siempre vivió en la
+interfaz, así que arreglarla ahí cubre ambos modos (y el modo de
+entrenamiento) sin duplicar nada.
+
+**Tests:** `src/lib/required.test.ts` — nueve casos nuevos para
+`submitBlockers()`: vacío en una orden completa, pallets null, pallets = 0,
+factura vacía, Intertienda sin ningún documento, costo de entrega NO bloquea,
+contacto/teléfono/dirección NO bloquean, ambos a la vez se reportan juntos, y
+Transfer (sin papeleo) bloquea solo por pallets. No hay test a nivel de
+componente para "guardar borrador no pide nada" — esa garantía es el guard
+`stage !== "draft"` ya existente en `OrderModal.tsx`, y el proyecto no tiene
+un patrón establecido de pruebas de componente para `OrderModal.tsx` (las 445
+pruebas anteriores son todas de `src/lib`, sin React).
+
 ---
 
 <!-- PLANTILLA — copia esto para una entrada nueva

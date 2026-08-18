@@ -118,6 +118,28 @@ export function missingFields(d: Partial<Delivery>, rules?: OrderTypeRules): Mis
   return out;
 }
 
+// ------------------------------------------------------------------
+// Submit-time hard gate (D-049).
+//
+// missingFields() above is a SOFT list: the rep sees what's empty and can
+// choose "Continue anyway?" — that's deliberate for most fields (an order
+// with a typo'd phone shouldn't be un-submittable). But two fields let an
+// order through with no way to plan or bill it: pallets (nothing to load,
+// nothing to size a truck for) and the document reference (nothing to
+// reconcile against). Those two must actually refuse, not just warn.
+//
+// Reuses missingFields() rather than re-deriving the doc-ref branch, so
+// there's exactly one place that decides what "the document is missing"
+// means per order type.
+// ------------------------------------------------------------------
+const SUBMIT_BLOCKING_KEYS: ReadonlySet<string> = new Set(["est_pallets", "doc_ref", "po2", "invoice_num"]);
+
+/** The subset of missingFields() that must hard-block a draft → pending
+ * submission (or a resubmit). Everything else stays a dismissible warning. */
+export function submitBlockers(d: Partial<Delivery>, rules?: OrderTypeRules): MissingField[] {
+  return missingFields(d, rules).filter((m) => SUBMIT_BLOCKING_KEYS.has(m.key));
+}
+
 /** Field keys to highlight in the form. */
 export function missingKeys(d: Partial<Delivery>, rules?: OrderTypeRules): Set<string> {
   const keys = new Set(missingFields(d, rules).map((m) => m.key));
