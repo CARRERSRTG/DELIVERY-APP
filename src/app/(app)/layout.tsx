@@ -51,9 +51,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             they are gated: nobody else's work depends on background GPS, and
             the gate is inert outside the APK anyway. */}
         {me.role === "driver" ? (
-          <DriverGate><div className="wrap"><ErrorBoundary>{children}</ErrorBoundary></div></DriverGate>
+          <DriverGate><div className="wrap"><ErrorBoundary role={me.role}>{children}</ErrorBoundary></div></DriverGate>
         ) : (
-          <div className="wrap"><ErrorBoundary>{children}</ErrorBoundary></div>
+          <div className="wrap"><ErrorBoundary role={me.role}>{children}</ErrorBoundary></div>
         )}
         <HelpButton me={me} />
         <VersionFooter />

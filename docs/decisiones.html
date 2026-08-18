@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-048", title: "Sentry conectado (errores + tracing)",
+      fecha: "2026-08-18", version: "v1.9.4", quien: "Andrés",
+      cambio: "Se instaló @sentry/nextjs con instrumentation.ts/instrumentation-client.ts/sentry.server.config.ts/sentry.edge.config.ts, global-error.tsx, y next.config.mjs envuelto en withSentryConfig. El ErrorBoundary ya no solo loguea a consola: manda la excepción a Sentry con el rol del usuario y el build de APK como tags. Alcance deliberado: solo errores + tracing, nada de Session Replay/Logging/Profiling todavía.",
+      razon: "Motivado directamente por el crash de Maximo (\"RDZ Deliveries keeps stopping\") del mismo día: sin Sentry, no había forma de saber qué lo causaba sin acceso físico al teléfono. Hasta ese momento, un error en la app del chofer se quedaba en la consola de su teléfono.",
+      razonTextual: false,
+      consecuencia: "SENTRY_ORG, NEXT_PUBLIC_SENTRY_DSN, SENTRY_DSN y SENTRY_AUTH_TOKEN ya están en Vercel; falta SENTRY_PROJECT (el slug del proyecto en Sentry) para que el build suba source maps — sin eso el build avisa y sigue sin romperse, pero los stack traces de producción llegan minificados hasta que se agregue. Se agregó @sentry/nextjs como dependencia de producción, la primera excepción a la regla de las siete dependencias — aceptada porque no hay alternativa razonable de ~40 líneas como con FCM. Revisar cuando llegue SENTRY_PROJECT."
+    },
+    {
       id: "D-047", title: "Push notifications activadas",
       fecha: "2026-08-18", version: "v1.9.3", quien: "Andrés",
       cambio: "Las notificaciones push (FCM) dejan de estar inertes. Se creó el proyecto de Firebase rdz-deliveries, se agregó google-services.json al módulo Android y FIREBASE_SERVICE_ACCOUNT a Vercel. Se publicó el APK 4 con el plugin de Google Services aplicado.",

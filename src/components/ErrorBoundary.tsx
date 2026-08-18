@@ -1,14 +1,17 @@
 "use client";
 
 import { Component, type ReactNode } from "react";
+import * as Sentry from "@sentry/nextjs";
+import { installedApkVersion } from "@/lib/app-update";
+import type { UserRole } from "@/lib/types";
 
 // ============================================================
 // App-wide error boundary (#38). Catches render/runtime errors in the UI so a
 // single broken component shows a friendly recovery card instead of a blank
-// white screen. Logs to the console (wire to Sentry here in production).
+// white screen.
 // ============================================================
 
-interface Props { children: ReactNode; }
+interface Props { children: ReactNode; role?: UserRole; }
 interface State { error: Error | null; }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -18,9 +21,12 @@ export class ErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: unknown) {
-    // TODO(prod): forward to an error-monitoring service (e.g. Sentry.captureException).
-    console.error("UI error boundary caught:", error, info);
+  componentDidCatch(error: Error, info: { componentStack?: string | null }) {
+    const apk = typeof navigator !== "undefined" ? installedApkVersion(navigator.userAgent) : null;
+    Sentry.captureException(error, {
+      tags: { role: this.props.role ?? "unknown", apkVersion: apk ?? "web" },
+      contexts: { react: { componentStack: info.componentStack } },
+    });
   }
 
   render() {

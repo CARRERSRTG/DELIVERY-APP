@@ -1396,6 +1396,38 @@ consola de Firebase que los envíos llegan y no solo se aceptan.
 
 ---
 
+## D-048 · Sentry conectado (errores + tracing)
+**Fecha:** 2026-08-18 · **Versión:** v1.9.4 · **Pedido por:** Andrés
+
+**Cambio:** se instaló `@sentry/nextjs`, con `instrumentation.ts` /
+`instrumentation-client.ts` / `sentry.server.config.ts` / `sentry.edge.config.ts`,
+`src/app/global-error.tsx`, y `next.config.mjs` envuelto en `withSentryConfig`.
+El `ErrorBoundary` de la app ya no solo loguea a consola: manda la excepción a
+Sentry con el rol del usuario y el build de APK como tags. Alcance deliberado:
+solo errores + tracing (10% de las requests, 100% en desarrollo) — nada de
+Session Replay, Logging ni Profiling todavía, para no instrumentar de más en
+una instalación nueva.
+
+**Razón:** hasta hoy, un error en la app del chofer se quedaba en la consola
+de su teléfono — nadie se enteraba salvo que el chofer describiera lo que vio.
+Motivado directamente por el crash de Maximo ("RDZ Deliveries keeps
+stopping") del mismo día: sin Sentry, no había forma de saber qué lo causaba
+sin acceso físico al teléfono.
+
+**Consecuencia aceptada:** `SENTRY_ORG`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`
+y `SENTRY_AUTH_TOKEN` ya están en Vercel; falta `SENTRY_PROJECT` (el slug del
+proyecto en Sentry) para que el build suba source maps — sin eso, la
+compilación avisa y sigue sin romperse, pero los stack traces de producción
+llegan minificados hasta que se agregue. Se agregó `@sentry/nextjs` como
+dependencia de producción, la primera excepción a la regla de las siete
+dependencias — se aceptó porque no hay alternativa razonable de ~40 líneas
+como con FCM.
+
+**Revisar cuando:** llegue `SENTRY_PROJECT` — agregarlo a Vercel activa las
+dos advertencias que hoy imprime el build.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

@@ -69,7 +69,7 @@ export function LocalApp({ children }: { children: React.ReactNode }) {
         </button>
       </div>
       <TopBar me={me} />
-      <div className="wrap"><ErrorBoundary>{children}</ErrorBoundary></div>
+      <div className="wrap"><ErrorBoundary role={me.role}>{children}</ErrorBoundary></div>
       <HelpButton me={me} />
       <VersionFooter />
     </LocalDataProvider>
