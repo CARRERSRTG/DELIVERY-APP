@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-047", title: "Push notifications activadas",
+      fecha: "2026-08-18", version: "v1.9.3", quien: "Andrés",
+      cambio: "Las notificaciones push (FCM) dejan de estar inertes. Se creó el proyecto de Firebase rdz-deliveries, se agregó google-services.json al módulo Android y FIREBASE_SERVICE_ACCOUNT a Vercel. Se publicó el APK 4 con el plugin de Google Services aplicado.",
+      razon: "El código de push llevaba semanas escrito y probado, solo inerte por falta de las credenciales de Firebase.",
+      razonTextual: false,
+      consecuencia: "Sin push, un chofer con la app cerrada no se enteraba de una asignación nueva hasta volver a abrirla — el hueco funcional más grande que quedaba en producción. Consecuencia aceptada: hay 0 teléfonos con token registrado todavía; el registro pasa solo cuando alguien abre la app instalada desde el APK 4, así que hasta que Maximo actualice, el comportamiento sigue siendo el de antes. Revisar cuando haya teléfonos registrados: confirmar en la consola de Firebase que los envíos llegan y no solo se aceptan."
+    },
+    {
       id: "D-046", title: "La documentación viva se mantiene en Notion",
       fecha: "2026-08-18", version: "v1.9.2", quien: "Andrés",
       cambio: "El estado del proyecto se documenta en Notion —Arquitectura, Estado actual, Setup, Decisiones, Changelog y Próximos pasos— y actualizarlo pasa a ser parte de cada cambio de código, no una tarea aparte.",

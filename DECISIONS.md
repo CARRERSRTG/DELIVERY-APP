@@ -1373,6 +1373,29 @@ generar el Changelog desde `git log` automáticamente en vez de a mano.
 
 ---
 
+## D-047 · Push notifications activadas
+**Fecha:** 2026-08-18 · **Versión:** v1.9.3 · **Pedido por:** Andrés
+
+**Cambio:** las notificaciones push (FCM) dejan de estar inertes. Se creó el
+proyecto de Firebase `rdz-deliveries`, se agregó `google-services.json` al
+módulo Android y `FIREBASE_SERVICE_ACCOUNT` a Vercel (producción, preview y
+desarrollo). Se compiló y publicó el APK 4 con el plugin de Google Services
+aplicado.
+
+**Razón:** el código de push llevaba semanas escrito y probado, solo inerte
+por falta de las credenciales de Firebase. Sin push, un chofer con la app
+cerrada no se enteraba de una asignación nueva hasta volver a abrirla — el
+hueco funcional más grande que quedaba en producción.
+
+**Consecuencia aceptada:** hay **0 teléfonos con token registrado** todavía.
+El registro pasa solo cuando alguien abre la app instalada desde el APK 4 —
+hasta que Maximo actualice, el comportamiento sigue siendo el de antes.
+
+**Revisar cuando:** una vez que haya teléfonos registrados, confirmar en la
+consola de Firebase que los envíos llegan y no solo se aceptan.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
