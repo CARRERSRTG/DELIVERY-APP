@@ -8,29 +8,35 @@ ellas no hay error ni intento: la app sigue igual.
 
 ---
 
-## 1. Crear la integración (2 minutos)
+## 1. Crear el token (2 minutos)
 
-1. Entra a <https://www.notion.so/my-integrations> → **New integration**.
-2. Ponle un nombre (por ejemplo `RDZ Deliveries`) y elige tu espacio de trabajo.
-3. Copia el **Internal Integration Secret**. Empieza con `ntn_` o `secret_`.
+Notion renombró esta parte: ya no se llama "integration", ahora son **Personal
+access tokens** / **Connections**.
+
+1. Entra a <https://www.notion.so/developers> → **Personal access tokens**.
+2. **New token** → nombre (ej. `RDZ Deliveries`), tu espacio de trabajo, y
+   marca la capacidad **Notion API** → **Create token**.
+3. **Cópialo ahora.** Notion lo muestra una sola vez.
+
+En planes Business/Enterprise la creación de tokens viene bloqueada; el dueño
+del espacio la habilita en **Settings → Connections**.
 
 ## 2. Crear la base de datos y compartirla
 
 1. En Notion, crea una página nueva y adentro una **base de datos** (tabla).
    **No necesita columnas especiales** — con el título le basta; el detalle va
    en el cuerpo de cada página.
-2. Abre la base de datos, botón **⋯** arriba a la derecha → **Connections** →
-   **Connect to** → elige tu integración.
+2. Abre la base de datos, botón **•••** arriba a la derecha → baja hasta
+   **Add connections** → busca tu token por nombre y selecciónalo.
 
    Este paso es el que más se olvida. Sin él la API responde
    *"Could not find database"* aunque el token sea correcto.
 
-3. Copia el **ID de la base de datos** de la URL. En
-   `notion.so/miespacio/`**`a8aec43384f447ed84390e8e42c2e089`**`?v=...`
-   el ID es la parte en negritas (32 caracteres).
+3. Copia el ID de la URL: los 32 caracteres entre la última `/` y el `?`.
 
-   Ojo: tiene que ser la URL de la **base de datos**, no la de una página
-   dentro de ella.
+   Sirve tanto el enlace de la **tabla** como el de la **página que la
+   contiene** — si el id resulta ser una página, la app busca la primera tabla
+   adentro. El enlace que da "Copy link" sobre una página funciona.
 
 ## 3. Guardar las llaves en Vercel
 
