@@ -329,6 +329,38 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-053", title: "Tab de Usuarios unificado — un solo lugar para role y recruiting_role",
+      fecha: "2026-08-19", version: "v1.10.0", quien: "Andrés",
+      cambio: "/users (deliveries) gana una sección \"Acceso a otros módulos\" en UserDialog.tsx: casilla + selector de recruiting_role por módulo. Función nueva y separada updateUserRecruitingAccess() en data-provider.tsx — nunca toca la columna role de deliveries. /recruiting/users pasa a ser un redirect(\"/users\") de una línea.",
+      razon: "Dos pantallas separadas editando la misma fila de profiles era el mismo patrón que ya había producido los tres bugs de D-052. Cerraba además una grieta de autorización real: los endpoints retirados autorizaban por recruiting_role==='admin' con un cliente de service-role que saltaba el requisito del trigger de ser admin de deliveries.",
+      razonTextual: false,
+      consecuencia: "Retirado por quedar sin llamador (confirmado con grep antes de borrar): updateUserRole/updateUserAvatar/deleteUser de recruiting-data-provider.tsx, /api/recruiting/invite, /api/recruiting/delete-user, y su cliente de service-role. recruiters (para asignar candidatos) no se tocó. Resuelve el pendiente de D-052: otorgar acceso a alguien que ya tiene cuenta ya no necesita invitarlo por correo. Verificado contra producción real con transacciones revertidas: no-admin rechazado, admin de deliveries que no es admin de recruiting sí puede otorgar acceso, último admin de recruiting protegido. tsc/vitest (458)/next build limpios. No se tocó ninguna migración."
+    },
+    {
+      id: "D-052", title: "Recruiting portado como módulo — Etapa 2 completa",
+      fecha: "2026-08-19", version: "v1.9.9", quien: "Andrés",
+      cambio: "Las 8 pantallas de recruiting (candidates, board, calendar, metrics, outcomes, questions, settings, users) viven ahora dentro de deliveries-app, bajo /recruiting/*, en un despliegue único. Route group hermano de (app), con su propio layout, DataProvider y TopBar — no hereda DriverGate ni LocationTracker.",
+      razon: "Siguiente etapa de D-050/D-051 — portar el resto de las páginas y cerrar el selector real funcionando.",
+      razonTextual: false,
+      consecuencia: "Tres bugs del mismo patrón encontrados portando: updateUserRole escribía role en vez de recruiting_role; reloadAll() traía profiles.role sin filtrar, metiendo choferes/vendedores en la lista de reclutadores; /api/delete-user de recruiting borraba la cuenta de Auth completa en vez de solo revocar acceso — los tres corregidos. Confirmado con el chofer real: no llega ni a /home ni a /recruiting/*. Queda pendiente invitar a alguien que ya tiene cuenta (resuelto después en D-053)."
+    },
+    {
+      id: "D-051", title: "Cimientos del selector de módulo: landingRoute() y /home",
+      fecha: "2026-08-19", version: "v1.9.7", quien: "Andrés",
+      cambio: "landingRoute(me) en constants.ts: un chofer siempre va a /driver sin mirar module_access; alguien con 2+ módulos va a /home. /home es la pantalla del selector — Server Component que redirige si no califica.",
+      razon: "Antes de portar ninguna pantalla de recruiting, tiene que existir la puerta que decide a quién se le muestra elegir y a quién no. Pedido explícito de que el chofer nunca vea el selector \"ni por navegación ni por URL directa\".",
+      razonTextual: false,
+      consecuencia: "No se tocó / ni middleware.ts a propósito — la alternativa de redirigir automáticamente desde / habría cambiado el comportamiento de esa ruta para todos los roles, incluyendo choferes. Hoy no hay ningún botón que lleve a /home — solo existe como ruta alcanzable, intencional hasta tener un segundo módulo real."
+    },
+    {
+      id: "D-050", title: "Recruiting deja de ser una app aparte: es un módulo dentro de deliveries",
+      fecha: "2026-08-19", version: "v1.9.6", quien: "Andrés",
+      cambio: "Los datos de RECRUIT·HN se movieron al proyecto de deliveries, en un schema propio recruiting.* (11 tablas). public.profiles gana recruiting_role y module_access, ambas vacías/null para todo usuario existente. RLS endurecido con has_recruiting_access() y un trigger guard_recruiting_access_change que exige admin de deliveries para tocar esas columnas.",
+      razon: "\"Una SOLA app, no dos... recruiting pasa a ser un módulo dentro de deliveries.\" Esta entrada cubre solo la unificación de identidad y datos, la parte más riesgosa, resuelta primero.",
+      razonTextual: true,
+      consecuencia: "El proyecto viejo de recruiting queda vivo, sin escrituras, como respaldo de solo lectura 1-2 semanas. El código de recruiting-app todavía no se había portado ni existía el home screen — eso vino en D-051/D-052. Verificado en producción: conteos de filas iguales al proyecto viejo, cero huérfanos de FK, RLS probado con set role authenticated (no con el superusuario), tsc/vitest (454) sin tocar código de aplicación."
+    },
+    {
       id: "D-049", title: "Pallets y documento bloquean de verdad al enviar a aprobación",
       fecha: "2026-08-18", version: "v1.9.5", quien: "Andrés",
       cambio: "Una orden ya no puede pasar de draft a pending (ni de rejected a pending, el mismo botón de reenviar) si le falta el número de pallets (est_pallets > 0) o el documento que le corresponda según su tipo (PO/SO/Factura — la regla de D-045, sin tocar). Nuevo: submitBlockers() en src/lib/required.ts, un subconjunto de missingFields() que rechaza en vez de listar-y-dejar-continuar. Guardar como borrador sigue sin pedir nada.",
