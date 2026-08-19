@@ -50,9 +50,10 @@ export function ModuleSwitcher({ current, deliveriesRole, moduleAccess }: Module
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={t("Switch module", "Cambiar de módulo")}
         title={t("Switch module", "Cambiar de módulo")}
       >
-        🔀 {t("Switch", "Cambiar")} <span aria-hidden>▾</span>
+        🔀
       </button>
       {open && (
         <>

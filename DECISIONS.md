@@ -1905,6 +1905,58 @@ switcher — el hub y el switcher se comportan idéntico.
 **Consecuencia aceptada:** ninguna — es aditivo puro. No se tocó
 `landingRoute()`, `/home/page.tsx`, RLS ni ninguna migración.
 
+**Addendum (2026-08-19, mismo día) — la barra tenía una trampa de flex
+preexistente que este cambio destapó.** Reportado: con el switcher presente,
+la barra se desbordaba horizontalmente y los tabs de la derecha (p. ej.
+"🧭 Gestor de Rutas") quedaban cortados fuera de pantalla, en escritorio
+angosto y en móvil.
+
+Causa real, en dos partes:
+1. **Estructural, ya existía antes de D-054.** El contenedor derecho de la
+   barra (`TopBar.tsx`, el `<div style={{display:"flex", flexWrap:"wrap"}}>`
+   que envuelve `.tabs` + los controles de cuenta) nunca tuvo
+   `min-width: 0`. Por default, un hijo flex se niega a encogerse por debajo
+   del ancho de su descendiente más ancho que no puede partirse — acá, el
+   nombre completo en el link de cuenta (p. ej. "Patricia Hernández"). Sin
+   ese override, el contenedor no cedía espacio a `.tabs` cuando hacía
+   falta, y `.tabs` terminaba empujado fuera del viewport en vez de
+   envolver a una línea más.
+2. **De contenido.** El único usuario con 2+ módulos hoy es admin, que ve
+   **todos** los tabs (incluido "Gestor de Rutas", normalmente solo de
+   logística) — su fila ya estaba cerca del límite. El botón del switcher
+   fue lo que la hizo desbordar, pero no la causó: era la trampa de arriba
+   esperando a que algo la destapara.
+
+**Arreglado (solo CSS/layout, cero cambio de lógica de D-054 — quién ve el
+switcher, la excepción del chofer y `accessibleModules()` intactos):**
+1. `ModuleSwitcher` pasó de botón de texto ("🔀 Cambiar ▾") a solo ícono
+   (🔀, con `aria-label`/`title` bilingües vía `usePrefs()`); el menú
+   desplegado sigue mostrando emoji + nombre completo de cada módulo.
+2. `min-width: 0` explícito en el contenedor derecho de **ambos** `TopBar`
+   (deliveries y recruiting — mismo patrón inline exacto en los dos).
+3. `min-width: 0` explícito también en `.tabs` (`globals.css`) — no se
+   asumió que el default del navegador ya resolvía a 0 en un contenedor
+   flex anidado con `flex-wrap`; sin poder confirmarlo en un navegador real
+   para este proyecto, se dejó explícito en vez de suponerlo.
+
+**Por qué esto ya no puede volver a pasar, no solo "mejoró":** con
+`min-width: 0` explícito en cada nivel de la cadena (el contenedor derecho
+y `.tabs`, ambos ya con `flex-wrap: wrap`), no queda ningún mecanismo de
+CSS por el que el contenido pueda forzar un desborde — el navegador siempre
+puede encoger y envolver en vez de desbordar. Verificación: el
+descendiente-sin-partir más ancho de toda la barra es el tab principal más
+largo en español ("🧭 Gestor de Rutas", ~165px con su padding) o un nombre
+completo real de producción (~150-190px con avatar) — ninguno de los dos se
+acerca a 360px, el viewport angosto más chico contemplado. Es una prueba
+estructural del modelo de caja, no una captura de pantalla — este proyecto
+no usa navegador para verificar (`no_chrome_extension`), así que no se
+puede "mirar" el resultado; se puede demostrar que ya no es posible que
+ocurra.
+
+**Tests:** sin test nuevo — es CSS puro, sin lógica que fijar (el test de
+`accessibleModules()` de D-054 ya cubre lo único con lógica real acá).
+`tsc`/`vitest` (461)/`next build` limpios.
+
 ---
 
 <!-- PLANTILLA — copia esto para una entrada nueva

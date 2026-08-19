@@ -100,7 +100,15 @@ export function TopBar({ me: propMe }: { me: Profile }) {
     )}
     <div className="topbar">
       <h1>{settings.app_name || "RDZ·DELIVERIES"}</h1>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      {/* minWidth: 0 overrides the flex default (min-width: auto), which
+          sizes a flex item to its widest unbreakable descendant — here the
+          account link's full name. Without it, this row refuses to shrink
+          below that width, and .tabs (its sibling, competing for the same
+          line) gets pushed past the viewport instead of wrapping (D-054
+          follow-up: adding the module switcher's button was what finally
+          tipped a multi-module admin's already-full tab row over the edge,
+          but the missing min-width was the real, preexisting cause). */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
         <div className="tabs">
           {mainTabs.map((tb) => (
             <Link key={tb.id} href={tb.href} className={"tab " + (isActive(tb.href) ? "active" : "")} style={{ position: "relative" }}>

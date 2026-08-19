@@ -30,7 +30,11 @@ export function TopBar({ me, deliveriesRole, moduleAccess }: { me: Profile; deli
   return (
     <div className="topbar">
       <h1>{settings.app_name || "RECRUIT·HN"}</h1>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      {/* Same fix as deliveries' own TopBar.tsx, same reason: min-width:
+          auto (the flex default) refuses to shrink this row below its
+          widest unbreakable child, pushing siblings off-screen instead of
+          wrapping. See D-054 follow-up. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
         <GlobalSearch />
         <div className="tabs">
           {TABS.filter((t) => !t.adminOnly || me.role === "admin").map((t) => {

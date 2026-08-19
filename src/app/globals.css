@@ -40,7 +40,10 @@ label { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: bloc
 .topbar { background: var(--ink); color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .topbar h1 { font-size: 18px; font-weight: 800; letter-spacing: .02em; }
 .topbar h1 span { color: var(--amber); }
-.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+/* min-width: 0 is explicit, not left to the flex default (min-width: auto) —
+   without it a nested flex-wrap container's shrink behavior across browsers
+   isn't something to assume; explicit is the safe choice here. */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; min-width: 0; }
 .tab { padding: 8px 16px; border-radius: 8px; color: #c6cede; font-weight: 600; font-size: 13px; text-decoration: none; display: inline-block; }
 .tab.active { background: var(--accent); color: #fff; }
 .tab:hover:not(.active) { background: rgba(255,255,255,.08); }
