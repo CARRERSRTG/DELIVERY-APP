@@ -3,7 +3,7 @@
 > Living document. Kept in sync with the codebase on every change.
 > Purpose: enough real detail to **recreate the system from scratch**.
 
-Last verified against code: 2026-07-14 (address autocomplete)
+Last verified against code: 2026-08-19 (recruiting module ported, D-052)
 
 ---
 
@@ -189,10 +189,16 @@ warehouse (fulfilling/ready/delivered) without a manager approving it first.
 
 ## 10. Change log (most recent first)
 
+- **Recruiting module — UI ported, Etapa 2 complete (D-052)**: all 8 recruiting pages now live
+  under `/recruiting/*` in this repo/deploy, in their own sibling route group with an
+  independent layout, DataProvider, and TopBar. CSS scoped under `.recruiting-module`;
+  `usePrefs()` reused instead of porting a second i18n provider. Found and fixed two more
+  role-vs-recruiting_role bugs beyond the one from D-051 (a query that could have crashed the
+  Users page on a driver profile; `/api/delete-user` that would have deleted a shared account
+  instead of revoking module access) — see §11.
 - **Recruiting module — data unified (D-050)**: recruiting's Postgres data now lives in this
   project, schema `recruiting.*`, sharing `profiles` (new `recruiting_role` / `module_access`
-  columns, both null/empty by default). RLS hardened at the same time — see §11. Code (the
-  recruiting-app Next.js UI) has NOT moved into this repo yet; that's a later step.
+  columns, both null/empty by default). RLS hardened at the same time — see §11.
 - **Split loads**: at pickup the driver confirms how many pallets actually fit; a short
   load splits the order — loaded part keeps the order_no with suffix "a" (out for
   delivery), remainder becomes a new linked order with the SAME order_no and suffix "b",
@@ -248,12 +254,12 @@ warehouse (fulfilling/ready/delivered) without a manager approving it first.
 - Added role-targeted in-app notification bell (Supabase + local, table + RLS + realtime).
 - Distance/ETA now auto-calculates (debounced) as addresses are typed.
 
-## 11. Recruiting module (data unified — D-050)
+## 11. Recruiting module (D-050, D-051, D-052 — complete)
 
-RECRUIT·HN (a separate Next.js app, `recruiting-app`) is becoming a module inside this
-container app. **As of D-050, only the data layer is unified** — its own Next.js code still
-lives in a separate repo/deploy; this section documents what already changed in *this*
-project's database.
+RECRUIT·HN used to be a separate Next.js app (`recruiting-app`). As of D-052 it's fully a
+module inside this container app: same deploy, same repo, `/recruiting/*`. The old
+`recruiting-app` repo/deploy/Supabase project still exist as a read-only fallback (see §"Old
+recruiting project" below) but nothing in production points at them anymore.
 
 - **Schema, not prefix.** Recruiting's 11 tables live in their own Postgres schema,
   `recruiting.*` (`candidates`, `contacts`, `jobs`, `stages`, `stage_history`, `attachments`,
@@ -286,6 +292,55 @@ project's database.
   its 49 objects copied over from the old recruiting project, same paths.
 - **The old recruiting Supabase project (`cfawfwzndxumeufhcwga`) is untouched and stays alive**
   as a read-only fallback until production is validated for 1–2 weeks post-cutover — see D-050.
-- **Not done yet:** the recruiting-app UI has not moved into `src/app/` here; there is no
-  home-screen module selector; nobody can actually reach `/recruiting` in this app yet. That's
-  the next stage.
+- **The UI is ported.** 8 pages under `src/app/recruiting/(recruiting)/`: bare `/recruiting`
+  is candidates (deliberately — recruiting's original `/` was a "Today" dashboard that was
+  never ported; the candidates list took the module's root instead), plus `board`, `calendar`,
+  `metrics`, `outcomes`, `questions`, `settings`, `users`.
+- **`(recruiting)` is a sibling of `(app)`, never nested under it.** It has its own
+  `layout.tsx` — own profile fetch, own `DataProvider` (`src/lib/recruiting-data-provider.tsx`,
+  Supabase-only, no local variant — see D4/D-050), own `TopBar`
+  (`src/components/recruiting/*`). Nothing from `(app)/layout.tsx` is inherited: no deliveries
+  realtime channels, and critically no `DriverGate`/`LocationTracker` — those are deliveries-
+  driver-only concepts that have no business mounting on a recruiting page. The recruiting
+  layout has its own access guard: no `recruiting_role` → `redirect(landingRoute(...))`, the
+  same function that sends a driver to `/driver` unconditionally (D-051) — so `/recruiting/*`
+  is exactly as unreachable to a driver as `/home` is, by construction, not by convention.
+- **Supabase clients under `src/lib/recruiting/supabase/*`** are built with
+  `db: { schema: "recruiting" }`, so every `.from()` call defaults there. The one recurring
+  exception: `profiles` lives in `public`, so every query against it uses
+  `.schema("public").from("profiles")` explicitly — four spots in the data provider, one in
+  Settings (display name), two in the `/api/recruiting/*` routes' admin checks, one in the
+  realtime subscription list (`postgres_changes` always needs the real schema, regardless of
+  the client's default).
+- **CSS: scoped under `.recruiting-module`, not a second global stylesheet.**
+  `src/app/recruiting/recruiting.css` is recruiting's original `globals.css` with every
+  selector — including its `:root` CSS variables and bare element selectors (`body`, `button`,
+  `input`, `a`, `label`) — rewritten to `.recruiting-module <selector>`. This mattered more than
+  a normal "avoid class collisions" pass: Next.js bundles all imported CSS sitewide regardless
+  of which route is active, so an unscoped `body { font-family: ...; background: var(--paper) }`
+  would have silently changed deliveries' own `<body>` styling depending on CSS load order.
+  Verified by grepping the compiled `.next/static/css/*.css` output for any recruiting-only
+  class (`.cand-row`, `.kb-board`, etc.) appearing without the `.recruiting-module` prefix —
+  zero hits.
+- **`usePrefs()` (deliveries' own theme/lang context) is reused; recruiting's `I18nProvider`
+  was never ported.** `PrefsProvider` already wraps the entire app from the root
+  `app/layout.tsx`, so every recruiting component gets light/dark theme and EN/ES for free —
+  `useI18n()` calls were mechanically renamed to `usePrefs()` (identical `t(en, es)` signature).
+- **Three bugs found and fixed while porting, all the same shape:** something written for
+  recruiting's *own* `profiles.role` column, now confused by deliveries' shared `role` column
+  on the same table.
+  1. `updateUserRole` wrote `role` instead of `recruiting_role` (fixed in the base-port commit).
+  2. `reloadAll()`'s "recruiters" query read `profiles.role` (deliveries' role) with no filter —
+     any deliveries user, including a driver, would have shown up in recruiting's Users page,
+     and `ROLE_INFO[u.role]` (only defined for admin/manager/recruiter) would have thrown on a
+     value like `"driver"`. Fixed: query now filters `recruiting_role is not null` and maps
+     `recruiting_role → role` in memory.
+  3. `/api/recruiting/delete-user` (ported from recruiting's `/api/delete-user`) used to call
+     `admin.auth.admin.deleteUser()` — correct when recruiting was someone's only account, but
+     that account is now the shared deliveries identity. Changed to *revoke recruiting access*
+     (null `recruiting_role`, drop `'recruiting'` from `module_access`) instead of deleting the
+     auth user. `/api/recruiting/invite` and `/api/recruiting/delete-user` are their own
+     namespace — deliveries' own `/api/invite`/`/api/delete-user` are untouched.
+- **Known gap:** inviting someone via recruiting's Users page fails if that email already has
+  an account anywhere in the system (`inviteUserByEmail` can't add access to an existing user).
+  There's no "grant recruiting access to an existing deliveries user" flow yet.

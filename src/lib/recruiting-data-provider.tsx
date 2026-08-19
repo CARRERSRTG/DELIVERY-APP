@@ -138,8 +138,17 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       supabase.from("templates").select("*").order("created_at"),
       supabase.from("custom_fields").select("*").order("sort"),
       // profiles lives in `public`, not `recruiting` — this client defaults
-      // to `recruiting`, so this one call overrides it explicitly.
-      supabase.schema("public").from("profiles").select("id, full_name, role, avatar_url").order("full_name"),
+      // to `recruiting`, so this one call overrides it explicitly. Selects
+      // recruiting_role (not the deliveries `role` column — same bug class
+      // as updateUserRole) and filters to people who actually have
+      // recruiting access, so a deliveries-only driver/sales/warehouse user
+      // never shows up as a "recruiter" here. ROLE_INFO only has entries for
+      // admin|manager|recruiter, so a deliveries role leaking through here
+      // would crash the Users page, not just show wrong data.
+      supabase.schema("public").from("profiles")
+        .select("id, full_name, recruiting_role, avatar_url")
+        .not("recruiting_role", "is", null)
+        .order("full_name"),
       supabase.from("candidates").select("*").order("created_at", { ascending: false }),
       supabase.from("contacts").select("*").order("created_at", { ascending: false }),
       supabase.from("jobs").select("*").order("created_at", { ascending: false }),
@@ -152,7 +161,19 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (q.data) setQuestions(q.data as Question[]);
     if (t.data) setTemplates(t.data as Template[]);
     if (cf.data) setCustomFields(cf.data as CustomField[]);
-    if (p.data) setRecruiters(p.data as Profile[]);
+    if (p.data) {
+      // Map recruiting_role -> role: everything downstream (ROLE_INFO
+      // lookups, the Users page role <select>, etc.) reads Profile.role and
+      // means "role inside recruiting" when it does.
+      setRecruiters(
+        p.data.map((row: { id: string; full_name: string | null; recruiting_role: string; avatar_url: string | null }) => ({
+          id: row.id,
+          full_name: row.full_name,
+          role: row.recruiting_role,
+          avatar_url: row.avatar_url,
+        })) as Profile[],
+      );
+    }
     if (c.data) setCandidates(c.data as Candidate[]);
     if (co.data) setContacts(co.data as Contact[]);
     if (j.data) setJobs(j.data as Job[]);
@@ -678,18 +699,21 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     [supabase, notify, reloadAll],
   );
 
+  // Despite the name (kept to match the existing DataState contract), this
+  // revokes recruiting access — it no longer deletes the shared auth account.
+  // See src/app/api/recruiting/delete-user/route.ts.
   const deleteUser = useCallback<DataState["deleteUser"]>(
     async (userId) => {
       try {
-        const res = await fetch("/api/delete-user", {
+        const res = await fetch("/api/recruiting/delete-user", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId }),
         });
         const data = await res.json();
-        if (!res.ok) { notify(data.error || "Could not delete user"); return false; }
+        if (!res.ok) { notify(data.error || "Could not remove access"); return false; }
         setRecruiters((prev) => prev.filter((p) => p.id !== userId));
-        notify("User deleted ✓");
+        notify("Recruiting access removed ✓");
         return true;
       } catch {
         notify("Network error deleting user");

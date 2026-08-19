@@ -1629,6 +1629,99 @@ ahí es cuando `/home` necesita un punto de entrada real desde la navegación.
 
 ---
 
+## D-052 · Recruiting portado como módulo — Etapa 2 completa
+**Fecha:** 2026-08-19 · **Versión:** v1.9.9 · **Pedido por:** Andrés
+
+**Cambio:** las 8 pantallas de recruiting (candidates, board, calendar,
+metrics, outcomes, questions, settings, users) viven ahora dentro de
+deliveries-app, bajo `/recruiting/*`, en un despliegue único — cierra la
+Etapa 2 (D-050 unificó los datos; D-051 puso los cimientos del selector;
+esta entrada es el resto de las páginas + el selector real funcionando).
+
+**Route group hermano, no anidado — y por qué importa concretamente.**
+`src/app/recruiting/(recruiting)/` es hermano de `(app)`, con su propio
+`layout.tsx`: su propio fetch de perfil, su propio `DataProvider`, su propio
+`TopBar`. No hereda nada de `(app)/layout.tsx`. La razón no es estética: si
+recruiting colgara de `(app)`, cada una de sus 8 pantallas montaría también
+`DriverGate` y `LocationTracker` — el rastreo GPS del chofer — sin que
+tuviera nada que ver con recruiting. El layout de recruiting sí replica el
+mismo patrón de auth+perfil que `(app)/layout.tsx` ya usa (duplicado a
+propósito, no reinventado), y agrega su propia guarda: si `recruiting_role`
+es null, redirige por `landingRoute()` — la misma función que ya manda a un
+chofer a `/driver` sin mirar nada más (D-051). Confirmado con el chofer real
+(Maximo Garza): `module_access={}` y `recruiting_role=null` — no llega ni a
+`/home` ni a `/recruiting/*`, por dos candados independientes.
+
+**CSS — opción (a), scope por prefijo, confirmado sin fuga en el bundle
+real.** `recruiting.css` reescribe cada selector de `.recruiting-module`, y
+las páginas de recruiting quedan envueltas en `<div className="recruiting-module">`
+en el layout. Esto importaba especialmente para los selectores de elemento
+sueltos del CSS original de recruiting (`body`, `button`, `input`, `a`,
+`label`) y sus variables `:root` — sin el scope, habrían pisado el `body` y
+los controles de **toda** deliveries, no solo de recruiting, porque Next
+empaqueta el CSS importado para todo el sitio sin importar la ruta activa.
+Verificado grep-eando el bundle compilado (`.next/static/css/*.css`): cero
+selectores de recruiting sin el prefijo `.recruiting-module`.
+
+**`usePrefs()` de deliveries, reusado — no se portó `I18nProvider`.** Ya
+envuelve toda la app desde `app/layout.tsx` (tema + idioma), así que cada
+componente portado (`useI18n()` → `usePrefs()`, misma firma `t(en, es)`) lo
+recibe gratis. Menos código, y el tema oscuro/claro cubre recruiting sin que
+nadie tuviera que pedirlo.
+
+**Selector cerrado.** `/home` (D-051) ya tenía la tarjeta de Recruiting
+apuntando a `/recruiting` desde que se construyó — no hizo falta tocar nada
+ahí, solo que `/recruiting` existiera de verdad. El dueño (2+ módulos) llega
+a `/home` y elige; todos los demás (hoy, todos) siguen entrando directo,
+sin ver el selector.
+
+**Tres bugs reales del mismo patrón, encontrados portando el resto del
+código — no solo los dos que ya se sabían:**
+1. `updateUserRole` escribía `role` en vez de `recruiting_role` (encontrado y
+   corregido en el commit anterior, 6487374).
+2. **Nuevo, en lectura:** `reloadAll()` traía `profiles.role` (el rol de
+   deliveries) para la lista de "recruiters" del Users page, sin filtrar por
+   `recruiting_role`. Con `profiles` compartida, eso metía a **cualquier**
+   usuario de deliveries —choferes, vendedores— en la lista de reclutadores,
+   y `ROLE_INFO[u.role]` (que solo tiene entradas para admin/manager/
+   recruiter) habría reventado en tiempo de ejecución al toparse con un rol
+   como `"driver"`. Se corrigió: la consulta ahora filtra
+   `recruiting_role is not null` y mapea `recruiting_role → role` en memoria,
+   para que el resto del código (que siempre leyó `Profile.role` como "rol
+   dentro de recruiting") siga funcionando sin tocar nada más. Verificado
+   contra producción: la lista queda con una sola persona (el dueño); el
+   chofer real no aparece.
+3. **`/api/delete-user` de recruiting borraba la cuenta de Auth completa.**
+   Antes del merge eso era correcto — recruiting era la única cuenta de esa
+   persona. Ahora esa misma cuenta es la identidad compartida con deliveries;
+   borrarla desde el botón "Eliminar" de recruiting se habría llevado también
+   el acceso a deliveries de esa persona. Se cambió el comportamiento —no
+   solo el schema— a **revocar acceso a recruiting** (`recruiting_role=null`,
+   se quita `'recruiting'` de `module_access`) en vez de borrar el usuario.
+   Ambos endpoints nuevos viven en `/api/recruiting/*` (namespace propio; los
+   `/api/invite` y `/api/delete-user` de deliveries no se tocaron). El texto
+   del botón y del confirm en `users/page.tsx` se reescribió para que diga lo
+   que de verdad hace ahora — ya no promete borrar el login de nadie.
+
+**Verificado contra producción real (no solo build):** cada tabla de
+`recruiting.*` responde con la config exacta que usa el código (51
+candidatos, 167 preguntas, 7 etapas, 93 contactos, etc. — conteos iguales a
+los del merge original); las 8 rutas nuevas + `/`, `/driver`, `/home`,
+`/warehouse` devuelven `307 → /login` sin sesión; `tsc`/`vitest`
+(458)/`next build` limpios.
+
+**Consecuencia aceptada:** invitar a alguien que YA tiene cuenta de
+deliveries (o de recruiting) desde el Users page de recruiting sigue
+fallando ("that email already has an account") — `inviteUserByEmail` no
+soporta "agregar acceso a un usuario existente". Construir ese flujo
+("dame acceso a recruiting" para alguien que ya inició sesión en deliveries)
+queda pendiente, fuera del alcance de un port directo.
+
+**Revisar cuando:** si se necesita invitar/otorgar acceso a alguien que ya
+tiene cuenta en el otro lado del sistema — hoy no hay flujo para eso.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
