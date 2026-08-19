@@ -97,6 +97,14 @@ export default function UsersPage() {
             🔑 +{extra.length}
           </span>
         )}
+        {/* Cross-module access (D-053) is worth surfacing here for the same
+            reason the extra-permissions marker is: otherwise the only way to
+            know is opening all twenty-nine dialogs one by one. */}
+        {u.recruiting_role && (
+          <span className="sema" style={{ background: "var(--purple)", color: "#fff" }} title={t("Has Recruiting access", "Tiene acceso a Recruiting")}>
+            🧑‍💼 Recruiting
+          </span>
+        )}
         <span className="sema" style={{ background: info.color, color: "#fff" }}>{roleLabel(u.role, lang)}</span>
         <span className="hint" style={{ marginTop: 0 }}>›</span>
       </button>

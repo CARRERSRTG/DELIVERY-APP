@@ -300,6 +300,13 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     persist({ ...s, users: s.users.map((u) => (u.id === userId ? { ...u, permissions } : u)) });
   }, [persist]);
 
+  // Recruiting has no local provider (D-050) — the UI section that calls this
+  // is gated to !LOCAL_MODE and never renders here, so this only exists to
+  // satisfy the shared DataState contract.
+  const updateUserRecruitingAccess = useCallback<DataState["updateUserRecruitingAccess"]>(async () => {
+    notify("Not available in demo mode");
+  }, [notify]);
+
   const deleteUser = useCallback<DataState["deleteUser"]>(async (userId) => {
     const s = storeRef.current;
     persist({ ...s, users: s.users.filter((u) => u.id !== userId) });
@@ -345,7 +352,7 @@ export function LocalDataProvider({ children, me }: { children: React.ReactNode;
     notifications: store.notifications.filter((n) => n.user_id === me.id),
     toast, notify, markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote, setUserIdentity, resetUserPassword,
-    saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
+    saveSettings, addUser, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, updateUserRecruitingAccess, deleteUser,
     availability: store.availability ?? [], addAvailability, removeAvailability,
     shifts: store.shifts ?? [], clockIn, clockOut,
     incidents: store.incidents ?? [], addIncident, removeIncident,

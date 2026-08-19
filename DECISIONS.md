@@ -1722,6 +1722,105 @@ tiene cuenta en el otro lado del sistema — hoy no hay flujo para eso.
 
 ---
 
+## D-053 · Tab de Usuarios unificado — un solo lugar para role y recruiting_role
+**Fecha:** 2026-08-19 · **Versión:** v1.10.0 · **Pedido por:** Andrés
+
+**Cambio:** `/users` (deliveries) gana una sección "Acceso a otros módulos" en
+`UserDialog.tsx`: una casilla por módulo (hoy solo Recruiting) que, marcada,
+despliega el selector de `recruiting_role` (Admin/Office Manager/Recruiter).
+Función nueva y separada en `data-provider.tsx`,
+`updateUserRecruitingAccess(userId, { granted, recruiting_role })` — escribe
+`recruiting_role`/`module_access`, nunca `role`. `/recruiting/users` pasa a
+ser un `redirect("/users")` de una línea, igual que ya hace `/home` con
+`landingRoute()`.
+
+**Razón:** dos pantallas separadas para gestionar la misma fila de
+`profiles` era exactamente el patrón que ya había producido los tres bugs de
+D-052 — alguien edita pensando en una columna y toca la otra. Unificar en un
+solo lugar, con una función que nunca puede confundirse con `updateUserRole`
+porque tiene otro nombre y otra firma, cierra esa clase de error en vez de
+tener más cuidado con ella.
+
+**La grieta de autorización que cierra, no solo cierra un bug de UI.**
+`/api/recruiting/invite` y `/api/recruiting/delete-user` (ahora retirados)
+autorizaban por `recruiting_role === 'admin'` — admin **de recruiting**. El
+trigger `guard_recruiting_access_change` (D-050) exige admin **de
+deliveries** (`current_user_role() = 'admin'`) para cualquier escritura de un
+usuario autenticado. Eran dos criterios de autoridad distintos conviviendo:
+el endpoint de borrado solo funcionaba porque usaba el cliente de
+service-role, que el trigger trata como confiable (`auth.uid()` nulo) — un
+admin de recruiting que **no** fuera admin de deliveries podía revocarle el
+acceso a alguien sin que el trigger lo viera venir. Con `/users` unificado,
+el único punto de entrada YA es deliveries-admin-only (`me.role !== 'admin'`
+en `users/page.tsx`, sin cambios), así que el trigger deja de ser una segunda
+opinión que un endpoint podía esquivar — es la única autoridad, y coincide
+con quien puede llegar a la pantalla.
+
+**Por qué `UPDATE` directo del cliente y no un endpoint con service-role:**
+esa era justo la grieta de arriba. El trigger ya decide correctamente quién
+puede tocar `recruiting_role`/`module_access` — envolver esto en una ruta de
+API con `SUPABASE_SERVICE_ROLE_KEY` habría sido reintroducir el mecanismo que
+salta esa autoridad, solo que esta vez a propósito. `updateUserRecruitingAccess`
+es un `supabase.from("profiles").update(...)` desde el navegador, autenticado
+como el admin que ya está en `/users` — mismo patrón exacto que
+`updateUserRole`/`updateUserStore`/`updateUserPermissions` ya usan hoy.
+
+**Resuelve el pendiente de D-052** ("no hay flujo para dar acceso de
+recruiting a alguien que ya tiene cuenta"): como el modal ya opera sobre un
+usuario existente, otorgar acceso nunca necesita invitar a nadie por correo
+— es el mismo `UPDATE`. Sigue sin resolverse el caso distinto de "invitar a
+alguien que no tiene cuenta en absoluto" — eso no era lo pedido.
+
+**Retirado por quedar sin llamador tras el redirect:**
+`recruiting-data-provider.tsx` pierde `updateUserRole`, `updateUserAvatar` y
+`deleteUser` (todas solo las llamaba la pantalla que ahora redirige;
+`updateUserName` se queda — no era parte de este cambio, y nada más la
+reemplaza). `/api/recruiting/invite/route.ts` y
+`/api/recruiting/delete-user/route.ts` se borraron, y con ellos
+`src/lib/recruiting/supabase/admin.ts` (el cliente de service-role de
+recruiting), que ya no tenía ningún importador — confirmado con grep antes de
+borrar cada uno, no por suposición. El array `recruiters` (solo lectura,
+usado para asignar candidatos en `board`/`candidates`) no se tocó — eso no es
+gestión de usuarios.
+
+**`data-provider.tsx` gana `recruiting_role`/`module_access` en el `select()`
+de `reloadAll()`** — antes solo `role`/`store`/`permissions`/etc., así que la
+lista `users` no tenía con qué mostrar el estado de recruiting de nadie más
+que uno mismo. `local-data-provider.tsx` implementa
+`updateUserRecruitingAccess` como stub ("Not available in demo mode"), mismo
+patrón que ya usa `resetUserPassword` — la sección entera del modal está
+gateada por `!LOCAL_MODE`, así que nunca se llama ahí, pero el contrato
+compartido `DataState` exige que exista.
+
+**`SecurityKind` nuevo:** `recruiting_access_changed`, marcado sensible
+(`isSensitive`) — otorgar acceso a otro módulo es, como mínimo, tan
+significativo como un cambio de permisos.
+
+**`MODULES` se extrajo** de `HomeSelector.tsx` (privado ahí) a `constants.ts`
+(exportado), para que el modal y el selector lean el mismo emoji/label — un
+tercer módulo algún día solo necesita una entrada ahí. `HomeSelector` sin
+cambio de comportamiento: "Deliveries" sigue siendo la primera tarjeta,
+implícita, nunca parte de `module_access`.
+
+**Verificado contra producción real (transacciones con `rollback`, nunca se
+escribió nada de verdad):**
+1. Angel Cabrera (accounting, no-admin) intenta darse acceso a recruiting →
+   rechazado: *"Only an admin can change recruiting access or role"*.
+2. Roberto Rodriguez (admin de **deliveries**, `recruiting_role` null — NO es
+   admin de recruiting) le otorga acceso a Kevin Gonzalez → permitido. Prueba
+   a la vez que el `UPDATE` directo resuelve el pendiente de D-052.
+3. El mismo Roberto intenta poner en null el `recruiting_role` del único
+   admin de recruiting (Andrés) → rechazado por `protect_last_recruiting_admin`:
+   *"There must always be at least one recruiting admin"*.
+4. `tsc`/`vitest` (458)/`next build` limpios. Nada de esto tocó una
+   migración — las columnas y los tres triggers ya existían desde D-050.
+
+**Consecuencia aceptada:** el gap de "invitar a alguien sin cuenta en
+absoluto a recruiting" sigue sin resolverse — nunca fue el problema que este
+cambio atacaba.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

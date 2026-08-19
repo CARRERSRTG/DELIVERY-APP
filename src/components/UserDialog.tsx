@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
-import { CAPABILITIES, ROLE_CAPS, ROLE_INFO, ROLE_ORDER, extraCaps, roleLabel } from "@/lib/constants";
+import { CAPABILITIES, MODULES, RECRUITING_ROLE_LABELS, ROLE_CAPS, ROLE_INFO, ROLE_ORDER, extraCaps, roleLabel } from "@/lib/constants";
 import { avatarColor, initials } from "@/lib/utils";
 import type { Profile, UserRole } from "@/lib/types";
 
@@ -25,7 +25,7 @@ const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 interface SignIn { email: string; synthetic: boolean; can_reset_own_password: boolean; last_sign_in_at: string | null }
 
 export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () => void }) {
-  const { me, notify, settings, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser, saveSettings } = useData();
+  const { me, notify, settings, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, updateUserRecruitingAccess, deleteUser, saveSettings } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
 
@@ -228,6 +228,53 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
             );
           })}
         </div>
+
+        {/* ---------- Other modules (D-053) ---------- */}
+        {/* Recruiting has no local provider (D-050) — this section only means
+            anything against Supabase, so it's gated the same way Username/
+            Email/Access already are above. */}
+        {!LOCAL_MODE && (
+          <>
+            <div className="section-label">{t("Access to other modules", "Acceso a otros módulos")}</div>
+            <div className="grid g2">
+              {MODULES.map((m) => {
+                const granted = !!u.recruiting_role; // today: only "recruiting" exists
+                const roleOpts = Object.entries(RECRUITING_ROLE_LABELS);
+                return (
+                  <label key={m.key} className="perm-opt">
+                    <input
+                      type="checkbox"
+                      checked={granted}
+                      onChange={(e) => {
+                        // Checking with no tier chosen yet defaults to the
+                        // lowest one — matching what recruiting's own invite
+                        // flow always did (invRole defaulted to "recruiter").
+                        updateUserRecruitingAccess(u.id, {
+                          granted: e.target.checked,
+                          recruiting_role: e.target.checked ? (u.recruiting_role ?? "recruiter") : null,
+                        });
+                      }}
+                    />
+                    <span>
+                      <b>{m.emoji} {lang === "es" ? m.label_es : m.label_en}</b>
+                      <span className="hint" style={{ display: "block" }}>{lang === "es" ? m.desc_es : m.desc_en}</span>
+                      {granted && (
+                        <select
+                          value={u.recruiting_role ?? "recruiter"}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => updateUserRecruitingAccess(u.id, { granted: true, recruiting_role: e.target.value })}
+                          style={{ marginTop: 6 }}
+                        >
+                          {roleOpts.map(([key, label]) => <option key={key} value={key}>{lang === "es" ? label.es : label.en}</option>)}
+                        </select>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {/* ---------- Access ---------- */}
         {!LOCAL_MODE && (

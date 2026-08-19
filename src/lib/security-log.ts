@@ -17,7 +17,8 @@ export type SecurityKind =
   | "permissions_changed"
   | "username_changed"
   | "email_changed"
-  | "password_reset";
+  | "password_reset"
+  | "recruiting_access_changed";
 
 export interface SecurityEventSeed {
   target_id: string | null;
@@ -37,6 +38,7 @@ export function securityLabel(kind: string, lang: "en" | "es"): string {
     username_changed: "Username changed",
     email_changed: "Email changed",
     password_reset: "Password reset",
+    recruiting_access_changed: "Recruiting access changed",
   };
   const es: Record<string, string> = {
     user_created: "Usuario creado",
@@ -47,13 +49,15 @@ export function securityLabel(kind: string, lang: "en" | "es"): string {
     username_changed: "Usuario cambiado",
     email_changed: "Correo cambiado",
     password_reset: "Contraseña restablecida",
+    recruiting_access_changed: "Acceso a Recruiting cambiado",
   };
   return (lang === "es" ? es : en)[kind] ?? kind;
 }
 
 /** Which kinds deserve to stand out in a list. */
 export function isSensitive(kind: string): boolean {
-  return kind === "password_reset" || kind === "user_removed" || kind === "email_changed";
+  return kind === "password_reset" || kind === "user_removed" || kind === "email_changed"
+    || kind === "recruiting_access_changed";
 }
 
 /** "driver → logistics", with a readable stand-in for an empty value. */

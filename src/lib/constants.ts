@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.9.9";
+export const APP_VERSION = "1.10.0";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -157,6 +157,36 @@ export function landingRoute(me: { role: UserRole; module_access?: string[] | nu
 }
 
 export const ROLE_ORDER: UserRole[] = ["admin", "manager", "accounting", "logistics", "sales", "warehouse", "driver"];
+
+// ---- Modules (D-050/D-053) --------------------------------------------------
+// The container app's own modules besides deliveries itself. "deliveries" is
+// implicit for everyone (see landingRoute above) and never appears in
+// module_access — this list is only the OTHER modules an identity can be
+// granted. Shared by HomeSelector (which module cards to offer) and
+// UserDialog (which module toggles an admin can grant) so both read the same
+// emoji/label/description — a third module only needs an entry here.
+export interface ModuleInfo { key: string; href: string; emoji: string; label_en: string; label_es: string; desc_en: string; desc_es: string }
+// Recruiting's own role tiers (admin|manager|recruiter — see
+// src/lib/recruiting/constants.ts ROLE_INFO), relabeled here bilingually.
+// Recruiting's copy is English-only; UserDialog is bilingual throughout, so
+// this mirrors it rather than importing it half-translated.
+export const RECRUITING_ROLE_LABELS: Record<string, { en: string; es: string }> = {
+  admin: { en: "Admin", es: "Administrador" },
+  manager: { en: "Office Manager", es: "Gerente de Oficina" },
+  recruiter: { en: "Recruiter", es: "Reclutador" },
+};
+
+export const MODULES: ModuleInfo[] = [
+  {
+    key: "recruiting",
+    href: "/recruiting",
+    emoji: "🧑‍💼",
+    label_en: "Recruiting",
+    label_es: "Reclutamiento",
+    desc_en: "Candidates and interviews",
+    desc_es: "Candidatos y entrevistas",
+  },
+];
 
 // ---- Delivery time window presets ------------------------------------------
 // Same "HHMM-HHMM" string format the rest of the app already parses

@@ -77,11 +77,11 @@ interface DataState {
   deleteTemplate: (id: string) => Promise<void>;
   addCustomField: (label: string) => Promise<void>;
   deleteCustomField: (id: string) => Promise<void>;
-  // user management
-  updateUserRole: (userId: string, role: Profile["role"]) => Promise<void>;
+  // user management — role/avatar/delete retired D-053: user management for
+  // recruiting now lives entirely in deliveries' own /users (see
+  // updateUserRecruitingAccess in data-provider.tsx). updateUserName stays;
+  // it has no other caller today either, but wasn't part of that unification.
   updateUserName: (userId: string, name: string) => Promise<void>;
-  updateUserAvatar: (userId: string, dataUrl: string | null) => Promise<void>;
-  deleteUser: (userId: string) => Promise<boolean>;
   // jobs / requisitions
   addJob: (j: Partial<Job>) => Promise<void>;
   updateJob: (id: string, patch: Partial<Job>) => Promise<void>;
@@ -659,24 +659,6 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     [supabase, stages, candidates, notify],
   );
 
-  const updateUserRole = useCallback<DataState["updateUserRole"]>(
-    async (userId, role) => {
-      setRecruiters((prev) => prev.map((p) => (p.id === userId ? { ...p, role } : p)));
-      // Writes recruiting_role, NOT role — `role` on the shared profiles
-      // table is deliveries' own column (admin|manager|sales|warehouse|
-      // driver|...); this is recruiting's independent permission tier.
-      // See D-050/D-052.
-      const { error } = await supabase.schema("public").from("profiles").update({ recruiting_role: role }).eq("id", userId);
-      if (error) {
-        notify("Error: " + error.message);
-        reloadAll();
-      } else {
-        notify("Role updated ✓");
-      }
-    },
-    [supabase, notify, reloadAll],
-  );
-
   const updateUserName = useCallback<DataState["updateUserName"]>(
     async (userId, name) => {
       const clean = name.trim();
@@ -687,40 +669,6 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       else notify("Name updated ✓");
     },
     [supabase, notify, reloadAll],
-  );
-
-  const updateUserAvatar = useCallback<DataState["updateUserAvatar"]>(
-    async (userId, dataUrl) => {
-      setRecruiters((prev) => prev.map((p) => (p.id === userId ? { ...p, avatar_url: dataUrl } : p)));
-      const { error } = await supabase.schema("public").from("profiles").update({ avatar_url: dataUrl }).eq("id", userId);
-      if (error) { notify("Error: " + error.message); reloadAll(); }
-      else notify(dataUrl ? "Photo updated ✓" : "Photo removed");
-    },
-    [supabase, notify, reloadAll],
-  );
-
-  // Despite the name (kept to match the existing DataState contract), this
-  // revokes recruiting access — it no longer deletes the shared auth account.
-  // See src/app/api/recruiting/delete-user/route.ts.
-  const deleteUser = useCallback<DataState["deleteUser"]>(
-    async (userId) => {
-      try {
-        const res = await fetch("/api/recruiting/delete-user", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId }),
-        });
-        const data = await res.json();
-        if (!res.ok) { notify(data.error || "Could not remove access"); return false; }
-        setRecruiters((prev) => prev.filter((p) => p.id !== userId));
-        notify("Recruiting access removed ✓");
-        return true;
-      } catch {
-        notify("Network error deleting user");
-        return false;
-      }
-    },
-    [notify],
   );
 
   const value: DataState = {
@@ -763,10 +711,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     deleteTemplate,
     addCustomField,
     deleteCustomField,
-    updateUserRole,
     updateUserName,
-    updateUserAvatar,
-    deleteUser,
     addJob,
     updateJob,
     deleteJob,

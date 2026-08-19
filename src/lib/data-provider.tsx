@@ -125,6 +125,13 @@ export interface DataState {
   updateUserStore: (userId: string, store: string | null) => Promise<void>;
   /** Grant a specific person extra capabilities on top of their role. */
   updateUserPermissions: (userId: string, permissions: string[]) => Promise<void>;
+  /** Grant or revoke access to another module (today: recruiting) and its
+   * permission tier there. Deliberately separate from updateUserRole — this
+   * writes recruiting_role/module_access, never the deliveries `role` column
+   * on the same shared profiles row (D-053; see D-050/D-052 for the bug this
+   * confusion caused before). `recruiting_role` is ignored when
+   * `granted` is false. */
+  updateUserRecruitingAccess: (userId: string, patch: { granted: boolean; recruiting_role: string | null }) => Promise<void>;
   deleteUser: (userId: string) => Promise<boolean>;
 
   /** Milestones completed with no signal, still waiting to reach the server.
@@ -383,7 +390,10 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       // button, and turned clearing an email into "give them a username
       // first" — a message about a value that was sitting in the database all
       // along. Select what the app actually uses.
-      supabase.from("profiles").select("id, full_name, username, role, store, permissions, avatar_url").order("full_name"),
+      // recruiting_role + module_access ride along here (not just on `me` in
+      // the layout) so the Users page can show/edit another person's
+      // recruiting access without a second round trip (D-053).
+      supabase.from("profiles").select("id, full_name, username, role, store, permissions, avatar_url, recruiting_role, module_access").order("full_name"),
       // Teaching mode never loads from the DB — the live (non-training) rows are
       // always the base, and the sandbox lives only in the local overlay.
       supabase.from("deliveries").select("*").eq("is_training", false).order("order_no", { ascending: false }),
@@ -989,6 +999,32 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     [supabase, notify, reloadAll, users, logSecurityClient],
   );
 
+  // Writes recruiting_role / module_access, never `role` — see the interface
+  // comment above. A plain client-side update, not a service-role API route:
+  // the guard_recruiting_access_change trigger on profiles is the actual
+  // authority here, and it already requires the caller to be a DELIVERIES
+  // admin (current_user_role() = 'admin') for a browser-authenticated write.
+  // This page is already gated to deliveries admins (users/page.tsx), so the
+  // trigger passes for exactly the people this UI lets reach the toggle — no
+  // second route to keep in sync, and no service-role bypass of that check
+  // (D-053; that bypass pattern was the actual authorization gap in
+  // recruiting's own former Users page, see D-050/D-052).
+  const updateUserRecruitingAccess = useCallback<DataState["updateUserRecruitingAccess"]>(
+    async (userId, { granted, recruiting_role }) => {
+      const target = users.find((u) => u.id === userId);
+      const beforeRole = target?.recruiting_role ?? null;
+      const nextRole = granted ? (recruiting_role ?? "recruiter") : null;
+      const nextModules = granted
+        ? Array.from(new Set([...(target?.module_access ?? []), "recruiting"]))
+        : (target?.module_access ?? []).filter((m) => m !== "recruiting");
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, recruiting_role: nextRole, module_access: nextModules } : u)));
+      const { error } = await supabase.from("profiles").update({ recruiting_role: nextRole, module_access: nextModules }).eq("id", userId);
+      if (error) { notify(error.message); reloadAll(); return; }
+      void logSecurityClient(userId, "recruiting_access_changed", change(beforeRole, nextRole));
+    },
+    [supabase, notify, reloadAll, users, logSecurityClient],
+  );
+
   const deleteUser = useCallback<DataState["deleteUser"]>(
     async (userId) => {
       const res = await fetch("/api/delete-user", {
@@ -1051,7 +1087,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, clearTrainingData, settings, users, deliveries: effectiveDeliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote,
-    saveSettings, addUser, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, deleteUser,
+    saveSettings, addUser, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, updateUserRecruitingAccess, deleteUser,
     availability, addAvailability, removeAvailability,
     shifts, clockIn, clockOut,
     incidents, addIncident, removeIncident,

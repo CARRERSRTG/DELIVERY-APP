@@ -341,6 +341,32 @@ recruiting project" below) but nothing in production points at them anymore.
      (null `recruiting_role`, drop `'recruiting'` from `module_access`) instead of deleting the
      auth user. `/api/recruiting/invite` and `/api/recruiting/delete-user` are their own
      namespace — deliveries' own `/api/invite`/`/api/delete-user` are untouched.
-- **Known gap:** inviting someone via recruiting's Users page fails if that email already has
-  an account anywhere in the system (`inviteUserByEmail` can't add access to an existing user).
-  There's no "grant recruiting access to an existing deliveries user" flow yet.
+- **User management unified into deliveries' own `/users` (D-053).** Two separate Users
+  screens editing the same shared `profiles` row was the exact pattern that produced the three
+  bugs above — someone edits meaning one column and hits the other. `UserDialog.tsx` gained an
+  "Access to other modules" section (checkbox + `recruiting_role` picker per module, driven by
+  the shared `MODULES` list in `constants.ts`) and a new, deliberately separate function,
+  `updateUserRecruitingAccess()` in `data-provider.tsx` — it can't be confused with
+  `updateUserRole()` because it has a different name and a different signature, and it writes
+  `recruiting_role`/`module_access` only. `src/app/recruiting/(recruiting)/users/page.tsx` is
+  now a one-line `redirect("/users")`, the same pattern `/home` already used for
+  `landingRoute()`. `recruiting-data-provider.tsx` lost `updateUserRole`, `updateUserAvatar` and
+  `deleteUser` (only that retired page called them); `/api/recruiting/invite` and
+  `/api/recruiting/delete-user` were deleted, and with them
+  `src/lib/recruiting/supabase/admin.ts` (recruiting's service-role client), which had no
+  importer left. The read-only `recruiters` list (candidate-assignment dropdowns in
+  `board`/`candidates`) is untouched — that's not user management.
+- **This closed a real authorization gap, not just a UI one.** The two retired endpoints
+  authorized by `recruiting_role === 'admin'` (a recruiting admin) using a service-role client —
+  which the `guard_recruiting_access_change` trigger treats as trusted (`auth.uid()` is null),
+  bypassing its own requirement that a *deliveries* admin make the change. A recruiting admin
+  who wasn't also a deliveries admin could revoke someone's access without the trigger ever
+  seeing it. The unified `/users` is deliveries-admin-only already (`me.role !== 'admin'` in
+  `users/page.tsx`, unchanged), so `updateUserRecruitingAccess()` is a plain client-side
+  `profiles` update — same pattern `updateUserRole`/`updateUserStore`/`updateUserPermissions`
+  already use — and the trigger is now the *only* authority, not a second opinion an API route
+  could route around.
+- **Resolved the "grant access to an existing user" gap** noted above: since the dialog already
+  operates on an existing profile, granting recruiting access is just that same client-side
+  `UPDATE` — no invite email needed. The dialog's checkbox default when checked with no tier
+  chosen is `recruiter`, matching what the old invite flow always defaulted to.

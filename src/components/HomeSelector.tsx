@@ -3,33 +3,26 @@
 import Link from "next/link";
 import { usePrefs } from "@/lib/prefs";
 import { VersionFooter } from "@/components/VersionFooter";
+import { MODULES, type ModuleInfo } from "@/lib/constants";
 import type { Profile } from "@/lib/types";
 
-const MODULES: { key: string; href: string; emoji: string; label_en: string; label_es: string; desc_en: string; desc_es: string }[] = [
-  {
-    key: "deliveries",
-    href: "/",
-    emoji: "📦",
-    label_en: "Deliveries",
-    label_es: "Entregas",
-    desc_en: "Orders, routes and drivers",
-    desc_es: "Órdenes, rutas y choferes",
-  },
-  {
-    key: "recruiting",
-    href: "/recruiting",
-    emoji: "🧑‍💼",
-    label_en: "Recruiting",
-    label_es: "Reclutamiento",
-    desc_en: "Candidates and interviews",
-    desc_es: "Candidatos y entrevistas",
-  },
-];
+// "Deliveries" itself is implicit for everyone (never in module_access, see
+// landingRoute in constants.ts) so it isn't part of the shared MODULES list —
+// it's prepended here, the one place that draws the full picker.
+const DELIVERIES_CARD: ModuleInfo = {
+  key: "deliveries",
+  href: "/",
+  emoji: "📦",
+  label_en: "Deliveries",
+  label_es: "Entregas",
+  desc_en: "Orders, routes and drivers",
+  desc_es: "Órdenes, rutas y choferes",
+};
 
 /** Only reached by someone with 2+ modules — see src/app/home/page.tsx. */
 export function HomeSelector({ me }: { me: Profile }) {
   const { lang, t } = usePrefs();
-  const available = MODULES.filter((m) => m.key === "deliveries" || me.module_access?.includes(m.key));
+  const available = [DELIVERIES_CARD, ...MODULES.filter((m) => me.module_access?.includes(m.key))];
 
   return (
     <div className="auth-wrap">
