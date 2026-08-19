@@ -1496,6 +1496,77 @@ pruebas anteriores son todas de `src/lib`, sin React).
 
 ---
 
+## D-050 · Recruiting deja de ser una app aparte: es un módulo dentro de deliveries
+**Fecha:** 2026-08-19 · **Versión:** v1.9.6 · **Pedido por:** Andrés
+
+**Cambio:** los datos de RECRUIT·HN (recruiting-app, proyecto Supabase
+`cfawfwzndxumeufhcwga`) se movieron al proyecto de deliveries
+(`iwhcsvgujydebdyllcqu`), en un schema propio `recruiting.*` (11 tablas:
+candidates, contacts, jobs, stages, stage_history, attachments, questions,
+question_sets, templates, custom_fields, settings). `public.profiles` —ya
+compartida por deliveries— gana dos columnas: `recruiting_role`
+(admin|manager|recruiter, null = ninguno) y `module_access` (lista de
+módulos externos a los que la identidad puede entrar; hoy solo puede
+contener `'recruiting'`). Las dos nacen vacías/null para **todo** usuario
+existente — nadie ganó acceso por el solo hecho de correr la migración.
+
+**Razón (textual):** *"Una SOLA app, no dos... recruiting pasa a ser un
+módulo dentro de deliveries."* El objetivo final (home screen con selector
+de módulo por permiso) no se implementó todavía — esta entrada cubre solo la
+unificación de identidad y datos, que se decidió resolver primero por ser lo
+más riesgoso.
+
+**El RLS se endureció como parte del corte, no después:** las tablas de
+recruiting tenían "cualquier usuario autenticado lee y escribe cualquier
+fila" — un modelo que funcionaba mientras recruiting vivía en su propio
+proyecto con sus propios usuarios, pero que con `profiles` ya compartida
+habría dejado a un chofer o vendedor de deliveries a una llamada de API de
+los candidatos. Se reemplazó por `has_recruiting_access()` (repite el patrón
+`current_user_role()` que ya existía) en las 11 tablas y en
+`storage.objects` del bucket `resumes`. Un nuevo trigger,
+`guard_recruiting_access_change`, exige ser admin de **deliveries** (no de
+recruiting) para tocar `recruiting_role`/`module_access` de cualquiera —
+deliberadamente separado de `guard_role_change` (que sigue intacto,
+gobernando solo `role`) para no arriesgar ese trigger ya probado.
+
+**Exención de modo local (recruiting nunca tuvo uno):** la regla de este
+proyecto es que toda operación nueva existe en los dos proveedores de datos.
+Recruiting nunca tuvo modo local — es Supabase-only desde que existe como
+app Next.js. Se documenta como excepción explícita: el módulo de recruiting
+queda fuera de esa regla; no se le construyó un proveedor local.
+
+**Remapeo de identidad:** el proyecto viejo de recruiting tenía 4 cuentas,
+pero las 4 eran la misma persona (confirmado por el dueño) y solo una de
+ellas —`andresugarte000@gmail.com`— aparecía referenciada en algún dato real
+(51 candidatos, 93 contactos, 64 entradas de historial, 1 adjunto). Las 4 se
+remapearon a una sola identidad en deliveries (`careers@rdztilegroup.net`,
+admin), que quedó con `recruiting_role='admin'`,
+`module_access={'recruiting'}`. Auditoría de huérfanos antes del remapeo:
+cero ids referenciados fuera de esas 4 cuentas.
+
+**Verificado en producción antes de dar el corte por bueno:** conteo de
+filas por tabla igual al proyecto viejo (7/167/2/0/0/51/93/64/1/7/1); cero
+huérfanos de FK; una cuenta de deliveries sin `recruiting_role` recibe 0
+filas de `recruiting.candidates` (RLS probado con `set role authenticated` +
+`request.jwt.claim.sub`, no con el superusuario); el dueño ve sus 51
+candidatos; un resume real (PDF, bucket `resumes` recreado + 49 archivos
+copiados) abre por URL firmada; `npx tsc --noEmit` y `npx vitest run` (454)
+pasan sin tocar código de aplicación — el único cambio de esquema fue
+aditivo sobre `profiles`.
+
+**Consecuencia aceptada:** el proyecto viejo de recruiting
+(`cfawfwzndxumeufhcwga`) queda vivo, sin escrituras, como respaldo de solo
+lectura — no se apaga ni se borra hasta validar 1–2 semanas en producción.
+El código de recruiting-app (Next.js) todavía no se movió dentro de
+deliveries-app ni existe el home screen con selector de módulo — eso queda
+para una siguiente etapa.
+
+**Revisar cuando:** al portar el código de recruiting-app como módulo de
+deliveries-app (próxima etapa), y antes de apagar el proyecto Supabase
+viejo.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

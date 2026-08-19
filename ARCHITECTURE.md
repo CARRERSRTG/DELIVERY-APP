@@ -110,6 +110,12 @@ Permission helpers in `constants.ts`: `canCreate`, `canApprove`, `canFulfill`, `
 In Supabase mode these are enforced in the DB (RLS + a stage-transition trigger in `roles.sql`),
 so they hold regardless of client. The UI mirrors them for UX.
 
+`profiles` also carries `recruiting_role` and `module_access` — access to the **recruiting
+module** (a separate app's data, sharing this same `profiles` table; see §11). These are
+independent of the deliveries `role` above: a deliveries `sales` user can also be a recruiting
+`admin`. Null/empty by default for everyone; only a deliveries `admin` can grant them
+(`guard_recruiting_access_change` trigger, deliberately separate from `guard_role_change` above).
+
 Workflow moves are additionally guarded client-side by `canTransition(from, to)` in
 `constants.ts`, enforced in both providers' `setStage`. An order can NEVER reach the
 warehouse (fulfilling/ready/delivered) without a manager approving it first.
@@ -183,6 +189,10 @@ warehouse (fulfilling/ready/delivered) without a manager approving it first.
 
 ## 10. Change log (most recent first)
 
+- **Recruiting module — data unified (D-050)**: recruiting's Postgres data now lives in this
+  project, schema `recruiting.*`, sharing `profiles` (new `recruiting_role` / `module_access`
+  columns, both null/empty by default). RLS hardened at the same time — see §11. Code (the
+  recruiting-app Next.js UI) has NOT moved into this repo yet; that's a later step.
 - **Split loads**: at pickup the driver confirms how many pallets actually fit; a short
   load splits the order — loaded part keeps the order_no with suffix "a" (out for
   delivery), remainder becomes a new linked order with the SAME order_no and suffix "b",
@@ -237,3 +247,45 @@ warehouse (fulfilling/ready/delivered) without a manager approving it first.
 - Notifications open the related order via `/?order=<id>` deep-link.
 - Added role-targeted in-app notification bell (Supabase + local, table + RLS + realtime).
 - Distance/ETA now auto-calculates (debounced) as addresses are typed.
+
+## 11. Recruiting module (data unified — D-050)
+
+RECRUIT·HN (a separate Next.js app, `recruiting-app`) is becoming a module inside this
+container app. **As of D-050, only the data layer is unified** — its own Next.js code still
+lives in a separate repo/deploy; this section documents what already changed in *this*
+project's database.
+
+- **Schema, not prefix.** Recruiting's 11 tables live in their own Postgres schema,
+  `recruiting.*` (`candidates`, `contacts`, `jobs`, `stages`, `stage_history`, `attachments`,
+  `questions`, `question_sets`, `templates`, `custom_fields`, `settings`) — not `public.*`.
+  Deliveries' own `public.settings` and every other deliveries table are untouched. The
+  `recruiting` schema must be added to Supabase → Settings → API → **Exposed schemas** for
+  PostgREST to serve it (manual, one-time, not something a migration can do).
+- **Identity is shared, permissions are not.** `public.profiles` — already deliveries' table —
+  gained `recruiting_role` (`admin | manager | recruiter`, null = no role) and `module_access`
+  (`text[]`, today only ever contains `'recruiting'` or is empty). These are independent of the
+  deliveries `role` column (see §5). Every profile that existed before D-050 got
+  `recruiting_role = null`, `module_access = '{}'` — nobody was granted access by the migration
+  itself.
+- **`has_recruiting_access()`** (`select recruiting_role is not null from profiles where
+  id = auth.uid()`) replaced "any authenticated user" on all 11 `recruiting.*` tables and on
+  `storage.objects` for the `resumes` bucket. Mirrors the existing `current_user_role()`
+  pattern deliveries already used.
+- **`guard_recruiting_access_change`** — a new trigger on `profiles`, deliberately separate
+  from `guard_role_change` (untouched) — requires a **deliveries** admin (`current_user_role()
+  = 'admin'`), not a recruiting admin, to change anyone's `recruiting_role` or `module_access`.
+  Granting cross-module access is a container-level decision.
+- **FKs cross schemas on purpose:** `recruiting.candidates.assigned_recruiter` /
+  `created_by`, `recruiting.contacts.created_by`, `recruiting.stage_history.changed_by`, and
+  `recruiting.attachments.created_by` all reference `public.profiles(id)` directly — normal in
+  Postgres, no wrapper needed.
+- **No local-mode exemption:** deliveries' rule that every data operation exists in both
+  providers (Supabase + local demo) does NOT apply to the recruiting module — recruiting never
+  had a local provider and doesn't get one now. Documented exception, not an oversight.
+- **`resumes` Storage bucket** was recreated in this project (private, same RLS pattern) and
+  its 49 objects copied over from the old recruiting project, same paths.
+- **The old recruiting Supabase project (`cfawfwzndxumeufhcwga`) is untouched and stays alive**
+  as a read-only fallback until production is validated for 1–2 weeks post-cutover — see D-050.
+- **Not done yet:** the recruiting-app UI has not moved into `src/app/` here; there is no
+  home-screen module selector; nobody can actually reach `/recruiting` in this app yet. That's
+  the next stage.
