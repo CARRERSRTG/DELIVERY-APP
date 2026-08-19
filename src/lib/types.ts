@@ -16,6 +16,14 @@ export interface Profile {
   // (they only handle orders picked up from their store). null for others.
   store?: string | null;
   avatar_url?: string | null;
+  /** Role INSIDE the recruiting module (admin|manager|recruiter). Independent
+   * of `role` above — a deliveries `sales` user can also be a recruiting
+   * `admin`. Null = no role there. See D-050. */
+  recruiting_role?: string | null;
+  /** Which modules besides deliveries itself this identity may enter. Today
+   * only ever contains `"recruiting"` or is empty. Empty/null = deliveries
+   * only. See D-050. */
+  module_access?: string[] | null;
 }
 
 // ---- Workflow stages ------------------------------------------------------

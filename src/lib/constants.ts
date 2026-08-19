@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.9.6";
+export const APP_VERSION = "1.9.7";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -138,6 +138,22 @@ export function roleHome(role: UserRole): string {
     case "logistics": return "/routes";
     default: return "/"; // admin / manager / sales work from the Orders board
   }
+}
+
+/** Where someone lands after login. Almost always the same as `roleHome` —
+ * the one exception is a person with access to 2+ modules (deliveries plus
+ * something else, e.g. recruiting), who gets the module selector instead.
+ *
+ * A driver ALWAYS goes straight to `/driver`, full stop — never the
+ * selector, regardless of what `module_access` says. Driving is their whole
+ * job; nothing about a module grant should ever put a choice in front of
+ * them that isn't on their route. (See D-050/D-051.)
+ */
+export function landingRoute(me: { role: UserRole; module_access?: string[] | null }): string {
+  if (me.role === "driver") return "/driver";
+  const moduleCount = 1 + (me.module_access?.length ?? 0); // "deliveries" itself + whatever's granted
+  if (moduleCount > 1) return "/home";
+  return roleHome(me.role);
 }
 
 export const ROLE_ORDER: UserRole[] = ["admin", "manager", "accounting", "logistics", "sales", "warehouse", "driver"];

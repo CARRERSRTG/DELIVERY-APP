@@ -445,6 +445,20 @@ table.orders th { text-align: left; }
 .auth-card h1 { font-size: 24px; font-weight: 800; margin-bottom: 4px; }
 .auth-card h1 span { color: var(--amber); }
 
+/* ---------- Module selector (/home) — D-050/D-051 ---------- */
+.module-pick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .module-pick-grid { grid-template-columns: 1fr; } }
+.module-pick-card {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 22px 14px;
+  color: var(--text); text-decoration: none;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.module-pick-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.10); border-color: var(--accent); }
+.module-pick-emoji { font-size: 30px; }
+.module-pick-label { font-weight: 700; font-size: 15px; }
+.module-pick-desc { font-size: 12px; color: var(--ink-soft); }
+
 /* ---------- Notification bell ---------- */
 .notif-wrap { position: relative; display: inline-flex; }
 .notif-btn { position: relative; font-size: 15px; line-height: 1; }

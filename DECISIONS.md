@@ -1567,6 +1567,68 @@ viejo.
 
 ---
 
+## D-051 · Cimientos del selector de módulo: landingRoute() y /home
+**Fecha:** 2026-08-19 · **Versión:** v1.9.7 · **Pedido por:** Andrés
+
+**Cambio:** dos piezas, sin portar todavía nada de la interfaz de recruiting
+(eso es la siguiente etapa):
+
+1. `landingRoute(me)` en `constants.ts`, apoyada en el `roleHome()` que ya
+   existía: si `role === 'driver'` → `/driver` siempre, sin mirar
+   `module_access`. Si no, y la persona tiene acceso a 2+ módulos
+   (`{'deliveries'} ∪ module_access`) → `/home`. Si no, exactamente lo mismo
+   que hace `roleHome()` hoy.
+2. `/home` — la pantalla del selector. Server Component: si no hay sesión,
+   a `/login`; si trae cualquier query param (un deep-link), lo reenvía a
+   `/?<params>` sin mostrar nada; si `landingRoute(me)` no es `/home`, redirige
+   ahí (esto es lo que garantiza que un chofer, o cualquiera con un solo
+   módulo, nunca vea el selector aunque entre a `/home` a mano por la URL);
+   solo si de verdad califica, renderiza las tarjetas de módulos disponibles.
+
+`(app)/layout.tsx` — el único archivo compartido que se tocó — ahora también
+pide `recruiting_role` y `module_access` en el `select()` del perfil; sin eso
+`landingRoute()` no tiene con qué decidir nada.
+
+**Razón:** siguiente paso de D-050 — antes de portar ninguna pantalla de
+recruiting, tiene que existir la puerta que decide a quién se le muestra
+elegir y a quién no. Pedido explícito de que el chofer nunca vea el selector
+"ni por navegación ni por URL directa a /home".
+
+**Por qué NO se tocó `/` ni `middleware.ts`:** la alternativa más simple
+—redirigir automáticamente desde `/` hacia `/home` cuando alguien tiene 2+
+módulos— habría significado decidir esa lógica en `middleware.ts` (el punto
+más sensible y compartido de toda la app, corre en cada request) o en
+`(app)/page.tsx` (que ya es la tabla de Órdenes). Cualquiera de las dos tenía
+un efecto secundario real: si la regla general se aplicaba a TODOS los roles
+por igual, un chofer visitando `/` habría empezado a redirigir a `/driver`
+también — un cambio de comportamiento que nadie pidió y que además choca con
+D-017 (la página de Órdenes hoy no filtra por chofer, a propósito, como
+asunto pendiente aparte). `/home` resuelve el caso pedido (nadie cae ahí sin
+querer) sin tocar cómo se comporta `/` hoy. Cómo se llega a `/home` en el uso
+diario —un enlace en el TopBar, o si se decide más adelante que sí conviene
+un redirect automático— queda para cuando exista un segundo módulo real al
+que cambiarse.
+
+**El campanario de notificaciones del dueño sigue intacto:** su enlace sigue
+siendo `/?order=<id>` (no se tocó), y como `/home` nunca intercepta `/`, ese
+flujo no pasó cerca del código nuevo en absoluto — se verificó leyendo el
+código, no hubo nada que romper.
+
+**Consecuencia aceptada:** hoy no hay ningún botón que lleve a `/home` — solo
+existe como ruta alcanzable. Es intencional: construir el punto de entrada
+real (enlace en el TopBar, o un redirect automático post-login) sin tener
+todavía un segundo módulo real al que apuntar habría sido trabajo especulativo.
+
+**Tests:** `src/lib/landing-route.test.ts` — chofer siempre a `/driver` aunque
+tenga `module_access` con recruiting; alguien con 2+ módulos a `/home`;
+todos los demás roles igual que `roleHome()` hoy, con y sin `module_access`
+vacío.
+
+**Revisar cuando:** al portar las páginas de recruiting (próxima etapa) —
+ahí es cuando `/home` necesita un punto de entrada real desde la navegación.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

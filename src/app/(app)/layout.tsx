@@ -29,8 +29,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .from("profiles")
     // permissions + store come along because `me` is what every capability
     // check runs against — without them an admin's own extra grants and store
-    // scope silently read as absent.
-    .select("id, full_name, username, role, store, permissions, avatar_url")
+    // scope silently read as absent. recruiting_role + module_access are here
+    // for the same reason: landingRoute() and the module selector need them.
+    .select("id, full_name, username, role, store, permissions, avatar_url, recruiting_role, module_access")
     .eq("id", user.id)
     .maybeSingle();
 
