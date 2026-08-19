@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-054", title: "App switcher genérico en la barra superior",
+      fecha: "2026-08-19", version: "v1.10.1", quien: "Andrés",
+      cambio: "ModuleSwitcher.tsx (nuevo, compartido) se monta en los dos TopBar (deliveries y recruiting) y muestra un menú de los módulos accesibles distintos al actual; elegir uno navega directo a su entrada natural, sin pasar por /home. accessibleModules(moduleAccess) en constants.ts es la única función que arma esa lista — la usan HomeSelector y ModuleSwitcher por igual. Un tercer módulo futuro es una entrada nueva en MODULES.",
+      razon: "/home (D-051) resolvía cómo ENTRAR eligiendo módulo, pero no cómo SALTAR sin cerrar sesión y volver al selector. Pedido explícito de que fuera genérico para N módulos, no algo que hubiera que reescribir en el próximo merge.",
+      razonTextual: false,
+      consecuencia: "El componente es presentación pura (props primitivos, ningún hook de ningún DataProvider), lo que permite que un solo archivo viva en los dos route groups sin reintroducir lo que el aislamiento de D-052 evitaba. El prop se llama deliveriesRole, nunca role — dentro de recruiting me.role significa recruiting_role, la misma colisión que causó dos de los tres bugs de D-052. Destino de deliveries: roleHome(deliveriesRole), nunca landingRoute() (rebotaría a /home). Fix de paso: HomeSelector's href de deliveries estaba hardcodeado a \"/\" — con más módulos, un almacén o logística habría aterrizado en la tabla de Órdenes en vez de su pantalla propia. El chofer no lo ve por una excepción dura (deliveriesRole==='driver'), no por depender de module_access vacío. Verificado con tres tests nuevos de accessibleModules() y trazado contra los perfiles reales de producción; tsc/vitest (461)/next build limpios."
+    },
+    {
       id: "D-053", title: "Tab de Usuarios unificado — un solo lugar para role y recruiting_role",
       fecha: "2026-08-19", version: "v1.10.0", quien: "Andrés",
       cambio: "/users (deliveries) gana una sección \"Acceso a otros módulos\" en UserDialog.tsx: casilla + selector de recruiting_role por módulo. Función nueva y separada updateUserRecruitingAccess() en data-provider.tsx — nunca toca la columna role de deliveries. /recruiting/users pasa a ser un redirect(\"/users\") de una línea.",
