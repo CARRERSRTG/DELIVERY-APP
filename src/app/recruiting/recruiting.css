@@ -1,0 +1,198 @@
+/* Ported from recruiting-app/src/app/globals.css, scoped under
+   .recruiting-module so nothing here — including the :root-style CSS
+   variables and bare element selectors (body/button/input/a/label) — ever
+   touches deliveries' own pages. Next.js bundles all imported CSS sitewide
+   regardless of route, so scoping has to happen in the selectors themselves,
+   not by relying on which page is active. See D-050/D-052. */
+
+.recruiting-module {
+  --ink: #152238;
+  --ink-soft: #3d4d68;
+  --paper: #f4f6f9;
+  --card: #ffffff;
+  --line: #dfe5ee;
+  --accent: #2456c9;
+  --accent-soft: #e8eefb;
+  --amber: #e9a13b;
+  --green: #1f9d61;
+  --red: #d64545;
+  --purple: #7c4dbc;
+  --teal: #0f8a8a;
+  --gray: #6b7686;
+
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+}
+.recruiting-module, .recruiting-module * { box-sizing: border-box; margin: 0; padding: 0; }
+.recruiting-module h1, .recruiting-module h2, .recruiting-module h3, .recruiting-module .display { font-family: 'Archivo', system-ui, sans-serif; }
+.recruiting-module a { color: inherit; }
+.recruiting-module button { font-family: inherit; cursor: pointer; border: none; background: none; font-size: 13px; }
+.recruiting-module input, .recruiting-module select, .recruiting-module textarea { font-family: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; width: 100%; background: #fff; color: var(--ink); }
+.recruiting-module input:focus, .recruiting-module select:focus, .recruiting-module textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+.recruiting-module label { font-size: 12px; font-weight: 600; color: var(--ink-soft); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+
+.recruiting-module .topbar { background: var(--ink); color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.recruiting-module .topbar h1 { font-size: 18px; font-weight: 800; letter-spacing: .02em; }
+.recruiting-module .topbar h1 span { color: var(--amber); }
+.recruiting-module .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.recruiting-module .tab { padding: 8px 16px; border-radius: 8px; color: #c6cede; font-weight: 600; font-size: 13px; text-decoration: none; display: inline-block; }
+.recruiting-module .tab.active { background: var(--accent); color: #fff; }
+.recruiting-module .tab:hover:not(.active) { background: rgba(255,255,255,.08); }
+
+.recruiting-module .wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 80px; }
+.recruiting-module .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+.recruiting-module .card h2 { font-size: 15px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.recruiting-module .grid { display: grid; gap: 12px; }
+.recruiting-module .g2 { grid-template-columns: 1fr 1fr; }
+.recruiting-module .g3 { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 640px) { .recruiting-module .g2, .recruiting-module .g3 { grid-template-columns: 1fr; } }
+
+.recruiting-module .btn { padding: 9px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.recruiting-module .btn-primary { background: var(--accent); color: #fff; }
+.recruiting-module .btn-primary:hover { background: #1d47a8; }
+.recruiting-module .btn-ghost { background: var(--accent-soft); color: var(--accent); }
+.recruiting-module .btn-danger { background: #fdeaea; color: var(--red); }
+.recruiting-module .btn-green { background: #e5f6ee; color: var(--green); }
+.recruiting-module .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+.recruiting-module .btn:disabled { opacity: .5; cursor: default; }
+
+.recruiting-module .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+.recruiting-module .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+
+.recruiting-module .cand-row { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: #fff; }
+.recruiting-module .cand-row.overdue { border-color: var(--red); background: #fef6f6; }
+.recruiting-module .cand-row.clickable { cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+.recruiting-module .cand-row.clickable:hover { border-color: var(--accent); box-shadow: 0 1px 6px rgba(36, 86, 201, .12); }
+.recruiting-module .cand-row.clickable button, .recruiting-module .cand-row.clickable a, .recruiting-module .cand-row.clickable select { cursor: pointer; }
+.recruiting-module .cand-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.recruiting-module .cand-name { font-weight: 700; font-size: 15px; }
+.recruiting-module .cand-meta { color: var(--gray); font-size: 12.5px; margin-top: 3px; display: flex; gap: 12px; flex-wrap: wrap; }
+.recruiting-module .cand-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+.recruiting-module .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.recruiting-module .chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+.recruiting-module .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+.recruiting-module .cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.recruiting-module .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.recruiting-module .cal-dow { text-align: center; font-size: 11px; font-weight: 700; color: var(--gray); padding: 4px 0; text-transform: uppercase; }
+.recruiting-module .cal-day { min-height: 78px; border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: #fff; font-size: 11px; }
+.recruiting-module .cal-day.other { background: transparent; border-color: transparent; }
+.recruiting-module .cal-day.today { border-color: var(--accent); border-width: 2px; }
+.recruiting-module .cal-num { font-weight: 700; color: var(--ink-soft); margin-bottom: 3px; }
+.recruiting-module .cal-ev { background: var(--accent-soft); color: var(--accent); border-radius: 5px; padding: 2px 5px; margin-bottom: 3px; font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; }
+@media (max-width: 640px) { .recruiting-module .cal-day { min-height: 56px; } }
+
+.recruiting-module .q-block { border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #fff; }
+.recruiting-module .q-text { font-weight: 600; margin-bottom: 10px; }
+.recruiting-module .grades { display: flex; gap: 6px; }
+.recruiting-module .grade-btn { min-width: 40px; min-height: 40px; height: auto; max-width: 130px; border-radius: 10px; border: 2px solid var(--line); font-weight: 800; font-size: 15px; color: var(--gray); background: #fff; white-space: normal; overflow-wrap: break-word; text-align: center; }
+.recruiting-module .grade-btn.sel { border-color: var(--amber); background: var(--amber); color: #fff; }
+.recruiting-module .avg-big { font-family: 'Archivo'; font-size: 42px; font-weight: 800; }
+
+.recruiting-module .overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+.recruiting-module .modal { background: #fff; border-radius: 14px; padding: 20px; max-width: 640px; width: 100%; max-height: 88vh; overflow: auto; }
+.recruiting-module .modal h3 { margin-bottom: 14px; font-size: 16px; }
+.recruiting-module pre.resume { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px; white-space: pre-wrap; font-family: 'Inter'; font-size: 13px; line-height: 1.55; }
+
+.recruiting-module .empty { text-align: center; color: var(--gray); padding: 30px 10px; font-size: 13px; }
+.recruiting-module .stat-pills { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.recruiting-module .stat-pill { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px; text-align: center; min-width: 90px; }
+.recruiting-module .stat-pill b { display: block; font-family: 'Archivo'; font-size: 20px; }
+.recruiting-module .stat-pill span { font-size: 11px; color: var(--gray); font-weight: 600; }
+.recruiting-module button.stat-pill { cursor: pointer; font: inherit; transition: border-color .12s, box-shadow .12s, background .12s; }
+.recruiting-module button.stat-pill:hover { border-color: var(--accent); background: var(--accent-soft); }
+.recruiting-module button.stat-pill.on { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--ink); }
+.recruiting-module button.stat-pill.on span { color: var(--ink); }
+.recruiting-module .hint { font-size: 12px; color: var(--gray); margin-top: 6px; }
+.recruiting-module .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 20px; border-radius: 10px; font-weight: 600; font-size: 13px; z-index: 99; }
+
+.recruiting-module .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.recruiting-module .kpi { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.recruiting-module .kpi .k-val { font-family: 'Archivo'; font-size: 28px; font-weight: 800; line-height: 1; }
+.recruiting-module .kpi .k-lbl { font-size: 11.5px; color: var(--gray); font-weight: 600; margin-top: 5px; text-transform: uppercase; letter-spacing: .03em; }
+.recruiting-module .kpi .k-sub { font-size: 11px; color: var(--gray); margin-top: 3px; }
+.recruiting-module .funnel-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.recruiting-module .funnel-label { flex: 0 0 150px; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.recruiting-module .funnel-track { flex: 1; background: #eef1f6; border-radius: 6px; height: 24px; position: relative; overflow: hidden; }
+.recruiting-module .funnel-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding: 0 8px; color: #fff; font-size: 11.5px; font-weight: 700; min-width: 24px; transition: width .3s; }
+.recruiting-module .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+.recruiting-module .bar-label { flex: 0 0 130px; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recruiting-module .bar-track { flex: 1; background: #eef1f6; border-radius: 6px; height: 20px; overflow: hidden; }
+.recruiting-module .bar-fill { height: 100%; background: var(--accent); border-radius: 6px; }
+.recruiting-module .bar-val { flex: 0 0 34px; text-align: right; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+
+.recruiting-module .kb-board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.recruiting-module .kb-col { flex: 0 0 240px; background: #eef1f6; border: 1px solid var(--line); border-radius: 12px; padding: 10px; min-height: 120px; transition: background .12s, border-color .12s; }
+.recruiting-module .kb-col.over { background: var(--accent-soft); border-color: var(--accent); border-style: dashed; }
+.recruiting-module .kb-col-head { display: flex; align-items: center; gap: 7px; font-weight: 700; font-size: 13px; margin-bottom: 10px; padding: 0 2px; }
+.recruiting-module .kb-col-head .cnt { margin-left: auto; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; font-size: 11px; color: var(--gray); }
+.recruiting-module .kb-card { background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; margin-bottom: 8px; cursor: grab; box-shadow: 0 1px 2px rgba(21,34,56,.05); }
+.recruiting-module .kb-card:active { cursor: grabbing; }
+.recruiting-module .kb-card.dragging { opacity: .4; }
+.recruiting-module .kb-card.overdue { border-color: var(--red); background: #fef6f6; }
+.recruiting-module .kb-card b { font-size: 13.5px; }
+.recruiting-module .kb-card .kb-meta { color: var(--gray); font-size: 11.5px; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.recruiting-module .kb-empty { color: var(--gray); font-size: 11.5px; text-align: center; padding: 10px 4px; opacity: .7; }
+
+.recruiting-module .link-tel { color: var(--accent); text-decoration: none; font-weight: 600; }
+.recruiting-module .link-tel:hover { text-decoration: underline; }
+.recruiting-module .link-wa { color: var(--green); text-decoration: none; font-weight: 600; }
+.recruiting-module .alert-tag { background: #fdeaea; color: var(--red); border-radius: 5px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
+.recruiting-module .sent-tag { color: var(--green); font-weight: 700; font-size: 12px; }
+.recruiting-module .today-sec { margin-bottom: 16px; }
+.recruiting-module .today-sec h2 .cnt { margin-left: auto; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 1px 9px; font-size: 12px; }
+.recruiting-module .today-sec h2 { justify-content: flex-start; }
+.recruiting-module .mini-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; margin-bottom: 8px; background: #fff; }
+.recruiting-module .mini-row.warn { border-color: var(--red); background: #fef6f6; }
+
+.recruiting-module .avatar { width: 38px; height: 38px; border-radius: 50%; flex: 0 0 38px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 14px; font-family: 'Archivo'; background-size: cover; background-position: center; }
+.recruiting-module .avatar.sm { width: 28px; height: 28px; flex: 0 0 28px; font-size: 11px; }
+.recruiting-module .star { background: none; font-size: 17px; line-height: 1; color: #d3d8e0; padding: 0 2px; }
+.recruiting-module .star.on { color: var(--amber); }
+.recruiting-module .score-pct { font-family: 'Archivo'; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.recruiting-module .sema { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .02em; }
+.recruiting-module .compare-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--ink); color: #fff; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; z-index: 60; box-shadow: 0 -2px 10px rgba(0,0,0,.15); }
+.recruiting-module .bulk-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center;
+  gap: 8px; flex-wrap: wrap; padding: 8px 10px; margin-bottom: 10px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
+
+.recruiting-module .dup-block { margin-top: 14px; padding: 12px 14px; border-radius: 10px;
+  border: 2px solid var(--red); background: #fef6f6; color: var(--red); }
+.recruiting-module .dup-block .hint { color: var(--ink-soft); }
+
+.recruiting-module .dup-hits { margin-top: 6px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--paper); padding: 8px 10px; }
+.recruiting-module .dup-hits-head { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+.recruiting-module .dup-hit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 12.5px; padding: 4px 0; border-top: 1px solid var(--line); }
+.recruiting-module .dup-hit:first-of-type { border-top: none; }
+
+.recruiting-module .sec-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin: 26px 2px 10px; padding-bottom: 8px; border-bottom: 2px solid var(--line); }
+.recruiting-module .sec-head:first-child { margin-top: 4px; }
+.recruiting-module .sec-title { font-family: 'Archivo', sans-serif; font-size: 17px; font-weight: 800; }
+.recruiting-module .sec-sub { font-size: 12px; color: var(--gray); }
+
+.recruiting-module .cmp-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.recruiting-module .cmp-tbl th, .recruiting-module .cmp-tbl td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+.recruiting-module .cmp-tbl th { background: var(--paper); font-weight: 700; }
+.recruiting-module .cmp-tbl td.rowh { background: var(--paper); font-weight: 700; white-space: nowrap; }
+.recruiting-module .log-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.recruiting-module .tpl-item { border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; margin-bottom: 8px; }
+.recruiting-module .tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
+
+/* auth-wrap/auth-card intentionally NOT ported: deliveries' own .auth-wrap/
+   .auth-card already cover /login, and recruiting's ported pages never show
+   an auth screen of their own (shared Supabase Auth — see D-050). */
+
+.recruiting-module .print-only { display: none; }
+
+@media print {
+  .recruiting-module .topbar, .recruiting-module .tabs, .recruiting-module .compare-bar, .recruiting-module .no-print { display: none !important; }
+  .recruiting-module .print-only { display: block !important; }
+  .recruiting-module .card { break-inside: avoid; box-shadow: none; }
+  .recruiting-module { background: #fff; }
+}
