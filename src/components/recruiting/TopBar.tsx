@@ -6,8 +6,10 @@ import { TABS, ROLE_INFO } from "@/lib/recruiting/constants";
 import { useData } from "@/lib/recruiting-data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { GlobalSearch } from "@/components/recruiting/GlobalSearch";
+import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { avatarColor, initials } from "@/lib/recruiting/utils";
 import type { Profile } from "@/lib/recruiting/types";
+import type { UserRole } from "@/lib/types";
 
 const TAB_ES: Record<string, string> = {
   today: "🏠 Hoy", candidates: "👥 Candidatos", board: "🗂 Tablero", outcomes: "🤝 Resultados", questions: "❓ Preguntas",
@@ -15,7 +17,10 @@ const TAB_ES: Record<string, string> = {
 };
 const ROLE_ES: Record<string, string> = { admin: "Admin", manager: "Gerente", recruiter: "Reclutador" };
 
-export function TopBar({ me }: { me: Profile }) {
+// deliveriesRole/moduleAccess are deliveries' own columns on the shared
+// profiles row, threaded through separately from `me` (recruiting's own
+// Profile type, where `role` means recruiting_role) — see ModuleSwitcher.tsx.
+export function TopBar({ me, deliveriesRole, moduleAccess }: { me: Profile; deliveriesRole: UserRole; moduleAccess: string[] | null | undefined }) {
   const pathname = usePathname();
   const { settings, recruiters } = useData();
   const { lang, setLang, t } = usePrefs();
@@ -39,6 +44,7 @@ export function TopBar({ me }: { me: Profile }) {
             );
           })}
         </div>
+        <ModuleSwitcher current="recruiting" deliveriesRole={deliveriesRole} moduleAccess={moduleAccess} />
         <span style={{ fontSize: 12, opacity: 0.8, display: "inline-flex", alignItems: "center", gap: 6 }}>
           {avatar ? (
             <span className="avatar" style={{ width: 24, height: 24, backgroundImage: `url(${avatar})` }} />

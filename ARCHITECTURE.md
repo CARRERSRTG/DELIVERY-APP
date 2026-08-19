@@ -370,3 +370,30 @@ recruiting project" below) but nothing in production points at them anymore.
   operates on an existing profile, granting recruiting access is just that same client-side
   `UPDATE` — no invite email needed. The dialog's checkbox default when checked with no tier
   chosen is `recruiter`, matching what the old invite flow always defaulted to.
+- **App switcher, generic for N modules (D-054).** `ModuleSwitcher.tsx` (`src/components/`, a
+  sibling of both `TopBar.tsx` files — not inside `recruiting/`) is mounted by both TopBars and
+  lets someone with 2+ modules jump directly between them without returning to `/home`. It's
+  pure presentation — props only (`{ current, deliveriesRole, moduleAccess }`), no hook from
+  either `DataProvider` — which is what lets one file live in both route groups without
+  reintroducing anything D-052's isolation was protecting against (GPS tracking, deliveries'
+  realtime channels): a component with no data of its own can't leak either. `constants.ts`
+  exports `DELIVERIES_CARD` and `accessibleModules(moduleAccess)` — the one place that turns a
+  `module_access` array into the ordered list of reachable modules (deliveries always first);
+  `HomeSelector` and `ModuleSwitcher` both call it instead of each filtering `MODULES` on their
+  own. A third module is one entry in `MODULES` — neither component changes.
+- **`deliveriesRole`, never `role`, in the switcher's props — same bug class as D-052's #1/#2,
+  closed by naming.** Inside recruiting's own `TopBar`, `me.role` means `recruiting_role`. The
+  switcher only ever needs the DELIVERIES role (it's what decides the driver exception and
+  where "back to Deliveries" lands), so the prop is named to make that collision impossible to
+  reintroduce by accident. `recruiting/(recruiting)/layout.tsx` already selected
+  `profile.role`/`profile.module_access` (needed them for the `landingRoute()` guard) but
+  discarded both when building `RecruitingProfile` — they're now passed to `TopBar` as separate
+  props, never folded into that type, which stays recruiting's own shape.
+- **Destination per module:** deliveries uses `roleHome(deliveriesRole)`, never `landingRoute()`
+  — that would return `/home` again for anyone still holding 2+ modules, turning "switch to
+  deliveries" into a bounce back to the selector. Other modules use their own `MODULES[i].href`.
+  `HomeSelector`'s own deliveries card had the same problem in a different shape — its `href`
+  was hardcoded to `"/"`, harmless only because the sole 2+-module user today is admin
+  (`roleHome('admin') === '/'`); a warehouse or logistics user would have landed on the Orders
+  board instead of `/warehouse`/`/routes`. Fixed in the same change so the hub and the switcher
+  behave identically.

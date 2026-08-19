@@ -3,26 +3,18 @@
 import Link from "next/link";
 import { usePrefs } from "@/lib/prefs";
 import { VersionFooter } from "@/components/VersionFooter";
-import { MODULES, type ModuleInfo } from "@/lib/constants";
+import { accessibleModules, roleHome } from "@/lib/constants";
 import type { Profile } from "@/lib/types";
-
-// "Deliveries" itself is implicit for everyone (never in module_access, see
-// landingRoute in constants.ts) so it isn't part of the shared MODULES list —
-// it's prepended here, the one place that draws the full picker.
-const DELIVERIES_CARD: ModuleInfo = {
-  key: "deliveries",
-  href: "/",
-  emoji: "📦",
-  label_en: "Deliveries",
-  label_es: "Entregas",
-  desc_en: "Orders, routes and drivers",
-  desc_es: "Órdenes, rutas y choferes",
-};
 
 /** Only reached by someone with 2+ modules — see src/app/home/page.tsx. */
 export function HomeSelector({ me }: { me: Profile }) {
   const { lang, t } = usePrefs();
-  const available = [DELIVERIES_CARD, ...MODULES.filter((m) => me.module_access?.includes(m.key))];
+  const available = accessibleModules(me.module_access);
+  // The deliveries card's own href is a placeholder ("/") — it's the same
+  // ModuleInfo entry used by the app switcher and everywhere else, but where
+  // deliveries actually lands depends on the person's role (warehouse -> its
+  // own queue, logistics -> routes, not the Orders board everyone else gets).
+  const hrefFor = (key: string, fallback: string) => (key === "deliveries" ? roleHome(me.role) : fallback);
 
   return (
     <div className="auth-wrap">
@@ -36,7 +28,7 @@ export function HomeSelector({ me }: { me: Profile }) {
         </p>
         <div className="module-pick-grid">
           {available.map((m) => (
-            <Link key={m.key} href={m.href} className="module-pick-card">
+            <Link key={m.key} href={hrefFor(m.key, m.href)} className="module-pick-card">
               <span className="module-pick-emoji">{m.emoji}</span>
               <span className="module-pick-label">{lang === "es" ? m.label_es : m.label_en}</span>
               <span className="module-pick-desc">{lang === "es" ? m.desc_es : m.desc_en}</span>

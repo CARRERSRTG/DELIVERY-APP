@@ -1821,6 +1821,92 @@ cambio atacaba.
 
 ---
 
+## D-054 · App switcher genérico en la barra superior
+**Fecha:** 2026-08-19 · **Versión:** v1.10.1 · **Pedido por:** Andrés
+
+**Cambio:** `ModuleSwitcher.tsx` (nuevo), un componente compartido que ambos
+`TopBar` montan — el de deliveries y el de recruiting. Muestra un botón
+"Cambiar" con un menú de los módulos accesibles distintos al actual; elegir
+uno navega directo a la entrada natural de ese módulo, sin pasar por `/home`.
+`constants.ts` gana `DELIVERIES_CARD` exportado y `accessibleModules()`, una
+sola función que arma la lista de módulos accesibles — la usan `HomeSelector`
+y `ModuleSwitcher` por igual. Agregar un tercer módulo en el futuro es una
+entrada nueva en `MODULES`; ni el switcher ni el hub necesitan tocarse.
+
+**Razón:** con `/home` (D-051) ya existía cómo *entrar* eligiendo módulo,
+pero no cómo *saltar* sin cerrar sesión y volver a pasar por el selector.
+Pedido explícito de que fuera genérico para N módulos — vienen más merges,
+y un switcher que solo supiera de "deliveries" y "recruiting" a mano habría
+significado reescribirlo en el próximo.
+
+**Por qué un componente compartido no rompe el aislamiento de D-052.** Ese
+aislamiento nunca fue sobre imports — los route groups de Next no
+sandboxean módulos, solo organizan rutas. Era sobre qué se **monta**: que
+recruiting no herede `DriverGate`/`LocationTracker` (GPS) ni el
+`DataProvider` de deliveries (sus canales de realtime), porque esos son
+providers con efectos secundarios reales. `ModuleSwitcher` es presentación
+pura — recibe `{ current, deliveriesRole, moduleAccess }` como props
+primitivos, usa solo `usePrefs()` (ya compartido desde D-052) y no llama a
+ningún `useData()` de ninguno de los dos módulos. Un componente sin datos
+propios no puede filtrar nada hacia el otro lado; ya había precedente
+(`usePrefs()` mismo) de que compartir un archivo de `src/components/` entre
+los dos route groups no es, por sí solo, el problema que D-052 evitaba.
+
+**`deliveriesRole`, no `role`, a propósito.** Dentro del `TopBar` de
+recruiting, `me.role` significa `recruiting_role` (admin|manager|recruiter)
+— la misma colisión de nombre que causó dos de los tres bugs de D-052
+(`updateUserRole` escribiendo en la columna equivocada; `reloadAll()`
+trayendo el rol equivocado). El switcher solo necesita el rol de
+**deliveries**, porque es lo único que decide la excepción del chofer y a
+dónde vuelve "Deliveries" — nombrar el prop distinto es la defensa barata
+contra reintroducir esa clase de bug en el próximo lugar que lo toque.
+`recruiting/(recruiting)/layout.tsx` ya traía `profile.role` y
+`profile.module_access` en su `select()` desde D-051/D-052, pero los
+descartaba al construir `RecruitingProfile` — ahora se pasan por separado al
+`TopBar`, **sin** meterlos dentro de ese tipo (que es de recruiting y no
+debe cargar columnas de deliveries, mismo principio de D-050).
+
+**Destino por módulo:** deliveries usa `roleHome(deliveriesRole)`, nunca
+`landingRoute()` — esa función devolvería `/home` de nuevo si la persona
+sigue teniendo 2+ módulos, convirtiendo "saltar a deliveries" en un rebote
+al selector. Recruiting (y cualquier módulo futuro) usa su propio
+`MODULES[i].href`, que ya existía.
+
+**El chofer nunca lo ve — regla dura, no un efecto secundario de datos
+vacíos.** `ModuleSwitcher` no renderiza nada (ni oculto) si
+`deliveriesRole === 'driver'`, exactamente la misma excepción explícita que
+`landingRoute()` (D-051) ya le aplica a `/home`. No depende de que
+`module_access` esté vacío — si mañana alguien le pusiera `recruiting_role`
+a un chofer por error, el switcher seguiría sin aparecerle.
+
+**Fix de paso, en el mismo commit: `HomeSelector`'s `href` de deliveries
+estaba hardcodeado a `"/"`.** Inofensivo hasta ahora porque el único usuario
+con 2+ módulos es admin (`roleHome('admin') === '/'`), pero
+`roleHome('warehouse')` es `/warehouse` y `roleHome('logistics')` es
+`/routes` — un almacén o logística con dos módulos habría aterrizado en la
+tabla de Órdenes, a la que ni siquiera tienen tab. Con más merges esto deja
+de ser teórico. `HomeSelector` ahora usa `roleHome(me.role)` igual que el
+switcher — el hub y el switcher se comportan idéntico.
+
+**Verificado:**
+- `accessibleModules()`: vacío → solo deliveries; `["recruiting"]` →
+  deliveries + recruiting en ese orden; una entrada que no existe en
+  `MODULES` se ignora en vez de reventar. Tres tests nuevos en
+  `landing-route.test.ts` (mismo archivo que ya cubre `landingRoute`, mismo
+  tema).
+- Trazado contra los perfiles reales de producción: Maximo Garza
+  (`role='driver'`) — el switcher no monta nada, independiente de su
+  `module_access` (vacío hoy). El dueño (`role='admin'`,
+  `module_access=['recruiting']`) — aparece en ambas barras; desde
+  deliveries, "Recruiting" lleva a `/recruiting`; desde recruiting,
+  "Deliveries" lleva a `roleHome('admin')` = `/`, no a `/home`.
+- `tsc`/`vitest` (461)/`next build` limpios.
+
+**Consecuencia aceptada:** ninguna — es aditivo puro. No se tocó
+`landingRoute()`, `/home/page.tsx`, RLS ni ninguna migración.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

@@ -48,7 +48,7 @@ export default async function RecruitingLayout({ children }: { children: React.R
     <div className="recruiting-module">
       <DataProvider me={me}>
         <UIProvider>
-          <TopBar me={me} />
+          <TopBar me={me} deliveriesRole={profile.role} moduleAccess={profile.module_access} />
           <div className="wrap">{children}</div>
           <VersionFooter />
         </UIProvider>

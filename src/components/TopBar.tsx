@@ -7,6 +7,7 @@ import { TABS, ROLE_INFO, ROLE_ORDER, extraCaps, roleHome, roleLabel } from "@/l
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { avatarColor, awaitingDriver, initials } from "@/lib/utils";
+import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { AppUpdateBanner } from "@/components/AppUpdateBanner";
@@ -171,6 +172,7 @@ export function TopBar({ me: propMe }: { me: Profile }) {
             </div>
           )}
         </div>
+        <ModuleSwitcher current="deliveries" deliveriesRole={me.role} moduleAccess={me.module_access} />
         <NotificationBell />
         {/* Your name + avatar is the entry to the account view (replaces the
             old "Account" nav tab). Lights up like a tab when on /account. */}

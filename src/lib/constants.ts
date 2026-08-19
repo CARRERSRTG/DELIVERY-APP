@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.10.0";
+export const APP_VERSION = "1.10.1";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -187,6 +187,28 @@ export const MODULES: ModuleInfo[] = [
     desc_es: "Candidatos y entrevistas",
   },
 ];
+
+// "Deliveries" itself is implicit for everyone (never in module_access, see
+// landingRoute above) so it's kept out of MODULES — but HomeSelector and the
+// app switcher both need to draw it as the always-first card/entry, so it's
+// exported here rather than redeclared in each (D-054).
+export const DELIVERIES_CARD: ModuleInfo = {
+  key: "deliveries",
+  href: "/",
+  emoji: "📦",
+  label_en: "Deliveries",
+  label_es: "Entregas",
+  desc_en: "Orders, routes and drivers",
+  desc_es: "Órdenes, rutas y choferes",
+};
+
+/** The modules a given `module_access` grants, deliveries prepended. The
+ * single place that answers "what can this person switch to" — HomeSelector
+ * and ModuleSwitcher both call this instead of each filtering MODULES on
+ * their own, so a third module only ever needs an entry in MODULES above. */
+export function accessibleModules(moduleAccess: string[] | null | undefined): ModuleInfo[] {
+  return [DELIVERIES_CARD, ...MODULES.filter((m) => moduleAccess?.includes(m.key))];
+}
 
 // ---- Delivery time window presets ------------------------------------------
 // Same "HHMM-HHMM" string format the rest of the app already parses
