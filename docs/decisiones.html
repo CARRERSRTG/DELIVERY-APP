@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-064", title: "Merge con timetracker, Etapa 1 — datos unificados",
+      fecha: "2026-08-20", version: "v1.15.0", quien: "Andrés",
+      cambio: "Cuatro migraciones (058-061) crean timetracker.* en el Supabase de deliveries: 8 tablas (employee_settings, projects, assignments, sessions, requests, payrolls, settings, audit, screenshots) + bucket timetracker-screenshots, RLS completo, realtime, retención por pg_cron. public.profiles gana timetracker_role (admin|employee) y 'timetracker' como tercer valor de module_access. Sin UI todavía — no existe /timetracker/* — y sin datos reales migrados.",
+      razon: "\"ok ahora vamos a hacer el merge con otra apliacion que es la timetracker\"",
+      razonTextual: true,
+      consecuencia: "Caso distinto a recruiting: timetracker es una SPA de Vite con un tercer cliente (desktop Electron que hoy empaqueta el build localmente, no carga una URL) — decidido que al portar la UI el desktop pasa a loadURL igual que el APK de chofer, en vez de mantener dos árboles de UI para siempre. employee_settings quedó como tabla propia (no más columnas en profiles compartido) porque el profiles original de timetracker traía 8 columnas de HR/pago que no le importan a otros módulos. RLS más granular que recruiting (dueño-o-admin en sessions/requests/payrolls/screenshots, porque ahí sí hay privacidad que proteger, ej. nadie ve el pago de otro). Se atrapó y corrigió un bug real de escalación de privilegios antes de tocar datos reales: is_timetracker_admin() devolvía NULL en vez de false para un empleado sin rol, y un guard en plpgsql trataba NULL como \"no bloquear\" — detectado con una transacción de prueba (rollback) impersonando a alguien sin rol, corregido envolviendo la función en coalesce(...,false). Además se encontró que los GRANTs de recruiting.* tampoco están documentados en ninguna migración (aplicados a mano alguna vez) — no se corrige retroactivamente aquí. Bucket renombrado timetracker-screenshots (namespace plano de Storage compartido). Se descartó \"el primer usuario es admin\" del original — el acceso se otorga desde el diálogo de Usuarios del hub, igual que recruiting. Sin datos reales tocados; proyecto viejo de timetracker sigue vivo intacto. tsc/vitest (465)/next build limpios (sin cambios de TypeScript en esta etapa)."
+    },
+    {
       id: "D-063", title: "La barra de \"nueva versión\" solo salía en deliveries",
       fecha: "2026-08-20", version: "v1.14.2", quien: "Andrés",
       cambio: "<AppUpdateBanner /> se monta también en home/layout.tsx (el hub) y en recruiting/(recruiting)/layout.tsx, antes que nada más en cada uno — mismo lugar donde ya vivía en TopBar.tsx de deliveries.",

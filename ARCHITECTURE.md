@@ -454,3 +454,82 @@ recruiting project" below) but nothing in production points at them anymore.
   The three write functions in `data-provider.tsx` (`updateUserRole`, `updateUserPermissions`,
   `updateUserRecruitingAccess`) were not touched or merged — the generic part is what gets
   rendered, never what gets written.
+
+## 12. Timetracker module (D-064 — data unified, UI not yet ported)
+
+A third module joining the container, same two-stage shape as recruiting (D-050→D-052): data
+first, UI later. As of D-064 only the data stage is done — `timetracker.*` exists in this
+project's Postgres with real RLS, but no `/timetracker/*` route group yet and no real employee
+data migrated. Source app: `timetracker-clean` (separate repo, Vite + React, own Vercel
+project, own Supabase project `qklsxhzmbnglgzufdbmz`) — an Upwork-style time tracker with a web
+client and a Windows Electron desktop client.
+
+- **Genuinely different shape from recruiting, not a repeat of the same playbook.** Recruiting
+  was Next.js-to-Next.js — becoming a sibling route group was mechanical. Timetracker is a Vite
+  SPA with no `react-router` (tab state, not URL routes) with a THIRD client on top of web:
+  Electron desktop, which today bundles the built Vite output locally (`mainWindow.loadFile(...)`)
+  rather than loading a live URL. Decided: once the UI is ported, desktop repoints to
+  `loadURL(<the hosted /timetracker route>)` — same shape as the driver APK already uses — rather
+  than keeping a second, separately-maintained Vite/React tree alive forever alongside the ported
+  one. Not yet done; this is a decision for Etapa 2, recorded now so it isn't re-litigated then.
+- **`public.profiles` gains `timetracker_role` (`admin | employee`, null = none) and
+  `'timetracker'` as a third valid `module_access` value** (migration 058) — same shape as
+  `recruiting_role`, independent trigger (`guard_timetracker_access_change`,
+  `protect_last_timetracker_admin`), same "only a deliveries admin changes this" rule as 055.
+- **Unlike recruiting, timetracker's original `profiles` row was NOT thin** — 8 columns of its
+  own (`pay_method`, `pay_details`, `worker_type`, `track_mode`, `breaks_enabled`, `active`,
+  `city`, `deleted_at`). Bloating the shared `public.profiles` with pay/HR data every other module
+  would carry around forever was rejected — those 8 columns live in
+  `timetracker.employee_settings` instead, a companion table 1:1 with `public.profiles` via `id`.
+  Only identity + access (`timetracker_role`, `module_access`) sit on the shared table, same
+  boundary recruiting already established.
+- **`timetracker.*` schema (migration 059): 8 tables** — `employee_settings`, `projects`,
+  `assignments`, `sessions`, `requests`, `payrolls`, `settings` (singleton `id='app'` holding a
+  jsonb config blob, not per-column like recruiting's `settings`), `audit`, `screenshots`. Built
+  from timetracker's CURRENT final shape (base tables + every later `alter table add column`
+  folded in), not its migration history — same approach 056 took for recruiting.
+- **RLS (migration 060) is deliberately MORE granular than recruiting's.** 057 gave recruiting one
+  flat rule (`has_recruiting_access()` for everything) because nothing in recruiting is
+  per-row-private among its own members. Timetracker isn't: `sessions`/`requests`/`payrolls`/
+  `screenshots` are owner-or-admin (an employee reads their own pay and their own screenshots,
+  never a coworker's) — this is the exact privacy boundary timetracker's own history already had
+  to fix once (their old Firebase rules let any employee read everyone's pay). `projects`/
+  `assignments`/`settings` stay read-all-members/write-admin-only, matching recruiting's shape
+  where there's no ownership to protect.
+- **A real privilege-escalation bug was caught and fixed before this ever reached production
+  data.** The first cut of `is_timetracker_admin()` was `select timetracker_role = 'admin' from
+  profiles where id = auth.uid()` — for anyone with `timetracker_role is null` (i.e. every normal
+  employee) that expression evaluates to SQL `NULL`, not `false`. A plpgsql guard written as `if
+  not is_timetracker_admin() and ... then raise exception` silently let it through, because `not
+  NULL` is `NULL`, and `NULL` is falsy to an `if`. Caught by testing the exact self-escalation path
+  (rolled-back transaction impersonating a non-admin) before trusting the migration, the same
+  verification discipline used everywhere else in this project. Fixed by wrapping both
+  `is_timetracker_admin()` and `has_timetracker_access()` as `select coalesce((select ...),
+  false)` — never returns anything but a real boolean, even when the profile row doesn't exist at
+  all. RLS `using` clauses were never at risk (NULL already behaves like false there); the risk was
+  specifically a boolean helper used inside imperative `if` logic.
+- **GRANTs were missing entirely, and this exposed that recruiting's are undocumented.**
+  `create schema` grants nothing but ownership by default — RLS only runs after the plain
+  SQL-standard GRANT check passes. Migration 061 grants `USAGE`/table privileges to
+  `anon`/`authenticated`/`service_role` on `timetracker.*`, plus `alter default privileges` so a
+  table added later inherits them automatically. Comparing against production turned up that
+  `recruiting.*` has the identical grants already — but they were never captured in 055/056/057 or
+  anywhere else in this repo; someone applied them by hand once, outside any migration. Not fixed
+  retroactively here (out of scope for this change), but worth knowing: `recruiting`'s migration
+  files alone do not fully reproduce its own schema from empty.
+- **Storage bucket renamed `timetracker-screenshots`, not `screenshots`.** The original app owned
+  that name outright in its own project; here it shares a flat Storage namespace with deliveries'
+  own buckets and recruiting's `resumes`, so it gets the same module-prefixed treatment. Path
+  convention inside the bucket is unchanged: `<employee_uid>/<session_id>/<timestamp>.jpg`.
+- **The "first signup becomes admin" trigger from timetracker's original schema was deliberately
+  dropped, not ported.** It made sense for a brand-new, empty app; meaningless — and dangerous —
+  once merged into a container with years of existing users and an existing admin. Access is
+  granted the same way recruiting's is: an existing deliveries admin sets `timetracker_role` from
+  the hub's Users dialog (D-057's `MODULE_ACCESS` pattern will need a third entry once the UI
+  exists), never by signing up. `public.handle_new_user()` was not touched by this migration.
+- **No real data migrated yet, and no `/timetracker/*` route exists.** Etapa 2 (UI port: ~18
+  screens — 7 employee, 11 manager — into a `timetracker/(timetracker)/` route group, plus the
+  real payroll/session/screenshot migration from the standalone project, plus re-inviting existing
+  timetracker employees into deliveries' Auth since Supabase doesn't support moving password
+  hashes between projects) is unstarted. Old `qklsxhzmbnglgzufdbmz` project stays live and
+  untouched until then, same fallback posture D-050 used for recruiting's old project.

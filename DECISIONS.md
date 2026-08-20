@@ -2506,6 +2506,101 @@ tenía deliveries (nunca recarga con un modal abierto o un campo con foco).
 
 ---
 
+## D-064 · Merge con timetracker, Etapa 1 — datos unificados
+**Fecha:** 2026-08-20 · **Versión:** v1.15.0 · **Pedido por:** Andrés
+
+**Cambio:** cuatro migraciones nuevas (058–061) crean `timetracker.*` en el
+Supabase de deliveries: 8 tablas (`employee_settings`, `projects`,
+`assignments`, `sessions`, `requests`, `payrolls`, `settings`, `audit`,
+`screenshots`) + bucket de Storage `timetracker-screenshots`, RLS completo,
+realtime, retención por `pg_cron`. `public.profiles` gana `timetracker_role`
+(`admin | employee`) y `'timetracker'` como tercer valor de `module_access`.
+Sin UI todavía — no existe `/timetracker/*` — y sin datos reales migrados.
+
+**Razón (textual):** *"ok ahora vamos a hacer el merge con otra apliacion
+que es la timetracker"*.
+
+**Por qué es un caso distinto a recruiting, no el mismo playbook otra vez.**
+Recruiting era Next.js-a-Next.js — pasar a route group hermano fue
+mecánico. Timetracker es una SPA de Vite (sin `react-router`, ruteo por
+estado) con un TERCER cliente además de la web: un desktop de Electron que
+hoy empaqueta el build de Vite localmente (`loadFile`), no carga un sitio
+en vivo. Decisión tomada con el dueño antes de tocar código: cuando la UI
+se porte, el desktop apuntará a la URL en vivo (`loadURL`), igual que el
+APK de chofer — no se va a mantener un segundo árbol de Vite/React aparte
+para siempre.
+
+**Por qué `employee_settings` es una tabla propia y no más columnas en
+`profiles`.** A diferencia de recruiting, cuyo perfil apenas tenía campos
+propios, el `profiles` original de timetracker traía 8 columnas de HR/pago
+(`pay_method`, `pay_details`, `worker_type`, `track_mode`,
+`breaks_enabled`, `active`, `city`, `deleted_at`). Meterlas en el
+`public.profiles` compartido las cargaría en todos los módulos para
+siempre. Se quedan en `timetracker.employee_settings` (1 fila por persona,
+`id references public.profiles(id)`) — el mismo límite que recruiting ya
+respetaba, solo que aquí sí importaba porque esta vez había algo que
+respetar.
+
+**Por qué el RLS es más granular que el de recruiting.** 057 le dio a
+recruiting una sola regla plana porque nada ahí es privado entre sus
+propios miembros. Timetracker sí tiene eso: `sessions`/`requests`/
+`payrolls`/`screenshots` son dueño-o-admin — un empleado lee su propio pago
+y sus propias capturas, nunca las de un compañero. Es exactamente el
+límite de privacidad que el propio historial de timetracker ya tuvo que
+arreglar una vez (las reglas viejas de Firebase dejaban que cualquier
+empleado leyera el pago de todos).
+
+**Un bug de escalación de privilegios real, atrapado antes de tocar datos
+reales.** El primer intento de `is_timetracker_admin()` devolvía `NULL`
+(no `false`) para cualquier empleado sin `timetracker_role` — y un guard
+en plpgsql escrito como `if not is_timetracker_admin() and ... then raise`
+lo dejaba pasar, porque `not NULL` es `NULL`, y `NULL` es "falso" para un
+`if`. Se detectó probando el camino exacto de auto-escalación (transacción
+con rollback, impersonando a alguien sin rol) antes de confiar en la
+migración — la misma disciplina de verificación que ya se usa en todo el
+proyecto. Arreglado envolviendo la función como `select coalesce((select
+...), false)`.
+
+**GRANTs que faltaban por completo, y que revelaron que los de recruiting
+tampoco están documentados.** `create schema` no le da permiso a nadie más
+que al dueño — RLS solo corre después de que el GRANT estándar de SQL lo
+permite. La migración 061 los agrega para `timetracker.*`. Comparando
+contra producción salió que `recruiting.*` ya tiene los mismos GRANTs —
+pero nunca quedaron en 055/056/057 ni en ningún otro archivo del repo;
+alguien los aplicó a mano una vez, fuera de toda migración. No se corrige
+retroactivamente aquí (fuera de alcance de este cambio), pero queda
+anotado: las migraciones de recruiting por sí solas no reproducen su
+propio schema desde cero.
+
+**Por qué el bucket se llama `timetracker-screenshots` y no
+`screenshots`.** La app original era dueña de ese nombre en su propio
+proyecto; aquí comparte el namespace plano de Storage con los buckets de
+deliveries y el `resumes` de recruiting, así que lleva el mismo prefijo de
+módulo que todo lo demás.
+
+**Por qué se descartó "el primer usuario en registrarse es admin".** Tenía
+sentido en una app nueva y vacía; es peligroso en un contenedor con años
+de usuarios y un admin real. El acceso se otorga igual que en recruiting:
+un admin de deliveries pone `timetracker_role` desde el diálogo de
+Usuarios del hub (D-057) — cuando exista esa UI —, nunca por registrarse.
+
+**Consecuencia aceptada:** ninguna a datos reales — esta etapa es schema
+vacío, verificado con transacciones que hacen rollback, sin tocar el
+proyecto viejo de timetracker (`qklsxhzmbnglgzufdbmz`), que sigue vivo
+intacto. Falta la Etapa 2 completa: puerto de ~18 pantallas a
+`timetracker/(timetracker)/`, migración de datos reales de pago/capturas,
+y reinvitar a los empleados actuales de timetracker al Auth de deliveries
+(Supabase no soporta mover contraseñas entre proyectos).
+
+**Verificado:** las 4 migraciones aplicadas contra producción y confirmadas
+por consulta directa (9 tablas, columnas nuevas en `profiles`, conteo de
+políticas RLS, bucket, publicación realtime, cron job, funciones). Bug de
+`is_timetracker_admin()` reproducido y luego confirmado corregido con
+transacciones de prueba (rollback, sin persistir nada). `tsc`/`vitest`
+(465)/`next build` limpios (sin cambios de TypeScript en esta etapa).
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
