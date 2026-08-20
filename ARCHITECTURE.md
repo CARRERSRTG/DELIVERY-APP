@@ -547,3 +547,48 @@ client and a Windows Electron desktop client.
   Fixed to a real generic lookup, `u[m.roleColumn]`. The WRITE side was already safe — D-057's
   exhaustive `switch` fails `tsc` if a module's case is missing — but that compile-time guarantee
   never covered this READ. Three data points establish a pattern that two can't.
+- **`/timetracker` is a real page now (D-066, Etapa 2 pass 1) — Track Time only, everything else
+  still pending.** `timetracker/(timetracker)/` is a third sibling route group, same independence
+  as recruiting's: own `layout.tsx` (auth guard, no deliveries providers), own `DataProvider`
+  (`src/lib/timetracker-data-provider.tsx`), own `TopBar`, own scoped CSS
+  (`.timetracker-module`, same reasoning as `.recruiting-module` — D-052).
+- **camelCase, not snake_case — a deliberate divergence from recruiting-data-provider.tsx.**
+  Recruiting's types are shaped exactly like their Postgres rows (`resume_path`,
+  `stage_changed_at`); timetracker's are camelCase (`durationSeconds`, `hourlyRate`), matching
+  the ORIGINAL Vite app's own convention. `src/lib/timetracker/supabase/rowcase.ts`
+  (`rowToCamel`/`toSnakeRow`, ported from timetracker's own `shared/lib/supabase.js`) converts at
+  the data-provider boundary — one place, not scattered. Chosen because every ported screen's
+  internal logic already reads/writes camelCase throughout; rewriting that across ~18 screens for
+  a purely cosmetic consistency gain was rejected as unnecessary risk for zero functional benefit.
+- **`timetracker.employee_settings`, not the shared `public.profiles` row.** `Employee` in
+  `lib/timetracker/types.ts` is assembled server-side in `layout.tsx` from TWO queries — the
+  shared `profiles` row (identity + `timetracker_role`) and `employee_settings` (059) — because,
+  unlike recruiting's near-empty profile, timetracker's has 8 module-specific columns (pay info,
+  track mode, activation status) that don't belong on a table every module reads.
+- **`lib/timetracker/i18n.ts` — a ported KEY-based dictionary (`t('track.start')`), not
+  deliveries' `usePrefs()`/`t(en,es)` inline pairs.** Every one of timetracker's screens already
+  calls it the dictionary way; converting hundreds of call sites to match `usePrefs()`'s signature
+  would be a much bigger, riskier rewrite for no functional gain. Ported near-verbatim from the
+  original's `web/src/lib/i18n.js` (full EN+ES dictionary, ~450 keys), including its
+  module-level-state-plus-subscribers pattern (`useT()` re-renders on `setLang()`).
+- **`lib/timetracker/helpers.ts` — also ported near-verbatim**, including its unusual (for this
+  codebase) mutable-module-global `APP_SETTINGS`, synced from the settings row on every
+  `DataProvider` reload (`syncAppSettings()`). Deliveries/recruiting read settings from React
+  context; timetracker's date/money/pay formatting helpers are plain functions called far outside
+  any component tree (sorting, labels), so they can't read a hook — same reason the original had
+  this shape. Kept, not redesigned, for the same "don't touch what already works" reasoning as the
+  i18n port.
+- **Desktop-only behavior is simply ABSENT here, not `if (IS_DESKTOP)`-gated to always-false.**
+  The original web build already never executes those branches (no Electron preload in a browser
+  tab); porting the Track Time screen for real dropped them outright — system-wide activity
+  metering via the desktop bridge, smart-idle screen-motion detection, and native screenshot
+  capture. What's left is exactly the original's own web-build behavior: focus-gated
+  keydown/mousedown listeners for the activity meter, and no screenshot capture (screenshots
+  shown are desktop-captured, read-only from here — matches this module's own project brief:
+  "Web app... no screenshots, browsers can't do silent screen capture").
+- **Known gaps in this pass, tracked rather than silently dropped:** no offline queue (a failed
+  session write retries 3x, then surfaces an alert instead of buffering for later sync — the
+  original's `lib/offlineQueue.js` isn't ported yet); no OS/browser notifications (weekly-limit
+  warnings and "tracking started" show as in-app banners only). 17 of ~18 screens, the real
+  payroll/screenshot data migration, re-inviting existing timetracker employees, and the desktop
+  Electron repoint (to `loadURL`, per the decision recorded in D-064) are all still ahead.

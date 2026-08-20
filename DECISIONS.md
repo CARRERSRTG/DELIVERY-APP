@@ -2644,6 +2644,63 @@ a timetracker en producción. `landing-route.test.ts` y
 
 ---
 
+## D-066 · Etapa 2, tramo 1 — Track Time ya funciona en /timetracker
+**Fecha:** 2026-08-20 · **Versión:** v1.16.0 · **Pedido por:** Andrés
+
+**Cambio:** `/timetracker` deja de ser un 404 — es una pantalla real,
+"Track Time", portada de `timetracker-clean/web/src/employee/Tracker.jsx`.
+Base completa: `timetracker/(timetracker)/layout.tsx` (guardia de acceso +
+`TopBar` propio), `timetracker-data-provider.tsx`, tipos (`lib/timetracker/
+types.ts`), helpers de fecha/dinero/semana portados casi textual (`lib/
+timetracker/helpers.ts`), diccionario bilingüe portado casi textual (`lib/
+timetracker/i18n.ts`, ~450 claves EN+ES), CSS escopado (`.timetracker-
+module`, mismo patrón que `.recruiting-module`).
+
+**Razón (textual):** *"dale, seguimos con la etapa 2"*.
+
+**Por qué se portó mecánicamente, no se rediseñó.** El tracker original
+tiene 44 versiones de iteración real, incluyendo bugs de producción ya
+encontrados y corregidos (medidor de actividad nunca conectado, sesiones
+abandonadas, privacidad de nómina). Rediseñar esa lógica desde cero
+arriesgaba reintroducir exactamente esos bugs. Se tradujo función por
+función preservando el algoritmo (el loop de 1s, el cálculo de límite
+semanal, la detección de sesión ya corriendo en otro dispositivo), solo
+cambiando la capa de datos (Supabase directo → `useData()`).
+
+**Decisiones de diseño, no solo traducción:**
+- **camelCase, no snake_case.** Diverge a propósito de
+  `recruiting-data-provider.tsx` (que usa el shape crudo de Postgres). Cada
+  pantalla del tracker original ya lee/escribe camelCase en todas partes;
+  reescribir eso en las ~18 pantallas por consistencia cosmética no valía
+  el riesgo. `lib/timetracker/supabase/rowcase.ts` hace la conversión en
+  un solo punto, igual que `shared/lib/supabase.js` del original.
+- **`i18n.ts` es su propio diccionario por clave (`t('track.start')`), no
+  el `usePrefs()`/`t(en,es)` de deliveries.** Convertir cientos de sitios
+  de llamada habría sido una reescritura mucho más grande sin ganancia
+  funcional.
+- **Lo específico de escritorio (Electron) simplemente no está, no es un
+  `if (IS_DESKTOP)` siempre en falso.** Esta ruta nunca se renderiza dentro
+  de Electron — no hay bridge nativo en una pestaña de navegador — así que
+  se portó tal cual el propio build web del original ya se comportaba: sin
+  metering de actividad a nivel de sistema, sin detección de movimiento en
+  pantalla, sin captura de screenshots (los navegadores no pueden capturar
+  pantalla en silencio — así lo dice el propio brief del proyecto original).
+
+**Huecos conocidos en este tramo, no ocultos:** sin cola offline (una
+escritura de sesión que falla reintenta 3 veces y luego avisa con un
+`alert`, en vez de guardarse para sincronizar después — `lib/
+offlineQueue.js` del original no se portó todavía); sin notificaciones de
+SO/navegador (los avisos de límite semanal y "empezó a trackear" son solo
+banners dentro de la app). Quedan pendientes: 17 de ~18 pantallas, la
+migración real de datos de nómina/capturas, reinvitar a los empleados
+actuales de timetracker, y el repunte del desktop de Electron a `loadURL`
+(decisión ya tomada en D-064).
+
+**Verificado:** `tsc`/`vitest` (467)/`next build` limpios — `/timetracker`
+aparece como página real (4.34 kB) en la salida del build.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

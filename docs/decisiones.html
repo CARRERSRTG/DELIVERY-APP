@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-066", title: "Etapa 2, tramo 1 — Track Time ya funciona en /timetracker",
+      fecha: "2026-08-20", version: "v1.16.0", quien: "Andrés",
+      cambio: "/timetracker deja de ser un 404 — pantalla real \"Track Time\", portada de Tracker.jsx. Base completa: layout con guardia de acceso + TopBar propio, timetracker-data-provider.tsx, tipos, helpers de fecha/dinero/semana portados casi textual, diccionario bilingüe portado casi textual (~450 claves), CSS escopado .timetracker-module.",
+      razon: "\"dale, seguimos con la etapa 2\"",
+      razonTextual: true,
+      consecuencia: "Portado mecánicamente, no rediseñado — el original tiene 44 versiones de bugs de producción ya corregidos (medidor de actividad, sesiones abandonadas, privacidad de nómina); rediseñar arriesgaba reintroducirlos. Decisiones propias: camelCase en vez de snake_case (diverge de recruiting-data-provider.tsx a propósito, para no reescribir cientos de referencias en las ~18 pantallas); i18n.ts es su propio diccionario por clave, no el usePrefs() de deliveries; lo específico de Electron (metering de sistema, captura de pantalla) simplemente no está, porque esta ruta nunca corre dentro de Electron. Huecos conocidos, no ocultos: sin cola offline (reintenta 3 veces y luego alert), sin notificaciones de SO. Quedan 17 de ~18 pantallas, migración real de datos, reinvitar empleados, y el repunte del desktop a loadURL. tsc/vitest (467)/next build limpios — /timetracker aparece como página real (4.34 kB)."
+    },
+    {
       id: "D-065", title: "Timetracker entra al hub y al diálogo de Usuarios",
       fecha: "2026-08-20", version: "v1.15.1", quien: "Andrés",
       cambio: "timetracker se agrega a MODULES (tarjeta en el hub/ModuleSwitcher, D-054) y MODULE_ACCESS (bloque en el diálogo de Usuarios, D-057), más updateUserTimetrackerAccess() en ambos DataState (Supabase y local-mode stub). ModuleAccessKey gana \"timetracker\"; Profile.timetracker_role se agrega al tipo compartido.",

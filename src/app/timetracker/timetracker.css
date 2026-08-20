@@ -1,0 +1,130 @@
+/* Ported from timetracker-clean/web/src/styles.css (D-066). Every selector
+   scoped under .timetracker-module, same reason recruiting.css is scoped
+   under .recruiting-module (D-052): Next.js bundles all imported CSS
+   sitewide regardless of which route is active, so an unscoped `body{...}`
+   or bare `button{...}` here would silently change deliveries' own styling
+   depending on load order. */
+.timetracker-module{
+  --tt-bg:#0f1420; --tt-panel:#171e2e; --tt-panel2:#1e2740; --tt-line:#2a3556;
+  --tt-txt:#e7ecf7; --tt-muted:#93a0bd; --tt-accent:#4f7cff; --tt-accent2:#2ee6a6;
+  --tt-danger:#ff5a6a; --tt-warn:#ffb020; --tt-ok:#2ee6a6; --tt-chip:#243052;
+}
+/* Light mode — toggled via data-theme="light" on <html>, same mechanism deliveries/recruiting already use. */
+:root[data-theme="light"] .timetracker-module{
+  --tt-bg:#f4f6fb; --tt-panel:#ffffff; --tt-panel2:#eef2fa; --tt-line:#d7deea;
+  --tt-txt:#1a2233; --tt-muted:#5c6b86; --tt-accent:#3a63e0; --tt-accent2:#0aa578;
+  --tt-danger:#e5384a; --tt-warn:#b7791f; --tt-ok:#0aa578; --tt-chip:#e6ebf5;
+}
+:root[data-theme="light"] .timetracker-module .btn-ok{color:#053d2b}
+:root[data-theme="light"] .timetracker-module .btn-warn{color:#4a3200}
+:root[data-theme="light"] .timetracker-module .pill.on{background:#d6f5e5;color:#0a7a53}
+:root[data-theme="light"] .timetracker-module .pill.off{background:#fde0e4;color:#b3243a}
+:root[data-theme="light"] .timetracker-module .pill.wait{background:#fdf0cf;color:#8a6400}
+:root[data-theme="light"] .timetracker-module .tag-admin{background:#e3d8ff}
+:root[data-theme="light"] .timetracker-module .tag-emp{background:#d8ecff}
+:root[data-theme="light"] .timetracker-module .banner.warn{background:#fdf3d8;color:#7a5a00;border-color:#eacb7a}
+:root[data-theme="light"] .timetracker-module .banner.info{background:#dcecff;color:#1b4b7a;border-color:#a9cdf3}
+:root[data-theme="light"] .timetracker-module .banner.err{background:#fde0e4;color:#a3182b;border-color:#f0b3bd}
+:root[data-theme="light"] .timetracker-module .banner.ok{background:#d6f5e5;color:#0a6a47;border-color:#a7e6c9}
+:root[data-theme="light"] .timetracker-module .pbtn.sel{background:#eaf0ff}
+
+.timetracker-module{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+     background:var(--tt-bg);color:var(--tt-txt);font-size:15px;line-height:1.45;min-height:100vh}
+.timetracker-module .wrap{max-width:1100px;margin:0 auto;padding:18px}
+.timetracker-module .row{display:flex;gap:12px;flex-wrap:wrap}
+.timetracker-module .between{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.timetracker-module .card{background:var(--tt-panel);border:1px solid var(--tt-line);border-radius:14px;padding:18px;margin-bottom:16px}
+.timetracker-module .card h2{margin:0 0 12px;font-size:17px}
+.timetracker-module label{display:block;font-size:13px;color:var(--tt-muted);margin:8px 0 4px}
+.timetracker-module input,.timetracker-module select,.timetracker-module textarea{width:100%;background:var(--tt-panel2);border:1px solid var(--tt-line);color:var(--tt-txt);
+     border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit}
+.timetracker-module input:focus,.timetracker-module select:focus,.timetracker-module textarea:focus{outline:none;border-color:var(--tt-accent)}
+.timetracker-module textarea{resize:vertical;min-height:60px}
+.timetracker-module button{cursor:pointer;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:600;
+     background:var(--tt-accent);color:#fff;transition:.15s filter}
+.timetracker-module button:hover{filter:brightness(1.08)}
+.timetracker-module button:disabled{opacity:.5;cursor:not-allowed}
+.timetracker-module .btn-ghost{background:var(--tt-chip);color:var(--tt-txt)}
+.timetracker-module .btn-danger{background:var(--tt-danger)}
+.timetracker-module .btn-ok{background:var(--tt-accent2);color:#08251b}
+.timetracker-module .btn-warn{background:var(--tt-warn);color:#3a2800}
+.timetracker-module .btn-sm{padding:6px 10px;font-size:12.5px}
+.timetracker-module .grid{display:grid;gap:12px}
+.timetracker-module .g2{grid-template-columns:1fr 1fr}
+.timetracker-module .g3{grid-template-columns:1fr 1fr 1fr}
+.timetracker-module .g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:720px){.timetracker-module .g2,.timetracker-module .g3,.timetracker-module .g4{grid-template-columns:1fr}}
+.timetracker-module table{width:100%;border-collapse:collapse;font-size:13.5px}
+.timetracker-module th,.timetracker-module td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--tt-line)}
+.timetracker-module th{color:var(--tt-muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.timetracker-module .muted{color:var(--tt-muted)}
+.timetracker-module .chip{display:inline-block;background:var(--tt-chip);border-radius:999px;padding:3px 10px;font-size:12px}
+.timetracker-module .tag-admin{background:#3b2a63}
+.timetracker-module .tag-emp{background:#1f3a5c}
+.timetracker-module .topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--tt-line);margin-bottom:6px;position:sticky;top:0;z-index:20;background:var(--tt-bg)}
+.timetracker-module .brand{font-weight:800;font-size:18px;letter-spacing:.02em}
+.timetracker-module .brand span{color:var(--tt-accent)}
+.timetracker-module .timer-big{font-size:52px;font-weight:800;font-variant-numeric:tabular-nums}
+.timetracker-module .meter{display:flex;gap:3px;margin-top:6px}
+.timetracker-module .meter i{flex:1;height:16px;border-radius:3px;background:var(--tt-line)}
+.timetracker-module .meter i.on{background:var(--tt-accent2)}
+.timetracker-module .stat{background:var(--tt-panel2);border:1px solid var(--tt-line);border-radius:12px;padding:12px 14px}
+.timetracker-module .stat .n{font-size:22px;font-weight:800}
+.timetracker-module .stat .l{font-size:12px;color:var(--tt-muted)}
+.timetracker-module .pill{font-size:11px;padding:2px 8px;border-radius:999px}
+.timetracker-module .pill.on{background:#12351f;color:#5df0a5}
+.timetracker-module .pill.off{background:#3a1f27;color:#ff9aa6}
+.timetracker-module .pill.wait{background:#3a3312;color:#ffd97a}
+.timetracker-module .banner{padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:13.5px}
+.timetracker-module .banner.warn{background:#3a2f12;color:#ffcf7a;border:1px solid #5a4415}
+.timetracker-module .banner.info{background:#122a3a;color:#8fd0ff;border:1px solid #1c4763}
+.timetracker-module .banner.err{background:#3a151b;color:#ff9aa6;border:1px solid #5a1f28}
+.timetracker-module .banner.ok{background:#12351f;color:#7cf0b0;border:1px solid #1c5a37}
+.timetracker-module .hr{height:1px;background:var(--tt-line);margin:14px 0}
+.timetracker-module .small{font-size:12.5px}
+.timetracker-module .right{text-align:right}
+.timetracker-module .nowrap{white-space:nowrap}
+.timetracker-module .link{background:none;color:var(--tt-accent);padding:0;font-weight:600}
+.timetracker-module .link:hover{text-decoration:underline;filter:none}
+.timetracker-module .pbtns{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.timetracker-module .pbtn{background:var(--tt-panel2);border:1px solid var(--tt-line);border-radius:12px;padding:14px;text-align:left;color:var(--tt-txt)}
+.timetracker-module .pbtn:hover{border-color:var(--tt-accent)}
+.timetracker-module .pbtn.sel{border-color:var(--tt-accent);background:#1c2748;box-shadow:0 0 0 1px var(--tt-accent) inset}
+.timetracker-module .pbtn .pn{font-weight:700;font-size:14.5px}
+.timetracker-module .pbtn .pm{font-size:12px;color:var(--tt-muted);margin-top:3px}
+.timetracker-module .box{background:var(--tt-panel2);border:1px solid var(--tt-line);border-radius:12px;padding:12px 14px}
+
+.timetracker-module .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.timetracker-module .tabs button,.timetracker-module .tabs a{background:var(--tt-chip);color:var(--tt-muted);font-weight:600;position:relative;text-decoration:none;display:inline-block}
+.timetracker-module .tabs a.active,.timetracker-module .tabs button.active{background:var(--tt-accent);color:#fff}
+.timetracker-module .badge{position:absolute;top:-6px;right:-6px;background:var(--tt-danger);color:#fff;border-radius:999px;
+     font-size:11px;min-width:18px;height:18px;line-height:18px;text-align:center;padding:0 5px}
+
+.timetracker-module .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;
+  background:var(--tt-panel);border:1px solid var(--tt-line);border-radius:10px;padding:10px 16px;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);font-size:13.5px}
+
+.timetracker-module .shot{display:block;background:var(--tt-panel);border:1px solid var(--tt-line);border-radius:8px;overflow:hidden;text-decoration:none;padding:6px}
+.timetracker-module .shot img{width:100%;height:auto;object-fit:cover;border-radius:6px;display:block;background:#000}
+.timetracker-module .shot-blank{width:100%;border-radius:6px;border:1px dashed var(--tt-line);
+  display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;
+  color:var(--tt-muted);font-size:12px;
+  background:repeating-linear-gradient(45deg,transparent,transparent 7px,rgba(255,255,255,.03) 7px,rgba(255,255,255,.03) 14px)}
+.timetracker-module .shot-loading{width:100%;border-radius:6px;background:var(--tt-panel2);
+  background-image:linear-gradient(90deg,var(--tt-panel2),var(--tt-line),var(--tt-panel2));
+  background-size:200% 100%;animation:tt-shimmer 1.2s infinite}
+@keyframes tt-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+
+@media(max-width:720px){
+  .timetracker-module .wrap{padding:12px}
+  .timetracker-module .card{padding:14px;border-radius:12px}
+  .timetracker-module input,.timetracker-module select,.timetracker-module textarea{font-size:16px;padding:12px}
+  .timetracker-module button{padding:12px 16px}
+  .timetracker-module .btn-sm{padding:9px 12px;font-size:13px}
+  .timetracker-module .timer-big{font-size:44px}
+  .timetracker-module .card{overflow-x:auto}
+  .timetracker-module table{width:max-content;min-width:100%}
+}
+@media(max-width:420px){
+  .timetracker-module .pbtns{grid-template-columns:1fr}
+}
