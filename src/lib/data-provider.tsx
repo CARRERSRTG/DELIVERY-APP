@@ -132,6 +132,9 @@ export interface DataState {
    * confusion caused before). `recruiting_role` is ignored when
    * `granted` is false. */
   updateUserRecruitingAccess: (userId: string, patch: { granted: boolean; recruiting_role: string | null }) => Promise<void>;
+  /** Same shape as updateUserRecruitingAccess, for the timetracker module
+   * (D-064). Writes timetracker_role/module_access, never `role`. */
+  updateUserTimetrackerAccess: (userId: string, patch: { granted: boolean; timetracker_role: string | null }) => Promise<void>;
   deleteUser: (userId: string) => Promise<boolean>;
 
   /** Milestones completed with no signal, still waiting to reach the server.
@@ -390,10 +393,10 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       // button, and turned clearing an email into "give them a username
       // first" — a message about a value that was sitting in the database all
       // along. Select what the app actually uses.
-      // recruiting_role + module_access ride along here (not just on `me` in
-      // the layout) so the Users page can show/edit another person's
-      // recruiting access without a second round trip (D-053).
-      supabase.from("profiles").select("id, full_name, username, role, store, permissions, avatar_url, recruiting_role, module_access").order("full_name"),
+      // recruiting_role/timetracker_role + module_access ride along here (not
+      // just on `me` in the layout) so the Users page can show/edit another
+      // person's module access without a second round trip (D-053, D-064).
+      supabase.from("profiles").select("id, full_name, username, role, store, permissions, avatar_url, recruiting_role, module_access, timetracker_role").order("full_name"),
       // Teaching mode never loads from the DB — the live (non-training) rows are
       // always the base, and the sandbox lives only in the local overlay.
       supabase.from("deliveries").select("*").eq("is_training", false).order("order_no", { ascending: false }),
@@ -1025,6 +1028,26 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     [supabase, notify, reloadAll, users, logSecurityClient],
   );
 
+  // Same shape as updateUserRecruitingAccess, one module over — writes
+  // timetracker_role/module_access, authorized by guard_timetracker_access_
+  // change (058), which requires a deliveries admin exactly like the
+  // recruiting guard does (D-064).
+  const updateUserTimetrackerAccess = useCallback<DataState["updateUserTimetrackerAccess"]>(
+    async (userId, { granted, timetracker_role }) => {
+      const target = users.find((u) => u.id === userId);
+      const beforeRole = target?.timetracker_role ?? null;
+      const nextRole = granted ? (timetracker_role ?? "employee") : null;
+      const nextModules = granted
+        ? Array.from(new Set([...(target?.module_access ?? []), "timetracker"]))
+        : (target?.module_access ?? []).filter((m) => m !== "timetracker");
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, timetracker_role: nextRole, module_access: nextModules } : u)));
+      const { error } = await supabase.from("profiles").update({ timetracker_role: nextRole, module_access: nextModules }).eq("id", userId);
+      if (error) { notify(error.message); reloadAll(); return; }
+      void logSecurityClient(userId, "timetracker_access_changed", change(beforeRole, nextRole));
+    },
+    [supabase, notify, reloadAll, users, logSecurityClient],
+  );
+
   const deleteUser = useCallback<DataState["deleteUser"]>(
     async (userId) => {
       const res = await fetch("/api/delete-user", {
@@ -1087,7 +1110,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     ready, me: effectiveMe, realRole, viewAs, setViewAs, teaching, setTeaching, clearTrainingData, settings, users, deliveries: effectiveDeliveries, events, notifications, toast, notify,
     markNotifRead, markAllNotifsRead, pushNotifs,
     addDelivery, updateDelivery, reorderStops, deleteDelivery, setStage, eventsFor, addNote,
-    saveSettings, addUser, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, updateUserRecruitingAccess, deleteUser,
+    saveSettings, addUser, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, updateUserRecruitingAccess, updateUserTimetrackerAccess, deleteUser,
     availability, addAvailability, removeAvailability,
     shifts, clockIn, clockOut,
     incidents, addIncident, removeIncident,

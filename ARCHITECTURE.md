@@ -533,3 +533,17 @@ client and a Windows Electron desktop client.
   timetracker employees into deliveries' Auth since Supabase doesn't support moving password
   hashes between projects) is unstarted. Old `qklsxhzmbnglgzufdbmz` project stays live and
   untouched until then, same fallback posture D-050 used for recruiting's old project.
+- **Wired into the hub and the Users dialog ahead of the UI port (D-065)** — `MODULES`,
+  `MODULE_ACCESS`, and `updateUserTimetrackerAccess()` (mirroring `updateUserRecruitingAccess()`
+  exactly, in both `DataState` implementations) all got a `timetracker` entry, same as D-054/D-057
+  did for recruiting. The module card can 404 today (`/timetracker` doesn't resolve yet) — the
+  same brief mid-port state recruiting was in during D-052 — but nobody has `timetracker` in
+  `module_access` in production yet, so nothing is actually reachable until an admin deliberately
+  grants it through the now-wired dialog.
+- **Wiring the third module surfaced a bug the first two never would have.** `UserDialog.tsx`'s
+  current-role lookup was `m.roleColumn === "role" ? u.role : (u.recruiting_role ?? undefined)` —
+  correct with exactly two modules only by coincidence (everything that wasn't `"role"` happened
+  to be recruiting's column), and would have shown recruiting's role inside timetracker's block.
+  Fixed to a real generic lookup, `u[m.roleColumn]`. The WRITE side was already safe — D-057's
+  exhaustive `switch` fails `tsc` if a module's case is missing — but that compile-time guarantee
+  never covered this READ. Three data points establish a pattern that two can't.

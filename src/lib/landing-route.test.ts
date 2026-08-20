@@ -38,6 +38,14 @@ describe("accessibleModules", () => {
     expect(accessibleModules(["recruiting"]).map((m) => m.key)).toEqual(["deliveries", "recruiting"]);
   });
 
+  it("adds timetracker when granted (D-064)", () => {
+    expect(accessibleModules(["timetracker"]).map((m) => m.key)).toEqual(["deliveries", "timetracker"]);
+  });
+
+  it("adds both when granted, in MODULES declaration order", () => {
+    expect(accessibleModules(["recruiting", "timetracker"]).map((m) => m.key)).toEqual(["deliveries", "recruiting", "timetracker"]);
+  });
+
   it("ignores a module_access entry with no matching MODULES entry", () => {
     // A stale or typo'd value shouldn't crash the switcher into showing a
     // card for a module that doesn't exist.
@@ -65,17 +73,21 @@ describe("MODULE_ACCESS", () => {
     expect(new Set(columns).size).toBe(columns.length);
   });
 
-  it("deliveries is always-on; recruiting is not", () => {
+  it("deliveries is always-on; recruiting and timetracker are not", () => {
     const deliveries = MODULE_ACCESS.find((m) => m.key === "deliveries")!;
     const recruiting = MODULE_ACCESS.find((m) => m.key === "recruiting")!;
+    const timetracker = MODULE_ACCESS.find((m) => m.key === "timetracker")!;
     expect(deliveries.alwaysOn).toBe(true);
     expect(recruiting.alwaysOn).toBe(false);
+    expect(timetracker.alwaysOn).toBe(false);
   });
 
   it("only deliveries carries fine-grained capabilities", () => {
     const deliveries = MODULE_ACCESS.find((m) => m.key === "deliveries")!;
     const recruiting = MODULE_ACCESS.find((m) => m.key === "recruiting")!;
+    const timetracker = MODULE_ACCESS.find((m) => m.key === "timetracker")!;
     expect(deliveries.capabilities?.length).toBeGreaterThan(0);
     expect(recruiting.capabilities).toBeUndefined();
+    expect(timetracker.capabilities).toBeUndefined();
   });
 });

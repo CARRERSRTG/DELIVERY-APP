@@ -33,7 +33,7 @@ describe("securityLabel", () => {
 
 describe("isSensitive", () => {
   it("marks the ones worth a second look", () => {
-    for (const k of ["password_reset", "user_removed", "email_changed", "recruiting_access_changed"]) {
+    for (const k of ["password_reset", "user_removed", "email_changed", "recruiting_access_changed", "timetracker_access_changed"]) {
       expect(isSensitive(k)).toBe(true);
     }
   });

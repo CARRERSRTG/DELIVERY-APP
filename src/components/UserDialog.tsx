@@ -26,7 +26,7 @@ const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "true";
 interface SignIn { email: string; synthetic: boolean; can_reset_own_password: boolean; last_sign_in_at: string | null }
 
 export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () => void }) {
-  const { me, notify, settings, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, updateUserRecruitingAccess, deleteUser, saveSettings } = useData();
+  const { me, notify, settings, setUserIdentity, resetUserPassword, updateUserRole, updateUserName, updateUserStore, updateUserPermissions, updateUserRecruitingAccess, updateUserTimetrackerAccess, deleteUser, saveSettings } = useData();
   const { lang, t } = usePrefs();
   const confirmAction = useConfirm();
 
@@ -68,6 +68,7 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
     switch (key) {
       case "deliveries": updateUserRole(u.id, roleValue as UserRole); return;
       case "recruiting": updateUserRecruitingAccess(u.id, { granted: true, recruiting_role: roleValue }); return;
+      case "timetracker": updateUserTimetrackerAccess(u.id, { granted: true, timetracker_role: roleValue }); return;
       default: { const _exhaustive: never = key; return _exhaustive; }
     }
   };
@@ -75,6 +76,9 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
     switch (key) {
       case "recruiting":
         updateUserRecruitingAccess(u.id, { granted, recruiting_role: granted ? (u.recruiting_role ?? "recruiter") : null });
+        return;
+      case "timetracker":
+        updateUserTimetrackerAccess(u.id, { granted, timetracker_role: granted ? (u.timetracker_role ?? "employee") : null });
         return;
       case "deliveries":
         // Never actually called — deliveries is alwaysOn and renders no
@@ -196,7 +200,11 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
             check — each block decides for itself via its own alwaysOn/key. */}
         <div className="section-label">{t("Modules & permissions", "Módulos y permisos")}</div>
         {MODULE_ACCESS.filter((m) => m.alwaysOn || !LOCAL_MODE).map((m) => {
-          const currentRole = m.roleColumn === "role" ? u.role : (u.recruiting_role ?? undefined);
+          // Generic lookup by roleColumn, not a hardcoded fallback to one
+          // module's field — a third module here needed a real fix, not
+          // another `: u.recruiting_role` clause (that bug would have shown
+          // recruiting's role value inside every OTHER module's block).
+          const currentRole = m.roleColumn === "role" ? u.role : (u[m.roleColumn] ?? undefined);
           const granted = m.alwaysOn || !!currentRole;
           // The lowest-listed role is the default when checking the box with
           // nothing chosen yet — matches what recruiting's own invite flow

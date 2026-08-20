@@ -2601,6 +2601,49 @@ transacciones de prueba (rollback, sin persistir nada). `tsc`/`vitest`
 
 ---
 
+## D-065 · Timetracker entra al hub y al diálogo de Usuarios
+**Fecha:** 2026-08-20 · **Versión:** v1.15.1 · **Pedido por:** Andrés
+
+**Cambio:** timetracker se agrega a los tres registros genéricos que
+recruiting ya usaba — `MODULES` (tarjeta en el hub/`ModuleSwitcher`,
+D-054), `MODULE_ACCESS` (bloque propio en el diálogo de Usuarios, D-057) —
+más `updateUserTimetrackerAccess()` (mismo molde exacto que
+`updateUserRecruitingAccess()`) en ambos `DataState` (Supabase y local-mode
+stub, como recruiting). `ModuleAccessKey` gana `"timetracker"`;
+`Profile.timetracker_role` se agrega al tipo compartido.
+
+**Razón (textual):** *"si y siempre verdad asi se agrega al hub y de esa
+forma al igual que al modo de usuario lo mismo porfavor"* — confirmando
+seguir con la Etapa 2 y pidiendo el mismo tratamiento que recruiting tuvo
+en el hub y en Usuarios.
+
+**Estado intencional: la tarjeta puede llevar a un 404 hoy.** `/timetracker`
+no existe todavía (Etapa 2, UI, sigue pendiente) — mismo estado a medio
+portar que recruiting tuvo brevemente durante D-052, documentado ahí
+mismo. Nadie tiene `timetracker` en `module_access` todavía (0 filas en
+producción), así que en la práctica la tarjeta no aparece para nadie hasta
+que un admin la otorgue a propósito desde el diálogo ya wireado.
+
+**Un bug real encontrado al conectar el tercer módulo, no al escribir el
+primero.** La lectura del rol actual en `UserDialog.tsx` no era tan
+genérica como el resto: `const currentRole = m.roleColumn === "role" ?
+u.role : (u.recruiting_role ?? undefined)` — funcionaba con dos módulos
+por coincidencia (todo lo que no era `"role"` era recruiting), pero con un
+tercero habría mostrado el rol de recruiting dentro del bloque de
+timetracker. Corregido a una búsqueda genérica por `roleColumn`
+(`u[m.roleColumn]`). El lado de ESCRITURA (`setModuleRole`/
+`setModuleAccess`) ya estaba protegido por el `switch` exhaustivo de
+D-057 — esto era el lado de LECTURA, que no tenía el mismo tipo de
+defensa en tiempo de compilación.
+
+**Consecuencia aceptada:** ninguna a datos reales — 0 personas con acceso
+a timetracker en producción. `landing-route.test.ts` y
+`security-log.test.ts` ampliados con casos de timetracker (467 pruebas).
+
+**Verificado:** `tsc`/`vitest` (467)/`next build` limpios.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

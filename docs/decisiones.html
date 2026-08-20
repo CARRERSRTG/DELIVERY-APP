@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-065", title: "Timetracker entra al hub y al diálogo de Usuarios",
+      fecha: "2026-08-20", version: "v1.15.1", quien: "Andrés",
+      cambio: "timetracker se agrega a MODULES (tarjeta en el hub/ModuleSwitcher, D-054) y MODULE_ACCESS (bloque en el diálogo de Usuarios, D-057), más updateUserTimetrackerAccess() en ambos DataState (Supabase y local-mode stub). ModuleAccessKey gana \"timetracker\"; Profile.timetracker_role se agrega al tipo compartido.",
+      razon: "\"si y siempre verdad asi se agrega al hub y de esa forma al igual que al modo de usuario lo mismo porfavor\"",
+      razonTextual: true,
+      consecuencia: "/timetracker no existe todavía (Etapa 2 UI sigue pendiente) — mismo estado a medio portar que recruiting tuvo brevemente en D-052 — pero nadie tiene timetracker en module_access en producción, así que nada es alcanzable hasta que un admin lo otorgue a propósito. Se encontró un bug real al conectar el tercer módulo: la lectura del rol actual en UserDialog.tsx (m.roleColumn === \"role\" ? u.role : u.recruiting_role) funcionaba con dos módulos solo por coincidencia y habría mostrado el rol de recruiting dentro del bloque de timetracker — corregido a una búsqueda genérica u[m.roleColumn]. El lado de escritura ya estaba protegido por el switch exhaustivo de D-057; este era el lado de lectura, sin esa misma defensa en tiempo de compilación. landing-route.test.ts y security-log.test.ts ampliados (467 pruebas). tsc/vitest (467)/next build limpios."
+    },
+    {
       id: "D-064", title: "Merge con timetracker, Etapa 1 — datos unificados",
       fecha: "2026-08-20", version: "v1.15.0", quien: "Andrés",
       cambio: "Cuatro migraciones (058-061) crean timetracker.* en el Supabase de deliveries: 8 tablas (employee_settings, projects, assignments, sessions, requests, payrolls, settings, audit, screenshots) + bucket timetracker-screenshots, RLS completo, realtime, retención por pg_cron. public.profiles gana timetracker_role (admin|employee) y 'timetracker' como tercer valor de module_access. Sin UI todavía — no existe /timetracker/* — y sin datos reales migrados.",

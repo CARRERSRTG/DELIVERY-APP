@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.15.0";
+export const APP_VERSION = "1.15.1";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -183,6 +183,14 @@ export const RECRUITING_ROLE_LABELS: Record<string, { en: string; es: string }> 
   recruiter: { en: "Recruiter", es: "Reclutador" },
 };
 
+// Timetracker's own role tiers (admin|employee — see supabase/migrations/
+// 058_timetracker_access.sql). Same bilingual-relabel treatment as
+// RECRUITING_ROLE_LABELS above, for the same reason (D-064).
+export const TIMETRACKER_ROLE_LABELS: Record<string, { en: string; es: string }> = {
+  admin: { en: "Admin", es: "Administrador" },
+  employee: { en: "Employee", es: "Empleado" },
+};
+
 export const MODULES: ModuleInfo[] = [
   {
     key: "recruiting",
@@ -192,6 +200,20 @@ export const MODULES: ModuleInfo[] = [
     label_es: "Reclutamiento",
     desc_en: "Candidates and interviews",
     desc_es: "Candidatos y entrevistas",
+  },
+  // Data unified (D-064); UI not ported yet — /timetracker doesn't resolve
+  // to a page yet, same mid-port state recruiting was briefly in (D-052).
+  // Listed anyway because the Users dialog needs MODULE_ACCESS below wired
+  // regardless, and nobody has timetracker in module_access to click this
+  // card until an admin grants it.
+  {
+    key: "timetracker",
+    href: "/timetracker",
+    emoji: "⏱️",
+    label_en: "Time Tracker",
+    label_es: "Control de Horas",
+    desc_en: "Time tracking and payroll",
+    desc_es: "Registro de horas y nómina",
   },
 ];
 
@@ -420,7 +442,7 @@ export const ROLE_CAPS: Record<UserRole, Capability[]> = {
 // module costs one line here plus its MODULE_ACCESS entry — a small,
 // deliberate price for a compiler-checked guarantee on the sensitive half
 // (writes), while the rendering half stays fully data-driven.
-export type ModuleAccessKey = "deliveries" | "recruiting";
+export type ModuleAccessKey = "deliveries" | "recruiting" | "timetracker";
 
 export interface ModuleAccessConfig {
   key: ModuleAccessKey;
@@ -428,7 +450,7 @@ export interface ModuleAccessConfig {
   /** Deliveries only. Not a checkbox — see D-057's "always-on" note: role is
    * NOT NULL, there is no "no module" state anywhere in the schema. */
   alwaysOn: boolean;
-  roleColumn: "role" | "recruiting_role";
+  roleColumn: "role" | "recruiting_role" | "timetracker_role";
   roleKeys: readonly string[];
   roleLabel: (key: string, lang: Lang) => string;
   /** Present only for an opt-in module — deliveries has none, everyone
@@ -460,6 +482,15 @@ export const MODULE_ACCESS: ModuleAccessConfig[] = [
     accessColumn: "module_access",
     // No capabilities — recruiting has no fine-grained extra-permissions
     // concept today (its only dial is the role tier). Nothing to render.
+  },
+  {
+    key: "timetracker", label_en: "Time Tracker", label_es: "Control de Horas",
+    alwaysOn: false,
+    roleColumn: "timetracker_role",
+    roleKeys: Object.keys(TIMETRACKER_ROLE_LABELS),
+    roleLabel: (key, lang) => (lang === "es" ? TIMETRACKER_ROLE_LABELS[key].es : TIMETRACKER_ROLE_LABELS[key].en),
+    accessColumn: "module_access",
+    // No capabilities yet — same as recruiting, only dial is the role tier.
   },
 ];
 

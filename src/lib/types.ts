@@ -21,9 +21,13 @@ export interface Profile {
    * `admin`. Null = no role there. See D-050. */
   recruiting_role?: string | null;
   /** Which modules besides deliveries itself this identity may enter. Today
-   * only ever contains `"recruiting"` or is empty. Empty/null = deliveries
+   * "recruiting" and/or "timetracker", or empty. Empty/null = deliveries
    * only. See D-050. */
   module_access?: string[] | null;
+  /** Role INSIDE the timetracker module (admin|employee). Independent of
+   * `role` above, same shape as recruiting_role. Null = no role there.
+   * See D-064. */
+  timetracker_role?: string | null;
 }
 
 // ---- Workflow stages ------------------------------------------------------
