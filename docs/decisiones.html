@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-055", title: "Botón \"volver al hub\", junto al switcher",
+      fecha: "2026-08-19", version: "v1.11.0", quien: "Andrés",
+      cambio: "ModuleSwitcher.tsx gana un segundo control, ⌂ (enlace directo a /home), junto al botón de salto directo ⇄ que ya existía. Mismo componente compartido, mismo gate — ningún TopBar cambió. Para 2+ módulos: (a) el switcher salta directo al otro módulo, (b) el botón nuevo vuelve a /home a elegir ahí. Dos caminos al mismo lugar, no uno reemplazando al otro.",
+      razon: "Saltar directo es rápido cuando ya sabés a dónde vas; volver al hub sirve para ver las tarjetas de nuevo, por ejemplo con un tercer módulo algún día.",
+      razonTextual: false,
+      consecuencia: "El botón reutiliza el MISMO gate que ya tenía el switcher (deliveriesRole !== 'driver' && accessibleModules().length > 1), no duplica la condición — no existe para quien tiene 1 módulo porque para esa persona /home solo rebota de vuelta vía landingRoute(). Verificado que no reintroduce el desborde de D-054: el clúster completo (⌂+⇄) mide ~90px, menos que el botón de texto original que ya se había medido como seguro. min-width: 0 agregado también al nuevo contenedor, misma disciplina que el addendum de D-054. tsc/vitest (461)/next build limpios."
+    },
+    {
       id: "D-054", title: "App switcher genérico en la barra superior",
       fecha: "2026-08-19", version: "v1.10.1", quien: "Andrés",
       cambio: "ModuleSwitcher.tsx (nuevo, compartido) se monta en los dos TopBar (deliveries y recruiting) y muestra un menú de los módulos accesibles distintos al actual; elegir uno navega directo a su entrada natural, sin pasar por /home. accessibleModules(moduleAccess) en constants.ts es la única función que arma esa lista — la usan HomeSelector y ModuleSwitcher por igual. Un tercer módulo futuro es una entrada nueva en MODULES.",
