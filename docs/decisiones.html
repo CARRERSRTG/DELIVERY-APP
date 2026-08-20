@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-056", title: "Usuarios se muda al hub — primera herramienta compartida",
+      fecha: "2026-08-19", version: "v1.12.0", quien: "Andrés",
+      cambio: "La pantalla de Usuarios deja de vivir dentro de deliveries y pasa a /home/users, colgada del hub en vez de un módulo específico. (app)/users y recruiting/(recruiting)/users quedan como redirects de una línea. Mismo UserDialog.tsx, mismas funciones de data-provider.tsx — cambia el domicilio, no el comportamiento. HUB_TOOLS (constants.ts) es el patrón genérico: hermano de MODULES, pero por rol (visible(me)) en vez de por otorgamiento — una segunda herramienta compartida el día de mañana es una entrada nueva ahí.",
+      razon: "Usuarios nunca fue realmente \"de deliveries\" — desde D-053 ya gestiona el acceso a Recruiting también. El hub es el nivel neutral correcto para algo que ninguno de los dos módulos es dueño.",
+      razonTextual: false,
+      consecuencia: "landingRoute() no se tocó: un admin de 1 módulo sigue aterrizando en su módulo, igual que antes. home/page.tsx separa esa pregunta (aterrizaje) de una nueva, distinta (hasReasonToBeHere: ¿hay algo para vos si navegás aquí a propósito?) — dos expresiones, no un parche dentro de landingRoute(). ModuleSwitcher recibe la misma separación: ⇄ sigue exigiendo 2+ módulos, ⌂ ahora se muestra con 2+ módulos O una herramienta del hub visible. Retirada en el mismo cambio: la capacidad extra \"users\", que nunca dio acceso real (la pantalla siempre exigió role==='admin' a secas) — confirmado que cero perfiles en producción la tenían otorgada antes de borrarla. home/users/layout.tsx es un Server Component que redirige a un no-admin ANTES de montar nada, endurecimiento real sobre el Client Component anterior — la autoridad no se movió, guard_recruiting_access_change (D-050) sigue exigiendo admin de deliveries sin importar la URL. Modo local (LOCAL_MODE) pierde acceso a Usuarios — /home nunca lo soportó, mismo hueco preexistente extendido, no uno nuevo. tsc/vitest (462)/next build limpios; verificado con Chrome headless que un admin de 1 módulo ve solo ⌂, nunca ⇄."
+    },
+    {
       id: "D-055", title: "Botón \"volver al hub\", junto al switcher",
       fecha: "2026-08-19", version: "v1.11.0", quien: "Andrés",
       cambio: "ModuleSwitcher.tsx gana un segundo control, ⌂ (enlace directo a /home), junto al botón de salto directo ⇄ que ya existía. Mismo componente compartido, mismo gate — ningún TopBar cambió. Para 2+ módulos: (a) el switcher salta directo al otro módulo, (b) el botón nuevo vuelve a /home a elegir ahí. Dos caminos al mismo lugar, no uno reemplazando al otro.",
