@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-067", title: "Etapa 2, tramo 2 — \"Mi semana\"",
+      fecha: "2026-08-20", version: "v1.16.1", quien: "Andrés",
+      cambio: "/timetracker/week, portada de EmployeeWeek.jsx — hoja de horas semanal de solo lectura: total por proyecto (regular/extra/sobre el límite), entradas agrupadas por día, estado de la semana (activa/en revisión/pagada). myPayrolls se agrega a timetracker-data-provider.tsx (mismo patrón que mySessions).",
+      razon: "\"seguimos con la próxima pantalla\"",
+      razonTextual: true,
+      consecuencia: "Puerto más directo que Track Time: es una pantalla de reporte sin las preocupaciones de escritorio/cola offline/tick en vivo. El useSettings() propio del original se reemplazó leyendo settings directo de useData() (ya existe desde D-066). Ningún hueco nuevo — los ya documentados en D-066 no aplican a esta pantalla. tsc/vitest (467)/next build limpios — /timetracker/week aparece como página real (2.32 kB)."
+    },
+    {
       id: "D-066", title: "Etapa 2, tramo 1 — Track Time ya funciona en /timetracker",
       fecha: "2026-08-20", version: "v1.16.0", quien: "Andrés",
       cambio: "/timetracker deja de ser un 404 — pantalla real \"Track Time\", portada de Tracker.jsx. Base completa: layout con guardia de acceso + TopBar propio, timetracker-data-provider.tsx, tipos, helpers de fecha/dinero/semana portados casi textual, diccionario bilingüe portado casi textual (~450 claves), CSS escopado .timetracker-module.",

@@ -2701,6 +2701,34 @@ aparece como página real (4.34 kB) en la salida del build.
 
 ---
 
+## D-067 · Etapa 2, tramo 2 — "Mi semana"
+**Fecha:** 2026-08-20 · **Versión:** v1.16.1 · **Pedido por:** Andrés
+
+**Cambio:** `/timetracker/week`, portada de `employee/EmployeeWeek.jsx` —
+hoja de horas semanal de solo lectura: total por proyecto (regular/extra/
+sobre el límite), entradas agrupadas por día (acordeón), estado de la
+semana (activa/en revisión/pagada). `myPayrolls` se agrega a
+`timetracker-data-provider.tsx` (mismo patrón que `mySessions`:
+`reloadAll()` + realtime filtrado por `employee_uid`).
+
+**Razón (textual):** *"seguimos con la próxima pantalla"*.
+
+**Por qué fue un puerto más directo que Track Time.** Es una pantalla de
+reporte (lee `sessions`/`assignments`/`payrolls`, calcula con
+`computePay()` ya portado, sin escribir nada) — no tiene las
+preocupaciones de escritorio/cola offline/tick en vivo que Track Time sí
+tenía. El `useSettings()` propio del original se reemplazó por leer
+`settings` directo de `useData()` (ya existe ahí desde D-066, no hacía
+falta portar un segundo contexto).
+
+**Consecuencia aceptada:** ninguna nueva — mismos huecos ya documentados en
+D-066 (siguen sin tocar esta pantalla, que no los necesita).
+
+**Verificado:** `tsc`/`vitest` (467)/`next build` limpios — `/timetracker/
+week` aparece como página real (2.32 kB).
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

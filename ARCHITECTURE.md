@@ -592,3 +592,9 @@ client and a Windows Electron desktop client.
   warnings and "tracking started" show as in-app banners only). 17 of ~18 screens, the real
   payroll/screenshot data migration, re-inviting existing timetracker employees, and the desktop
   Electron repoint (to `loadURL`, per the decision recorded in D-064) are all still ahead.
+- **`/timetracker/week` (D-067) — the second screen, a closer 1:1 port than Track Time.** A
+  read-only weekly timesheet with no desktop/offline/live-tick concerns, so it translated more
+  directly. Added `myPayrolls` to the data provider, same `reloadAll()` + `employee_uid`-filtered
+  realtime shape as `mySessions`. The original's own `SettingsContext` wasn't ported — `settings`
+  already lives on `useData()` since D-066, so this screen just reads that instead of standing up
+  a second context for the same data.

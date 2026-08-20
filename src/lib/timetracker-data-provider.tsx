@@ -12,7 +12,7 @@ import {
 import { createClient } from "@/lib/timetracker/supabase/client";
 import { rowToCamel, toSnakeRow } from "@/lib/timetracker/supabase/rowcase";
 import { APP_SETTINGS, type AppSettings, syncAppSettings } from "@/lib/timetracker/helpers";
-import type { Assignment, Employee, Project, Screenshot, Session } from "@/lib/timetracker/types";
+import type { Assignment, Employee, Payroll, Project, Screenshot, Session } from "@/lib/timetracker/types";
 
 // ============================================================
 // Etapa 2, pass 1 (D-066): foundation + the Track Time screen only. This
@@ -41,6 +41,8 @@ interface DataState {
    * not company-wide — see the module comment on why this can be a plain
    * reloadAll() unlike the manager-facing screens still to come). */
   mySessions: Session[];
+  /** My own payroll batches (one per paid/unpaid week). */
+  myPayrolls: Payroll[];
   toast: string;
   notify: (msg: string) => void;
 
@@ -81,6 +83,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [projects, setProjects] = useState<Project[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [latestScreenshot, setLatestScreenshot] = useState<Screenshot | null>(null);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -107,10 +110,11 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   }, [supabase]);
 
   const reloadAll = useCallback(async () => {
-    const [pr, asn, ss, set] = await Promise.all([
+    const [pr, asn, ss, py, set] = await Promise.all([
       supabase.from("projects").select("*").eq("archived", false).order("created_at"),
       supabase.from("assignments").select("*").eq("employee_uid", me.id),
       supabase.from("sessions").select("*").eq("employee_uid", me.id),
+      supabase.from("payrolls").select("*").eq("employee_uid", me.id),
       supabase.from("settings").select("*").eq("id", "app").maybeSingle(),
     ]);
     const projectRows = ((pr.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Project>(r)!);
@@ -122,6 +126,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       .filter((a): a is Assignment => !!a.project);
     setAssignments(asnRows);
     setSessions(((ss.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Session>(r)!));
+    setPayrolls(((py.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Payroll>(r)!));
     if (set.data) {
       const merged: AppSettings = { ...APP_SETTINGS, ...((set.data as { data: Partial<AppSettings> }).data) };
       syncAppSettings(merged);
@@ -143,6 +148,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "projects" }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "assignments", filter: `employee_uid=eq.${me.id}` }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "sessions", filter: `employee_uid=eq.${me.id}` }, reloadAll)
+      .on("postgres_changes", { event: "*", schema: "timetracker", table: "payrolls", filter: `employee_uid=eq.${me.id}` }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "settings" }, reloadAll)
       .subscribe();
     return () => {
@@ -210,7 +216,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   }, [supabase]);
 
   const value: DataState = {
-    ready, me, settings, projects, myAssignments: assignments, mySessions: sessions,
+    ready, me, settings, projects, myAssignments: assignments, mySessions: sessions, myPayrolls: payrolls,
     toast, notify,
     listLiveSessions, startSession, updateSession,
     latestScreenshot, screenshotSignedUrl,
