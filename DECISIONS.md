@@ -2971,6 +2971,69 @@ CSS compilado.
 
 ---
 
+## D-073 · Datos reales de timetracker migrados desde el proyecto viejo
+**Fecha:** 2026-08-20 · **Pedido por:** Andrés
+
+**Cambio:** todo el historial real de timetracker (proyecto viejo
+`qklsxhzmbnglgzufdbmz`) migrado a `timetracker.*` en el proyecto de
+deliveries: 4 proyectos, 3 asignaciones, 231 sesiones, 4 pagos ya
+liquidados ($1,641.23 en total), 7 solicitudes, 50 entradas de auditoría,
+y 1,921 capturas de pantalla reales (814 MB) con sus metadatos. No es un
+cambio de código — no lleva versión de `APP_VERSION` — es un cambio de
+estado de datos en producción.
+
+**Razón (textual):** *"haz todo lo demás"* (dejando el repunte del
+desktop de Electron para el final), confirmando después paso a paso cada
+acción con datos reales de personas.
+
+**Identidades — solo 3 personas reales, no 4.** El roster del proyecto
+viejo tenía 4 perfiles; uno (`andresugarte000@gmail.com`) era una cuenta
+de prueba ya borrada en julio, sin ninguna fila de datos asociada en
+ninguna tabla — se descartó sin migrar, nada se pierde. De las 3
+personas reales, dos (andres, Roberto Rodríguez) ya tenían cuenta de
+admin en deliveries — se les otorgó `timetracker_role` sin crear nada
+nuevo. La tercera (Nick Huerta, `purchasing@rdztilegroup.net`) no tenía
+cuenta — se creó una nueva, explícitamente **acotada a solo Timetracker**
+(`module_access: ['timetracker']`, sin `recruiting_role`) por pedido
+directo: *"si el user solo es de time tracker solo a eso tendra
+acceso"*. El mecanismo de invitación de deliveries no manda correo
+automático — genera una contraseña de un solo uso para que el admin se
+la entregue a la persona directamente.
+
+**Un bug de seguridad real, encontrado y corregido antes de mover
+archivos.** Los metadatos de `screenshots` se migraron primero con el
+`path` intacto del original — pero ese path usa el ID del empleado como
+primer segmento de carpeta, y el RLS de `storage.objects` exige que ese
+segmento coincida con `auth.uid()` de quien lee. Con el ID viejo sin
+remapear, Nick nunca habría podido ver sus propias capturas (solo un
+admin, vía `is_timetracker_admin()`) — atrapado antes de subir ningún
+archivo, corregido reescribiendo el `path` con el ID nuevo de cada
+fila antes de copiar los bytes.
+
+**La copia de archivos se cayó a mitad de camino la primera vez — no
+por los archivos, por el ritmo de escritura a la base.** Actualizar el
+`path` de cada captura con una consulta individual (~2000 consultas)
+saturó el límite de tasa de la API de gestión de Supabase
+(`ThrottlerException`), lo que parecía "archivos fallidos" pero en
+realidad casi todos ya se habían subido bien — solo faltaba guardar la
+ruta nueva. Corregido agrupando las actualizaciones en lotes de 200 en
+vez de una por archivo; el reintento fue seguro porque cada paso ya era
+idempotente (una fila con ruta ya corregida se salta sola, una subida
+repetida sobrescribe el mismo archivo sin error).
+
+**Consecuencia aceptada:** ninguna a datos reales — todo el proceso fue
+leer del proyecto viejo (nunca se modificó nada ahí) y agregar al nuevo
+(nunca se sobrescribió nada existente). El proyecto viejo sigue vivo
+como respaldo, sin tocar.
+
+**Verificado:** conteos de filas comparados 1:1 contra el origen; suma de
+pagos exacta; cero `employee_uid` fuera del mapeo de 3 personas; cero
+FKs huérfanas (`project_id`/`assignment_id`/`payroll_id` en sesiones);
+cero rutas de captura con el prefijo de ID viejo tras la corrección;
+814 MB / 1,921 objetos confirmados en el bucket nuevo.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

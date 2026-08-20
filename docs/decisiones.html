@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-073", title: "Datos reales de timetracker migrados desde el proyecto viejo",
+      fecha: "2026-08-20", quien: "Andrés",
+      cambio: "Todo el historial real de timetracker migrado a timetracker.* en el proyecto de deliveries: 4 proyectos, 3 asignaciones, 231 sesiones, 4 pagos ya liquidados ($1,641.23), 7 solicitudes, 50 entradas de auditoría, 1,921 capturas de pantalla reales (814 MB). No es cambio de código, no lleva versión.",
+      razon: "\"haz todo lo demás\" (dejando el desktop de Electron para el final)",
+      razonTextual: true,
+      consecuencia: "Solo 3 personas reales en el roster (una 4ta era cuenta de prueba ya borrada, sin datos, descartada). andres y Roberto ya tenían cuenta, solo se les otorgó timetracker_role. Nick Huerta no tenía cuenta — se creó una nueva acotada a module_access:['timetracker'] solamente, por pedido explícito. Bug de seguridad real encontrado antes de copiar archivos: el path migrado de las capturas tenía el ID viejo del empleado como carpeta, y el RLS de storage.objects exige que coincida con auth.uid() de quien lee — Nick nunca habría podido ver sus propias capturas. Corregido reescribiendo el path con el ID nuevo antes de subir. La primera corrida de copia también chocó con el límite de tasa de la API de gestión (miles de UPDATEs individuales) — corregido agrupando en lotes de 200. Verificado: conteos 1:1 contra el origen, suma de pagos exacta, cero FKs huérfanas, cero rutas con ID viejo tras la corrección, 814 MB confirmados en el bucket nuevo."
+    },
+    {
       id: "D-072", title: "La barra superior de timetracker se veía plana e ilegible",
       fecha: "2026-08-20", version: "v1.18.1", quien: "Andrés",
       cambio: ".timetracker-module .topbar pasa a background:var(--ink) fijo (siempre oscuro, texto blanco), igual que deliveries y recruiting. Las pestañas inactivas dejan el fondo tipo chip y pasan a texto plano claro; solo la activa lleva fondo sólido. Badge de rol y botones de idioma/salir pasan a rgba(255,255,255,.1) fijo. Separador visual entre las 10 pestañas de manager y las 5 personales.",

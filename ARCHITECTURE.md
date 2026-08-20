@@ -527,12 +527,24 @@ client and a Windows Electron desktop client.
   granted the same way recruiting's is: an existing deliveries admin sets `timetracker_role` from
   the hub's Users dialog (D-057's `MODULE_ACCESS` pattern will need a third entry once the UI
   exists), never by signing up. `public.handle_new_user()` was not touched by this migration.
-- **No real data migrated yet, and no `/timetracker/*` route exists.** Etapa 2 (UI port: ~18
-  screens — 7 employee, 11 manager — into a `timetracker/(timetracker)/` route group, plus the
-  real payroll/session/screenshot migration from the standalone project, plus re-inviting existing
-  timetracker employees into deliveries' Auth since Supabase doesn't support moving password
-  hashes between projects) is unstarted. Old `qklsxhzmbnglgzufdbmz` project stays live and
-  untouched until then, same fallback posture D-050 used for recruiting's old project.
+- **No real data migrated yet, and no `/timetracker/*` route exists** (true as of D-064; both are
+  done as of D-071/D-073 — see below). Old `qklsxhzmbnglgzufdbmz` project stays live and untouched
+  as a fallback, same posture D-050 used for recruiting's old project.
+- **Real data migrated (D-073).** All of the old project's history — 4 projects, 3 assignments,
+  231 sessions, 4 already-paid payrolls ($1,641.23), 7 requests, 50 audit entries, 1,921 real
+  screenshot files (814 MB) — now lives in `timetracker.*` and its Storage bucket. Only 3 real
+  people existed in the old roster (a 4th was an already-deleted test account with zero rows
+  anywhere, safely skipped); 2 already had deliveries accounts and just got `timetracker_role`
+  granted, 1 (Nick Huerta) got a new deliveries account scoped to `module_access: ['timetracker']`
+  only, per explicit instruction that a timetracker-only person should get nothing else. A real
+  RLS bug was caught before any file was copied: migrated `screenshots.path` initially kept the
+  OLD employee id as its folder prefix, which `storage.objects`' owner-read policy checks against
+  `auth.uid()` — the new employee would never match, silently blocking their own screenshots (an
+  admin would still see them via `is_timetracker_admin()`, masking the bug for anyone who only
+  tested as admin). Fixed by rewriting `path` to the new employee id before uploading. The first
+  copy attempt also hit Supabase Management API rate limits from ~2000 individual per-file path
+  UPDATEs (looked like failed copies; the files themselves had mostly already uploaded) — fixed by
+  batching updates 200 at a time instead of one per file.
 - **Wired into the hub and the Users dialog ahead of the UI port (D-065)** — `MODULES`,
   `MODULE_ACCESS`, and `updateUserTimetrackerAccess()` (mirroring `updateUserRecruitingAccess()`
   exactly, in both `DataState` implementations) all got a `timetracker` entry, same as D-054/D-057
