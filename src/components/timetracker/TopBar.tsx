@@ -28,29 +28,38 @@ export function TopBar({ deliveriesRole, moduleAccess }: { deliveriesRole: UserR
       <div className="brand">{settings.appName || "TimeTracker"}</div>
       <div className="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
         <div className="tabs">
-          {tabs.map((tb) => {
+          {tabs.map((tb, i) => {
             const active = tb.href === "/timetracker" ? pathname === "/timetracker" : pathname.startsWith(tb.href);
+            // For an admin, MANAGER_TABS packs 10 manager screens ahead of
+            // the 5 personal ones everyone gets — a thin divider marks
+            // where "manager tools" ends and "my own stuff" begins, so 15
+            // flat tabs don't read as one undifferentiated wall.
+            const startsPersonal = tb.id === "track" && i > 0;
             return (
-              <Link key={tb.id} href={tb.href} className={active ? "active" : ""}>
-                {tb.label}
-              </Link>
+              <span key={tb.id} style={{ display: "inline-flex", alignItems: "center" }}>
+                {startsPersonal && <span style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,.15)", margin: "0 6px" }} />}
+                <Link href={tb.href} className={active ? "active" : ""}>
+                  {tb.label}
+                </Link>
+              </span>
             );
           })}
         </div>
         <ModuleSwitcher current="timetracker" deliveriesRole={deliveriesRole} moduleAccess={moduleAccess} />
-        <span className="small muted nowrap">{me.fullName}</span>
-        <span className={"chip " + (me.role === "admin" ? "tag-admin" : "tag-emp")}>
+        <span style={{ fontSize: 12, opacity: 0.8 }} className="nowrap">{me.fullName}</span>
+        <span className="chip" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}>
           {me.role === "admin" ? t("shell.manager") : t("shell.employee")}
         </span>
         <button
           className="btn-ghost btn-sm"
+          style={{ background: "rgba(255,255,255,.1)", color: "#fff" }}
           onClick={() => { const next = lang === "es" ? "en" : "es"; setLang(next); setLangState(next); }}
           title={t("lang.label")}
         >
           {lang === "es" ? "🇬🇧 EN" : "🇪🇸 ES"}
         </button>
         <form action="/auth/signout" method="post">
-          <button className="btn-ghost btn-sm" type="submit">{t("shell.signOut")}</button>
+          <button className="btn-ghost btn-sm" style={{ background: "rgba(255,255,255,.1)", color: "#fff" }} type="submit">{t("shell.signOut")}</button>
         </form>
       </div>
     </div>

@@ -2925,6 +2925,52 @@ kB · `/audit` 1.27 kB · `/settings` 2.84 kB · `/reports` 6.46 kB).
 
 ---
 
+## D-072 · La barra superior de timetracker se veía plana e ilegible
+**Fecha:** 2026-08-20 · **Versión:** v1.18.1 · **Pedido por:** Andrés
+
+**Cambio:** `.timetracker-module .topbar` pasa de `background:var(--tt-bg)`
+(cambia con el tema) a `background:var(--ink)` fijo, siempre oscuro, con
+texto blanco — igual que el topbar de deliveries y de recruiting. Las
+pestañas inactivas dejan de tener fondo tipo "chip" (`var(--tt-chip)`) y
+pasan a texto plano claro (`#c6cede`), solo la activa lleva fondo sólido
+de acento — igual que `.tab`/`.tab.active` de deliveries
+(`globals.css`). El badge de rol y los botones de idioma/salir en
+`TopBar.tsx` pasan a `rgba(255,255,255,.1–.18)` fijo en vez de las
+variables de tema, mismo patrón que ya usa `recruiting/TopBar.tsx`. Se
+agrega un separador visual entre las 10 pestañas de manager y las 5
+personales cuando hay 15 juntas.
+
+**Razón (textual):** *"mira como se mira el gui de horrible"*, con
+captura de pantalla adjunta.
+
+**Por qué pasaba.** El CSS SÍ compilaba y aplicaba — se confirmó grepeando
+la salida de `.next/static/css/*.css`, no era un problema de build. El
+bug real: en modo claro, `--tt-chip` (fondo de cada pestaña) y `--tt-bg`
+(fondo del topbar) son dos tonos de azul pálido casi idénticos —
+suficiente contraste en una paleta pensada para modo oscuro (el default
+del original), invisible en la práctica en modo claro. La captura lo
+mostró clarísimo: pestañas que parecían texto plano sin ningún fondo.
+
+**Por qué se corrigió igualando el patrón existente, no ajustando
+colores.** Ya existía una solución probada al mismo problema: deliveries
+y recruiting NUNCA hacen que su topbar cambie con el tema — es oscuro
+fijo (`var(--ink)`), con las pestañas inactivas en texto plano y sin
+fondo. timetracker era el único de los tres módulos que intentaba que su
+topbar seguiera el tema claro/oscuro, y ahí es donde entraba el problema
+de contraste. Iguala el mismo patrón en vez de inventar una paleta de
+modo claro más cuidada solo para este módulo.
+
+**Consecuencia aceptada:** ninguna — el resto de `.timetracker-module`
+(tarjetas, botones, formularios) sigue respetando el tema claro/oscuro
+normalmente; solo el topbar queda fijo, igual que en los otros dos
+módulos.
+
+**Verificado:** `tsc`/`vitest` (467)/`next build` limpios; se confirmó
+`.timetracker-module .topbar{...background:var(--ink);color:#fff}` en el
+CSS compilado.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

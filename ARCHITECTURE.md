@@ -665,3 +665,14 @@ client and a Windows Electron desktop client.
     — unlike `sessionsSince`, both are bounded in practice (a handful of people clocked in at once;
     the latest 300 audit rows), so continuous subscription doesn't have the unbounded-growth
     problem raw company-wide sessions do (see D-070).
+- **The topbar is theme-INVARIANT, always dark (D-072) — matching deliveries' and recruiting's own
+  `.topbar` (`var(--ink)`), not toggled by `data-theme` the way the rest of `.timetracker-module`
+  is.** A screenshot caught the actual bug: in light mode, `--tt-chip` (every tab's background) and
+  `--tt-bg` (the topbar's background) are two nearly-identical pale blues — fine contrast in a
+  palette designed for the original's dark-mode default, invisible once rendered light. Rather than
+  hand-tuning a better light palette for just this module, the fix matches the pattern already
+  proven twice: solid dark bar, plain light text for inactive tabs, only the active tab gets a
+  background (deliveries' own `.tab`/`.tab.active`, `globals.css`) — and the role badge/lang/sign-
+  out buttons in `TopBar.tsx` switched to fixed `rgba(255,255,255,.1)` overrides instead of theme
+  variables, the same inline-override pattern `recruiting/TopBar.tsx` already uses for the same
+  reason.

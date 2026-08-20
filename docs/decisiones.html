@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-072", title: "La barra superior de timetracker se veía plana e ilegible",
+      fecha: "2026-08-20", version: "v1.18.1", quien: "Andrés",
+      cambio: ".timetracker-module .topbar pasa a background:var(--ink) fijo (siempre oscuro, texto blanco), igual que deliveries y recruiting. Las pestañas inactivas dejan el fondo tipo chip y pasan a texto plano claro; solo la activa lleva fondo sólido. Badge de rol y botones de idioma/salir pasan a rgba(255,255,255,.1) fijo. Separador visual entre las 10 pestañas de manager y las 5 personales.",
+      razon: "\"mira como se mira el gui de horrible\", con captura adjunta",
+      razonTextual: true,
+      consecuencia: "El CSS sí compilaba y aplicaba (confirmado en .next/static/css) — no era un bug de build. El problema real: en modo claro, --tt-chip y --tt-bg son dos azules pálidos casi idénticos, contraste suficiente en una paleta pensada para modo oscuro (el default del original) pero invisible en modo claro. Corregido igualando el patrón ya probado en los otros dos módulos (topbar siempre oscuro, pestañas en texto plano) en vez de ajustar colores en aislamiento. Sin consecuencias — el resto del módulo sigue respetando el tema normalmente. tsc/vitest (467)/next build limpios; confirmado var(--ink) en el CSS compilado."
+    },
+    {
       id: "D-071", title: "Etapa 2 completa — las 10 pantallas de manager, de una vez",
       fecha: "2026-08-20", version: "v1.18.0", quien: "Andrés",
       cambio: "Las 9 pantallas de manager que faltaban en un solo tramo: Trabajando Ahora, Solicitudes de equipo, Proyectos, Asignaciones, Empleados (rediseñada), Diario de equipo, Auditoría, Ajustes (con dos omisiones deliberadas), y Reportes/Pago (la de más riesgo — calcula y registra nómina real). 15 pantallas de timetracker en total: 5 de empleado + 10 de manager. El data provider gana escrituras genéricas (proyectos, asignaciones, sesiones, nómina, solicitudes, auditoría, ajustes de empleado, configuración) más liveSessions y auditLog en vivo.",

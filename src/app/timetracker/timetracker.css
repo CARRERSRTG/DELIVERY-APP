@@ -61,9 +61,20 @@
 .timetracker-module .chip{display:inline-block;background:var(--tt-chip);border-radius:999px;padding:3px 10px;font-size:12px}
 .timetracker-module .tag-admin{background:#3b2a63}
 .timetracker-module .tag-emp{background:#1f3a5c}
-.timetracker-module .topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--tt-line);margin-bottom:6px;position:sticky;top:0;z-index:20;background:var(--tt-bg)}
-.timetracker-module .brand{font-weight:800;font-size:18px;letter-spacing:.02em}
-.timetracker-module .brand span{color:var(--tt-accent)}
+/* Topbar is deliberately theme-INVARIANT — always dark, like deliveries'
+   and recruiting's own .topbar (var(--ink), see globals.css/recruiting.css)
+   — not toggled with data-theme the way the rest of this module is. A
+   light-mode .topbar blending into the page background (var(--tt-bg), near-
+   white) was the actual bug a screenshot caught: every tab chip used
+   --tt-chip, a pale blue nearly identical to --tt-bg in light mode, so
+   every inactive tab looked like invisible plain text. Fixed by matching
+   the established pattern instead of tuning color values in isolation:
+   solid dark bar, white text, no background pill on inactive tabs (exactly
+   deliveries' own .tab styling, globals.css) — only the active tab gets a
+   background, and it's a solid accent color so it reads in both themes. */
+.timetracker-module .topbar{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;margin-bottom:6px;position:sticky;top:0;z-index:20;background:var(--ink);color:#fff}
+.timetracker-module .brand{font-weight:800;font-size:18px;letter-spacing:.02em;color:#fff}
+.timetracker-module .brand span{color:var(--tt-accent2)}
 .timetracker-module .timer-big{font-size:52px;font-weight:800;font-variant-numeric:tabular-nums}
 .timetracker-module .meter{display:flex;gap:3px;margin-top:6px}
 .timetracker-module .meter i{flex:1;height:16px;border-radius:3px;background:var(--tt-line)}
@@ -94,8 +105,8 @@
 .timetracker-module .pbtn .pm{font-size:12px;color:var(--tt-muted);margin-top:3px}
 .timetracker-module .box{background:var(--tt-panel2);border:1px solid var(--tt-line);border-radius:12px;padding:12px 14px}
 
-.timetracker-module .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
-.timetracker-module .tabs button,.timetracker-module .tabs a{background:var(--tt-chip);color:var(--tt-muted);font-weight:600;position:relative;text-decoration:none;display:inline-block}
+.timetracker-module .tabs{display:flex;gap:2px;flex-wrap:wrap;margin-bottom:0}
+.timetracker-module .tabs button,.timetracker-module .tabs a{background:none;color:#c6cede;font-weight:600;font-size:13px;padding:8px 12px;border-radius:8px;position:relative;text-decoration:none;display:inline-block}
 .timetracker-module .tabs a.active,.timetracker-module .tabs button.active{background:var(--tt-accent);color:#fff}
 .timetracker-module .badge{position:absolute;top:-6px;right:-6px;background:var(--tt-danger);color:#fff;border-radius:999px;
      font-size:11px;min-width:18px;height:18px;line-height:18px;text-align:center;padding:0 5px}
