@@ -2267,6 +2267,45 @@ serie de cambios.
 
 ---
 
+## D-058 · "Mi ruta" deja de ser un tab automático de admin
+**Fecha:** 2026-08-20 · **Versión:** v1.13.2 · **Pedido por:** Andrés
+
+**Cambio:** la pestaña "🧭 Mi ruta" (`myroute`, `constants.ts`) pierde
+`"admin"` de su lista `roles`. Queda `roles: ["driver"], cap: "deliver"` —
+solo un chofer la ve por default; cualquier otra persona (incluido un
+admin) la ve solo si tiene "deliver" otorgado como permiso extra
+individual (`UserDialog`, el bloque de Deliveries), no por el solo hecho
+de ser admin.
+
+**Razón (textual):** *"yo no soy conductor entonces almenos que seas
+conductor o te lo actives en tu forma de usuario no necesitar ver esa
+view de mi ruta"*.
+
+**Por qué esto no era ya así — la regla existía, pero esta pestaña era la
+excepción.** El propio comentario que gobierna `visibleTabs` en
+`TopBar.tsx` ya dice, textual, que un rol que carga la capacidad
+`"deliver"` de fábrica (warehouse: `["fulfill","deliver"]`) no debería por
+eso ver la pestaña de Driver — la visibilidad por `cap` es para un permiso
+otorgado a esa persona en particular, no para lo que el rol ya trae. "Mi
+ruta" no seguía esa regla: tenía `"admin"` metido directo en `roles`, así
+que cualquier admin la veía sin importar si de verdad reparte. Se corrigió
+para que siga el mismo principio que el resto de las pestañas con `cap`.
+
+**Por qué la página en sí no se tocó.** `/my-route/page.tsx` sigue
+gateada por `canDeliver(me)`, que sí cuenta la capacidad de rol (a
+diferencia del filtro de `TABS`, que solo cuenta lo otorgado extra) — un
+admin que entre a la URL directamente sigue pudiendo abrirla. Lo que
+cambió es si aparece sola en la barra, no si existe.
+
+**Consecuencia aceptada:** ninguna real — nadie perdió acceso, solo
+visibilidad por default. Si algún día un admin específico sí reparte,
+`UserDialog` → bloque de Deliveries → "Permisos extra" → "Deliver orders"
+se la devuelve.
+
+**Verificado:** `tsc`/`vitest` (465)/`next build` limpios.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

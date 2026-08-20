@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-058", title: "\"Mi ruta\" deja de ser un tab automático de admin",
+      fecha: "2026-08-20", version: "v1.13.2", quien: "Andrés",
+      cambio: "La pestaña \"Mi ruta\" pierde \"admin\" de su lista roles en TABS (constants.ts). Queda roles: [\"driver\"], cap: \"deliver\" — solo un chofer la ve por default; cualquier otra persona, incluido un admin, la ve solo si tiene \"deliver\" otorgado como permiso extra individual, no por ser admin.",
+      razon: "\"yo no soy conductor entonces almenos que seas conductor o te lo actives en tu forma de usuario no necesitar ver esa view de mi ruta\"",
+      razonTextual: true,
+      consecuencia: "El propio comentario que gobierna visibleTabs en TopBar.tsx ya decía que un rol con la capacidad \"deliver\" de fábrica (warehouse) no debería por eso ver la pestaña de Driver — la visibilidad por cap es para un permiso otorgado a esa persona en particular, no para lo que el rol ya trae. \"Mi ruta\" no seguía esa regla, tenía \"admin\" metido directo en roles. Se corrigió para que siga el mismo principio que el resto de las pestañas con cap. La página /my-route/page.tsx no se tocó — sigue gateada por canDeliver(me), que sí cuenta la capacidad de rol, así que un admin que entre por URL directa sigue pudiendo abrirla; lo que cambió es si aparece sola en la barra. tsc/vitest (465)/next build limpios."
+    },
+    {
       id: "D-057", title: "Diálogo de usuario rediseñado — un bloque por módulo",
       fecha: "2026-08-19", version: "v1.13.0", quien: "Andrés",
       cambio: "UserDialog.tsx deja de tener tres secciones separadas y asimétricas (Rol y alcance / Permisos extra de deliveries, Acceso a otros módulos de recruiting). Ahora es un loop sobre MODULE_ACCESS (constants.ts, nuevo): un bloque por módulo, con su propio selector de rol y, si el descriptor lo trae, su propio catálogo de permisos finos. El descriptor apunta a lo que ya existe (ROLE_ORDER/roleLabel(), RECRUITING_ROLE_LABELS, CAPABILITIES/ROLE_CAPS) en vez de copiarlo — capabilities es opcional, presente en deliveries, ausente en recruiting.",

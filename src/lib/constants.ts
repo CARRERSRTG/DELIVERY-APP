@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.13.1";
+export const APP_VERSION = "1.13.2";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -95,7 +95,14 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   { id: "driver",    label: "🚚 Driver",    label_es: "🚚 Chofer",     href: "/driver", roles: ["driver", "admin"], cap: "deliver" },
   // The driver's read-only view of the route logistics planned: the day in
   // sequence, grouped into the same truckloads, with the next stop up front.
-  { id: "myroute",   label: "🧭 My route",  label_es: "🧭 Mi ruta",    href: "/my-route", roles: ["driver", "admin"], cap: "deliver" },
+  // Driver-only by default — NOT "admin" too, unlike most tabs. Admin's own
+  // role capabilities already include "deliver" (so the /my-route page
+  // itself still opens for an admin who navigates there directly), but that
+  // alone shouldn't surface a chofer-specific tab in an office admin's own
+  // bar — same principle the comment on visibleTabs below already states for
+  // warehouse and the Driver tab. Reachable by anyone else only via an
+  // explicit extra "deliver" grant (UserDialog), same as Driver itself.
+  { id: "myroute",   label: "🧭 My route",  label_es: "🧭 Mi ruta",    href: "/my-route", roles: ["driver"], cap: "deliver" },
   // Logistics works entirely inside its own route-planning queue, same as
   // Warehouse/Driver — it doesn't get the general Orders board or dashboard.
   { id: "routes",    label: "🧭 Routes Manager", label_es: "🧭 Gestor de Rutas", href: "/routes", roles: ["logistics", "admin"], cap: "route_plan" },
