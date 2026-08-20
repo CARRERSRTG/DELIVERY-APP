@@ -2729,6 +2729,31 @@ week` aparece como página real (2.32 kB).
 
 ---
 
+## D-068 · Etapa 2, tramo 3 — "Mis solicitudes"
+**Fecha:** 2026-08-20 · **Versión:** v1.16.2 · **Pedido por:** Andrés
+
+**Cambio:** `/timetracker/requests`, portada de `employee/
+EmployeeRequests.jsx` — formulario para pedirle a un manager que agregue,
+ajuste o elimine una entrada de tiempo, más la lista de solicitudes
+propias con su estado (pendiente/aprobada/rechazada). `myRequests` y
+`addRequest()` se agregan a `timetracker-data-provider.tsx`, mismo patrón
+que `myPayrolls`.
+
+**Razón (textual):** *"si"* (confirmando seguir con la siguiente pantalla
+tras la propuesta de "Mis Solicitudes").
+
+**Por qué fue directo.** Un formulario + `insert` + lista, sin
+preocupaciones de escritorio, cola offline, ni tick en vivo — el tercer
+puerto de esta etapa que no necesitó ninguna decisión de diseño nueva más
+allá de las ya sentadas en D-066/D-067.
+
+**Consecuencia aceptada:** ninguna nueva.
+
+**Verificado:** `tsc`/`vitest` (467)/`next build` limpios — `/timetracker/
+requests` aparece como página real (2.43 kB).
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

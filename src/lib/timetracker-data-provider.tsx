@@ -12,7 +12,7 @@ import {
 import { createClient } from "@/lib/timetracker/supabase/client";
 import { rowToCamel, toSnakeRow } from "@/lib/timetracker/supabase/rowcase";
 import { APP_SETTINGS, type AppSettings, syncAppSettings } from "@/lib/timetracker/helpers";
-import type { Assignment, Employee, Payroll, Project, Screenshot, Session } from "@/lib/timetracker/types";
+import type { Assignment, Employee, Payroll, Project, RequestType, Screenshot, Session, TimeRequest } from "@/lib/timetracker/types";
 
 // ============================================================
 // Etapa 2, pass 1 (D-066): foundation + the Track Time screen only. This
@@ -43,6 +43,9 @@ interface DataState {
   mySessions: Session[];
   /** My own payroll batches (one per paid/unpaid week). */
   myPayrolls: Payroll[];
+  /** My own add/adjust/delete requests, pending or resolved. */
+  myRequests: TimeRequest[];
+  addRequest: (type: RequestType, payload: Record<string, unknown>) => Promise<void>;
   toast: string;
   notify: (msg: string) => void;
 
@@ -84,6 +87,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
+  const [requests, setRequests] = useState<TimeRequest[]>([]);
   const [latestScreenshot, setLatestScreenshot] = useState<Screenshot | null>(null);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -110,11 +114,12 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   }, [supabase]);
 
   const reloadAll = useCallback(async () => {
-    const [pr, asn, ss, py, set] = await Promise.all([
+    const [pr, asn, ss, py, rq, set] = await Promise.all([
       supabase.from("projects").select("*").eq("archived", false).order("created_at"),
       supabase.from("assignments").select("*").eq("employee_uid", me.id),
       supabase.from("sessions").select("*").eq("employee_uid", me.id),
       supabase.from("payrolls").select("*").eq("employee_uid", me.id),
+      supabase.from("requests").select("*").eq("employee_uid", me.id),
       supabase.from("settings").select("*").eq("id", "app").maybeSingle(),
     ]);
     const projectRows = ((pr.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Project>(r)!);
@@ -127,6 +132,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     setAssignments(asnRows);
     setSessions(((ss.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Session>(r)!));
     setPayrolls(((py.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Payroll>(r)!));
+    setRequests(((rq.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<TimeRequest>(r)!));
     if (set.data) {
       const merged: AppSettings = { ...APP_SETTINGS, ...((set.data as { data: Partial<AppSettings> }).data) };
       syncAppSettings(merged);
@@ -149,6 +155,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "assignments", filter: `employee_uid=eq.${me.id}` }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "sessions", filter: `employee_uid=eq.${me.id}` }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "payrolls", filter: `employee_uid=eq.${me.id}` }, reloadAll)
+      .on("postgres_changes", { event: "*", schema: "timetracker", table: "requests", filter: `employee_uid=eq.${me.id}` }, reloadAll)
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "settings" }, reloadAll)
       .subscribe();
     return () => {
@@ -215,8 +222,15 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     return data.signedUrl;
   }, [supabase]);
 
+  const addRequest = useCallback<DataState["addRequest"]>(async (type, payload) => {
+    const row = toSnakeRow({ employeeUid: me.id, type, status: "pending", payload });
+    const { error } = await supabase.from("requests").insert(row);
+    if (error) throw error;
+  }, [supabase, me.id]);
+
   const value: DataState = {
     ready, me, settings, projects, myAssignments: assignments, mySessions: sessions, myPayrolls: payrolls,
+    myRequests: requests, addRequest,
     toast, notify,
     listLiveSessions, startSession, updateSession,
     latestScreenshot, screenshotSignedUrl,

@@ -598,3 +598,7 @@ client and a Windows Electron desktop client.
   realtime shape as `mySessions`. The original's own `SettingsContext` wasn't ported — `settings`
   already lives on `useData()` since D-066, so this screen just reads that instead of standing up
   a second context for the same data.
+- **`/timetracker/requests` (D-068) — the third screen: a form + insert + list, no new design
+  decisions.** Added `myRequests`/`addRequest()` to the data provider, same shape as `myPayrolls`.
+  Employee side of Etapa 2 (Track Time, My Week, My Requests) is now three of five screens; My
+  Account and Work Diary, then the entire manager side, remain.

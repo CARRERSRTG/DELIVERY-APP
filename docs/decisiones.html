@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-068", title: "Etapa 2, tramo 3 — \"Mis solicitudes\"",
+      fecha: "2026-08-20", version: "v1.16.2", quien: "Andrés",
+      cambio: "/timetracker/requests, portada de EmployeeRequests.jsx — formulario para pedirle a un manager que agregue, ajuste o elimine una entrada de tiempo, más la lista de solicitudes propias con su estado. myRequests y addRequest() se agregan a timetracker-data-provider.tsx, mismo patrón que myPayrolls.",
+      razon: "\"si\" (confirmando seguir con la siguiente pantalla tras la propuesta de \"Mis Solicitudes\")",
+      razonTextual: true,
+      consecuencia: "Directo: formulario + insert + lista, sin preocupaciones de escritorio/cola offline/tick en vivo — el tercer puerto de esta etapa sin ninguna decisión de diseño nueva más allá de D-066/D-067. tsc/vitest (467)/next build limpios — /timetracker/requests aparece como página real (2.43 kB)."
+    },
+    {
       id: "D-067", title: "Etapa 2, tramo 2 — \"Mi semana\"",
       fecha: "2026-08-20", version: "v1.16.1", quien: "Andrés",
       cambio: "/timetracker/week, portada de EmployeeWeek.jsx — hoja de horas semanal de solo lectura: total por proyecto (regular/extra/sobre el límite), entradas agrupadas por día, estado de la semana (activa/en revisión/pagada). myPayrolls se agrega a timetracker-data-provider.tsx (mismo patrón que mySessions).",
