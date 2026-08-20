@@ -2019,6 +2019,48 @@ D-054.
 test nuevo — el gate es el mismo `if` de D-054, ya cubierto por
 `accessibleModules()`.
 
+**Addendum (2026-08-19, mismo día, v1.11.1) — el problema real no era el
+ancho, era la posición del menú.** Reportado de nuevo: "el botón de cambiar
+de módulo aún está oculto, se sale del window y no se mira." Esta vez se
+verificó con evidencia real, no solo lectura de CSS: se reconstruyó la
+barra completa (mismas clases de `globals.css`, mismos tabs de admin, mismo
+markup) en un archivo HTML estático y se capturó con Chrome en modo
+headless (`chrome.exe --headless --screenshot`, distinto del navegador MCP
+que este proyecto no usa) en 1280/768/375/320px.
+
+El botón en sí **siempre estuvo visible** en las cuatro capturas — el
+desborde de D-054 sí quedó resuelto. El bug real apareció al abrir el
+**menú**: `.col-menu` estaba anclado con `right: 0, left: "auto"` sin
+condición, el mismo patrón que el menú "General ▾" de `TopBar.tsx` — pero
+sin la lógica de "flip" que ese menú **sí tiene** (comentario textual en
+`TopBar.tsx`: *"corre fuera de la ventana quien el botón está cerca del
+borde izquierdo — y en una fila de tabs que envuelve, siempre pasa"*). El
+switcher, al vivir en la fila derecha que envuelve constantemente (es lo
+último que consigue espacio), termina seguido cerca del borde izquierdo —
+y ahí, `right: 0` empuja un menú de 200px hacia la izquierda, fuera de la
+pantalla. Capturado en 768px y 375px: la tarjeta blanca aparecía cortada
+contra el borde izquierdo, con el texto "Reclutamiento" invisible o
+recortado a "...nto".
+
+**Arreglado:** se portó el mismo mecanismo de `TopBar.tsx` al
+`ModuleSwitcher` — `useRef` en el menú, `useEffect` que mide
+`getBoundingClientRect().left < 8` al abrir y flipea a `left: 0, right:
+"auto"` cuando no hay espacio. Reverificado con la misma técnica (HTML
+estático + JS que replica exactamente la medición del efecto) en
+1280/768/375/320px: el menú ahora entra completo en la pantalla en los
+cuatro anchos, y sigue anclado a la derecha sin cambio en escritorio ancho
+(sin flip innecesario donde no hace falta).
+
+**Por qué esto no se atrapó en D-054/D-055:** ambos verificaron el
+**botón** (visible, con el ancho correcto) pero nunca el **menú abierto**
+en un ancho donde el switcher ya hubiera envuelto a una fila propia — el
+comentario que ya advertía exactamente este riesgo estaba a la vista, en
+el mismo archivo, y no se aplicó al componente nuevo.
+
+**Tests:** sin test nuevo — es un efecto de medición del DOM, no lógica de
+`src/lib`. Verificación fue visual (headless), documentada arriba con el
+método exacto. `tsc`/`vitest` (461)/`next build` limpios.
+
 ---
 
 <!-- PLANTILLA — copia esto para una entrada nueva

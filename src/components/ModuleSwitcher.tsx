@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePrefs } from "@/lib/prefs";
 import { accessibleModules, roleHome } from "@/lib/constants";
@@ -36,6 +36,23 @@ interface ModuleSwitcherProps {
 export function ModuleSwitcher({ current, deliveriesRole, moduleAccess }: ModuleSwitcherProps) {
   const { lang, t } = usePrefs();
   const [open, setOpen] = useState(false);
+  // The menu hangs from the button's RIGHT edge and grows leftwards — fine
+  // when the switcher sits on the topbar's unwrapped first line, near the
+  // right edge, but this row wraps onto its own line constantly (it's the
+  // last thing to get room once the tabs don't fit), and once it does, the
+  // switcher can land near the LEFT edge instead. Same flip pattern as the
+  // "General ▾" menu in TopBar.tsx: measured once on open, flipped to grow
+  // rightwards when there isn't room on the left (D-055 follow-up — this
+  // was reported live: the menu opened mostly off-screen to the left).
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [flip, setFlip] = useState(false);
+  useEffect(() => {
+    if (!open) { setFlip(false); return; }
+    const el = menuRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.left < 8) setFlip(true);
+  }, [open]);
 
   const modules = accessibleModules(moduleAccess);
   // Same hard exception as landingRoute() (D-051) — a driver never sees this,
@@ -74,7 +91,16 @@ export function ModuleSwitcher({ current, deliveriesRole, moduleAccess }: Module
         {open && (
           <>
             <div style={{ position: "fixed", inset: 0, zIndex: 70 }} onClick={() => setOpen(false)} />
-            <div className="col-menu" style={{ zIndex: 71, minWidth: 200, right: 0, left: "auto" }} role="menu">
+            <div
+              ref={menuRef}
+              className="col-menu"
+              style={{
+                zIndex: 71,
+                minWidth: 200,
+                ...(flip ? { left: 0, right: "auto" } : { right: 0, left: "auto" }),
+              }}
+              role="menu"
+            >
               {others.map((m) => (
                 <Link
                   key={m.key}
