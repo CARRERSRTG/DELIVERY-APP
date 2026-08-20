@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { landingRoute } from "@/lib/constants";
@@ -7,6 +8,15 @@ import { TopBar } from "@/components/recruiting/TopBar";
 import { VersionFooter } from "@/components/recruiting/VersionFooter";
 import type { Profile as RecruitingProfile } from "@/lib/recruiting/types";
 import "../recruiting.css";
+
+// The root layout (app/layout.tsx) sets the browser tab title to "RDZ
+// Deliveries | Order & Dispatch" — correct for (app), never overridden for
+// recruiting, so every /recruiting/* tab said "RDZ Deliveries" too. Next
+// only inherits a parent's metadata when a layout doesn't set its own; this
+// is that override, same "Brand | tagline" shape as the root's.
+export const metadata: Metadata = {
+  title: "RECRUIT·HN | Candidates & Interviews",
+};
 
 // The recruiting module's own shell — a sibling of (app), not nested under
 // it. Nothing from deliveries' layout is inherited here on purpose: no

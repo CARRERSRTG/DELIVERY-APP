@@ -2340,6 +2340,34 @@ entrar a una página que no existe; ahora tampoco pueden intentarlo.
 
 ---
 
+## D-060 · La pestaña del navegador decía "RDZ Deliveries" en recruiting
+**Fecha:** 2026-08-20 · **Versión:** v1.13.4 · **Pedido por:** Andrés
+
+**Cambio:** `recruiting/(recruiting)/layout.tsx` gana su propio
+`export const metadata` (`title: "RECRUIT·HN | Candidates & Interviews"`).
+
+**Razón (textual):** *"en el tab de recuiting sale rdz deliveries y no es
+asi"*.
+
+**Por qué pasaba.** `app/layout.tsx` (la raíz, compartida por toda la app)
+fija el `<title>` de la pestaña del navegador a *"RDZ Deliveries | Order &
+Dispatch"* — correcto para deliveries. Next.js hereda el `metadata` del
+layout padre en cualquier segmento que no defina el suyo propio, y
+`recruiting/(recruiting)/layout.tsx` nunca lo hizo desde que existe (D-052)
+— el `<h1>` dentro de la página sí dice "RECRUIT·HN" (viene del `TopBar`
+de recruiting), pero la pestaña del navegador —lo que ve alguien con
+varias pestañas abiertas, antes de entrar siquiera— seguía diciendo
+Deliveries. Mismo patrón de huérfano de D-059: algo que nunca se completó
+al portar el módulo.
+
+**Consecuencia aceptada:** ninguna — es metadata de una sola línea, sin
+tocar RLS, datos, ni ninguna otra pantalla. `description`/`manifest`/
+`icons` siguen heredando de la raíz (no reportado, fuera de este cambio).
+
+**Verificado:** `tsc`/`vitest` (465)/`next build` limpios.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

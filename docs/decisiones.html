@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-060", title: "La pestaña del navegador decía \"RDZ Deliveries\" en recruiting",
+      fecha: "2026-08-20", version: "v1.13.4", quien: "Andrés",
+      cambio: "recruiting/(recruiting)/layout.tsx gana su propio export const metadata (title: \"RECRUIT·HN | Candidates & Interviews\").",
+      razon: "\"en el tab de recuiting sale rdz deliveries y no es asi\"",
+      razonTextual: true,
+      consecuencia: "app/layout.tsx (la raíz) fija el <title> de la pestaña del navegador a \"RDZ Deliveries | Order & Dispatch\" — correcto para deliveries. Next.js hereda el metadata del layout padre en cualquier segmento que no defina el suyo, y el layout de recruiting nunca lo hizo desde que existe (D-052). El <h1> dentro de la página sí decía \"RECRUIT·HN\" (viene del TopBar de recruiting), pero la pestaña del navegador seguía diciendo Deliveries. Mismo patrón de huérfano de D-059. description/manifest/icons siguen heredando de la raíz, fuera de este cambio. tsc/vitest (465)/next build limpios."
+    },
+    {
       id: "D-059", title: "La pestaña \"Hoy\" de recruiting era un enlace muerto — quitada",
       fecha: "2026-08-20", version: "v1.13.3", quien: "Andrés",
       cambio: "Se quita la pestaña \"Hoy\"/\"Today\" de TABS en recruiting/constants.ts (apuntaba a /recruiting/today, una página que nunca existió) y su entrada en TAB_ES del TopBar de recruiting.",
