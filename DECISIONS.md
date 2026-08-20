@@ -2172,6 +2172,91 @@ alguna vez importa.
 
 ---
 
+## D-057 · Diálogo de usuario rediseñado — un bloque por módulo
+**Fecha:** 2026-08-19 · **Versión:** v1.13.0 · **Pedido por:** Andrés
+
+**Cambio:** `UserDialog.tsx` deja de tener "Rol y alcance" + "Permisos extra"
+(deliveries) y "Acceso a otros módulos" (recruiting) como tres secciones
+separadas y asimétricas. Ahora es un solo loop sobre `MODULE_ACCESS`
+(`constants.ts`, nuevo): un bloque por módulo, cada uno con su propio
+selector de rol y, si el descriptor lo trae, su propio catálogo de permisos
+finos. Identidad (nombre/usuario/correo) y Acceso (contraseña/último
+ingreso) no se tocaron — son de la persona, no de ningún módulo.
+
+**El descriptor, genérico para N módulos:** `ModuleAccessConfig` declara,
+por módulo, `roleColumn` (`"role"` o `"recruiting_role"` — a qué columna
+escribe su selector de rol), `roleKeys`/`roleLabel` (apuntan a
+`ROLE_ORDER`/`roleLabel()` y `RECRUITING_ROLE_LABELS` existentes, no los
+copian), `alwaysOn`, y `capabilities`/`capabilitiesFromRole` **opcionales**
+— presentes en deliveries (apuntan a `CAPABILITIES`/`ROLE_CAPS`
+existentes), ausentes en recruiting (no tiene permisos finos, solo el
+tier). Un módulo futuro con permisos finos los trae; uno sin ellos los
+omite, y esa parte del bloque simplemente no se dibuja — ningún `if`
+especial en `UserDialog.tsx` para decidirlo.
+
+**Por qué `store`/`customer_scope` no entraron al descriptor:** son
+específicos de deliveries y de valores de rol concretos (warehouse/driver/
+sales para tienda; manager/logistics para visibilidad de clientes) — nada
+en recruiting los necesita hoy. Se quedaron como campos propios del bloque
+de Deliveries, marcados en el código como no-genéricos a propósito, en vez
+de inventarles un lugar en el contrato compartido para un caso que no
+existe.
+
+**Deliveries queda `alwaysOn` — sin casilla, no desmarcable. No se puede
+dejar a nadie sin ningún módulo, y eso no es nuevo.** No es preferencia de
+diseño: `profiles.role` es `NOT NULL`, sin un estado "ninguno" en ningún
+lugar del sistema (`roleHome()`, cada RLS que usa `current_user_role()`,
+el filtrado de `TABS`). Ofrecer una casilla para "quitar Deliveries" o no
+haría nada real, o exigiría inventar un estado que no existe en el
+esquema — eso ya no habría sido un rediseño de diálogo. Recruiting sigue
+siendo el único módulo genuinamente opcional (D-050 ya previó `null`
+en `recruiting_role`).
+
+**La defensa estructural contra la clase de bug de D-052/D-053 — dos
+capas, no una.** Primero: `MODULE_ACCESS` es **puro dato**, nunca decide
+qué función llamar. `UserDialog.tsx` tiene dos funciones de despacho
+(`setModuleRole`, `setModuleAccess`) con un `switch` **exhaustivo** sobre
+`ModuleAccessKey` — un tipo unión **cerrado** (`"deliveries" |
+"recruiting"`), deliberadamente menos genérico que `MODULES`/`HUB_TOOLS`.
+Un módulo agregado a `MODULE_ACCESS` sin agregar su caso al switch falla
+`tsc` (el patrón `const _exhaustive: never = key`), no escribe en la
+columna equivocada en producción. Segundo: un test nuevo,
+`MODULE_ACCESS.map(m => m.roleColumn)` sin valores repetidos — si algún
+día dos módulos apuntaran a la misma columna, la prueba se rompe sola.
+`updateUserRole`/`updateUserPermissions`/`updateUserRecruitingAccess` (las
+tres de `data-provider.tsx`) **no se tocaron ni se fusionaron** — la
+genericidad vive en qué se dibuja, nunca en qué se escribe.
+
+**Verificado por columna contra producción real (transacciones con
+`rollback`, nunca se escribió nada de verdad):** simulando exactamente lo
+que dispara cada bloque, sobre el perfil real de Gloria Santoscoy
+(contabilidad) —
+1. El bloque de Deliveries cambia `role` → `recruiting_role`,
+   `module_access` y `permissions` quedan exactamente igual que antes.
+2. El bloque de Recruiting otorga acceso → `recruiting_role` y
+   `module_access` cambian, `role` y `permissions` quedan exactamente
+   igual que después del paso 1 (no revierte, no interfiere).
+3. Un no-admin (Angel Cabrera) intentando cualquiera de los dos —
+   rechazado por su trigger correspondiente, con su mensaje propio:
+   *"Only an admin can change user roles"* para el intento sobre `role`,
+   *"Only an admin can change recruiting access or role"* para el intento
+   sobre `recruiting_role`/`module_access`. Dos triggers independientes,
+   ninguno tocado, cada uno sigue siendo la autoridad real de su columna —
+   el rediseño es de interfaz, no aflojó nada.
+
+**Consecuencia aceptada:** ninguna real — la gente existente no cambia de
+comportamiento, solo se ve distinto (el mismo dato, en un bloque en vez de
+tres secciones sueltas). Se quitó el contador visual "🔑 +N" que vivía en
+el encabezado de "Permisos extra" (ese variable `extra` quedó sin uso al
+mover las capacidades dentro del bloque) — el mismo indicador sigue
+existiendo en la fila de la lista de usuarios (`home/users/page.tsx`), así
+que la información no se pierde, solo deja de repetirse dentro del propio
+diálogo.
+
+**Verificado:** `tsc`/`vitest` (465, tres nuevos)/`next build` limpios.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

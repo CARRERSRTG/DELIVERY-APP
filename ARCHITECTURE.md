@@ -424,3 +424,24 @@ recruiting project" below) but nothing in production points at them anymore.
   carry a grantable `"users"` extra permission — but the screen it gated always required
   `role==='admin'` outright, so granting it to a non-admin only ever led to "Admins only." It
   never worked; removed in the same change rather than left as a checkbox with nothing behind it.
+- **`UserDialog.tsx` is a block per module now, not three hand-written, asymmetric sections
+  (D-057).** `MODULE_ACCESS` (`constants.ts`) is the permissions-dialog counterpart to
+  `MODULES`/`HUB_TOOLS` — same "N modules as data, not N hand-written UI blocks" idea, but a
+  different shape: those two describe navigation cards, this describes which **profile column** a
+  block edits (`roleColumn: "role" | "recruiting_role"`, optional `accessColumn`/`capabilities`).
+  Deliveries is `alwaysOn` (no checkbox — `profiles.role` is `NOT NULL`, there is no "no module"
+  state anywhere in the schema to offer); recruiting is opt-in, same as always. A module with no
+  fine-grained capabilities (recruiting today) simply omits `capabilities` from its descriptor and
+  that part of its block never renders — no special-casing in the component.
+- **The write side stays deliberately less generic than the render side, on purpose.**
+  `MODULE_ACCESS[i].key` is `ModuleAccessKey`, a closed union (`"deliveries" | "recruiting"`), not
+  the open `string` `MODULES`/`HUB_TOOLS` use — because `UserDialog.tsx` dispatches every write
+  through an exhaustive `switch` on that key (`setModuleRole`/`setModuleAccess`, the
+  `const _exhaustive: never = key` idiom). A module added to the array without a matching switch
+  case fails `tsc`, not a silent `UPDATE` against the wrong column at runtime — the exact class of
+  confusion (`role` vs `recruiting_role`) that produced two of D-052's three bugs. A second,
+  cheaper defense sits in `landing-route.test.ts`: `MODULE_ACCESS.map(m => m.roleColumn)` asserted
+  to have no duplicates, so two modules ever aiming at the same column fails a test, not a review.
+  The three write functions in `data-provider.tsx` (`updateUserRole`, `updateUserPermissions`,
+  `updateUserRecruitingAccess`) were not touched or merged — the generic part is what gets
+  rendered, never what gets written.

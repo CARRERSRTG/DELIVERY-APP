@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { accessibleModules, HUB_TOOLS, landingRoute } from "@/lib/constants";
+import { accessibleModules, HUB_TOOLS, landingRoute, MODULE_ACCESS } from "@/lib/constants";
 
 describe("landingRoute", () => {
   it("sends a driver to /driver, even with recruiting access", () => {
@@ -53,5 +53,29 @@ describe("HUB_TOOLS", () => {
     for (const role of ["manager", "sales", "warehouse", "driver", "logistics", "accounting"] as const) {
       expect(users.visible({ role })).toBe(false);
     }
+  });
+});
+
+// D-057: the structural defense against the D-052/D-053 class of bug — two
+// modules writing to the same profiles column. If this ever fails, someone
+// added a module whose role lives on a column another module already owns.
+describe("MODULE_ACCESS", () => {
+  it("no two modules write their role to the same column", () => {
+    const columns = MODULE_ACCESS.map((m) => m.roleColumn);
+    expect(new Set(columns).size).toBe(columns.length);
+  });
+
+  it("deliveries is always-on; recruiting is not", () => {
+    const deliveries = MODULE_ACCESS.find((m) => m.key === "deliveries")!;
+    const recruiting = MODULE_ACCESS.find((m) => m.key === "recruiting")!;
+    expect(deliveries.alwaysOn).toBe(true);
+    expect(recruiting.alwaysOn).toBe(false);
+  });
+
+  it("only deliveries carries fine-grained capabilities", () => {
+    const deliveries = MODULE_ACCESS.find((m) => m.key === "deliveries")!;
+    const recruiting = MODULE_ACCESS.find((m) => m.key === "recruiting")!;
+    expect(deliveries.capabilities?.length).toBeGreaterThan(0);
+    expect(recruiting.capabilities).toBeUndefined();
   });
 });

@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.12.0";
+export const APP_VERSION = "1.13.0";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -391,6 +391,70 @@ export const ROLE_CAPS: Record<UserRole, Capability[]> = {
   // means committing the company to a delivery, which is a sales/office call.
   accounting: ["approve"],
 };
+
+// ---- Module access descriptors (D-057) -------------------------------------
+// The permissions-dialog counterpart to MODULES/HUB_TOOLS above (same idea —
+// N modules described data-first instead of N hand-written UI blocks — but a
+// different shape: those two are about NAVIGATION cards, this is about which
+// PROFILE COLUMN a block edits). Declared here, after ROLE_ORDER/
+// RECRUITING_ROLE_LABELS/CAPABILITIES/ROLE_CAPS, because it references all
+// four — module-eval order matters for a top-level const, unlike a function.
+//
+// `roleColumn`/`accessColumn` are executable documentation, not just a
+// comment: UserDialog.tsx's own test (module-access.test.ts) asserts no two
+// entries share a roleColumn, so two modules ever aiming at the same
+// database column fails a build, not just a code review — the exact class
+// of confusion (role vs recruiting_role) that produced two of D-052's three
+// bugs.
+// A closed union, not `string` — deliberately less generic than MODULES/
+// HUB_TOOLS. UserDialog's write-dispatch switches on this exhaustively (a
+// missing case fails `tsc`, not a UPDATE against the wrong column at
+// runtime), which only works against a closed set of literals. Adding a
+// module costs one line here plus its MODULE_ACCESS entry — a small,
+// deliberate price for a compiler-checked guarantee on the sensitive half
+// (writes), while the rendering half stays fully data-driven.
+export type ModuleAccessKey = "deliveries" | "recruiting";
+
+export interface ModuleAccessConfig {
+  key: ModuleAccessKey;
+  label_en: string; label_es: string;
+  /** Deliveries only. Not a checkbox — see D-057's "always-on" note: role is
+   * NOT NULL, there is no "no module" state anywhere in the schema. */
+  alwaysOn: boolean;
+  roleColumn: "role" | "recruiting_role";
+  roleKeys: readonly string[];
+  roleLabel: (key: string, lang: Lang) => string;
+  /** Present only for an opt-in module — deliveries has none, everyone
+   * already has it. */
+  accessColumn?: "module_access";
+  /** Absent = this module has no fine-grained extra permissions (today:
+   * recruiting). Present = the catalog to render, same shape CAPABILITIES
+   * already uses. */
+  capabilities?: { key: string; en: string; es: string; desc_en: string; desc_es: string }[];
+  capabilitiesFromRole?: (roleKey: string) => string[];
+}
+
+export const MODULE_ACCESS: ModuleAccessConfig[] = [
+  {
+    key: "deliveries", label_en: "Deliveries", label_es: "Entregas",
+    alwaysOn: true,
+    roleColumn: "role",
+    roleKeys: ROLE_ORDER,
+    roleLabel: (key, lang) => roleLabel(key as UserRole, lang),
+    capabilities: CAPABILITIES,
+    capabilitiesFromRole: (key) => ROLE_CAPS[key as UserRole] ?? [],
+  },
+  {
+    key: "recruiting", label_en: "Recruiting", label_es: "Reclutamiento",
+    alwaysOn: false,
+    roleColumn: "recruiting_role",
+    roleKeys: Object.keys(RECRUITING_ROLE_LABELS),
+    roleLabel: (key, lang) => (lang === "es" ? RECRUITING_ROLE_LABELS[key].es : RECRUITING_ROLE_LABELS[key].en),
+    accessColumn: "module_access",
+    // No capabilities — recruiting has no fine-grained extra-permissions
+    // concept today (its only dial is the role tier). Nothing to render.
+  },
+];
 
 /** Minimal shape needed to test a capability. */
 export interface CapUser { role: UserRole; permissions?: string[] | null }

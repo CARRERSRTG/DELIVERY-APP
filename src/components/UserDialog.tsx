@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
 import { useConfirm } from "@/lib/confirm";
-import { CAPABILITIES, MODULES, RECRUITING_ROLE_LABELS, ROLE_CAPS, ROLE_INFO, ROLE_ORDER, extraCaps, roleLabel } from "@/lib/constants";
+import { MODULE_ACCESS, ROLE_INFO, roleLabel } from "@/lib/constants";
+import type { ModuleAccessKey } from "@/lib/constants";
 import { avatarColor, initials } from "@/lib/utils";
 import type { Profile, UserRole } from "@/lib/types";
 
@@ -54,9 +55,35 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
 
   if (!me) return null;
   const info = ROLE_INFO[u.role];
-  const extra = extraCaps(u);
   const scoped = u.role === "manager" || u.role === "logistics";
   const storeScoped = u.role === "warehouse" || u.role === "driver" || u.role === "sales";
+
+  // Explicit, exhaustive dispatch by module key (D-057) — never a single
+  // generic "write the role" function shared across modules. ModuleAccessKey
+  // is a closed union, so a module added to MODULE_ACCESS without a case
+  // here fails `tsc`, not a silent write to the wrong profiles column at
+  // runtime — the exact class of confusion (role vs recruiting_role) that
+  // produced two of D-052's three bugs.
+  const setModuleRole = (key: ModuleAccessKey, roleValue: string) => {
+    switch (key) {
+      case "deliveries": updateUserRole(u.id, roleValue as UserRole); return;
+      case "recruiting": updateUserRecruitingAccess(u.id, { granted: true, recruiting_role: roleValue }); return;
+      default: { const _exhaustive: never = key; return _exhaustive; }
+    }
+  };
+  const setModuleAccess = (key: ModuleAccessKey, granted: boolean) => {
+    switch (key) {
+      case "recruiting":
+        updateUserRecruitingAccess(u.id, { granted, recruiting_role: granted ? (u.recruiting_role ?? "recruiter") : null });
+        return;
+      case "deliveries":
+        // Never actually called — deliveries is alwaysOn and renders no
+        // checkbox to trigger this. Kept as a case anyway so the switch
+        // stays exhaustive here too, not just in setModuleRole.
+        return;
+      default: { const _exhaustive: never = key; return _exhaustive; }
+    }
+  };
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -161,120 +188,117 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
           </div>
         )}
 
-        {/* ---------- What they can reach ---------- */}
-        <div className="section-label">{t("Role and scope", "Rol y alcance")}</div>
-        <div className="grid g2">
-          <div className="field">
-            <label>{t("Role", "Rol")}</label>
-            <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value as UserRole)}>
-              {ROLE_ORDER.map((r) => <option key={r} value={r}>{roleLabel(r, lang)}</option>)}
-            </select>
-          </div>
-          {storeScoped && (
-            <div className="field">
-              <label>{t("Assigned store", "Tienda asignada")}</label>
-              <select value={u.store ?? ""} onChange={(e) => updateUserStore(u.id, e.target.value || null)}>
-                <option value="">{t("All stores", "Todas las tiendas")}</option>
-                {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-              </select>
-            </div>
-          )}
-          {scoped && (
-            <div className="field">
-              <label>{t("Customer visibility", "Visibilidad de clientes")}</label>
-              <select
-                value={settings.customer_scope?.[u.id] ?? "all"}
-                onChange={(e) => saveSettings({ customer_scope: { ...(settings.customer_scope ?? {}), [u.id]: e.target.value as "all" | "own" } })}
-              >
-                <option value="all">{t("All customers", "Todos los clientes")}</option>
-                <option value="own">{t("Own customers only", "Solo sus clientes")}</option>
-              </select>
-            </div>
-          )}
-        </div>
+        {/* ---------- Access, one block per module (D-057) ---------- */}
+        {/* Recruiting's block has no local provider (D-050) — same gate the
+            rest of the Supabase-only fields above already use. Deliveries'
+            block still needs to render in local mode (it's the only module
+            demo mode ever had), so the loop stays outside the !LOCAL_MODE
+            check — each block decides for itself via its own alwaysOn/key. */}
+        <div className="section-label">{t("Modules & permissions", "Módulos y permisos")}</div>
+        {MODULE_ACCESS.filter((m) => m.alwaysOn || !LOCAL_MODE).map((m) => {
+          const currentRole = m.roleColumn === "role" ? u.role : (u.recruiting_role ?? undefined);
+          const granted = m.alwaysOn || !!currentRole;
+          // The lowest-listed role is the default when checking the box with
+          // nothing chosen yet — matches what recruiting's own invite flow
+          // always defaulted to ("recruiter", last in RECRUITING_ROLE_LABELS).
+          const defaultRole = m.roleKeys[m.roleKeys.length - 1];
 
-        {/* ---------- Extra permissions ---------- */}
-        <div className="section-label">
-          {t("Extra permissions", "Permisos extra")}
-          {extra.length > 0 && <span className="count-tag" style={{ marginLeft: 8 }}>+{extra.length}</span>}
-        </div>
-        <div className="hint" style={{ marginBottom: 8 }}>
-          {t(
-            `On top of what the ${roleLabel(u.role, lang)} role already allows. The role's own are locked on.`,
-            `Además de lo que el rol ${roleLabel(u.role, lang)} ya permite. Los del rol están fijos.`,
-          )}
-        </div>
-        <div className="grid g2">
-          {CAPABILITIES.map((c) => {
-            const fromRole = ROLE_CAPS[u.role].includes(c.key);
-            const granted = fromRole || !!u.permissions?.includes(c.key);
-            return (
-              <label key={c.key} className={"perm-opt " + (fromRole ? "locked" : "")}>
-                <input
-                  type="checkbox"
-                  checked={granted}
-                  disabled={fromRole}
-                  onChange={(e) => {
-                    const cur = (u.permissions ?? []).filter((p) => p !== c.key);
-                    updateUserPermissions(u.id, e.target.checked ? [...cur, c.key] : cur);
-                  }}
-                />
-                <span>
-                  <b>{lang === "es" ? c.es : c.en}</b>
-                  {fromRole && <span className="sema" style={{ background: "var(--gray)", color: "#fff", marginLeft: 6 }}>{t("from role", "del rol")}</span>}
-                  <span className="hint" style={{ display: "block" }}>{lang === "es" ? c.desc_es : c.desc_en}</span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
+          return (
+            <div key={m.key} className="card" style={{ marginBottom: 10 }}>
+              {m.alwaysOn ? (
+                <b>{lang === "es" ? m.label_es : m.label_en}</b>
+              ) : (
+                <label className="perm-opt" style={{ marginBottom: granted ? 10 : 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={granted}
+                    onChange={(e) => setModuleAccess(m.key, e.target.checked)}
+                  />
+                  <b>{lang === "es" ? m.label_es : m.label_en}</b>
+                </label>
+              )}
 
-        {/* ---------- Other modules (D-053) ---------- */}
-        {/* Recruiting has no local provider (D-050) — this section only means
-            anything against Supabase, so it's gated the same way Username/
-            Email/Access already are above. */}
-        {!LOCAL_MODE && (
-          <>
-            <div className="section-label">{t("Access to other modules", "Acceso a otros módulos")}</div>
-            <div className="grid g2">
-              {MODULES.map((m) => {
-                const granted = !!u.recruiting_role; // today: only "recruiting" exists
-                const roleOpts = Object.entries(RECRUITING_ROLE_LABELS);
-                return (
-                  <label key={m.key} className="perm-opt">
-                    <input
-                      type="checkbox"
-                      checked={granted}
-                      onChange={(e) => {
-                        // Checking with no tier chosen yet defaults to the
-                        // lowest one — matching what recruiting's own invite
-                        // flow always did (invRole defaulted to "recruiter").
-                        updateUserRecruitingAccess(u.id, {
-                          granted: e.target.checked,
-                          recruiting_role: e.target.checked ? (u.recruiting_role ?? "recruiter") : null,
-                        });
-                      }}
-                    />
-                    <span>
-                      <b>{m.emoji} {lang === "es" ? m.label_es : m.label_en}</b>
-                      <span className="hint" style={{ display: "block" }}>{lang === "es" ? m.desc_es : m.desc_en}</span>
-                      {granted && (
-                        <select
-                          value={u.recruiting_role ?? "recruiter"}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => updateUserRecruitingAccess(u.id, { granted: true, recruiting_role: e.target.value })}
-                          style={{ marginTop: 6 }}
-                        >
-                          {roleOpts.map(([key, label]) => <option key={key} value={key}>{lang === "es" ? label.es : label.en}</option>)}
+              {granted && (
+                <div style={{ marginTop: m.alwaysOn ? 8 : 0 }}>
+                  <div className="grid g2">
+                    <div className="field">
+                      <label>{t("Role", "Rol")}</label>
+                      <select
+                        value={currentRole ?? defaultRole}
+                        onChange={(e) => setModuleRole(m.key, e.target.value)}
+                      >
+                        {m.roleKeys.map((r) => <option key={r} value={r}>{m.roleLabel(r, lang)}</option>)}
+                      </select>
+                    </div>
+                    {/* Deliveries-specific extras — not part of the generic
+                        module shape, because no other module needs them and
+                        they're tied to specific deliveries role values. */}
+                    {m.key === "deliveries" && storeScoped && (
+                      <div className="field">
+                        <label>{t("Assigned store", "Tienda asignada")}</label>
+                        <select value={u.store ?? ""} onChange={(e) => updateUserStore(u.id, e.target.value || null)}>
+                          <option value="">{t("All stores", "Todas las tiendas")}</option>
+                          {settings.stores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
                         </select>
-                      )}
-                    </span>
-                  </label>
-                );
-              })}
+                      </div>
+                    )}
+                    {m.key === "deliveries" && scoped && (
+                      <div className="field">
+                        <label>{t("Customer visibility", "Visibilidad de clientes")}</label>
+                        <select
+                          value={settings.customer_scope?.[u.id] ?? "all"}
+                          onChange={(e) => saveSettings({ customer_scope: { ...(settings.customer_scope ?? {}), [u.id]: e.target.value as "all" | "own" } })}
+                        >
+                          <option value="all">{t("All customers", "Todos los clientes")}</option>
+                          <option value="own">{t("Own customers only", "Solo sus clientes")}</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fine-grained extras — only drawn when this module's
+                      descriptor actually has a catalog (today: deliveries
+                      only). Absent for recruiting on purpose: it has no
+                      per-permission concept, just the role tier above. */}
+                  {m.capabilities && (
+                    <>
+                      <div className="hint" style={{ margin: "10px 0 8px" }}>
+                        {t(
+                          `On top of what the ${m.roleLabel(currentRole ?? defaultRole, lang)} role already allows. The role's own are locked on.`,
+                          `Además de lo que el rol ${m.roleLabel(currentRole ?? defaultRole, lang)} ya permite. Los del rol están fijos.`,
+                        )}
+                      </div>
+                      <div className="grid g2">
+                        {m.capabilities.map((c) => {
+                          const fromRole = m.capabilitiesFromRole?.(currentRole ?? defaultRole).includes(c.key) ?? false;
+                          const capGranted = fromRole || !!u.permissions?.includes(c.key);
+                          return (
+                            <label key={c.key} className={"perm-opt " + (fromRole ? "locked" : "")}>
+                              <input
+                                type="checkbox"
+                                checked={capGranted}
+                                disabled={fromRole}
+                                onChange={(e) => {
+                                  const cur = (u.permissions ?? []).filter((p) => p !== c.key);
+                                  updateUserPermissions(u.id, e.target.checked ? [...cur, c.key] : cur);
+                                }}
+                              />
+                              <span>
+                                <b>{lang === "es" ? c.es : c.en}</b>
+                                {fromRole && <span className="sema" style={{ background: "var(--gray)", color: "#fff", marginLeft: 6 }}>{t("from role", "del rol")}</span>}
+                                <span className="hint" style={{ display: "block" }}>{lang === "es" ? c.desc_es : c.desc_en}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          </>
-        )}
+          );
+        })}
 
         {/* ---------- Access ---------- */}
         {!LOCAL_MODE && (
