@@ -2439,6 +2439,37 @@ una sola vista, sin que el dueño tenga que recorrerlas todas.
 
 ---
 
+## D-062 · Se quita la pestaña "Users" de recruiting
+**Fecha:** 2026-08-20 · **Versión:** v1.14.1 · **Pedido por:** Andrés
+
+**Cambio:** se quita la entrada `{ id: "users", ... href: "/recruiting/users" }`
+de `TABS` en `recruiting/constants.ts` y su entrada en `TAB_ES` del `TopBar`
+de recruiting. La ruta `/recruiting/users/page.tsx` (un `redirect("/home/
+users")` desde D-056) se queda tal cual, por si alguien todavía tiene esa
+URL guardada.
+
+**Razón (textual):** *"elimina el view de usaurios en recruiter por obvias
+razones"*.
+
+**Por qué era obvio.** D-056 ya había movido la gestión de usuarios entera
+al hub (`/home/users`), reachable desde cualquier módulo vía
+`ModuleSwitcher`/`HUB_TOOLS` — y en ese mismo cambio, la página de
+recruiting se redujo a un simple `redirect`. Pero la pestaña "🛡 Users" se
+quedó en `TABS`, así que seguía apareciendo en la barra de recruiting
+como si llevara a algo propio del módulo, cuando en realidad su único
+comportamiento era rebotar de inmediato a otra pantalla. Mismo patrón de
+huérfano que D-058/D-059: una entrada que dejó de tener sentido cuando la
+decisión de fondo cambió, pero que nadie borró en ese momento.
+
+**Consecuencia aceptada:** ninguna — el acceso a Users no se pierde, solo
+el atajo redundante. Se mantiene el `redirect` en vez de borrar la ruta
+por completo, siguiendo el mismo criterio que D-056 ya había fijado para
+bookmarks viejos.
+
+**Verificado:** `tsc`/`vitest` (465)/`next build` limpios.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

@@ -42,6 +42,11 @@ import type { UserRole, RecruiterRecommendation } from "./types";
 // reads phone_date/inperson_date/follow_up/status off `candidates`, the same
 // fields Calendar/Outcomes/Candidates already read. The module root stays
 // bare /recruiting → Candidates (D-052 is not reopened by this).
+// No "Users" tab (D-062): user management moved to the hub (D-056) — every
+// module reaches it through ModuleSwitcher/HUB_TOOLS, not its own tab. This
+// module's TABS kept one anyway, which just clicked through to /home/users —
+// a tab whose only behavior was leaving. /recruiting/users itself still
+// redirects there, for old bookmarks (see that file).
 export const TABS: { id: string; label: string; href: string; adminOnly?: boolean }[] = [
   { id: "today", label: "🏠 Today", href: "/recruiting/today" },
   { id: "candidates", label: "👥 Candidates", href: "/recruiting" },
@@ -51,7 +56,6 @@ export const TABS: { id: string; label: string; href: string; adminOnly?: boolea
   { id: "metrics", label: "📊 Metrics", href: "/recruiting/metrics" },
   { id: "calendar", label: "📅 Calendar", href: "/recruiting/calendar" },
   { id: "settings", label: "⚙️ Settings", href: "/recruiting/settings" },
-  { id: "users", label: "🛡 Users", href: "/recruiting/users", adminOnly: true },
 ];
 
 // Recruiter's verdict at the end of the phone interview. Separate from the

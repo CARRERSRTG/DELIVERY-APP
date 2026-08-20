@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-062", title: "Se quita la pestaña \"Users\" de recruiting",
+      fecha: "2026-08-20", version: "v1.14.1", quien: "Andrés",
+      cambio: "Se quita la entrada { id: \"users\", href: \"/recruiting/users\" } de TABS en recruiting/constants.ts y su entrada en TAB_ES del TopBar de recruiting. La ruta /recruiting/users/page.tsx (un redirect(\"/home/users\") desde D-056) se queda tal cual, por si alguien todavía tiene esa URL guardada.",
+      razon: "\"elimina el view de usaurios en recruiter por obvias razones\"",
+      razonTextual: true,
+      consecuencia: "D-056 ya había movido la gestión de usuarios entera al hub (/home/users), reachable desde cualquier módulo vía ModuleSwitcher/HUB_TOOLS, y en ese mismo cambio la página de recruiting se redujo a un simple redirect. Pero la pestaña \"🛡 Users\" se quedó en TABS, apareciendo como si llevara a algo propio del módulo cuando su único comportamiento era rebotar de inmediato a otra pantalla — mismo patrón de huérfano que D-058/D-059. El acceso a Users no se pierde, solo el atajo redundante; se mantiene el redirect por bookmarks viejos, mismo criterio que D-056. tsc/vitest (465)/next build limpios."
+    },
+    {
       id: "D-061", title: "\"Hoy\" se construyó — dashboard diario de recruiting",
       fecha: "2026-08-20", version: "v1.14.0", quien: "Andrés",
       cambio: "Nueva página /recruiting/today, pestaña \"🏠 Today\"/\"🏠 Hoy\" de vuelta en TABS (primera de la lista). Cuatro secciones derivadas de candidates, nada se guarda aparte: Entrevistas hoy (phone_date/inperson_date de hoy), Resultados atrasados (misma lógica que Outcomes, ventana de gracia de 3h), Seguimientos pendientes (follow_up vencido o de hoy, fuera de etapas terminales), Esperando primera llamada (status=\"registered\" sin phone_date, más viejo primero).",
