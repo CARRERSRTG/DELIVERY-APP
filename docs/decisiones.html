@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-061", title: "\"Hoy\" se construyó — dashboard diario de recruiting",
+      fecha: "2026-08-20", version: "v1.14.0", quien: "Andrés",
+      cambio: "Nueva página /recruiting/today, pestaña \"🏠 Today\"/\"🏠 Hoy\" de vuelta en TABS (primera de la lista). Cuatro secciones derivadas de candidates, nada se guarda aparte: Entrevistas hoy (phone_date/inperson_date de hoy), Resultados atrasados (misma lógica que Outcomes, ventana de gracia de 3h), Seguimientos pendientes (follow_up vencido o de hoy, fuera de etapas terminales), Esperando primera llamada (status=\"registered\" sin phone_date, más viejo primero).",
+      razon: "\"pero la view de hoy no me sale en recuiter\" — ver la nota en D-059. Confirmado explícitamente al preguntársele: pantalla nueva construida, no un redirect a Candidatos.",
+      razonTextual: true,
+      consecuencia: "El recruiting-app original no está en este repo (solo los datos se migraron en D-050, nunca el código del front) — no había nada que portar, se diseñó desde cero contra los campos que ya existen en Candidate en vez de columnas nuevas: cada sección es una vista distinta de datos que Calendar/Outcomes/Candidates ya leen, nunca una fuente de verdad nueva. La raíz del módulo no cambió — /recruiting sigue siendo Candidatos (D-052 no se reabre); \"Hoy\" es una pestaña más. El bloque de Resultados atrasados duplica el cálculo de Outcomes (mismo outcomeDue/outcomeDueAt de utils.ts, no reimplementado) — aceptado, es el propósito de un dashboard \"Hoy\": juntar lo urgente de varias pestañas en una sola vista. tsc/vitest (465)/next build limpios."
+    },
+    {
       id: "D-060", title: "La pestaña del navegador decía \"RDZ Deliveries\" en recruiting",
       fecha: "2026-08-20", version: "v1.13.4", quien: "Andrés",
       cambio: "recruiting/(recruiting)/layout.tsx gana su propio export const metadata (title: \"RECRUIT·HN | Candidates & Interviews\").",
@@ -342,7 +350,7 @@
       cambio: "Se quita la pestaña \"Hoy\"/\"Today\" de TABS en recruiting/constants.ts (apuntaba a /recruiting/today, una página que nunca existió) y su entrada en TAB_ES del TopBar de recruiting.",
       razon: "\"view de hoy en cruiter me da erorr 404\"",
       razonTextual: true,
-      consecuencia: "No era un bug nuevo: el comentario sobre el array ya decía desde el mid-port de D-052 que solo \"candidates\" resolvía a una página real y el resto 404eaba hasta portarse — pero cuando el resto se portó (D-052, Etapa 2 completa), \"Hoy\" se quedó deliberadamente afuera (ARCHITECTURE.md §11: candidatos tomó la raíz del módulo en su lugar). La pestaña nunca se borró de TABS cuando esa decisión se tomó. Se borró en vez de construirse porque no portarla no fue un pendiente, fue la decisión ya tomada — construirla habría sido revertirla sin que nadie lo pidiera. tsc/vitest (465)/next build limpios."
+      consecuencia: "No era un bug nuevo: el comentario sobre el array ya decía desde el mid-port de D-052 que solo \"candidates\" resolvía a una página real y el resto 404eaba hasta portarse — pero cuando el resto se portó (D-052, Etapa 2 completa), \"Hoy\" se quedó deliberadamente afuera (ARCHITECTURE.md §11: candidatos tomó la raíz del módulo en su lugar). La pestaña nunca se borró de TABS cuando esa decisión se tomó. Se borró en vez de construirse porque no portarla no fue un pendiente, fue la decisión ya tomada — construirla habría sido revertirla sin que nadie lo pidiera. tsc/vitest (465)/next build limpios.\n\nNota (2026-08-20, v1.14.0) — la pestaña volvió, esta vez con página detrás: \"pero la view de hoy no me sale en recuiter\". El borrado fue correcto para lo que había (un enlace muerto a una página que jamás existió), pero la lectura de que no portar \"Hoy\" seguía siendo lo que el dueño quería resultó equivocada — sí la quiere. Ver D-061: se construyó una pantalla \"Hoy\" nueva desde cero, no una resurrección de la del recruiting-app viejo. La raíz del módulo (/recruiting → Candidatos) no cambió; D-052 sigue en pie en eso."
     },
     {
       id: "D-058", title: "\"Mi ruta\" deja de ser un tab automático de admin",

@@ -2338,6 +2338,16 @@ entrar a una página que no existe; ahora tampoco pueden intentarlo.
 
 **Verificado:** `tsc`/`vitest` (465)/`next build` limpios.
 
+**Nota (2026-08-20, v1.14.0) — la pestaña volvió, esta vez con página
+detrás.** *"pero la view de hoy no me sale en recuiter"* — el borrado fue
+correcto para lo que había (un enlace muerto a una página que jamás
+existió), pero la lectura de que no portar "Hoy" seguía siendo lo que el
+dueño quería resultó equivocada: sí la quiere. Ver **D-061**: se construyó
+una pantalla "Hoy" nueva desde cero contra el modelo de datos actual —no
+una resurrección de la del `recruiting-app` viejo, cuyo código fuente no
+vive en este repo. La raíz del módulo (`/recruiting` → Candidatos) no
+cambió; D-052 sigue en pie en eso.
+
 ---
 
 ## D-060 · La pestaña del navegador decía "RDZ Deliveries" en recruiting
@@ -2378,6 +2388,54 @@ nombre en pantalla son dos cosas independientes a propósito (leer
 asíncrono consultando la base en cada request, por un texto estático) —
 así que hoy dicen dos cosas distintas: "RDZ Recruitment" en la pestaña,
 "RTG RECRUITER" en pantalla. Ninguna de las dos se tocó por la otra.
+
+---
+
+## D-061 · "Hoy" se construyó — dashboard diario de recruiting
+**Fecha:** 2026-08-20 · **Versión:** v1.14.0 · **Pedido por:** Andrés
+
+**Cambio:** nueva página `/recruiting/today`, pestaña "🏠 Today"/"🏠 Hoy" de
+vuelta en `TABS` (primera de la lista). Cuatro secciones, todas derivadas
+de `candidates` — nada se guarda aparte:
+- **Entrevistas hoy** — `phone_date`/`inperson_date` cae en la fecha de
+  hoy; acceso directo a Iniciar entrevista / Registrar resultado.
+- **Resultados atrasados** — misma lógica que la pestaña Outcomes
+  (`outcomeDue`, ventana de gracia de 3h), duplicada aquí a propósito para
+  que no haga falta ir a otra pestaña a verlo.
+- **Seguimientos pendientes** — `follow_up` vencido o de hoy, candidatos
+  no archivados y fuera de etapas terminales (contratado/descartado).
+- **Esperando primera llamada** — `status = "registered"` sin
+  `phone_date` todavía, ordenado por fecha de registro (el más viejo
+  primero = el más urgente de llamar).
+
+**Razón (textual):** *"pero la view de hoy no me sale en recuiter"* — ver
+la nota en D-059. El dueño confirmó explícitamente, al preguntársele,
+que quiere una pantalla nueva construida (no un redirect a Candidatos).
+
+**Por qué se construyó nueva en vez de portar la vieja.** El
+`recruiting-app` original tenía una pantalla "Hoy" en su raíz, pero su
+código fuente no está en este repo — vivía en un repo/deploy separado
+que quedó fuera del alcance de D-050 (solo los datos se migraron, nunca
+el código del front). No hay nada que portar; hubo que diseñarla desde
+cero. Se decidió construirla contra los campos que YA existen en
+`Candidate` (`phone_date`, `inperson_date`, `follow_up`, `status`,
+`reg_date`) en vez de agregar columnas nuevas — así cada sección es una
+vista distinta de datos que Calendar/Outcomes/Candidates ya leen, nunca
+una fuente de verdad nueva que se pueda desincronizar.
+
+**Por qué la raíz del módulo no cambió.** `/recruiting` (Candidatos)
+sigue siendo la raíz — D-052 decidió eso a propósito y esta pantalla no
+lo reabre. "Hoy" es una pestaña más, la primera de la lista, no una
+reclamación de la raíz.
+
+**Consecuencia aceptada:** el bloque de "Resultados atrasados" duplica la
+lógica de cálculo de Outcomes (mismo `outcomeDue`/`outcomeDueAt`,
+importados de `utils.ts`, no reimplementados) — dos pestañas muestran el
+mismo dato con distinta presentación. Aceptado porque es exactamente el
+propósito de un dashboard "Hoy": juntar lo urgente de varias pestañas en
+una sola vista, sin que el dueño tenga que recorrerlas todas.
+
+**Verificado:** `tsc`/`vitest` (465)/`next build` limpios.
 
 ---
 

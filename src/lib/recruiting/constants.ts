@@ -38,13 +38,12 @@ import type { UserRole, RecruiterRecommendation } from "./types";
 
 // adminOnly tabs are only shown to admins. Hrefs are prefixed /recruiting —
 // this module lives under that prefix now, not at the site root (D-050).
-// No "Today" tab: recruiting's original "/" was a Today dashboard, but it was
-// deliberately never ported — candidates took the module's root instead
-// (bare /recruiting). A leftover "today" entry pointing at a page that was
-// never going to exist sat here since the mid-port commit and 404'd for
-// anyone who clicked it — removed rather than built, since not porting it
-// was the actual decision (see ARCHITECTURE.md §11 / D-052).
+// "Today" (D-061) is a derived dashboard, not a data source of its own — it
+// reads phone_date/inperson_date/follow_up/status off `candidates`, the same
+// fields Calendar/Outcomes/Candidates already read. The module root stays
+// bare /recruiting → Candidates (D-052 is not reopened by this).
 export const TABS: { id: string; label: string; href: string; adminOnly?: boolean }[] = [
+  { id: "today", label: "🏠 Today", href: "/recruiting/today" },
   { id: "candidates", label: "👥 Candidates", href: "/recruiting" },
   { id: "board", label: "🗂 Board", href: "/recruiting/board" },
   { id: "outcomes", label: "🤝 Outcomes", href: "/recruiting/outcomes" },

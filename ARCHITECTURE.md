@@ -292,10 +292,19 @@ recruiting project" below) but nothing in production points at them anymore.
   its 49 objects copied over from the old recruiting project, same paths.
 - **The old recruiting Supabase project (`cfawfwzndxumeufhcwga`) is untouched and stays alive**
   as a read-only fallback until production is validated for 1–2 weeks post-cutover — see D-050.
-- **The UI is ported.** 8 pages under `src/app/recruiting/(recruiting)/`: bare `/recruiting`
-  is candidates (deliberately — recruiting's original `/` was a "Today" dashboard that was
-  never ported; the candidates list took the module's root instead), plus `board`, `calendar`,
-  `metrics`, `outcomes`, `questions`, `settings`, `users`.
+- **The UI is ported.** 9 pages under `src/app/recruiting/(recruiting)/`: bare `/recruiting`
+  is candidates (deliberately — recruiting's original `/` was a "Today" dashboard; the
+  candidates list took the module's root instead, and that stays true — see below), plus
+  `board`, `calendar`, `metrics`, `outcomes`, `questions`, `settings`, `users`, `today`.
+- **`/recruiting/today` (D-061)** is the daily action list — interviews scheduled today,
+  outcomes past the 3h grace period, follow-ups due, and new candidates with no phone
+  interview scheduled yet. It reads no state of its own: every row is derived from fields
+  Calendar/Outcomes/Candidates already read off `candidates` (`phone_date`, `inperson_date`,
+  `follow_up`, `status`, `reg_date`). D-059 had removed the "Today" tab as a dead link
+  (nothing behind it — the original recruiting-app's Today page was never ported, and its
+  source isn't in this repo to port from); this rebuilds it from scratch against the current
+  data model rather than resurrecting the old one. Root `/recruiting` stays Candidates —
+  Today is a tab, not a reclaimed root, so D-052's decision isn't reopened.
 - **`(recruiting)` is a sibling of `(app)`, never nested under it.** It has its own
   `layout.tsx` — own profile fetch, own `DataProvider` (`src/lib/recruiting-data-provider.tsx`,
   Supabase-only, no local variant — see D4/D-050), own `TopBar`
