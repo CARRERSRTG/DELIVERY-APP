@@ -132,3 +132,25 @@
 @media(max-width:420px){
   .timetracker-module .pbtns{grid-template-columns:1fr}
 }
+
+/* Printable receipt overlay (Reports/Pay, D-071) */
+.timetracker-module .rcpt-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;padding:16px;z-index:9998;overflow:auto}
+.timetracker-module .rcpt-print{background:#fff;color:#111;border-radius:12px;padding:24px;max-width:520px;width:100%;margin-top:24px}
+.timetracker-module .rcpt-print .muted{color:#666}
+.timetracker-module .rcpt-print th{color:#666}
+.timetracker-module .rcpt-print td,.timetracker-module .rcpt-print th{border-bottom:1px solid #ddd}
+@media print{
+  body>*{visibility:hidden}
+  .timetracker-module .rcpt-overlay,.timetracker-module .rcpt-overlay *{visibility:visible}
+  .timetracker-module .rcpt-overlay{position:absolute;top:0;left:0;background:#fff;padding:0;display:block}
+  .timetracker-module .rcpt-print{margin:0;max-width:100%;border-radius:0}
+  .timetracker-module .rcpt-noprint{display:none!important}
+}
+
+/* Collapsible per-employee header in Reports & Pay */
+.timetracker-module .emp-summary{cursor:pointer;list-style:none;display:flex;align-items:center;
+  justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--tt-line);
+  border-radius:10px;background:var(--tt-panel2)}
+.timetracker-module .emp-summary::-webkit-details-marker{display:none}
+.timetracker-module .emp-summary::before{content:"▸";margin-right:8px;color:var(--tt-muted);font-size:12px}
+.timetracker-module details[open]>.emp-summary::before{content:"▾"}

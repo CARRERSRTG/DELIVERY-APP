@@ -630,3 +630,38 @@ client and a Windows Electron desktop client.
   hooks called unconditionally, same order every render. Fixed by moving the gate to just before
   the JSX return; the hooks run either way (harmless for a non-admin, since `sessionsSince` already
   no-ops server-side).
+- **Etapa 2 complete (D-071): all 10 manager screens landed in one push** (`hazlo todo de una vez`).
+  `/timetracker/live`, `/team-requests`, `/projects`, `/assignments`, `/people`, `/team-diary`,
+  `/audit`, `/settings`, `/reports`. 15 screens total, 5 employee + 10 manager.
+  - **`/timetracker/people` is deliberately SMALLER than the original's `ManagerPeople.jsx`.** Role
+    changes, account creation (the original called a `create-user` Edge Function that doesn't even
+    exist in this Supabase project), and account deletion are NOT here — D-053/D-057 already
+    established that identity/access lifecycle lives in the hub's Users dialog, not inside a
+    module; recruiting doesn't manage its own users either. Only genuinely module-scoped fields
+    stayed: worker type, track mode, breaks, and the `active` onboarding toggle
+    (`timetracker.employee_settings`, independent of module access — see D-064). Renaming and pay
+    info remain self-service only (My Account, D-069), matching the original's own boundary there.
+  - **`/timetracker/settings` deliberately drops two of the original's features.** No backup/
+    restore: the original's JSON export/import wrote to `profiles` directly via `upsert` — in this
+    container that's the identity table every module shares, and a bad restore could silently
+    overwrite another module's role/store/driver data for unrelated people. Not a small fix; needs
+    its own `timetracker.*`-only design before it's safe. No theme toggle: this container already
+    has ONE shared theme mechanism (`data-theme`, D-052) that `.timetracker-module`'s own CSS
+    already listens to; a second toggle would just fight the first.
+  - **`/timetracker/reports` doesn't export Excel/PDF.** That used a separate library
+    (`lib/exportTimesheet.js`) not ported. CSV export (no extra dependency) covers the same data and
+    IS ported; the printable receipt (the browser's own print dialog, no library needed) is also
+    ported in full. The calculation logic itself — the highest-stakes code in the whole module,
+    since it computes and records real payroll — was translated as literally as possible, not
+    redesigned, same reasoning as Track Time (D-066).
+  - **Two routes were renamed to avoid collisions the original didn't have to worry about.** The
+    original overloads one "Requests"/"Work diary" tab with different content depending on
+    employee-vs-manager mode; URL-based routing needs two distinct paths instead:
+    `/timetracker/requests` (D-068, an employee's own) vs. `/timetracker/team-requests` (the
+    approval queue), and `/timetracker/diary` (D-069) vs. `/timetracker/team-diary`.
+    `components/timetracker/WorkDiary.tsx` (ported once, D-069) is reused as-is by team-diary —
+    the exact reason it was pulled out as a shared component in the first place.
+  - **Provider gained `liveSessions` and `auditLog` as genuinely live (realtime-subscribed) state**
+    — unlike `sessionsSince`, both are bounded in practice (a handful of people clocked in at once;
+    the latest 300 audit rows), so continuous subscription doesn't have the unbounded-growth
+    problem raw company-wide sessions do (see D-070).

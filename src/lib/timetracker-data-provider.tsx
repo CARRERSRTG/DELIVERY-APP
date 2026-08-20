@@ -12,7 +12,7 @@ import {
 import { createClient } from "@/lib/timetracker/supabase/client";
 import { rowToCamel, toSnakeRow } from "@/lib/timetracker/supabase/rowcase";
 import { APP_SETTINGS, type AppSettings, syncAppSettings } from "@/lib/timetracker/helpers";
-import type { Assignment, Employee, Payroll, Project, RequestType, Screenshot, Session, TimeRequest } from "@/lib/timetracker/types";
+import type { AuditEntry, Assignment, Employee, Payroll, Project, RequestType, Screenshot, Session, TimeRequest } from "@/lib/timetracker/types";
 
 // ============================================================
 // Etapa 2, pass 1 (D-066): foundation + the Track Time screen only. This
@@ -85,9 +85,44 @@ interface DataState {
   allProjects: Project[];
   allAssignments: Assignment[];
   allRequests: TimeRequest[];
+  /** Latest 300, kept live — bounded the same way `myScreenshots`/audit
+   * are, so a continuous subscription is fine here unlike raw sessions. */
+  auditLog: AuditEntry[];
+  logAudit: (action: string, detail: string) => Promise<void>;
+  /** Currently-live (is_live=true) sessions, company-wide — kept live via
+   * its own realtime channel. Bounded in practice (a handful of people
+   * clocked in at once, not the full history), unlike `sessionsSince`. */
+  liveSessions: Session[];
   /** On-demand, not part of reloadAll()/realtime — see the block comment
-   * above. Every session (any employee) with date >= startISO. */
-  sessionsSince: (startISO: string) => Promise<Session[]>;
+   * above. Every session (any employee) with date >= startISO, optionally
+   * capped at endISO too (inclusive both ends). */
+  sessionsSince: (startISO: string, endISO?: string) => Promise<Session[]>;
+  sessionsByProject: (projectId: string) => Promise<Session[]>;
+  insertSession: (payload: Partial<Session>) => Promise<Session>;
+  removeSession: (id: string) => Promise<void>;
+  payrollsForWeek: (weekOf: string) => Promise<Payroll[]>;
+  insertPayroll: (payload: Partial<Payroll>) => Promise<Payroll>;
+  updatePayroll: (id: string, patch: Partial<Payroll>) => Promise<void>;
+  removePayroll: (id: string) => Promise<void>;
+  insertProject: (payload: Partial<Project>) => Promise<void>;
+  updateProject: (id: string, patch: Partial<Project>) => Promise<void>;
+  insertAssignment: (payload: Partial<Assignment>) => Promise<void>;
+  updateAssignment: (id: string, patch: Partial<Assignment>) => Promise<void>;
+  removeAssignment: (id: string) => Promise<void>;
+  /** Approve (updateIfPending) — atomically claims a still-pending request so
+   * a double-click or two managers racing can only ever have one winner.
+   * Returns the claimed row, or null if someone else already resolved it. */
+  claimRequest: (id: string, patch: { status: "approved" | "rejected"; resolvedBy: string }) => Promise<TimeRequest | null>;
+  resetRequestToPending: (id: string) => Promise<void>;
+  /** Someone ELSE's module-specific settings — worker type/track mode/
+   * breaks/active. Admin-only (RLS); mirrors updateMyAccount's upsert
+   * shape but never touches full_name/pay info, which stay self-service.
+   * No soft-delete/restore/purge here on purpose (D-071) — "remove from
+   * timetracker" is already what unchecking the module in the hub's Users
+   * dialog does (D-065); a second delete concept scoped to this module
+   * would just be a confusing duplicate of that lifecycle. */
+  updateEmployeeSettings: (employeeId: string, patch: { workerType?: string | null; trackMode?: string | null; breaksEnabled?: boolean | null; active?: boolean }) => Promise<void>;
+  updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
 }
 
 const Ctx = createContext<DataState | null>(null);
@@ -121,6 +156,8 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
   const [allRequests, setAllRequests] = useState<TimeRequest[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [liveSessions, setLiveSessions] = useState<Session[]>([]);
   const isAdmin = me.role === "admin";
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -179,7 +216,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // sense paying for round trips nobody can use).
   const reloadAdmin = useCallback(async () => {
     if (!isAdmin) return;
-    const [pf, es, pr, asn, rq] = await Promise.all([
+    const [pf, es, pr, asn, rq, au] = await Promise.all([
       supabase.schema("public").from("profiles")
         .select("id, full_name, timetracker_role")
         .not("timetracker_role", "is", null)
@@ -188,6 +225,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       supabase.from("projects").select("*").order("created_at"),
       supabase.from("assignments").select("*"),
       supabase.from("requests").select("*").order("created_at", { ascending: false }),
+      supabase.from("audit").select("*").order("at", { ascending: false }).limit(300),
     ]);
     const esById = new Map(
       ((es.data as Record<string, unknown>[] | null) ?? []).map((r) => [r.id as string, rowToCamel<Omit<Employee, "id" | "fullName" | "role" | "email">>(r)!]),
@@ -215,6 +253,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
         .filter((a): a is Assignment => !!a.project),
     );
     setAllRequests(((rq.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<TimeRequest>(r)!));
+    setAuditLog(((au.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<AuditEntry>(r)!));
   }, [supabase, isAdmin]);
 
   useEffect(() => {
@@ -252,18 +291,46 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "projects" }, reloadAdmin)
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "assignments" }, reloadAdmin)
       .on("postgres_changes", { event: "*", schema: "timetracker", table: "requests" }, reloadAdmin)
+      .on("postgres_changes", { event: "INSERT", schema: "timetracker", table: "audit" }, reloadAdmin)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
   }, [supabase, me.id, isAdmin, reloadAdmin]);
 
-  const sessionsSince = useCallback<DataState["sessionsSince"]>(async (startISO) => {
+  // Company-wide "who's clocked in right now" — bounded in practice (a
+  // handful of live rows at once), unlike the full session history, so a
+  // continuous realtime subscription is fine here.
+  useEffect(() => {
+    if (!isAdmin) return;
+    const load = async () => {
+      const { data } = await supabase.from("sessions").select("*").eq("is_live", true);
+      setLiveSessions(((data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Session>(r)!));
+    };
+    load();
+    const channel = supabase
+      .channel(`timetracker-live:${me.id}`)
+      .on("postgres_changes", { event: "*", schema: "timetracker", table: "sessions", filter: "is_live=eq.true" }, load)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, me.id, isAdmin]);
+
+  const sessionsSince = useCallback<DataState["sessionsSince"]>(async (startISO, endISO) => {
     if (!isAdmin) return [];
-    const { data, error } = await supabase.from("sessions").select("*").gte("date", startISO);
+    let q = supabase.from("sessions").select("*").gte("date", startISO);
+    if (endISO) q = q.lte("date", endISO);
+    const { data, error } = await q;
     if (error) throw error;
     return ((data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Session>(r)!);
   }, [supabase, isAdmin]);
+
+  const sessionsByProject = useCallback<DataState["sessionsByProject"]>(async (projectId) => {
+    const { data, error } = await supabase.from("sessions").select("*").eq("project_id", projectId);
+    if (error) throw error;
+    return ((data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Session>(r)!);
+  }, [supabase]);
 
   // My own screenshots — desktop-captured, so this stays empty for anyone
   // tracking only from the web (there's no browser screenshot capture; see
@@ -318,6 +385,116 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (error) throw error;
   }, [supabase]);
 
+  // Same insert-with-retry shape as startSession — a manager adding a
+  // manual entry (or approving an "add time" request) for ANY employee is
+  // just an insert; is_timetracker_admin() covers writing someone else's
+  // employee_uid, same as every other admin write in this module.
+  const insertSession = useCallback<DataState["insertSession"]>(async (payload) => {
+    await ensureSession();
+    const row = toSnakeRow(payload as Record<string, unknown>);
+    try {
+      const { data, error } = await supabase.from("sessions").insert(row).select().single();
+      if (error) throw error;
+      return rowToCamel<Session>(data as Record<string, unknown>)!;
+    } catch (e) {
+      if (!isRlsError(e)) throw e;
+      await forceRefresh();
+      const { data, error } = await supabase.from("sessions").insert(row).select().single();
+      if (error) throw error;
+      return rowToCamel<Session>(data as Record<string, unknown>)!;
+    }
+  }, [supabase, ensureSession, forceRefresh]);
+
+  const removeSession = useCallback<DataState["removeSession"]>(async (id) => {
+    const { error } = await supabase.from("sessions").delete().eq("id", id);
+    if (error) throw error;
+  }, [supabase]);
+
+  const payrollsForWeek = useCallback<DataState["payrollsForWeek"]>(async (weekOf) => {
+    const { data, error } = await supabase.from("payrolls").select("*").eq("week_of", weekOf);
+    if (error) throw error;
+    return ((data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Payroll>(r)!);
+  }, [supabase]);
+
+  const insertPayroll = useCallback<DataState["insertPayroll"]>(async (payload) => {
+    await ensureSession();
+    const row = toSnakeRow(payload as Record<string, unknown>);
+    const { data, error } = await supabase.from("payrolls").insert(row).select().single();
+    if (error) throw error;
+    return rowToCamel<Payroll>(data as Record<string, unknown>)!;
+  }, [supabase, ensureSession]);
+
+  const updatePayroll = useCallback<DataState["updatePayroll"]>(async (id, patch) => {
+    await ensureSession();
+    const row = toSnakeRow(patch as Record<string, unknown>);
+    const { error } = await supabase.from("payrolls").update(row).eq("id", id);
+    if (error) throw error;
+  }, [supabase, ensureSession]);
+
+  const removePayroll = useCallback<DataState["removePayroll"]>(async (id) => {
+    const { error } = await supabase.from("payrolls").delete().eq("id", id);
+    if (error) throw error;
+  }, [supabase]);
+
+  const insertProject = useCallback<DataState["insertProject"]>(async (payload) => {
+    const row = toSnakeRow(payload as Record<string, unknown>);
+    const { error } = await supabase.from("projects").insert(row);
+    if (error) throw error;
+  }, [supabase]);
+
+  const updateProject = useCallback<DataState["updateProject"]>(async (id, patch) => {
+    const row = toSnakeRow(patch as Record<string, unknown>);
+    const { error } = await supabase.from("projects").update(row).eq("id", id);
+    if (error) throw error;
+  }, [supabase]);
+
+  const insertAssignment = useCallback<DataState["insertAssignment"]>(async (payload) => {
+    const row = toSnakeRow(payload as Record<string, unknown>);
+    const { error } = await supabase.from("assignments").insert(row);
+    if (error) throw error;
+  }, [supabase]);
+
+  const updateAssignment = useCallback<DataState["updateAssignment"]>(async (id, patch) => {
+    const row = toSnakeRow(patch as Record<string, unknown>);
+    const { error } = await supabase.from("assignments").update(row).eq("id", id);
+    if (error) throw error;
+  }, [supabase]);
+
+  const removeAssignment = useCallback<DataState["removeAssignment"]>(async (id) => {
+    const { error } = await supabase.from("assignments").delete().eq("id", id);
+    if (error) throw error;
+  }, [supabase]);
+
+  const claimRequest = useCallback<DataState["claimRequest"]>(async (id, patch) => {
+    const row = toSnakeRow({ ...patch, resolvedAt: new Date().toISOString() });
+    const { data, error } = await supabase.from("requests").update(row).eq("id", id).eq("status", "pending").select().maybeSingle();
+    if (error) throw error;
+    return data ? rowToCamel<TimeRequest>(data as Record<string, unknown>) : null;
+  }, [supabase]);
+
+  const resetRequestToPending = useCallback<DataState["resetRequestToPending"]>(async (id) => {
+    const { error } = await supabase.from("requests").update({ status: "pending", resolved_at: null, resolved_by: null }).eq("id", id);
+    if (error) throw error;
+  }, [supabase]);
+
+  const updateEmployeeSettings = useCallback<DataState["updateEmployeeSettings"]>(async (employeeId, patch) => {
+    const row = toSnakeRow({ id: employeeId, ...patch });
+    const { error } = await supabase.from("employee_settings").upsert(row);
+    if (error) throw error;
+  }, [supabase]);
+
+  const updateSettings = useCallback<DataState["updateSettings"]>(async (patch) => {
+    const merged: AppSettings = { ...APP_SETTINGS, ...patch };
+    await ensureSession();
+    const { error } = await supabase.from("settings").update({ data: merged }).eq("id", "app");
+    if (error) throw error;
+  }, [supabase, ensureSession]);
+
+  const logAudit = useCallback<DataState["logAudit"]>(async (action, detail) => {
+    try { await supabase.from("audit").insert({ who: me.id, action, detail: detail || "" }); }
+    catch { /* best-effort, matches the original's .catch(()=>{}) */ }
+  }, [supabase, me.id]);
+
   const screenshotSignedUrl = useCallback<DataState["screenshotSignedUrl"]>(async (path, expiresIn = 3600) => {
     const { data, error } = await supabase.storage.from("timetracker-screenshots").createSignedUrl(path, expiresIn);
     if (error) throw error;
@@ -368,7 +545,12 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     listLiveSessions, startSession, updateSession,
     myScreenshots: screenshots, latestScreenshot: screenshots[0] ?? null, screenshotSignedUrl, deleteScreenshot,
     updateMyAccount, updatePassword, signOutEverywhere,
-    allEmployees, allProjects, allAssignments, allRequests, sessionsSince,
+    allEmployees, allProjects, allAssignments, allRequests, sessionsSince, sessionsByProject,
+    auditLog, logAudit, liveSessions,
+    insertSession, removeSession,
+    payrollsForWeek, insertPayroll, updatePayroll, removePayroll,
+    insertProject, updateProject, insertAssignment, updateAssignment, removeAssignment,
+    claimRequest, resetRequestToPending, updateEmployeeSettings, updateSettings,
   };
 
   return (

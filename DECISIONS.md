@@ -2846,6 +2846,85 @@ RLS, no en esta pantalla.
 
 ---
 
+## D-071 · Etapa 2 completa — las 10 pantallas de manager, de una vez
+**Fecha:** 2026-08-20 · **Versión:** v1.18.0 · **Pedido por:** Andrés
+
+**Cambio:** las 9 pantallas de manager que faltaban, todas en el mismo
+tramo: Trabajando Ahora (`/timetracker/live`), Solicitudes de equipo
+(`/timetracker/team-requests`), Proyectos (`/timetracker/projects`),
+Asignaciones (`/timetracker/assignments`), Empleados
+(`/timetracker/people`, rediseñada — ver abajo), Diario de equipo
+(`/timetracker/team-diary`), Auditoría (`/timetracker/audit`), Ajustes
+(`/timetracker/settings`, con dos omisiones deliberadas — ver abajo), y
+Reportes/Pago (`/timetracker/reports`, la pantalla más grande y de más
+riesgo de toda la app — calcula y registra nómina real). Con esto, las 15
+pantallas de timetracker existen: 5 de empleado + 10 de manager.
+`timetracker-data-provider.tsx` gana una sección grande de escrituras
+genéricas (proyectos, asignaciones, sesiones, nómina, solicitudes,
+auditoría, ajustes de empleado, configuración global) más `liveSessions`
+(en vivo, acotado) y `auditLog` (en vivo, últimas 300).
+
+**Razón (textual):** *"hazlo todo de una vez"* — mensaje enviado a mitad
+del tramo anterior, pidiendo explícitamente no pausar entre pantalla y
+pantalla.
+
+**Decisiones de diseño reales, no solo traducción:**
+- **`/timetracker/people` es más chica que el original, a propósito.**
+  `ManagerPeople.jsx` original cambiaba el rol, creaba cuentas (vía una
+  Edge Function `create-user` que ni siquiera existe en este proyecto de
+  Supabase) y borraba/purgaba cuentas. Eso es exactamente lo que D-053/
+  D-057 ya decidieron que vive en el diálogo de Usuarios del hub
+  (`/home/users`), no dentro de un módulo — recruiting tampoco gestiona
+  sus propios usuarios. Lo que sí quedó, porque es genuinamente del
+  módulo y no le importa a ningún otro: tipo de trabajador, modo de
+  seguimiento, almuerzo/descanso, y el toggle "activo" (independiente del
+  acceso al módulo — ver D-064). Renombrar y editar datos de pago siguen
+  siendo autoservicio (Mi Cuenta, D-069), igual que en el original.
+- **Ajustes NO trae el respaldo/restauración de datos del original.** El
+  backup/restore original tocaba `profiles` directo con un `upsert` — en
+  este contenedor esa es la tabla de identidad COMPARTIDA que leen los
+  otros dos módulos. Una restauración mal hecha podría sobrescribir en
+  silencio el rol, la tienda o los datos de chofer de gente que no tiene
+  nada que ver con timetracker. No es un ajuste chico: necesita su propio
+  diseño (acotado a `timetracker.*` solamente) antes de ser seguro.
+  Tampoco trae el selector de tema propio del original — este contenedor
+  ya tiene uno solo, compartido (`data-theme`, D-052), que el CSS de
+  timetracker ya escucha; un segundo selector pelearía con el primero.
+- **Reportes/Pago no trae exportación a Excel/PDF.** Esas usaban una
+  librería aparte (`lib/exportTimesheet.js`) que no se portó. La
+  exportación a CSV (sin dependencias extra) sí se portó y cubre los
+  mismos datos; el recibo imprimible (el diálogo de impresión del propio
+  navegador) tampoco necesita librería y también se portó completo.
+- **Nombres de ruta que evitan colisión, no copian el original 1:1.**
+  El original overload-ea una sola pestaña "Requests"/"Work diary" con
+  contenido distinto según el modo (empleado vs. manager). Con rutas por
+  URL en vez de un switch de modo, hacían falta dos URLs distintas:
+  `/timetracker/requests` (ya existía, D-068, la propia) vs.
+  `/timetracker/team-requests` (la cola de aprobación); mismo patrón para
+  `/timetracker/diary` (D-069) vs. `/timetracker/team-diary`.
+- **`WorkDiary` (portado una sola vez en D-069) se reutiliza tal cual**
+  en Diario de equipo — exactamente la razón por la que se portó como
+  componente compartido desde el principio.
+- **Provider: `liveSessions` y `auditLog` SÍ están en vivo (a diferencia
+  de `sessionsSince`).** Ambos son acotados en la práctica — un puñado de
+  gente trabajando a la vez, o las últimas 300 entradas de auditoría — a
+  diferencia del historial completo de sesiones de toda la empresa, que
+  sigue siendo bajo demanda (ver D-070).
+
+**Consecuencia aceptada:** dos huecos reales, documentados, no ocultos:
+sin respaldo/restauración de datos, sin exportación a Excel/PDF. Ninguno
+bloquea el uso real del módulo — CSV e impresión cubren la necesidad
+inmediata de Reportes/Pago; el respaldo puede diseñarse aparte cuando
+haga falta.
+
+**Verificado:** `tsc`/`vitest` (467)/`next build` limpios — las 9
+pantallas nuevas aparecen como páginas reales en la salida del build
+(`/timetracker/live` 1.36 kB · `/team-requests` 2.17 kB · `/projects`
+2.46 kB · `/assignments` 1.94 kB · `/people` 1.41 kB · `/team-diary` 2.79
+kB · `/audit` 1.27 kB · `/settings` 2.84 kB · `/reports` 6.46 kB).
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

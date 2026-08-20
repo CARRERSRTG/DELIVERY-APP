@@ -101,7 +101,7 @@ export interface TimeRequest {
 }
 
 export interface PayrollLine { projectId?: string; hours?: number; regular?: number; ot?: number; pay?: number; note?: string; [k: string]: unknown }
-export interface PayrollAdjustment { type: string; amount: number; note?: string }
+export interface PayrollAdjustment { label: string; amount: number }
 
 export interface Payroll {
   id: string;

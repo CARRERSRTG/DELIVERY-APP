@@ -1,0 +1,101 @@
+"use client";
+
+import { useData } from "@/lib/timetracker-data-provider";
+import { useT } from "@/lib/timetracker/i18n";
+
+// Ported (D-071) from timetracker-clean's manager/ManagerPeople.jsx — but
+// deliberately SMALLER than the original. Role changes, account creation,
+// and account deletion are NOT here: those are identity/access-lifecycle
+// actions, and D-053/D-057 already established that this container handles
+// those from the hub's Users dialog (/home/users), not from inside a
+// module — recruiting doesn't manage its own users either. Only what's
+// genuinely module-specific stays: worker type, tracking mode, breaks, and
+// the "active" (onboarding) toggle — timetracker.employee_settings fields
+// that have no meaning to deliveries or recruiting. Renaming someone and
+// pay info are self-service only (My Account, D-069); a manager can't edit
+// either from here, matching the original's own boundary (its table never
+// exposed payMethod/payDetails as editable, only as a read column).
+export default function ManagerPeoplePage() {
+  const { me, allEmployees: users, updateEmployeeSettings } = useData();
+  const t = useT();
+
+  const setField = (uid: string, field: "workerType" | "trackMode", val: string) => {
+    updateEmployeeSettings(uid, { [field]: val || null });
+  };
+  const setBreaks = (uid: string, val: string) => {
+    updateEmployeeSettings(uid, { breaksEnabled: val === "" ? null : val === "yes" });
+  };
+  const toggleActive = (u: (typeof users)[number]) => {
+    if (u.id === me.id) { alert(t("mgr.ppl.noSelfDeactivate")); return; }
+    updateEmployeeSettings(u.id, { active: u.active === false });
+  };
+
+  const others = users.filter((u) => u.id !== me.id);
+
+  if (me.role !== "admin") return <div className="card"><p className="muted">Admins only.</p></div>;
+
+  return (
+    <div className="card">
+      <h2>{t("mgr.tab.people")}</h2>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        Names, pay info, module access and account status are managed from the hub&apos;s Users
+        page — this screen is only each employee&apos;s tracking setup.
+      </p>
+      {others.length === 0 && <div className="banner info">{t("mgr.ppl.onlyUser")}</div>}
+      <div style={{ overflowX: "auto" }}>
+        <table>
+          <thead>
+            <tr>
+              <th>{t("mgr.ppl.colName")}</th><th>{t("mgr.ppl.colCity")}</th><th>{t("mgr.ppl.colPayTo")}</th>
+              <th>{t("mgr.ppl.colType")}</th><th>{t("mgr.ppl.colTracking")}</th><th>{t("mgr.ppl.colBreak")}</th><th>{t("mgr.ppl.colStatus")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => {
+              const inactive = u.active === false;
+              return (
+                <tr key={u.id} style={inactive ? { opacity: 0.55 } : undefined}>
+                  <td className="nowrap">{u.fullName}{u.id === me.id && <span className="muted">{t("mgr.ppl.you")}</span>}</td>
+                  <td className="muted">{u.city || "—"}</td>
+                  <td className="small muted">{u.payMethod ? u.payMethod + (u.payDetails ? " · " + u.payDetails : "") : "—"}</td>
+                  <td>
+                    <select value={u.workerType || ""} style={{ width: "auto", minWidth: 120 }} onChange={(e) => setField(u.id, "workerType", e.target.value)}>
+                      <option value="">{t("mgr.ppl.default")}</option>
+                      <option value="remote">{t("track.remote")}</option>
+                      <option value="inhouse">{t("track.inhouse")}</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select value={u.trackMode || ""} style={{ width: "auto", minWidth: 150 }} onChange={(e) => setField(u.id, "trackMode", e.target.value)}>
+                      <option value="">{t("mgr.ppl.default")}</option>
+                      <option value="activity">{t("mgr.ppl.trackActivity")}</option>
+                      <option value="inout">{t("mgr.ppl.trackInout")}</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select value={u.breaksEnabled == null ? "" : (u.breaksEnabled ? "yes" : "no")} style={{ width: "auto", minWidth: 110 }} onChange={(e) => setBreaks(u.id, e.target.value)}>
+                      <option value="">{t("mgr.ppl.default")}</option>
+                      <option value="yes">{t("common.yes")}</option>
+                      <option value="no">{t("common.no")}</option>
+                    </select>
+                  </td>
+                  <td className="nowrap">
+                    {inactive
+                      ? <span className="pill off" title={t("mgr.ppl.pendingHint")}>{t("mgr.ppl.inactive")}</span>
+                      : <span className="pill on">{t("mgr.ppl.active")}</span>}
+                    {u.id !== me.id && (
+                      <button className="btn-ghost btn-sm" style={{ marginLeft: 6 }} onClick={() => toggleActive(u)}>
+                        {inactive ? t("mgr.ppl.activate") : t("mgr.ppl.deactivate")}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="small muted" style={{ marginTop: 10 }}>{t("mgr.ppl.foot")}</p>
+    </div>
+  );
+}

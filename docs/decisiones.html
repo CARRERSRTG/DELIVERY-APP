@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-071", title: "Etapa 2 completa — las 10 pantallas de manager, de una vez",
+      fecha: "2026-08-20", version: "v1.18.0", quien: "Andrés",
+      cambio: "Las 9 pantallas de manager que faltaban en un solo tramo: Trabajando Ahora, Solicitudes de equipo, Proyectos, Asignaciones, Empleados (rediseñada), Diario de equipo, Auditoría, Ajustes (con dos omisiones deliberadas), y Reportes/Pago (la de más riesgo — calcula y registra nómina real). 15 pantallas de timetracker en total: 5 de empleado + 10 de manager. El data provider gana escrituras genéricas (proyectos, asignaciones, sesiones, nómina, solicitudes, auditoría, ajustes de empleado, configuración) más liveSessions y auditLog en vivo.",
+      razon: "\"hazlo todo de una vez\" — enviado a mitad del tramo anterior",
+      razonTextual: true,
+      consecuencia: "/timetracker/people es más chica que el original a propósito: cambio de rol, creación y borrado de cuentas NO están (eso vive en el diálogo de Usuarios del hub desde D-053/D-057); solo quedó lo genuinamente del módulo (tipo de trabajador, modo de seguimiento, descansos, toggle activo). Ajustes no trae respaldo/restauración (el original escribía profiles directo, la tabla de identidad compartida — riesgo real de sobrescribir datos de otro módulo) ni selector de tema propio (ya hay uno compartido). Reportes no exporta Excel/PDF (librería aparte no portada) pero sí CSV y el recibo imprimible. Dos rutas se renombraron para evitar colisión con las ya existentes del lado empleado (team-requests vs requests, team-diary vs diary). WorkDiary (portado en D-069) se reutiliza tal cual. tsc/vitest (467)/next build limpios — las 9 pantallas nuevas aparecen como páginas reales."
+    },
+    {
       id: "D-070", title: "Etapa 2, tramo 5 — arranca el lado manager: Dashboard",
       fecha: "2026-08-20", version: "v1.17.0", quien: "Andrés",
       cambio: "/timetracker/insights, portada de Insights.jsx — KPIs generales, tendencia de 8 semanas, tabla ordenable por empleado, proyectos principales. Primera pantalla con datos de toda la empresa: extiende el data provider con allEmployees/allProjects/allAssignments/allRequests (vivos) y sessionsSince() (bajo demanda). TABS se separa en TABS (empleado) y MANAGER_TABS (admin).",
