@@ -205,21 +205,29 @@ export function UserDialog({ user: u, onClose }: { user: Profile; onClose: () =>
 
           return (
             <div key={m.key} className="card" style={{ marginBottom: 10 }}>
-              {m.alwaysOn ? (
+              {/* Same checkbox+label shape for every module — Deliveries'
+                  is checked and disabled rather than hidden, so the blocks
+                  read as one consistent pattern instead of "some modules
+                  have a checkbox and some don't." It can't actually be
+                  unchecked: profiles.role is NOT NULL, there's no "no
+                  module" state to switch it to (D-057). */}
+              <label
+                className={"perm-opt" + (m.alwaysOn ? " locked" : "")}
+                style={{ marginBottom: granted ? 10 : 0 }}
+                title={m.alwaysOn ? t("Everyone has Deliveries", "Todos tienen Entregas") : undefined}
+              >
+                <input
+                  type="checkbox"
+                  checked={granted}
+                  disabled={m.alwaysOn}
+                  onChange={(e) => setModuleAccess(m.key, e.target.checked)}
+                />
                 <b>{lang === "es" ? m.label_es : m.label_en}</b>
-              ) : (
-                <label className="perm-opt" style={{ marginBottom: granted ? 10 : 0 }}>
-                  <input
-                    type="checkbox"
-                    checked={granted}
-                    onChange={(e) => setModuleAccess(m.key, e.target.checked)}
-                  />
-                  <b>{lang === "es" ? m.label_es : m.label_en}</b>
-                </label>
-              )}
+                {m.alwaysOn && <span className="sema" style={{ background: "var(--gray)", color: "#fff", marginLeft: 6 }}>{t("everyone", "todos")}</span>}
+              </label>
 
               {granted && (
-                <div style={{ marginTop: m.alwaysOn ? 8 : 0 }}>
+                <div style={{ marginTop: 0 }}>
                   <div className="grid g2">
                     <div className="field">
                       <label>{t("Role", "Rol")}</label>

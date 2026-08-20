@@ -2255,6 +2255,16 @@ diálogo.
 
 **Verificado:** `tsc`/`vitest` (465, tres nuevos)/`next build` limpios.
 
+**Nota (2026-08-19, mismo día, v1.13.1) — consistencia visual, cero cambio
+de comportamiento.** Pedido: que el bloque de Deliveries también mostrara
+una casilla, para que los dos bloques se lean como el mismo patrón en vez
+de "algunos módulos tienen casilla y otros no." Ahora la tiene —
+marcada, deshabilitada, con una etiqueta "todos" — pero **sigue sin
+poderse desmarcar**: la razón de `alwaysOn` (línea arriba, `profiles.role`
+`NOT NULL`) no cambió, solo cómo se ve. Verificado con la misma
+reconstrucción estática por Chrome headless que ya viene usando esta
+serie de cambios.
+
 ---
 
 <!-- PLANTILLA — copia esto para una entrada nueva
