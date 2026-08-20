@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-059", title: "La pestaña \"Hoy\" de recruiting era un enlace muerto — quitada",
+      fecha: "2026-08-20", version: "v1.13.3", quien: "Andrés",
+      cambio: "Se quita la pestaña \"Hoy\"/\"Today\" de TABS en recruiting/constants.ts (apuntaba a /recruiting/today, una página que nunca existió) y su entrada en TAB_ES del TopBar de recruiting.",
+      razon: "\"view de hoy en cruiter me da erorr 404\"",
+      razonTextual: true,
+      consecuencia: "No era un bug nuevo: el comentario sobre el array ya decía desde el mid-port de D-052 que solo \"candidates\" resolvía a una página real y el resto 404eaba hasta portarse — pero cuando el resto se portó (D-052, Etapa 2 completa), \"Hoy\" se quedó deliberadamente afuera (ARCHITECTURE.md §11: candidatos tomó la raíz del módulo en su lugar). La pestaña nunca se borró de TABS cuando esa decisión se tomó. Se borró en vez de construirse porque no portarla no fue un pendiente, fue la decisión ya tomada — construirla habría sido revertirla sin que nadie lo pidiera. tsc/vitest (465)/next build limpios."
+    },
+    {
       id: "D-058", title: "\"Mi ruta\" deja de ser un tab automático de admin",
       fecha: "2026-08-20", version: "v1.13.2", quien: "Andrés",
       cambio: "La pestaña \"Mi ruta\" pierde \"admin\" de su lista roles en TABS (constants.ts). Queda roles: [\"driver\"], cap: \"deliver\" — solo un chofer la ve por default; cualquier otra persona, incluido un admin, la ve solo si tiene \"deliver\" otorgado como permiso extra individual, no por ser admin.",

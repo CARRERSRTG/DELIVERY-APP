@@ -2306,6 +2306,40 @@ se la devuelve.
 
 ---
 
+## D-059 · La pestaña "Hoy" de recruiting era un enlace muerto — quitada
+**Fecha:** 2026-08-20 · **Versión:** v1.13.3 · **Pedido por:** Andrés
+
+**Cambio:** se quita la pestaña "🏠 Hoy"/"Today" de `TABS` en
+`src/lib/recruiting/constants.ts` (apuntaba a `/recruiting/today`) y su
+entrada correspondiente en `TAB_ES` (`TopBar.tsx` de recruiting).
+
+**Razón (textual):** *"view de hoy en cruiter me da erorr 404"*.
+
+**Por qué era un 404 y no un bug nuevo.** La página nunca existió. El
+comentario que quedaba arriba del array lo decía explícito desde el
+mid-port de D-052: *"Only 'candidates' ... resolves to a real page today;
+the rest 404 until they're ported in a later turn"* — pero cuando el
+resto de las pantallas se portaron en el commit siguiente (D-052, Etapa 2
+completa), "Hoy" se quedó deliberadamente afuera: `ARCHITECTURE.md` §11 ya
+documenta que *"recruiting's original '/' was a 'Today' dashboard that was
+never ported — the candidates list took the module's root instead"*. La
+pestaña sencillamente nunca se borró de `TABS` cuando esa decisión se
+tomó — quedó apuntando a una página que ya no iba a construirse nunca,
+esperando a que alguien le diera clic para descubrirlo.
+
+**Por qué se borró en vez de construirse.** No portar "Hoy" no fue un
+pendiente, fue la decisión — candidatos ya ocupa la raíz del módulo
+(`/recruiting`) con ese mismo propósito de "qué tengo enfrente hoy".
+Construir la página habría sido revertir una decisión ya tomada y
+documentada sin que nadie lo pidiera.
+
+**Consecuencia aceptada:** ninguna — nadie perdía nada real al no poder
+entrar a una página que no existe; ahora tampoco pueden intentarlo.
+
+**Verificado:** `tsc`/`vitest` (465)/`next build` limpios.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
