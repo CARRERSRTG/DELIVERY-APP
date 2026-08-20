@@ -13,9 +13,15 @@ import "../recruiting.css";
 // Deliveries | Order & Dispatch" — correct for (app), never overridden for
 // recruiting, so every /recruiting/* tab said "RDZ Deliveries" too. Next
 // only inherits a parent's metadata when a layout doesn't set its own; this
-// is that override, same "Brand | tagline" shape as the root's.
+// is that override.
+//
+// Deliberately NOT settings.app_name (today "RTG RECRUITER" in the DB,
+// shown in the in-page <h1> via TopBar.tsx) — the browser tab title and the
+// on-page brand name are two different things here, on purpose. Reading
+// settings.app_name for the tab too would need an async generateMetadata()
+// querying the DB on every request; not worth it for a static string.
 export const metadata: Metadata = {
-  title: "RECRUIT·HN | Candidates & Interviews",
+  title: "RDZ Recruitment",
 };
 
 // The recruiting module's own shell — a sibling of (app), not nested under

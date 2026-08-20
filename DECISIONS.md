@@ -2366,6 +2366,19 @@ tocar RLS, datos, ni ninguna otra pantalla. `description`/`manifest`/
 
 **Verificado:** `tsc`/`vitest` (465)/`next build` limpios.
 
+**Nota (2026-08-20, mismo día, v1.13.5) — el texto pedido, no el mío.**
+*"quiero que te diga RDZ Recruitment"* — el título cambió a exactamente
+eso, `"RDZ Recruitment"`, sin el `"| Candidates & Interviews"` que yo le
+había puesto. Al investigar apareció algo que vale anotar: el `<h1>`
+dentro de la página **ya no dice** "RECRUIT·HN" — el dueño ya lo había
+personalizado a *"RTG RECRUITER"* en Ajustes (`recruiting.settings.
+app_name`), desde antes de este hilo. La pestaña del navegador y el
+nombre en pantalla son dos cosas independientes a propósito (leer
+`app_name` para el título habría exigido un `generateMetadata()`
+asíncrono consultando la base en cada request, por un texto estático) —
+así que hoy dicen dos cosas distintas: "RDZ Recruitment" en la pestaña,
+"RTG RECRUITER" en pantalla. Ninguna de las dos se tocó por la otra.
+
 ---
 
 <!-- PLANTILLA — copia esto para una entrada nueva
