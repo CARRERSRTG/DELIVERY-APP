@@ -6,6 +6,7 @@ import { DataProvider } from "@/lib/recruiting-data-provider";
 import { UIProvider } from "@/components/recruiting/ModalHost";
 import { TopBar } from "@/components/recruiting/TopBar";
 import { VersionFooter } from "@/components/recruiting/VersionFooter";
+import { AppUpdateBanner } from "@/components/AppUpdateBanner";
 import type { Profile as RecruitingProfile } from "@/lib/recruiting/types";
 import "../recruiting.css";
 
@@ -62,6 +63,10 @@ export default async function RecruitingLayout({ children }: { children: React.R
 
   return (
     <div className="recruiting-module">
+      {/* Deliberately outside DataProvider — the same reason deliveries' own
+          TopBar.tsx mounts it unconditionally: a stale-JS check has nothing
+          to do with recruiting's data at all (D-063). */}
+      <AppUpdateBanner />
       <DataProvider me={me}>
         <UIProvider>
           <TopBar me={me} deliveriesRole={profile.role} moduleAccess={profile.module_access} />

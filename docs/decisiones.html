@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-063", title: "La barra de \"nueva versión\" solo salía en deliveries",
+      fecha: "2026-08-20", version: "v1.14.2", quien: "Andrés",
+      cambio: "<AppUpdateBanner /> se monta también en home/layout.tsx (el hub) y en recruiting/(recruiting)/layout.tsx, antes que nada más en cada uno — mismo lugar donde ya vivía en TopBar.tsx de deliveries.",
+      razon: "\"la barra de update con una nueva version no esta saliendo en toda la view solo en deliveries, no sale ni en hub ni en recruiting\"",
+      razonTextual: true,
+      consecuencia: "AppUpdateBanner nunca vivió en un layout raíz compartido — estaba escrito dentro del TopBar de deliveries, no en ningún punto común a los tres shells de la app ((app)/layout.tsx, home/layout.tsx, recruiting/(recruiting)/layout.tsx son independientes entre sí desde D-052/D-056). Cualquier página fuera de (app) nunca montaba el componente. No hizo falta tocar el componente: ya era genérico, sin depender del DataProvider de deliveries, solo de usePrefs() (global) y /api/version, que siempre respondió con el APP_VERSION compartido de @/lib/constants — un solo número para todo el contenedor porque es un solo deploy. tsc/vitest (465)/next build limpios."
+    },
+    {
       id: "D-062", title: "Se quita la pestaña \"Users\" de recruiting",
       fecha: "2026-08-20", version: "v1.14.1", quien: "Andrés",
       cambio: "Se quita la entrada { id: \"users\", href: \"/recruiting/users\" } de TABS en recruiting/constants.ts y su entrada en TAB_ES del TopBar de recruiting. La ruta /recruiting/users/page.tsx (un redirect(\"/home/users\") desde D-056) se queda tal cual, por si alguien todavía tiene esa URL guardada.",

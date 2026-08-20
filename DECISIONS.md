@@ -2470,6 +2470,42 @@ bookmarks viejos.
 
 ---
 
+## D-063 · La barra de "nueva versión" solo salía en deliveries
+**Fecha:** 2026-08-20 · **Versión:** v1.14.2 · **Pedido por:** Andrés
+
+**Cambio:** `<AppUpdateBanner />` se monta también en `home/layout.tsx` (el
+hub) y en `recruiting/(recruiting)/layout.tsx`, antes que nada más en cada
+uno — mismo lugar donde ya vivía en `TopBar.tsx` de deliveries.
+
+**Razón (textual):** *"la barra de update con una nueva version no esta
+saliendo en toda la view solo en deliveries, no sale ni en hub ni en
+recruiting"*.
+
+**Por qué pasaba.** `AppUpdateBanner` nunca vivió en un layout raíz
+compartido — estaba escrito directamente dentro de `src/components/
+TopBar.tsx`, el `TopBar` de **deliveries**, no en ningún punto común a los
+tres shells de la app (`(app)/layout.tsx`, `home/layout.tsx`,
+`recruiting/(recruiting)/layout.tsx` son independientes entre sí desde
+D-052/D-056 — ninguno hereda del otro). Cualquier página fuera de
+`(app)` simplemente nunca montaba el componente, así que ni el hub ni
+recruiting sabían nunca que había un deploy nuevo.
+
+**Por qué no hacía falta tocar el componente en sí.** `AppUpdateBanner`
+ya era completamente genérico — no depende del `DataProvider` de
+deliveries, solo de `usePrefs()` (global) y de `/api/version`, que
+siempre respondió con el `APP_VERSION` compartido de `@/lib/constants`
+(un solo número para todo el contenedor, porque es un solo deploy). Bastó
+con montarlo también en los otros dos layouts — no hay una versión "de
+recruiting" separada que rastrear.
+
+**Consecuencia aceptada:** ninguna — el hub y recruiting ahora comparten
+la misma auto-recarga y el mismo comportamiento de "no molestar" que ya
+tenía deliveries (nunca recarga con un modal abierto o un campo con foco).
+
+**Verificado:** `tsc`/`vitest` (465)/`next build` limpios.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
