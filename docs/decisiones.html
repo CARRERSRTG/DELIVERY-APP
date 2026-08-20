@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-057", title: "Diálogo de usuario rediseñado — un bloque por módulo",
+      fecha: "2026-08-19", version: "v1.13.0", quien: "Andrés",
+      cambio: "UserDialog.tsx deja de tener tres secciones separadas y asimétricas (Rol y alcance / Permisos extra de deliveries, Acceso a otros módulos de recruiting). Ahora es un loop sobre MODULE_ACCESS (constants.ts, nuevo): un bloque por módulo, con su propio selector de rol y, si el descriptor lo trae, su propio catálogo de permisos finos. El descriptor apunta a lo que ya existe (ROLE_ORDER/roleLabel(), RECRUITING_ROLE_LABELS, CAPABILITIES/ROLE_CAPS) en vez de copiarlo — capabilities es opcional, presente en deliveries, ausente en recruiting.",
+      razon: "Genérico para N módulos, mismo espíritu que MODULES/HUB_TOOLS. Un módulo futuro con permisos finos los trae en su descriptor; uno sin ellos los omite, sin tocar UserDialog.tsx.",
+      razonTextual: false,
+      consecuencia: "Deliveries queda alwaysOn (sin casilla, no desmarcable): profiles.role es NOT NULL, no hay estado \"ningún módulo\" en el esquema — no es preferencia de diseño. Defensa en dos capas contra la clase de bug de D-052/D-053: el switch de despacho (setModuleRole/setModuleAccess) es exhaustivo sobre un tipo unión CERRADO (ModuleAccessKey), deliberadamente menos genérico que MODULES/HUB_TOOLS — un módulo sin su caso falla tsc, no escribe en la columna equivocada en producción. Más un test que se rompe sola si dos módulos comparten roleColumn. Las tres funciones de data-provider.tsx no se tocaron ni se fusionaron. Verificado por columna contra producción real (rollback, sobre el perfil de Gloria Santoscoy): el bloque de Deliveries cambia SOLO role, el de Recruiting SOLO recruiting_role/module_access; un no-admin sigue rechazado en ambos. tsc/vitest (465)/next build limpios."
+    },
+    {
       id: "D-056", title: "Usuarios se muda al hub — primera herramienta compartida",
       fecha: "2026-08-19", version: "v1.12.0", quien: "Andrés",
       cambio: "La pantalla de Usuarios deja de vivir dentro de deliveries y pasa a /home/users, colgada del hub en vez de un módulo específico. (app)/users y recruiting/(recruiting)/users quedan como redirects de una línea. Mismo UserDialog.tsx, mismas funciones de data-provider.tsx — cambia el domicilio, no el comportamiento. HUB_TOOLS (constants.ts) es el patrón genérico: hermano de MODULES, pero por rol (visible(me)) en vez de por otorgamiento — una segunda herramienta compartida el día de mañana es una entrada nueva ahí.",
