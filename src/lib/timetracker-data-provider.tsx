@@ -70,6 +70,24 @@ interface DataState {
   updateMyAccount: (patch: { fullName: string; city: string; payMethod: string; payDetails: string }) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
   signOutEverywhere: () => Promise<void>;
+
+  // ---- manager-only (D-070) ----
+  // Empty arrays for a non-admin — never fetched for them, RLS would return
+  // nothing anyway (is_timetracker_admin() gates every one of these), so
+  // there's no wasted round trip. Reference data (who exists, what projects/
+  // assignments/requests exist) via reloadAll()+realtime, same as everything
+  // above. Sessions are NOT here: company-wide time entries are a genuinely
+  // unbounded, ever-growing dataset — bulk-loading and realtime-subscribing
+  // to ALL of them (the way `mySessions` safely does for ONE employee) would
+  // not scale. Manager screens that need a time window call `sessionsSince`
+  // on demand instead.
+  allEmployees: Employee[];
+  allProjects: Project[];
+  allAssignments: Assignment[];
+  allRequests: TimeRequest[];
+  /** On-demand, not part of reloadAll()/realtime — see the block comment
+   * above. Every session (any employee) with date >= startISO. */
+  sessionsSince: (startISO: string) => Promise<Session[]>;
 }
 
 const Ctx = createContext<DataState | null>(null);
@@ -99,6 +117,11 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [requests, setRequests] = useState<TimeRequest[]>([]);
   const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
+  const [allRequests, setAllRequests] = useState<TimeRequest[]>([]);
+  const isAdmin = me.role === "admin";
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -151,6 +174,49 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     setReady(true);
   }, [supabase, me.id]);
 
+  // Manager-only reference data (D-070) — gated to isAdmin so a non-admin
+  // never even issues these queries (RLS would empty them anyway, but no
+  // sense paying for round trips nobody can use).
+  const reloadAdmin = useCallback(async () => {
+    if (!isAdmin) return;
+    const [pf, es, pr, asn, rq] = await Promise.all([
+      supabase.schema("public").from("profiles")
+        .select("id, full_name, timetracker_role")
+        .not("timetracker_role", "is", null)
+        .order("full_name"),
+      supabase.from("employee_settings").select("*"),
+      supabase.from("projects").select("*").order("created_at"),
+      supabase.from("assignments").select("*"),
+      supabase.from("requests").select("*").order("created_at", { ascending: false }),
+    ]);
+    const esById = new Map(
+      ((es.data as Record<string, unknown>[] | null) ?? []).map((r) => [r.id as string, rowToCamel<Omit<Employee, "id" | "fullName" | "role" | "email">>(r)!]),
+    );
+    const employees = ((pf.data as { id: string; full_name: string | null; timetracker_role: string }[] | null) ?? []).map((p) => {
+      const s = esById.get(p.id);
+      const emp: Employee = {
+        id: p.id, fullName: p.full_name ?? "—", email: null, role: p.timetracker_role as Employee["role"],
+        city: s?.city ?? null, payMethod: s?.payMethod ?? null, payDetails: s?.payDetails ?? null,
+        workerType: s?.workerType ?? null, trackMode: s?.trackMode ?? null, breaksEnabled: s?.breaksEnabled ?? null,
+        active: s?.active ?? false, deletedAt: s?.deletedAt ?? null,
+      };
+      return emp;
+    });
+    // Live employees only — soft-deleted (deleted_at set) are filtered out
+    // everywhere the app lists people, same as the original's subscribeAll().
+    setAllEmployees(employees.filter((e) => !e.deletedAt));
+    const projectRows = ((pr.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Project>(r)!);
+    setAllProjects(projectRows);
+    const byId = new Map(projectRows.map((p) => [p.id, p]));
+    setAllAssignments(
+      ((asn.data as Record<string, unknown>[] | null) ?? [])
+        .map((r) => rowToCamel<Omit<Assignment, "project">>(r)!)
+        .map((a) => ({ ...a, project: byId.get(a.projectId) }))
+        .filter((a): a is Assignment => !!a.project),
+    );
+    setAllRequests(((rq.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<TimeRequest>(r)!));
+  }, [supabase, isAdmin]);
+
   useEffect(() => {
     reloadAll();
     // Narrow, filtered realtime — NOT a blunt "reload on any change to this
@@ -172,6 +238,32 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       supabase.removeChannel(channel);
     };
   }, [supabase, me.id, reloadAll]);
+
+  // Manager-only reference data — its own effect/channel so a non-admin
+  // never opens it at all (isAdmin is stable per session; role changes
+  // require a re-login, same as every other role check in this app).
+  useEffect(() => {
+    if (!isAdmin) return;
+    reloadAdmin();
+    const channel = supabase
+      .channel(`timetracker-admin:${me.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, reloadAdmin)
+      .on("postgres_changes", { event: "*", schema: "timetracker", table: "employee_settings" }, reloadAdmin)
+      .on("postgres_changes", { event: "*", schema: "timetracker", table: "projects" }, reloadAdmin)
+      .on("postgres_changes", { event: "*", schema: "timetracker", table: "assignments" }, reloadAdmin)
+      .on("postgres_changes", { event: "*", schema: "timetracker", table: "requests" }, reloadAdmin)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, me.id, isAdmin, reloadAdmin]);
+
+  const sessionsSince = useCallback<DataState["sessionsSince"]>(async (startISO) => {
+    if (!isAdmin) return [];
+    const { data, error } = await supabase.from("sessions").select("*").gte("date", startISO);
+    if (error) throw error;
+    return ((data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Session>(r)!);
+  }, [supabase, isAdmin]);
 
   // My own screenshots — desktop-captured, so this stays empty for anyone
   // tracking only from the web (there's no browser screenshot capture; see
@@ -276,6 +368,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     listLiveSessions, startSession, updateSession,
     myScreenshots: screenshots, latestScreenshot: screenshots[0] ?? null, screenshotSignedUrl, deleteScreenshot,
     updateMyAccount, updatePassword, signOutEverywhere,
+    allEmployees, allProjects, allAssignments, allRequests, sessionsSince,
   };
 
   return (

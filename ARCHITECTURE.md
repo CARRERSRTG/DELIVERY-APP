@@ -615,3 +615,18 @@ client and a Windows Electron desktop client.
   by the client's `.eq('id', me.id)` filter, not the database. Pre-existing, consistent with how
   `UserDialog.tsx` already relies on the same trust model; out of scope for this change.
   All 5 employee-side screens now exist; the manager side (10 screens) is what's left.
+- **Manager side starts (D-070): `/timetracker/insights`, the dashboard.** First screen needing
+  company-wide data, not just "mine." `timetracker-data-provider.tsx` gained a manager-only
+  section — `allEmployees`/`allProjects`/`allAssignments`/`allRequests` (reference data, kept live
+  via `reloadAll()`/realtime, same shape as the employee-scoped fields) — but deliberately NOT
+  company-wide `sessions` the same way. Time entries are an unbounded, ever-growing dataset;
+  bulk-loading and realtime-subscribing to ALL of them (safe for `mySessions`, scoped to one
+  person) wouldn't scale. Manager screens call `sessionsSince(startISO)` on demand instead — a
+  plain query, not part of the live state. `TABS` split into `TABS` (employee) and `MANAGER_TABS`
+  (admin, dashboard first, employee's own tabs after — an admin can still track their own time,
+  same ground the original's "View as employee" toggle covered, just as separate routes instead of
+  a mode switch). A genuine Rules-of-Hooks bug was caught before it shipped: the first cut put the
+  `role !== "admin"` early-return BEFORE the page's own hooks, which is invalid — React requires
+  hooks called unconditionally, same order every render. Fixed by moving the gate to just before
+  the JSX return; the hooks run either way (harmless for a non-admin, since `sessionsSince` already
+  no-ops server-side).

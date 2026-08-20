@@ -2804,6 +2804,48 @@ como páginas reales.
 
 ---
 
+## D-070 · Etapa 2, tramo 5 — arranca el lado manager: Dashboard
+**Fecha:** 2026-08-20 · **Versión:** v1.17.0 · **Pedido por:** Andrés
+
+**Cambio:** `/timetracker/insights`, portada de `manager/Insights.jsx` —
+KPIs generales, tendencia de 8 semanas, tabla ordenable por empleado, y
+proyectos principales de la semana. Primera pantalla que necesita datos de
+TODA la empresa, no solo los propios — extiende `timetracker-data-
+provider.tsx` con una sección "solo manager": `allEmployees`,
+`allProjects`, `allAssignments`, `allRequests` (vivos, con `reloadAll()` +
+realtime, igual que el resto) y `sessionsSince(startISO)` (bajo demanda,
+no en vivo). `TABS` se separa en `TABS` (empleado) y `MANAGER_TABS`
+(admin) — un admin ve Dashboard primero y también sus propias pestañas
+personales (puede trackear su propio tiempo, como el toggle "Ver como
+empleado" del original, pero como rutas separadas en vez de un modo).
+
+**Razón (textual):** *"seguimos con el manager"* (confirmando avanzar tras
+completar el lado empleado).
+
+**Por qué las sesiones NO viven en el provider como el resto.** Sessions
+de toda la empresa es un dataset que crece sin límite — cargarlo entero en
+memoria y suscribirlo en vivo (como sí es seguro hacer con `mySessions`,
+acotado a un empleado) no escala. `sessionsSince()` es una consulta bajo
+demanda que cada pantalla de manager pide con su propia ventana de fechas,
+no algo que el provider mantiene siempre cargado.
+
+**Bug de reglas de hooks, atrapado antes de compilar.** El primer intento
+tenía `if (me.role !== "admin") return ...` ANTES de los `useState`/
+`useEffect`/`useMemo` de la pantalla — viola las Reglas de los Hooks (deben
+llamarse siempre, en el mismo orden). Corregido moviendo el chequeo de rol
+al final, justo antes del JSX que se retorna; los hooks corren
+incondicionalmente (no hacen daño para un no-admin, porque `sessionsSince`
+ya no-opea del lado del provider).
+
+**Consecuencia aceptada:** ninguna nueva — la guarda "Admins only" es solo
+de UX; el límite real de seguridad (`is_timetracker_admin()`) ya está en
+RLS, no en esta pantalla.
+
+**Verificado:** `tsc`/`vitest` (467)/`next build` limpios —
+`/timetracker/insights` aparece como página real (3.33 kB).
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

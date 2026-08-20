@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-070", title: "Etapa 2, tramo 5 — arranca el lado manager: Dashboard",
+      fecha: "2026-08-20", version: "v1.17.0", quien: "Andrés",
+      cambio: "/timetracker/insights, portada de Insights.jsx — KPIs generales, tendencia de 8 semanas, tabla ordenable por empleado, proyectos principales. Primera pantalla con datos de toda la empresa: extiende el data provider con allEmployees/allProjects/allAssignments/allRequests (vivos) y sessionsSince() (bajo demanda). TABS se separa en TABS (empleado) y MANAGER_TABS (admin).",
+      razon: "\"seguimos con el manager\"",
+      razonTextual: true,
+      consecuencia: "Las sesiones de toda la empresa NO viven en el provider como el resto — es un dataset sin límite de crecimiento, cargarlo entero y suscribirlo en vivo no escala; sessionsSince() es bajo demanda por pantalla. Se atrapó un bug real de reglas de hooks antes de compilar: el chequeo \"solo admin\" estaba antes de los hooks de la pantalla, inválido en React — corregido moviéndolo justo antes del JSX de retorno. Ninguna consecuencia nueva de seguridad — la guarda es solo UX, el límite real ya está en RLS. tsc/vitest (467)/next build limpios — /timetracker/insights aparece como página real (3.33 kB)."
+    },
+    {
       id: "D-069", title: "Etapa 2, tramo 4 — Diario de trabajo y Mi cuenta (lado empleado completo)",
       fecha: "2026-08-20", version: "v1.16.3", quien: "Andrés",
       cambio: "/timetracker/diary (EmployeeScreenshots.jsx + WorkDiary.jsx compartido) y /timetracker/account (MyAccount.jsx). Completan las 5 pantallas del lado empleado. WorkDiary se portó como componente compartido (components/timetracker/WorkDiary.tsx) para que la pantalla de manager pendiente lo reutilice igual que el original.",

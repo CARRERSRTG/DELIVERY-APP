@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { TABS } from "@/lib/timetracker/constants";
+import { MANAGER_TABS, TABS } from "@/lib/timetracker/constants";
 import { useData } from "@/lib/timetracker-data-provider";
 import { getLang, setLang, useT } from "@/lib/timetracker/i18n";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
@@ -21,13 +21,14 @@ export function TopBar({ deliveriesRole, moduleAccess }: { deliveriesRole: UserR
   // useT()'s own subscription already re-renders this component on any
   // setLang() call; this local state just remembers which icon to show.
   const [lang, setLangState] = useState(getLang());
+  const tabs = me.role === "admin" ? MANAGER_TABS : TABS;
 
   return (
     <div className="topbar">
       <div className="brand">{settings.appName || "TimeTracker"}</div>
       <div className="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
         <div className="tabs">
-          {TABS.map((tb) => {
+          {tabs.map((tb) => {
             const active = tb.href === "/timetracker" ? pathname === "/timetracker" : pathname.startsWith(tb.href);
             return (
               <Link key={tb.id} href={tb.href} className={active ? "active" : ""}>
