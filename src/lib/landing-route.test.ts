@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { accessibleModules, landingRoute } from "@/lib/constants";
+import { accessibleModules, HUB_TOOLS, landingRoute } from "@/lib/constants";
 
 describe("landingRoute", () => {
   it("sends a driver to /driver, even with recruiting access", () => {
@@ -42,5 +42,16 @@ describe("accessibleModules", () => {
     // A stale or typo'd value shouldn't crash the switcher into showing a
     // card for a module that doesn't exist.
     expect(accessibleModules(["not-a-real-module"]).map((m) => m.key)).toEqual(["deliveries"]);
+  });
+});
+
+// D-056: Users is the first hub tool — granted by ROLE, not module_access.
+describe("HUB_TOOLS", () => {
+  it("users is visible only to a deliveries admin", () => {
+    const users = HUB_TOOLS.find((t) => t.key === "users")!;
+    expect(users.visible({ role: "admin" })).toBe(true);
+    for (const role of ["manager", "sales", "warehouse", "driver", "logistics", "accounting"] as const) {
+      expect(users.visible({ role })).toBe(false);
+    }
   });
 });

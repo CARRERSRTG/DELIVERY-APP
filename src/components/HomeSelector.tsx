@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { usePrefs } from "@/lib/prefs";
 import { VersionFooter } from "@/components/VersionFooter";
-import { accessibleModules, roleHome } from "@/lib/constants";
+import { accessibleModules, HUB_TOOLS, roleHome } from "@/lib/constants";
 import type { Profile } from "@/lib/types";
 
-/** Only reached by someone with 2+ modules — see src/app/home/page.tsx. */
+/** Reached by someone with 2+ modules, OR with a hub tool visible to them
+ * (D-056) — see src/app/home/page.tsx for the exact gate. */
 export function HomeSelector({ me }: { me: Profile }) {
   const { lang, t } = usePrefs();
   const available = accessibleModules(me.module_access);
+  const tools = HUB_TOOLS.filter((tool) => tool.visible(me));
   // The deliveries card's own href is a placeholder ("/") — it's the same
   // ModuleInfo entry used by the app switcher and everywhere else, but where
   // deliveries actually lands depends on the person's role (warehouse -> its
@@ -35,6 +37,22 @@ export function HomeSelector({ me }: { me: Profile }) {
             </Link>
           ))}
         </div>
+
+        {/* A tool isn't a module — it doesn't get the same big launch tile. */}
+        {tools.length > 0 && (
+          <>
+            <div className="hub-tools-label">{t("Tools", "Herramientas")}</div>
+            {tools.map((tool) => (
+              <Link key={tool.key} href={tool.href} className="hub-tool-row">
+                <span className="hub-tool-emoji">{tool.emoji}</span>
+                <span>
+                  <span className="hub-tool-label">{lang === "es" ? tool.label_es : tool.label_en}</span>
+                  <span className="hub-tool-desc" style={{ display: "block" }}>{lang === "es" ? tool.desc_es : tool.desc_en}</span>
+                </span>
+              </Link>
+            ))}
+          </>
+        )}
       </div>
       <VersionFooter fixed />
     </div>

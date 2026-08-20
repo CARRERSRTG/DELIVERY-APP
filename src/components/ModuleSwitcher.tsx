@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePrefs } from "@/lib/prefs";
-import { accessibleModules, roleHome } from "@/lib/constants";
+import { accessibleModules, HUB_TOOLS, roleHome } from "@/lib/constants";
 import type { UserRole } from "@/lib/types";
 
 // ============================================================
@@ -11,6 +11,14 @@ import type { UserRole } from "@/lib/types";
 // jump straight to the other module, or step back to /home to pick from
 // there. Same gate for both — neither exists for a 1-module user, and the
 // driver exception is absolute regardless of module_access.
+//
+// D-056 split that single gate into two, because it stopped being one
+// question: "is there another module to jump to" (⇄) and "is there a
+// reason to visit the hub" (⌂) now have different answers for a
+// deliveries-only admin — nothing to switch to, but Users (a hub tool, not
+// a module) still lives there. HUB_TOOLS is the same registry /home/page.tsx
+// and HomeSelector read, so a tool visible to a wider audience someday
+// widens who sees ⌂ automatically, with nothing here to touch.
 //
 // Pure presentation — no hook from either DataProvider (deliveries' or
 // recruiting's). Both TopBars mount this the same way, passing plain props
@@ -23,7 +31,8 @@ import type { UserRole } from "@/lib/types";
 // own TopBar, `me.role` means recruiting_role (admin|manager|recruiter) — the
 // same name collision that caused two of D-052's three bugs. This component
 // only ever needs the DELIVERIES role, because that's the only thing that
-// decides the driver exception and where "back to Deliveries" lands.
+// decides the driver exception, which tools are visible, and where "back to
+// Deliveries" lands.
 // ============================================================
 
 interface ModuleSwitcherProps {
@@ -55,19 +64,22 @@ export function ModuleSwitcher({ current, deliveriesRole, moduleAccess }: Module
   }, [open]);
 
   const modules = accessibleModules(moduleAccess);
-  // Same hard exception as landingRoute() (D-051) — a driver never sees this,
-  // independent of whatever module_access happens to hold. Below 2 modules
-  // there's nothing to switch to, so nothing renders at all (not hidden).
-  if (deliveriesRole === "driver" || modules.length < 2) return null;
+  const canSwitch = modules.length > 1; // something besides deliveries to jump to
+  const canReachHub = canSwitch || HUB_TOOLS.some((tool) => tool.visible({ role: deliveriesRole }));
+  // Same hard exception as landingRoute() (D-051) — a driver never sees
+  // either control, independent of whatever module_access or hub tools
+  // would otherwise apply. Nothing to show at all -> nothing renders (not
+  // hidden).
+  if (deliveriesRole === "driver" || !canReachHub) return null;
 
   const others = modules.filter((m) => m.key !== current);
   const hrefFor = (key: string, fallback: string) => (key === "deliveries" ? roleHome(deliveriesRole) : fallback);
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
-      {/* Back to the hub — only makes sense here: for a 1-module person
-          /home just redirects them right back out via landingRoute(), so
-          the button never renders for them in the first place. */}
+      {/* Back to the hub. Visible whenever canReachHub is (the early return
+          above already guarantees that), even for a 1-module admin who has
+          nothing to switch to but does have Users waiting at /home. */}
       <Link
         href="/home"
         className="tab"
@@ -77,46 +89,48 @@ export function ModuleSwitcher({ current, deliveriesRole, moduleAccess }: Module
         ⌂
       </Link>
 
-      <div style={{ position: "relative" }}>
-        <button
-          className="tab"
-          onClick={() => setOpen((v) => !v)}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-label={t("Switch module", "Cambiar de módulo")}
-          title={t("Switch module", "Cambiar de módulo")}
-        >
-          ⇄
-        </button>
-        {open && (
-          <>
-            <div style={{ position: "fixed", inset: 0, zIndex: 70 }} onClick={() => setOpen(false)} />
-            <div
-              ref={menuRef}
-              className="col-menu"
-              style={{
-                zIndex: 71,
-                minWidth: 200,
-                ...(flip ? { left: 0, right: "auto" } : { right: 0, left: "auto" }),
-              }}
-              role="menu"
-            >
-              {others.map((m) => (
-                <Link
-                  key={m.key}
-                  href={hrefFor(m.key, m.href)}
-                  role="menuitem"
-                  className="col-opt"
-                  style={{ textDecoration: "none" }}
-                  onClick={() => setOpen(false)}
-                >
-                  {m.emoji} {lang === "es" ? m.label_es : m.label_en}
-                </Link>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+      {canSwitch && (
+        <div style={{ position: "relative" }}>
+          <button
+            className="tab"
+            onClick={() => setOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-label={t("Switch module", "Cambiar de módulo")}
+            title={t("Switch module", "Cambiar de módulo")}
+          >
+            ⇄
+          </button>
+          {open && (
+            <>
+              <div style={{ position: "fixed", inset: 0, zIndex: 70 }} onClick={() => setOpen(false)} />
+              <div
+                ref={menuRef}
+                className="col-menu"
+                style={{
+                  zIndex: 71,
+                  minWidth: 200,
+                  ...(flip ? { left: 0, right: "auto" } : { right: 0, left: "auto" }),
+                }}
+                role="menu"
+              >
+                {others.map((m) => (
+                  <Link
+                    key={m.key}
+                    href={hrefFor(m.key, m.href)}
+                    role="menuitem"
+                    className="col-opt"
+                    style={{ textDecoration: "none" }}
+                    onClick={() => setOpen(false)}
+                  >
+                    {m.emoji} {lang === "es" ? m.label_es : m.label_en}
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

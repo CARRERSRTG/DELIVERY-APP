@@ -2063,6 +2063,115 @@ método exacto. `tsc`/`vitest` (461)/`next build` limpios.
 
 ---
 
+## D-056 · Usuarios se muda al hub — primera herramienta compartida
+**Fecha:** 2026-08-19 · **Versión:** v1.12.0 · **Pedido por:** Andrés
+
+**Cambio:** la pantalla de Usuarios deja de vivir dentro de deliveries y pasa
+a `/home/users`, colgada del hub (`/home`, D-051) en vez de dentro de un
+módulo específico. `(app)/users/page.tsx` y
+`recruiting/(recruiting)/users/page.tsx` quedan como redirects de una línea
+hacia el nuevo domicilio — ningún enlace viejo muere. Mismo `UserDialog.tsx`,
+mismas funciones de `data-provider.tsx` (incluida
+`updateUserRecruitingAccess` de D-053): cambia el domicilio, no el
+comportamiento.
+
+**Razón:** Usuarios nunca fue realmente "de deliveries" — desde D-053 ya
+gestiona el acceso a Recruiting también. Tenerla adentro de un módulo
+específico era el vestigio de cuando de verdad lo era. El hub es el nivel
+neutral correcto para algo que ninguno de los dos módulos es dueño.
+
+**El patrón genérico — `HUB_TOOLS`, hermano de `MODULES` pero por rol, no
+por otorgamiento.** Un módulo se concede (`module_access`, D-050); una
+herramienta del hub viene con el rol — nadie "otorga" Usuarios, se tiene por
+ser admin de deliveries. Por eso `HubTool` lleva un predicado
+`visible(me)` en vez de una lista de membresía. `HomeSelector` (qué
+tarjetas dibujar) y `ModuleSwitcher` (si el botón `⌂` tiene a dónde ir)
+leen de la misma lista — una segunda herramienta compartida el día de
+mañana es una entrada nueva en `HUB_TOOLS`, cero cambios en esos dos
+archivos.
+
+**La separación aterrizaje/permanencia — el punto más delicado del
+cambio.** `landingRoute()` **no se tocó**: un admin de un solo módulo sigue
+aterrizando directo en `/` después de iniciar sesión, exactamente como
+antes. Lo que cambió es una pregunta distinta, que antes no existía por
+separado: "¿hay algo para esta persona si navega a `/home` a propósito?"
+— antes esa pregunta usaba la misma función que decide el aterrizaje
+automático, lo cual habría rebotado a un admin de un solo módulo que
+llegara ahí a buscar Usuarios. `home/page.tsx` ahora tiene
+`hasReasonToBeHere = accessibleModules(...).length > 1 ||
+HUB_TOOLS.some(t => t.visible(me))`, una expresión separada, no un parche
+dentro de `landingRoute()` — mezclar esas dos preguntas en una sola función
+es exactamente el tipo de confusión que ya produjo los bugs de D-052.
+
+**`ModuleSwitcher` gana dos condiciones donde antes tenía una.** `⇄`
+(saltar directo) sigue exigiendo 2+ módulos — sin cambio. `⌂` (volver al
+hub) ahora se muestra si hay 2+ módulos **o** si `HUB_TOOLS` tiene algo
+visible para esa persona — así que un admin de deliveries-solo ve `⌂` sin
+`⇄`, porque no hay a dónde saltar pero sí a dónde ir. El chofer sigue
+cortado antes que cualquiera de las dos condiciones: `role` es un valor
+único por persona (nunca `admin` y `driver` a la vez), así que la
+excepción no necesitó ningún caso especial nuevo.
+
+**Retirado en el mismo cambio: la capacidad extra `"users"`.** Existía en
+`CAPABILITIES`/`ROLE_CAPS`/el tipo `Capability`, otorgable a un no-admin
+desde el diálogo de usuario — pero nunca dio acceso real: la pantalla
+siempre exigió `role==='admin'` a secas, capacidad extra o no (línea 48 de
+la vieja `users/page.tsx`: *"Admins only"*). Era un checkbox que mentía.
+Confirmado antes de borrar: cero perfiles en producción la tienen otorgada
+(`select ... where permissions @> array['users']` → 0 filas), así que
+retirarla no deja datos huérfanos visibles en ningún diálogo.
+
+**Endurecimiento gratis, no el objetivo del cambio.** La vieja
+`(app)/users/page.tsx` era un Client Component: montaba el
+`DataProvider`, cargaba `users`, y solo *después* bloqueaba con un mensaje
+a quien no fuera admin. `home/users/layout.tsx` es un Server Component que
+hace `redirect(landingRoute(me))` **antes** de montar nada — mismo patrón
+que ya usa el layout de recruiting (D-052) para su propio gate. La
+autoridad real no se movió ni un milímetro: `guard_recruiting_access_change`
+(D-050) sigue exigiendo admin de deliveries para cualquier escritura a
+`recruiting_role`/`module_access`, sin que le importe desde qué URL salió
+el request — mover la pantalla no puede aflojar un trigger que vive en la
+base.
+
+**Localidad, mismo principio que D-052 aplicó a recruiting.** El
+`DataProvider` de deliveries vive en `home/users/layout.tsx`, no en el
+`home/layout.tsx` padre — el selector (`/home` a secas) no toca ni un dato
+de deliveries, así que montarle los canales de realtime ahí habría sido
+pagar un costo que esa pantalla no usa.
+
+**`/home/users` lleva solo un enlace de vuelta al hub, no el switcher
+completo** — decisión explícita del dueño: es una pantalla de trabajo
+puntual, no otro lugar desde el que saltar de módulo en módulo.
+
+**Consecuencia aceptada — modo local (`NEXT_PUBLIC_LOCAL_MODE`) pierde
+Usuarios.** `/home` nunca soportó el modo demo local (ya era así desde
+D-051 — su `page.tsx` siempre exigió una sesión real de Supabase, nunca
+tuvo una rama para `LocalApp`). Al redirigir `(app)/users` incondicionalmente
+a `/home/users`, alguien en modo local que navegue a `/users` termina en un
+layout que exige sesión real y no la tiene — mismo hueco que el hub ya
+tenía, extendido de forma consistente, no uno nuevo. No se resolvió acá
+porque el modo local nunca fue parte de este cambio; queda anotado por si
+alguna vez importa.
+
+**Verificado:**
+- `tsc`/`vitest` (462, uno nuevo para `HUB_TOOLS.users.visible`)/`next build`
+  limpios. `/home/users` compila a 8.12 kB, casi idéntico a los 8.05 kB que
+  pesaba `/users` antes de moverse — mismo componente, confirmado también
+  por tamaño.
+- `grep '"users"'` en todo `src`: cero referencias rotas a la capacidad
+  retirada — solo la clave nueva de `HUB_TOOLS` (namespace distinto) y la
+  pestaña de recruiting hacia `/recruiting/users`, que sigue funcionando
+  vía el redirect en cadena.
+- Reconstrucción visual (Chrome headless, mismo método de D-054/D-055): un
+  admin de 1 módulo ve solo `⌂` en la barra, nunca `⇄`; el hub le muestra
+  la tarjeta de Deliveries más la fila "Herramientas → Usuarios", visualmente
+  distinta de las tarjetas de módulo a propósito (`.hub-tool-row`, no
+  `.module-pick-card`).
+- Confirmado por SQL contra producción real que ningún perfil tenía la
+  capacidad `"users"` otorgada antes de retirarla.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

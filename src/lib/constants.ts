@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.11.1";
+export const APP_VERSION = "1.12.0";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -102,8 +102,8 @@ export const TABS: { id: string; label: string; label_es: string; href: string; 
   { id: "data",      label: "🗂 Data",      label_es: "🗂 Datos",      href: "/data", roles: ["admin"], cap: "settings", group: "general" },
   { id: "audit",     label: "🧾 Audit",     label_es: "🧾 Auditoría",  href: "/audit", roles: ["admin", "manager"], group: "general" },
   // Settings is reached from the account view (click your name → Open settings)
-  // rather than a nav tab.
-  { id: "users",     label: "🛡 Users",     label_es: "🛡 Usuarios",   href: "/users", roles: ["admin"], cap: "users", group: "general" },
+  // rather than a nav tab. Users is reached through the hub (/home) now, not
+  // a tab here at all — see D-056 and HUB_TOOLS below.
   // Personal work summary — not shown to sales/manager (redundant with their
   // Orders default view) or warehouse (outside its restricted nav).
   { id: "summary",   label: "📈 Summary",   label_es: "📈 Resumen",    href: "/summary", roles: ["admin"], group: "general" },
@@ -209,6 +209,34 @@ export const DELIVERIES_CARD: ModuleInfo = {
 export function accessibleModules(moduleAccess: string[] | null | undefined): ModuleInfo[] {
   return [DELIVERIES_CARD, ...MODULES.filter((m) => moduleAccess?.includes(m.key))];
 }
+
+// ---- Hub tools (D-056) ------------------------------------------------------
+// Sibling of MODULES, but a different kind of thing: a module is something a
+// person is GRANTED (module_access, opt-in per person); a hub tool is
+// something that comes with a ROLE — nobody "grants" you Users, you have it
+// because you're a deliveries admin. That's why this is a predicate
+// (`visible`) instead of a membership list. Both HomeSelector (which cards to
+// draw) and ModuleSwitcher (whether the "back to hub" button has anything to
+// go back FOR) read from this same list — a second shared tool moving here
+// tomorrow is one entry, not a change to either of those files.
+export interface HubTool {
+  key: string; href: string; emoji: string;
+  label_en: string; label_es: string; desc_en: string; desc_es: string;
+  visible: (me: { role: UserRole }) => boolean;
+}
+
+export const HUB_TOOLS: HubTool[] = [
+  {
+    key: "users",
+    href: "/home/users",
+    emoji: "🛡",
+    label_en: "Users",
+    label_es: "Usuarios",
+    desc_en: "Manage team access across modules",
+    desc_es: "Gestiona el acceso del equipo entre módulos",
+    visible: (me) => me.role === "admin",
+  },
+];
 
 // ---- Delivery time window presets ------------------------------------------
 // Same "HHMM-HHMM" string format the rest of the app already parses
@@ -330,7 +358,12 @@ export function permissionsFor(
 // additionally grant capabilities to an INDIVIDUAL user (Profile.permissions),
 // e.g. a salesperson who is also allowed to approve. Grants only ever add —
 // they never take away what the role already allows.
-export type Capability = "create" | "approve" | "fulfill" | "deliver" | "dashboard" | "users" | "settings" | "route_plan";
+// "users" was retired here (D-056): it never granted real access — the
+// Users screen has always required role==='admin' outright, so toggling this
+// on a non-admin only showed them a tab that led to "Admins only." With
+// Users moved to the hub (no longer a tab at all, see TABS above), keeping a
+// checkbox that never did anything would be actively misleading.
+export type Capability = "create" | "approve" | "fulfill" | "deliver" | "dashboard" | "settings" | "route_plan";
 
 export const CAPABILITIES: { key: Capability; en: string; es: string; desc_en: string; desc_es: string }[] = [
   { key: "create",    en: "Create orders",    es: "Crear órdenes",       desc_en: "Log new orders and submit them for approval", desc_es: "Registrar órdenes y enviarlas a aprobación" },
@@ -338,14 +371,13 @@ export const CAPABILITIES: { key: Capability; en: string; es: string; desc_en: s
   { key: "fulfill",   en: "Fulfill orders",   es: "Preparar órdenes",    desc_en: "Warehouse queue: prepare and mark ready",     desc_es: "Cola de almacén: preparar y marcar listo" },
   { key: "deliver",   en: "Deliver orders",   es: "Entregar órdenes",    desc_en: "Pick up, deliver and capture signatures",     desc_es: "Recoger, entregar y capturar firmas" },
   { key: "dashboard", en: "View dashboard",   es: "Ver panel",           desc_en: "See company-wide KPIs and reports",           desc_es: "Ver KPIs y reportes de la empresa" },
-  { key: "users",     en: "Manage users",     es: "Gestionar usuarios",  desc_en: "Invite people and change their roles",        desc_es: "Invitar personas y cambiar sus roles" },
   { key: "settings",  en: "Change settings",  es: "Cambiar ajustes",     desc_en: "Edit workspace settings and pick-lists",      desc_es: "Editar ajustes y listas del espacio" },
   { key: "route_plan", en: "Plan routes",     es: "Planificar rutas",    desc_en: "Assign orders to drivers and optimize their route", desc_es: "Asignar órdenes a choferes y optimizar su ruta" },
 ];
 
 /** The capabilities each role gets automatically. */
 export const ROLE_CAPS: Record<UserRole, Capability[]> = {
-  admin:     ["create", "approve", "fulfill", "deliver", "dashboard", "users", "settings", "route_plan"],
+  admin:     ["create", "approve", "fulfill", "deliver", "dashboard", "settings", "route_plan"],
   manager:   ["create", "approve", "dashboard"],
   sales:     ["create"],
   warehouse: ["fulfill", "deliver"],

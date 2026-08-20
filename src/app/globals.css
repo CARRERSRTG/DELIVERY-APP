@@ -462,6 +462,21 @@ table.orders th { text-align: left; }
 .module-pick-label { font-weight: 700; font-size: 15px; }
 .module-pick-desc { font-size: 12px; color: var(--ink-soft); }
 
+/* Hub tools (D-056) — deliberately NOT another module-pick-card: a tool
+   (Users, and whatever joins it later) isn't a place you go work, it's a
+   utility you dip into and leave. A quiet list row, not a launch tile. */
+.hub-tools-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--gray); margin: 18px 0 8px; }
+.hub-tool-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+  color: var(--text); text-decoration: none; margin-bottom: 6px;
+  transition: background .12s ease, border-color .12s ease;
+}
+.hub-tool-row:hover { background: var(--paper); border-color: var(--accent); }
+.hub-tool-emoji { font-size: 18px; }
+.hub-tool-label { font-weight: 700; font-size: 13px; }
+.hub-tool-desc { font-size: 11px; color: var(--ink-soft); }
+
 /* ---------- Notification bell ---------- */
 .notif-wrap { position: relative; display: inline-flex; }
 .notif-btn { position: relative; font-size: 15px; line-height: 1; }

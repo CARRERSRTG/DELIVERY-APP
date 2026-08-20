@@ -397,3 +397,30 @@ recruiting project" below) but nothing in production points at them anymore.
   (`roleHome('admin') === '/'`); a warehouse or logistics user would have landed on the Orders
   board instead of `/warehouse`/`/routes`. Fixed in the same change so the hub and the switcher
   behave identically.
+- **The hub hosts shared tools now, not just the module picker (D-056).** Users moved out of
+  deliveries entirely, to `/home/users` — it was never really "deliveries' own" screen once D-053
+  let it grant Recruiting access too. `HUB_TOOLS` in `constants.ts` is the generic registry: a
+  sibling of `MODULES`, but granted by ROLE (`visible(me)` predicate) instead of by
+  `module_access` membership, because nobody is "given" Users the way they're given a module —
+  an admin has it because they're an admin. `HomeSelector` and `ModuleSwitcher` both read this
+  same list, so a second shared tool is one entry there, not a change to either file.
+- **Landing vs. staying are two different questions now — `landingRoute()` itself didn't
+  change.** An admin with only deliveries still lands on `/` after login, same as always. What's
+  new is `home/page.tsx`'s own guard: `hasReasonToBeHere = accessibleModules(...).length > 1 ||
+  HUB_TOOLS.some(t => t.visible(me))`, a separate expression, not a change inside
+  `landingRoute()` itself — that admin's landing route is still their own module, but they now
+  have an explicit way back to `/home` for Users. `ModuleSwitcher` mirrors the split: `⇄` (jump
+  to another module) still needs 2+ modules; `⌂` (back to the hub) needs 2+ modules *or* a
+  visible hub tool, so a deliveries-only admin sees `⌂` alone, with nowhere to swap to.
+- **`(app)/users/page.tsx` and `recruiting/(recruiting)/users/page.tsx` are both redirects now**
+  (to `/home/users`) — no URL from before the move goes dead. `home/users/layout.tsx` is a
+  Server Component gate (`redirect()` before anything mounts, same pattern as recruiting's own
+  layout guard) — a real hardening over the old Client Component page, which used to mount the
+  `DataProvider` and load everyone's profile before showing a non-admin "Admins only." The actual
+  authority never moved either way: `guard_recruiting_access_change` (D-050) still requires a
+  deliveries admin for any write to `recruiting_role`/`module_access`, regardless of which URL
+  the request came from.
+- **The retired `"users"` capability.** `CAPABILITIES`/`ROLE_CAPS`/the `Capability` type used to
+  carry a grantable `"users"` extra permission — but the screen it gated always required
+  `role==='admin'` outright, so granting it to a non-admin only ever led to "Admins only." It
+  never worked; removed in the same change rather than left as a checkbox with nothing behind it.

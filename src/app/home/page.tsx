@@ -1,15 +1,21 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { landingRoute } from "@/lib/constants";
+import { accessibleModules, HUB_TOOLS, landingRoute } from "@/lib/constants";
 import { HomeSelector } from "@/components/HomeSelector";
 import type { Profile } from "@/lib/types";
 
-// The module selector. Reached only by people with 2+ modules (today: just
-// whoever has recruiting access on top of deliveries) — everyone else is
-// bounced straight to their actual landing route by landingRoute() below,
-// the SAME function that decided nobody should have ended up here in the
-// first place. A driver typing this URL directly lands here too, and
-// landingRoute() sends them to /driver unconditionally — see D-050/D-051.
+// The hub. Landing here automatically vs. being ALLOWED to visit are two
+// different questions now (D-056) — they used to be the same one.
+//
+// landingRoute() still answers "where do you land after login", unchanged:
+// an admin with only deliveries still lands on `/` directly, exactly as
+// before. `hasReasonToBeHere` below is the new, separate question — "is
+// there anything on this page for you if you navigate here on purpose" —
+// which an admin with 1 module now answers yes to (Users, in HUB_TOOLS)
+// even though their landing route is still their module, not here. Keeping
+// these as two distinct expressions (not folding one into the other) is
+// deliberate: mixing "where you land" and "what you're allowed to visit"
+// into one function is exactly the kind of blur that produced D-052's bugs.
 export default async function HomePage({
   searchParams,
 }: {
@@ -37,8 +43,9 @@ export default async function HomePage({
     .maybeSingle();
   const me: Profile = profile ?? { id: user.id, full_name: user.email ?? "Me", role: "sales" };
 
-  const dest = landingRoute(me);
-  if (dest !== "/home") redirect(dest);
+  const hasReasonToBeHere =
+    accessibleModules(me.module_access).length > 1 || HUB_TOOLS.some((t) => t.visible(me));
+  if (!hasReasonToBeHere) redirect(landingRoute(me));
 
   return <HomeSelector me={me} />;
 }
