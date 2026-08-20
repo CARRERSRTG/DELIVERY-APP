@@ -600,5 +600,18 @@ client and a Windows Electron desktop client.
   a second context for the same data.
 - **`/timetracker/requests` (D-068) — the third screen: a form + insert + list, no new design
   decisions.** Added `myRequests`/`addRequest()` to the data provider, same shape as `myPayrolls`.
-  Employee side of Etapa 2 (Track Time, My Week, My Requests) is now three of five screens; My
-  Account and Work Diary, then the entire manager side, remain.
+- **Employee side complete (D-069): `/timetracker/diary` + `/timetracker/account`.**
+  `components/timetracker/WorkDiary.tsx` is a SHARED component (ported once) — the original reuses
+  it between the employee's own diary and the manager's per-employee view, so the still-pending
+  manager screen will reuse this same file rather than a second copy. `myScreenshots` (all of
+  mine, not just the latest) replaced the single `latestScreenshot` state in the data provider;
+  Track Time now reads `latestScreenshot` as a derived value (`myScreenshots[0]`) instead of its
+  own fetch. `Employee.email` is new — sourced from `auth.users` server-side in `layout.tsx`, not
+  `public.profiles` (which, unlike timetracker's original profile row, has no email column; the
+  real address lives in Auth). Saving the account page is two writes, not one: `full_name` to the
+  shared `public.profiles`, everything else to `timetracker.employee_settings` (upserted, since
+  nobody creates that row on grant — D-064). Noted but explicitly NOT fixed here: deliveries'
+  `public.profiles` UPDATE policy is `USING true WITH CHECK true` — "only your own row" is enforced
+  by the client's `.eq('id', me.id)` filter, not the database. Pre-existing, consistent with how
+  `UserDialog.tsx` already relies on the same trust model; out of scope for this change.
+  All 5 employee-side screens now exist; the manager side (10 screens) is what's left.

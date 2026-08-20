@@ -2754,6 +2754,56 @@ requests` aparece como página real (2.43 kB).
 
 ---
 
+## D-069 · Etapa 2, tramo 4 — Diario de trabajo y Mi cuenta (lado empleado completo)
+**Fecha:** 2026-08-20 · **Versión:** v1.16.3 · **Pedido por:** Andrés
+
+**Cambio:** `/timetracker/diary` (portada de `employee/
+EmployeeScreenshots.jsx` + el componente compartido `WorkDiary.jsx`) y
+`/timetracker/account` (portada de `employee/MyAccount.jsx`). Con esto se
+completan las 5 pantallas del lado empleado. `WorkDiary` se portó como
+componente compartido (`components/timetracker/WorkDiary.tsx`) — el
+original ya lo reutiliza entre la vista de empleado y la de manager, así
+que se porta una vez y la pantalla de manager (pendiente) lo reutiliza
+igual.
+
+**Razón (textual):** *"seguimos con esas dos"*.
+
+**Decisiones de diseño:**
+- **`myScreenshots` reemplaza a `latestScreenshot` como el dato base** en
+  `timetracker-data-provider.tsx` — ahora carga TODAS las capturas propias
+  (no solo la última), y `latestScreenshot` queda como valor derivado
+  (`myScreenshots[0]`). Track Time (D-066) no cambió de comportamiento,
+  solo de dónde saca el dato.
+- **`Employee.email` es nuevo, viene de `auth.users` (server-side en
+  `layout.tsx`), no de `public.profiles`.** A diferencia del `profiles`
+  original de timetracker (que sí tenía columna `email`), el `profiles`
+  compartido de deliveries no la tiene — el correo real vive en Auth. Se
+  usa de solo lectura, igual que el original mostraba el email como campo
+  deshabilitado.
+- **Guardar "Mi cuenta" es DOS escrituras, no una.** El nombre va a
+  `public.profiles.full_name` (identidad compartida); ciudad/método de
+  pago/detalles van a `timetracker.employee_settings` (mismo split de
+  D-066). `employee_settings` puede no tener fila todavía (nadie la crea
+  al otorgar acceso — ver D-064), así que la escritura es un `upsert`, no
+  un `update` que podría no encontrar nada.
+- **Hallazgo aparte, no corregido aquí:** las políticas RLS de
+  `public.profiles` de deliveries son totalmente permisivas
+  (`USING true, WITH CHECK true` en el UPDATE) — la restricción real de
+  "solo tu propio perfil" la pone el filtro `.eq('id', me.id)` del lado
+  del cliente, no la base de datos. Preexistente, no introducido por este
+  cambio, y consistente con cómo ya opera el resto de la app (p. ej.
+  `UserDialog.tsx`); fuera de alcance corregirlo en este tramo.
+
+**Consecuencia aceptada:** el Diario de trabajo estará vacío para
+cualquiera hasta que exista una app de escritorio real capturando
+pantallas — eso es correcto, no un bug (ver D-066).
+
+**Verificado:** `tsc`/`vitest` (467)/`next build` limpios —
+`/timetracker/diary` (2.07 kB) y `/timetracker/account` (1.8 kB) aparecen
+como páginas reales.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

@@ -56,6 +56,7 @@ export default async function TimetrackerLayout({ children }: { children: React.
   const me: Employee = {
     id: profile.id,
     fullName: profile.full_name ?? user.email ?? "Me",
+    email: user.email ?? null,
     role: profile.timetracker_role as Employee["role"],
     city: es?.city ?? null,
     payMethod: es?.pay_method ?? null,

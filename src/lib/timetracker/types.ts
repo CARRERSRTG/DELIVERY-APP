@@ -11,6 +11,10 @@ export type TimetrackerRole = "admin" | "employee";
 export interface Employee {
   id: string;
   fullName: string;
+  /** From auth.users, not public.profiles (which has no email column here —
+   * see D-069). Read-only in this module; changing it is an account-level
+   * action outside timetracker's scope. */
+  email: string | null;
   role: TimetrackerRole;
   city: string | null;
   payMethod: string | null;

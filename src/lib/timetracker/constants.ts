@@ -3,14 +3,16 @@
 // (recruiting), never nested (D-064).
 //
 // Etapa 2 lands screen by screen (D-066 pass 1: Track Time; pass 2: My
-// Week; pass 3: My Requests). Learned from D-059: a tab pointing at a page
+// Week; pass 3: My Requests; pass 4: Work Diary + My Account — the whole
+// employee side is now done). Learned from D-059: a tab pointing at a page
 // that doesn't exist yet is a dead link waiting to be clicked — so TABS
-// only lists routes that actually resolve today. Employee tabs still to
-// come: Work diary, My account. Manager tabs still to come: Dashboard,
-// Working now, Reports/Pay, Requests, Projects, Assignments, Employees,
-// Work diary, Audit, Settings.
+// only lists routes that actually resolve today. Manager tabs still to
+// come: Dashboard, Working now, Reports/Pay, Requests, Projects,
+// Assignments, Employees, Work diary, Audit, Settings.
 export const TABS: { id: string; label: string; href: string }[] = [
   { id: "track", label: "⏱ Track Time", href: "/timetracker" },
   { id: "week", label: "📅 My Week", href: "/timetracker/week" },
   { id: "requests", label: "📝 My Requests", href: "/timetracker/requests" },
+  { id: "diary", label: "🗂 Work Diary", href: "/timetracker/diary" },
+  { id: "account", label: "👤 My Account", href: "/timetracker/account" },
 ];

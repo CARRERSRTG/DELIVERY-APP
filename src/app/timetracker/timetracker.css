@@ -105,12 +105,16 @@
   box-shadow:0 10px 30px rgba(0,0,0,.45);font-size:13.5px}
 
 .timetracker-module .shot{display:block;background:var(--tt-panel);border:1px solid var(--tt-line);border-radius:8px;overflow:hidden;text-decoration:none;padding:6px}
-.timetracker-module .shot img{width:100%;height:auto;object-fit:cover;border-radius:6px;display:block;background:#000}
-.timetracker-module .shot-blank{width:100%;border-radius:6px;border:1px dashed var(--tt-line);
+.timetracker-module .shot img{width:100%;height:100px;object-fit:cover;border-radius:6px;display:block;background:#000}
+.timetracker-module .slotgrid{display:grid;grid-template-columns:repeat(6,minmax(110px,1fr));gap:10px}
+.timetracker-module .shot-empty{width:100%;height:100px;border-radius:6px;border:1px dashed var(--tt-line);
+  display:flex;align-items:center;justify-content:center;color:var(--tt-muted);font-size:13px;
+  font-variant-numeric:tabular-nums}
+.timetracker-module .shot-blank{width:100%;height:100px;border-radius:6px;border:1px dashed var(--tt-line);
   display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;
   color:var(--tt-muted);font-size:12px;
   background:repeating-linear-gradient(45deg,transparent,transparent 7px,rgba(255,255,255,.03) 7px,rgba(255,255,255,.03) 14px)}
-.timetracker-module .shot-loading{width:100%;border-radius:6px;background:var(--tt-panel2);
+.timetracker-module .shot-loading{width:100%;height:100px;border-radius:6px;background:var(--tt-panel2);
   background-image:linear-gradient(90deg,var(--tt-panel2),var(--tt-line),var(--tt-panel2));
   background-size:200% 100%;animation:tt-shimmer 1.2s infinite}
 @keyframes tt-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}

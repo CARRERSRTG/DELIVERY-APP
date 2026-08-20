@@ -58,8 +58,18 @@ interface DataState {
   updateSession: (id: string, patch: Partial<Session>) => Promise<void>;
 
   // ---- screenshots (desktop-captured; read-only from the web port) ----
+  myScreenshots: Screenshot[];
   latestScreenshot: Screenshot | null;
   screenshotSignedUrl: (path: string, expiresIn?: number) => Promise<string>;
+  /** Own-delete only (RLS: employee_uid = auth.uid()) — mirrors the
+   * original's deleteWithFile(): best-effort storage removal, then the
+   * metadata row (which is what actually matters to the diary/manager). */
+  deleteScreenshot: (id: string, path: string | null) => Promise<void>;
+
+  // ---- account ----
+  updateMyAccount: (patch: { fullName: string; city: string; payMethod: string; payDetails: string }) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
+  signOutEverywhere: () => Promise<void>;
 }
 
 const Ctx = createContext<DataState | null>(null);
@@ -88,7 +98,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [requests, setRequests] = useState<TimeRequest[]>([]);
-  const [latestScreenshot, setLatestScreenshot] = useState<Screenshot | null>(null);
+  const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -163,7 +173,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     };
   }, [supabase, me.id, reloadAll]);
 
-  // Latest own screenshot — desktop-captured, so this stays empty for anyone
+  // My own screenshots — desktop-captured, so this stays empty for anyone
   // tracking only from the web (there's no browser screenshot capture; see
   // ARCHITECTURE.md on why). Filtered realtime, same reasoning as sessions.
   useEffect(() => {
@@ -171,8 +181,8 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     const load = async () => {
       const { data } = await supabase
         .from("screenshots").select("*").eq("employee_uid", me.id)
-        .order("taken_at", { ascending: false }).limit(1);
-      if (!cancelled) setLatestScreenshot(rowToCamel<Screenshot>((data as Record<string, unknown>[] | null)?.[0] ?? null));
+        .order("taken_at", { ascending: false });
+      if (!cancelled) setScreenshots(((data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<Screenshot>(r)!));
     };
     load();
     const channel = supabase
@@ -228,12 +238,44 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (error) throw error;
   }, [supabase, me.id]);
 
+  const deleteScreenshot = useCallback<DataState["deleteScreenshot"]>(async (id, path) => {
+    if (path) { try { await supabase.storage.from("timetracker-screenshots").remove([path]); } catch { /* best-effort */ } }
+    const { error } = await supabase.from("screenshots").delete().eq("id", id);
+    if (error) throw error;
+  }, [supabase]);
+
+  // profiles.full_name lives in `public` (shared identity); employee_settings
+  // (city/pay info) lives in `timetracker` — two writes, same split D-066
+  // already established for reads. employee_settings may not have a row yet
+  // (nobody creates one on grant — see layout.tsx), so this upserts.
+  const updateMyAccount = useCallback<DataState["updateMyAccount"]>(async (patch) => {
+    const [p, es] = await Promise.all([
+      supabase.schema("public").from("profiles").update({ full_name: patch.fullName.trim() }).eq("id", me.id),
+      supabase.from("employee_settings").upsert({
+        id: me.id, city: patch.city.trim(), pay_method: patch.payMethod || null, pay_details: patch.payDetails.trim(),
+      }),
+    ]);
+    if (p.error) throw p.error;
+    if (es.error) throw es.error;
+  }, [supabase, me.id]);
+
+  const updatePassword = useCallback<DataState["updatePassword"]>(async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  }, [supabase]);
+
+  const signOutEverywhere = useCallback<DataState["signOutEverywhere"]>(async () => {
+    const { error } = await supabase.auth.signOut({ scope: "global" });
+    if (error) throw error;
+  }, [supabase]);
+
   const value: DataState = {
     ready, me, settings, projects, myAssignments: assignments, mySessions: sessions, myPayrolls: payrolls,
     myRequests: requests, addRequest,
     toast, notify,
     listLiveSessions, startSession, updateSession,
-    latestScreenshot, screenshotSignedUrl,
+    myScreenshots: screenshots, latestScreenshot: screenshots[0] ?? null, screenshotSignedUrl, deleteScreenshot,
+    updateMyAccount, updatePassword, signOutEverywhere,
   };
 
   return (

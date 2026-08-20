@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-069", title: "Etapa 2, tramo 4 — Diario de trabajo y Mi cuenta (lado empleado completo)",
+      fecha: "2026-08-20", version: "v1.16.3", quien: "Andrés",
+      cambio: "/timetracker/diary (EmployeeScreenshots.jsx + WorkDiary.jsx compartido) y /timetracker/account (MyAccount.jsx). Completan las 5 pantallas del lado empleado. WorkDiary se portó como componente compartido (components/timetracker/WorkDiary.tsx) para que la pantalla de manager pendiente lo reutilice igual que el original.",
+      razon: "\"seguimos con esas dos\"",
+      razonTextual: true,
+      consecuencia: "myScreenshots reemplaza a latestScreenshot como dato base (ahora carga todas las capturas, no solo la última); Employee.email es nuevo, viene de auth.users server-side, no de public.profiles (que no tiene esa columna en deliveries). Guardar \"Mi cuenta\" es dos escrituras: full_name a public.profiles, ciudad/pago a timetracker.employee_settings (upsert, porque esa fila puede no existir todavía). Hallazgo aparte no corregido: las políticas RLS de public.profiles de deliveries son totalmente permisivas (USING true), la restricción \"solo tu perfil\" la pone el filtro del cliente, no la base — preexistente, consistente con el resto de la app, fuera de alcance aquí. El Diario de trabajo estará vacío hasta que exista una app de escritorio real — correcto, no un bug. tsc/vitest (467)/next build limpios — /timetracker/diary (2.07 kB) y /timetracker/account (1.8 kB) como páginas reales."
+    },
+    {
       id: "D-068", title: "Etapa 2, tramo 3 — \"Mis solicitudes\"",
       fecha: "2026-08-20", version: "v1.16.2", quien: "Andrés",
       cambio: "/timetracker/requests, portada de EmployeeRequests.jsx — formulario para pedirle a un manager que agregue, ajuste o elimine una entrada de tiempo, más la lista de solicitudes propias con su estado. myRequests y addRequest() se agregan a timetracker-data-provider.tsx, mismo patrón que myPayrolls.",
