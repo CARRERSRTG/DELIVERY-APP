@@ -1957,6 +1957,19 @@ ocurra.
 `accessibleModules()` de D-054 ya cubre lo único con lógica real acá).
 `tsc`/`vitest` (461)/`next build` limpios.
 
+**Segunda nota (2026-08-19, mismo día, v1.10.3) — el ícono en sí no se veía.**
+Screenshot real: el botón del switcher aparecía como un cuadrado en blanco
+en vez del ícono. Causa: `🔀` (flechas cruzadas) no tiene glifo en la pila
+de fuentes de la app (`'Inter', system-ui, sans-serif`) en ese navegador —
+el navegador dibuja el rectángulo vacío ("tofu") que se ve en la captura en
+vez del carácter. Se cambió por `⇄` (U+21C4, símbolo de flechas del bloque
+Unicode estándar, no un emoji a color) — mismo significado, sin depender de
+que el sistema tenga una fuente de emoji con ese carácter específico. `🔀`
+sigue en uso en otros dos lugares del código (botón "Unir" de
+`routes/page.tsx`, ícono de etapa en `ModalHost.tsx` de recruiting) — no se
+tocaron, no fueron reportados como rotos y está fuera del alcance de este
+cambio; si algún día se ven igual de vacíos, es la misma causa.
+
 ---
 
 <!-- PLANTILLA — copia esto para una entrada nueva

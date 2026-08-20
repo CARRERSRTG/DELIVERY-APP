@@ -53,7 +53,7 @@ export function ModuleSwitcher({ current, deliveriesRole, moduleAccess }: Module
         aria-label={t("Switch module", "Cambiar de módulo")}
         title={t("Switch module", "Cambiar de módulo")}
       >
-        🔀
+        ⇄
       </button>
       {open && (
         <>
