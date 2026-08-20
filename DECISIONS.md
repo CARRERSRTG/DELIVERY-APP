@@ -1972,6 +1972,55 @@ cambio; si algún día se ven igual de vacíos, es la misma causa.
 
 ---
 
+## D-055 · Botón "volver al hub", junto al switcher
+**Fecha:** 2026-08-19 · **Versión:** v1.11.0 · **Pedido por:** Andrés
+
+**Cambio:** `ModuleSwitcher.tsx` gana un segundo control, `⌂` (enlace directo
+a `/home`), junto al botón de salto directo `⇄` que ya existía. Mismo
+`<ModuleSwitcher/>` compartido, mismo gate — ningún `TopBar` cambió, porque
+la firma de props no cambió, solo lo que el componente renderiza adentro.
+
+**Modelo confirmado con el dueño, ahora con dos formas de moverse para
+quien tiene 2+ módulos:**
+- **1 módulo** → entra directo, sin hub ni switcher — sin cambios.
+- **2+ módulos** → **(a)** el switcher (`⇄`) salta directo al otro módulo, y
+  **(b)** el botón nuevo (`⌂`) vuelve a `/home` a elegir ahí. Dos caminos al
+  mismo lugar, no uno reemplazando al otro.
+
+**Razón:** saltar directo es rápido cuando ya sabés a dónde vas; volver al
+hub sirve cuando alguien quiere ver las tarjetas de nuevo (por ejemplo, con
+un tercer módulo algún día, para comparar opciones en vez de saltar a
+ciegas al primero de la lista).
+
+**Por qué el botón no existe para quien tiene 1 módulo — no es un
+recorte, es lo único correcto.** Para esa persona, `/home` no muestra nada:
+`landingRoute()` (D-051) la redirige de inmediato de vuelta a su única
+pantalla, porque tiene menos de 2 módulos. Un botón que solo rebota no es
+un botón, así que comparte el mismo `if (deliveriesRole === 'driver' ||
+modules.length < 2) return null;` que ya gobernaba el switcher — **no se
+duplicó la condición, se reutilizó la misma**, exactamente para no crear
+un segundo lugar donde esa regla pudiera divergir.
+
+**Verificado que no reintroduce el desborde de la barra (mismo patrón de
+verificación de D-054):** con `⌂` + `⇄` juntos, el clúster completo del
+switcher mide ~90px (dos botones de un solo carácter, ~44px cada uno con
+su padding, más 2px de separación) — **menos** de lo que ocupaba el botón
+de texto original ("🔀 Cambiar ▾", ~90-110px) que ya se había medido como
+seguro. El `min-width: 0` que ya cubre cada nivel de la cadena (D-054
+addendum) sigue siendo la garantía real — un segundo botón pequeño no
+cambia esa conclusión, solo se agregó `min-width: 0` también al nuevo
+contenedor que envuelve los dos botones, por la misma disciplina.
+
+**Consecuencia aceptada:** ninguna — aditivo puro, mismo componente, mismo
+gate, sin tocar `landingRoute()`, `/home/page.tsx` ni ninguna lógica de
+D-054.
+
+**Verificado:** `tsc`/`vitest` (461)/`next build` limpios. No hizo falta
+test nuevo — el gate es el mismo `if` de D-054, ya cubierto por
+`accessibleModules()`.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
