@@ -131,7 +131,19 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     toastTimer.current = setTimeout(() => setToast(""), 2400);
   }, []);
 
+  // Refresh a near/already-expired token before reading — see the identical
+  // comment in data-provider.tsx's reloadAll (D-081) for why: a stale token
+  // doesn't error, it just makes every read look like it returned nothing.
+  const ensureSession = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (!session || !session.expires_at || session.expires_at - nowSec < 60) {
+      await supabase.auth.refreshSession().catch(() => {});
+    }
+  }, [supabase]);
+
   const reloadAll = useCallback(async () => {
+    await ensureSession();
     const [s, q, t, cf, p, c, co, j, st, at, sh, qs] = await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("questions").select("*").order("sort"),
@@ -182,7 +194,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (sh.data) setStageHistory(sh.data as StageHistory[]);
     if (qs.data) setQuestionSets(qs.data as QuestionSet[]);
     setReady(true);
-  }, [supabase]);
+  }, [supabase, ensureSession]);
 
   useEffect(() => {
     reloadAll();

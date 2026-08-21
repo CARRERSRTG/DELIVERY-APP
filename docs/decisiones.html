@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-081", title: "Sesión vieja → RLS lo trata como anónimo → \"se borró toda la data\"",
+      fecha: "2026-08-21", version: "v1.20.1", quien: "Andrés",
+      cambio: "reloadAll() en data-provider.tsx, recruiting-data-provider.tsx, y timetracker-data-provider.tsx (donde ya existía ensureSession() para escrituras pero nunca se llamaba antes de leer) ahora refrescan el token de acceso antes de cada lectura si está vencido o a menos de 60s de vencer.",
+      razon: "\"toda la data del delivery app desaparecio esta completamente vacio arregla eso ya\"",
+      razonTextual: true,
+      consecuencia: "Mecanismo exacto: reloadAll() hace if (d.data) setDeliveries(...) — un array vacío [] es verdadero en JS. Cuando el token expira (uso normal + pestañas en segundo plano retrasan el auto-refresco), PostgREST no da error: RLS trata la petición como anónima y devuelve 200 con []. Confirmado: las 75 órdenes seguían en la base, el schema public seguía expuesto, cerrar sesión y volver a entrar lo arregló al instante. Tercera vez el mismo día con el mismo síntoma exacto (Usuarios del hub antes de esta sesión, Track Time en D-077). No cubre una sesión genuinamente revocada del lado del servidor — ahí seguiría haciendo falta re-login real. No se agregó aviso visible de \"sesión expirada\" — sigue silencioso cuando SÍ falla, solo que ahora falla mucho menos seguido."
+    },
+    {
       id: "D-080", title: "El desktop siempre caía en modo claro — nunca tuvo forma de estar oscuro",
       fecha: "2026-08-21", version: "v1.20.0 (deliveries-app) / v0.0.45 (desktop)", quien: "Andrés",
       cambio: "layout.tsx (raíz) fuerza data-theme en cada carga; sin preferencia guardada siempre caía en light, pisando el modo oscuro que .timetracker-module ya tenía como default (D-066/D-072). Corregido: el script y el estado inicial de PrefsProvider detectan window.ttDesktop y usan oscuro por default solo ahí. Nuevo botón ☀️/🌙 en el TopBar de timetracker (usePrefs().toggleTheme(), antes nada exponía cambiar de tema). desktop/main.js: Menu.setApplicationMenu(null) quita la barra nativa File/Edit/View/Window/Help; backgroundColor:'#0f1420' en el BrowserWindow para que coincida con el tema desde el primer pixel.",

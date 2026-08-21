@@ -189,6 +189,18 @@ warehouse (fulfilling/ready/delivered) without a manager approving it first.
 
 ## 10. Change log (most recent first)
 
+- **All three `reloadAll()`s now refresh a stale token before reading, not just before writing
+  (D-081).** `deliveries`/`recruiting`/`timetracker`'s data providers all had the same latent bug:
+  `if (d.data) setDeliveries(...)` treats an empty array as truthy, and an expired access token
+  doesn't make a `select` error — RLS just treats the request as anonymous and PostgREST returns
+  `200` with `[]`. The result silently overwrote real state with nothing, with no error anywhere,
+  read exactly like "all my data disappeared." Hit for real the same day across all three modules
+  (once already, pre-session, on the Users page; twice more during the timetracker work, D-077).
+  timetracker's provider already had an `ensureSession()` helper — used only before writes; now
+  called at the top of every `reloadAll()`/`reloadAdmin()` in all three providers. Covers the
+  common case (ordinary token expiry, worsened by background-tab timer throttling delaying the
+  client's own auto-refresh) by refreshing proactively before the read; does not cover a
+  genuinely server-revoked session, which would still need a real re-login.
 - **Recruiting module — UI ported, Etapa 2 complete (D-052)**: all 8 recruiting pages now live
   under `/recruiting/*` in this repo/deploy, in their own sibling route group with an
   independent layout, DataProvider, and TopBar. CSS scoped under `.recruiting-module`;

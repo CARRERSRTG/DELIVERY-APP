@@ -384,7 +384,27 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     return [...overlay.created, ...base];
   }, [teaching, deliveries, overlay, outbox]);
 
+  // Make sure the access token isn't stale before reading. Without this, a
+  // token that expired while the tab sat in the background (browsers
+  // throttle background timers, so the client's own auto-refresh can lag)
+  // doesn't fail loudly — RLS just treats the request as effectively
+  // anonymous, PostgREST returns 200 with an empty array, and reloadAll
+  // below cheerfully overwrites real state with nothing (`if (d.data)` is
+  // true for `[]` too). Looks exactly like "all the data disappeared" with
+  // no error anywhere — this pattern hit the Users page, timetracker, and
+  // this board itself the same day, always fixed by a manual re-login.
+  // Refreshing proactively here catches the common case (ordinary expiry)
+  // before a fetch ever runs, instead of discovering it after the fact.
+  const ensureSession = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (!session || !session.expires_at || session.expires_at - nowSec < 60) {
+      await supabase.auth.refreshSession().catch(() => {});
+    }
+  }, [supabase]);
+
   const reloadAll = useCallback(async () => {
+    await ensureSession();
     const [s, p, d, e, n, av, sh, inc, loc] = await Promise.all([
       supabase.from("settings").select("*").eq("id", 1).maybeSingle(),
       // `username` and `permissions` were missing here, and both are read by
@@ -430,7 +450,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       setDriverLocations([...latest.values()]);
     }
     setReady(true);
-  }, [supabase, me]);
+  }, [supabase, me, ensureSession]);
 
   // In the overlay model there's nothing in the DB to clear — the sandbox is
   // purely local — so "clear" just resets the local overlay back to empty.

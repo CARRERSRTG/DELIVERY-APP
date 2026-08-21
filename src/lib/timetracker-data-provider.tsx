@@ -213,6 +213,15 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   }, [supabase]);
 
   const reloadAll = useCallback(async () => {
+    // Same reasoning as the write-side ensureSession above, extended to
+    // reads (D-081): a stale token doesn't error a select, it just makes
+    // RLS treat the request as anonymous and return an empty result —
+    // which silently overwrites real state with nothing on the next
+    // reload, no error anywhere. Hit this module for real the same day
+    // (D-077/D-078/D-079's investigations all started from exactly this
+    // symptom, though the timetracker cases turned out to have their own,
+    // separate root causes too).
+    await ensureSession();
     const [pr, asn, ss, py, rq, set] = await Promise.all([
       supabase.from("projects").select("*").eq("archived", false).order("created_at"),
       supabase.from("assignments").select("*").eq("employee_uid", me.id),
@@ -238,13 +247,14 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
       setSettings({ ...APP_SETTINGS });
     }
     setReady(true);
-  }, [supabase, me.id]);
+  }, [supabase, me.id, ensureSession]);
 
   // Manager-only reference data (D-070) — gated to isAdmin so a non-admin
   // never even issues these queries (RLS would empty them anyway, but no
   // sense paying for round trips nobody can use).
   const reloadAdmin = useCallback(async () => {
     if (!isAdmin) return;
+    await ensureSession();
     const [pf, es, pr, asn, rq, au] = await Promise.all([
       supabase.schema("public").from("profiles")
         .select("id, full_name, timetracker_role")
@@ -283,7 +293,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     );
     setAllRequests(((rq.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<TimeRequest>(r)!));
     setAuditLog(((au.data as Record<string, unknown>[] | null) ?? []).map((r) => rowToCamel<AuditEntry>(r)!));
-  }, [supabase, isAdmin]);
+  }, [supabase, isAdmin, ensureSession]);
 
   useEffect(() => {
     reloadAll();

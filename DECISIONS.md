@@ -3464,6 +3464,66 @@ resultado visual es el esperado — el diagnóstico de "vacío alrededor
 del contenido" se hizo por inspección de código, no viéndolo
 renderizado.
 
+**Confirmado (2026-08-21, mismo día):** "perfecto ya esta" — el
+resultado visual quedó bien. Queda pendiente solo publicar el
+instalador v0.0.45 (quita la barra de menú nativa + `backgroundColor`)
+cuando el usuario lo pida; el resto (modo oscuro por default, botón de
+tema) ya se ve en producción sin necesitar instalador nuevo.
+
+---
+
+## D-081 · Sesión vieja → RLS lo trata como anónimo → "se borró toda la data"
+**Fecha:** 2026-08-21 · **Versión:** v1.20.1 · **Pedido por:** Andrés
+(*"toda la data del delivery app desaparecio esta completamente
+vacio arregla eso ya"*)
+
+**Cambio:** `reloadAll()` en `data-provider.tsx` (deliveries),
+`recruiting-data-provider.tsx`, y `timetracker-data-provider.tsx`
+(donde ya existía `ensureSession()` para escrituras pero nunca se
+llamaba antes de leer) ahora refrescan el token de acceso ANTES de
+cada lectura si está vencido o a menos de 60s de vencer — mismo patrón
+en los tres, calcado del `ensureSession()` que timetracker ya tenía
+para escrituras.
+
+**El mecanismo exacto, encontrado leyendo el código, no adivinado.**
+`reloadAll()` hace `if (d.data) setDeliveries(d.data as Delivery[])` —
+y un array vacío `[]` es *verdadero* en JS. Cuando el token de acceso
+expira (uso normal, más una pestaña en segundo plano puede retrasar el
+refresco automático del propio cliente — los navegadores limitan
+temporizadores en pestañas no activas), PostgREST no da error: RLS
+simplemente trata la petición como anónima y devuelve `200` con `[]`.
+`reloadAll()` no distingue "no hay datos" de "no pude leer tus
+datos" — sobreescribe el estado real con nada, sin ningún error en
+ningún lado. Confirmado con la base directo: las 75 órdenes seguían
+ahí; el schema `public` seguía expuesto correctamente en la API; cerrar
+sesión y volver a entrar lo arregló al instante — la firma exacta de
+una sesión vencida, no de datos perdidos.
+
+**No es la primera vez hoy — es la tercera.** La página de Usuarios
+del hub (antes de esta sesión) y Track Time de timetracker (D-077, aunque
+ahí la causa de fondo terminó siendo distinta — el schema sin exponer)
+mostraron el mismo síntoma exacto: "vacío, sin error". Cada vez se
+resolvió con un re-login manual, pero nadie había investigado por qué
+se repite. Pedido explícito: *"revisa bien porque ha estado pasando
+eso"* — la respuesta es este patrón, y ahora hay un arreglo real, no
+solo un cerrar-sesión-y-volver-a-entrar cada vez.
+
+**Consecuencia aceptada:** esto cubre el caso común (el token
+simplemente venció con el tiempo) refrescándolo proactivamente antes
+de leer — no cubre una sesión genuinamente revocada del lado del
+servidor (ahí `refreshSession()` también fallaría, y seguiría
+haciendo falta un re-login real). No se agregó ningún aviso visible de
+"tu sesión expiró" — sigue siendo silencioso cuando SÍ falla, solo que
+ahora falla mucho menos seguido. `tsc`/`vitest` (467)/`next build`
+limpios.
+
+**Revisar cuando:** si esto se repite después de este arreglo, la
+siguiente capa razonable es un aviso explícito en pantalla ("tu sesión
+expiró, vuelve a entrar") en vez de seguir tratando "cero filas" como
+sinónimo de "no hay datos" — no se hizo aquí porque cambia cómo se ve
+un estado vacío legítimo en cada pantalla, alcance más grande que un
+arreglo de causa raíz puntual.
+
 ---
 
 <!-- PLANTILLA — copia esto para una entrada nueva
