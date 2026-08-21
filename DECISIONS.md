@@ -3626,9 +3626,11 @@ deshabilitada, a pedido explícito ("imitando cómo lo hace Upwork").
 ---
 
 ## D-086 · "Add time" con dropdowns estilo Upwork, validado en 4 capas
-**Fecha:** 2026-08-21 · **Versión:** v1.21.1 · **Pedido por:** Andrés,
-con especificación completa por escrito (reglas de bloqueo, casos de
-prueba, y pedido explícito de investigar antes de programar)
+**Fecha:** 2026-08-21 · **Versión:** v1.21.1 · **Pedido por:** Andrés
+
+**Con especificación completa por escrito:** reglas de bloqueo, casos
+de prueba pedidos, y pedido explícito de investigar antes de
+programar.
 
 **Cambio:** `/timetracker/requests`, formulario "Add time" — reemplaza
 los `<input type="time">` de D-085 por dos `<select>` (inicio/fin,
