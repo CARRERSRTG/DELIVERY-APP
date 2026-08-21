@@ -265,13 +265,17 @@ export function OrderModal({
 
   // A brand-new order defaults to Order Type "Customer" and the store the
   // salesperson is assigned to in Settings (runs once, after settings load).
+  // Office (manager) and accounting default to "Intertienda" instead — most
+  // of what they log is store-to-store, not a customer delivery.
   const defaultedRef = useRef(false);
   useEffect(() => {
     if (!isNew || defaultedRef.current || settings.order_types.length === 0) return;
     defaultedRef.current = true;
+    const defaultType = (me.role === "manager" || me.role === "accounting") && settings.order_types.includes("Intertienda")
+      ? "Intertienda" : "Customer";
     setD((p) => {
       let next = p;
-      if (!p.order_type && settings.order_types.includes("Customer")) next = withTypeDefaults(next, "Customer");
+      if (!p.order_type && settings.order_types.includes(defaultType)) next = withTypeDefaults(next, defaultType);
       if (!next.store && me.store) {
         const st = settings.stores.find((s) => s.name === me.store);
         next = { ...next, store: me.store, pickup_name: me.store, pickup_address: st?.address ?? next.pickup_address };
@@ -279,7 +283,7 @@ export function OrderModal({
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNew, settings.order_types.length]);
+  }, [isNew, settings.order_types.length, me.role]);
 
   /** Hard gate (D-049): pallets and the document reference actually refuse a
    * draft → pending submission — there's nothing to plan a truck for or bill

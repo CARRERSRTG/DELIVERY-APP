@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-084", title: "Office/Accounting arrancan una orden nueva en Intertienda",
+      fecha: "2026-08-21", version: "v1.20.4", quien: "Andrés",
+      cambio: "Al crear orden nueva, el tipo por default sigue siendo Customer para todos, excepto manager (office) y accounting, que ahora arrancan en Intertienda.",
+      razon: "\"default for office and acct should be customer type intertienda\"",
+      razonTextual: true,
+      consecuencia: "Sigue siendo editable, solo cambia el punto de partida. Si settings.order_types no incluye Intertienda, cae de vuelta a Customer en vez de fallar."
+    },
+    {
       id: "D-083", title: "Almacén gana el filtro \"Picked Up\" (recogido, aún no entregado)",
       fecha: "2026-08-21", version: "v1.20.3", quien: "Andrés",
       cambio: "ROLE_FILTER_STAGES.warehouse gana \"picked_up\" — era el único rol con lista explícita que no lo tenía.",

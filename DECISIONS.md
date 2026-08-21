@@ -3573,6 +3573,23 @@ agrega un chip de filtro más a la vista de almacén.
 
 ---
 
+## D-084 · Office/Accounting arrancan una orden nueva en Intertienda
+**Fecha:** 2026-08-21 · **Versión:** v1.20.4 · **Pedido por:** Andrés
+(*"default for office and acct should be customer type intertienda"*)
+
+**Cambio:** al crear una orden nueva, el tipo por default sigue siendo
+"Customer" para todos, EXCEPTO `manager` (office) y `accounting`, que
+ahora arrancan en "Intertienda" — la mayoría de lo que esos dos roles
+registran es traslado entre tiendas, no una entrega a cliente.
+
+**Consecuencia aceptada:** sigue siendo editable — es solo el punto de
+partida, cualquiera puede cambiarlo a Customer/Transfer manualmente.
+Si `settings.order_types` no incluye "Intertienda" (config
+personalizada sin ese tipo), cae de vuelta a "Customer" en vez de
+fallar.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
