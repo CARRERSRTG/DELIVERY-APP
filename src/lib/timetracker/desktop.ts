@@ -18,6 +18,13 @@ export type DesktopShotData = {
   activityPercent?: number;
 };
 
+export type DesktopUpdateState = {
+  state: "idle" | "checking" | "downloading" | "ready" | "none" | "error";
+  version?: string;
+  percent?: number;
+  message?: string;
+};
+
 type DesktopBridge = {
   isDesktop: boolean;
   start: (opts: { sessionId: string; intervalMin?: number }) => Promise<{ ok: boolean }>;
@@ -28,6 +35,10 @@ type DesktopBridge = {
   onPower?: (cb: (reason: string) => void) => () => void;
   getVersion?: () => Promise<string>;
   notifyShotStatus?: (status: string) => Promise<boolean>;
+  onUpdate?: (cb: (u: DesktopUpdateState) => void) => () => void;
+  getUpdateState?: () => Promise<DesktopUpdateState>;
+  checkForUpdates?: () => Promise<boolean>;
+  installUpdate?: () => Promise<boolean>;
 };
 
 declare global {
@@ -87,4 +98,23 @@ export function desktopOnPower(cb: (reason: string) => void): () => void {
 export async function desktopGetVersion() {
   if (!isDesktop() || !window.ttDesktop!.getVersion) return null;
   try { return await window.ttDesktop!.getVersion!(); } catch { return null; }
+}
+
+// --- auto-update (desktop only; all no-op on web) ---
+export function desktopOnUpdate(cb: (u: DesktopUpdateState) => void): () => void {
+  if (!isDesktop() || !window.ttDesktop!.onUpdate) return () => {};
+  try { return window.ttDesktop!.onUpdate!(cb); } catch { return () => {}; }
+}
+
+export async function desktopGetUpdateState(): Promise<DesktopUpdateState | null> {
+  if (!isDesktop() || !window.ttDesktop!.getUpdateState) return null;
+  try { return await window.ttDesktop!.getUpdateState!(); } catch { return null; }
+}
+
+export function desktopCheckUpdate() {
+  try { window.ttDesktop?.checkForUpdates?.(); } catch { /* ignore */ }
+}
+
+export function desktopInstallUpdate() {
+  try { window.ttDesktop?.installUpdate?.(); } catch { /* ignore */ }
 }

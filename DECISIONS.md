@@ -3101,6 +3101,78 @@ usuario y confirmación explícita.
 
 ---
 
+## D-075 · Cierre de los gaps conocidos del desktop: auto-update, offline, notificaciones
+**Fecha:** 2026-08-20 · **Versión:** v1.19.1 · **Pedido por:** Andrés
+
+**Cambio:** los tres gaps que D-074 dejó anotados como pendientes ahora
+están portados:
+- **Banner de auto-actualización** (`src/components/timetracker/UpdateBanner.tsx`,
+  nuevo) — consume el canal `tt:update` de `main.js` vía 4 funciones nuevas
+  en `desktop.ts` (`desktopOnUpdate`/`desktopGetUpdateState`/
+  `desktopCheckUpdate`/`desktopInstallUpdate`). Muestra descarga en curso,
+  "reinicia para instalar", y un botón manual de verificación en el
+  `TopBar`. Solo-escritorio, calcado de `App.jsx`'s `UpdateBanner`.
+- **Cola offline** (`src/lib/timetracker/offlineQueue.ts`, nuevo) —
+  parches de sesión a `localStorage`, capturas a IndexedDB, sincroniza al
+  reconectar o cada 30s. A diferencia del original (que importaba un
+  cliente Supabase global), acá recibe `updateSession`/`uploadScreenshot`
+  como parámetros — el cliente con schema `timetracker` y la conversión
+  camelCase/snake_case siguen viviendo solo en el data provider, no se
+  duplicaron. `writeSession` en `page.tsx` ahora encola en vez de solo
+  alertar tras 3 reintentos fallidos; la subida de capturas hace lo mismo.
+  `OfflineIndicator` (nuevo) muestra un pill fijo cuando hay algo
+  pendiente de sincronizar.
+- **Notificaciones reales del sistema** — `notify()` en el data provider
+  ahora también dispara `new Notification()` cuando el permiso está
+  concedido y NO es escritorio (el shell de Electron ya dibuja sus
+  propios toasts flotantes para lo mismo — duplicarlo se vería peor, no
+  mejor, igual que razonaba `notify.js` original). Se pide el permiso
+  una vez al montar, solo en web. Se agregaron los dos disparadores que
+  faltaban en `page.tsx`: "tracking started" y el aviso de límite
+  semanal alcanzado/cerca de alcanzarse (con los mismos *latches*
+  `limitHitRef`/`nearHitRef` del original para no repetir el aviso).
+
+**Razón:** pedido explícito — *"hazlos todos"*, en respuesta a la lista
+de pendientes que quedó tras D-074.
+
+**Un hallazgo que cambia el marco de lo que se documentó como
+"descontinuado".** Al investigar qué pasa con `timetracker-clean/web`
+(la app Vite standalone, reemplazada en teoría por el puerto de
+deliveries-app) apareció evidencia de que sigue activa: su historial de
+commits reciente son *fixes reales de producción* ("Keep session on
+wake", "Recover Supabase connection after sleep"), no código muerto. Se
+preguntó directamente y se confirmó: **alguien todavía la usa**. Esa app
+sigue apuntando al proyecto de Supabase viejo (`qklsxhzmbnglgzufdbmz`),
+distinto del que usa `/timetracker` en deliveries-app desde D-073 — dos
+bases de datos activas y divergiendo en silencio para cualquiera que
+siga en la app vieja. No es un problema de código, no se resuelve solo
+documentándolo: se dejó una advertencia explícita al inicio de
+`timetracker-clean/CLAUDE.md`/`DEPLOY.md`/`RELEASE.md` marcándolo como
+riesgo abierto, no como decisión tomada. Sigue pendiente que el negocio
+decida cuándo y cómo mover a esas personas al `/timetracker` nuevo.
+
+**De paso, arreglado:** el repo `timetracker` en GitHub se movió de
+`CARRERSRTG` a `codingcodertg` (mismo org que `deliveries-app`) — el
+`git remote` local, `desktop/package.json`'s `build.publish.owner`, y las
+referencias en `RELEASE.md`/`DEPLOY.md` quedaron actualizados para no
+depender del redirect de GitHub indefinidamente.
+
+**Consecuencia aceptada:** el manual "check for updates" del `TopBar` es
+un ícono sin label (⟳) por espacio — el original lo tenía como link de
+texto en un footer que este puerto no tiene. Las notificaciones del
+navegador dependen de que el usuario conceda el permiso la primera vez
+que se le pide; si lo niega, se queda solo con el toast en pantalla
+(igual que el original). Nada de esto se probó dentro de Electron en
+una máquina Windows real — pasó `tsc`/`vitest` (467)/`next build`, que
+no prueba el flujo real dentro del shell.
+
+**Revisar cuando:** se resuelva qué hacer con `timetracker-clean/web` —
+mover a la gente que falta, o decidir mantener ambas apps a propósito
+(y entonces sí armar una sincronización real entre los dos proyectos de
+Supabase, no una migración de una sola vez).
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

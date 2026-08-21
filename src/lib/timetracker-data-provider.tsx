@@ -11,7 +11,9 @@ import {
 } from "react";
 import { createClient } from "@/lib/timetracker/supabase/client";
 import { rowToCamel, toSnakeRow } from "@/lib/timetracker/supabase/rowcase";
+import { isDesktop } from "@/lib/timetracker/desktop";
 import { APP_SETTINGS, type AppSettings, syncAppSettings } from "@/lib/timetracker/helpers";
+import { initOfflineQueue } from "@/lib/timetracker/offlineQueue";
 import type { AuditEntry, Assignment, Employee, Payroll, Project, RequestType, Screenshot, Session, TimeRequest } from "@/lib/timetracker/types";
 
 // ============================================================
@@ -168,10 +170,31 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   const [toast, setToast] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // In-app toast (always) plus a best-effort real OS notification (D-074,
+  // matching timetracker-clean's notify.js) — so a weekly-limit warning or
+  // "tracking started" still reaches someone who's alt-tabbed away. Skipped
+  // on desktop: the Electron shell draws its own floating toast for these
+  // same events (main.js's showInfoToast), and firing an HTML5 Notification
+  // there too would just duplicate it as a second, uglier Windows toast.
   const notify = useCallback((msg: string) => {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(""), 2400);
+    try {
+      if (!isDesktop() && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        new Notification(msg);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Ask for OS notification permission once, web-only (desktop draws its own
+  // toasts and never needs this; see the comment on notify() above).
+  useEffect(() => {
+    try {
+      if (isDesktop()) return;
+      if (typeof Notification === "undefined") return;
+      if (Notification.permission === "default") Notification.requestPermission().catch(() => {});
+    } catch { /* ignore */ }
   }, []);
 
   // Make sure we hold a live access token before an authenticated write.
@@ -562,6 +585,12 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     const { error } = await supabase.auth.signOut({ scope: "global" });
     if (error) throw error;
   }, [supabase]);
+
+  // Flush any session patches / screenshots buffered locally from a prior
+  // dropped connection, and keep retrying on an interval + on reconnect
+  // (D-074). Works on web too; most valuable on the desktop app, where a
+  // field site's flaky wifi shouldn't lose tracked time.
+  useEffect(() => { initOfflineQueue({ updateSession, uploadScreenshot }); }, [updateSession, uploadScreenshot]);
 
   const value: DataState = {
     ready, me, settings, projects, myAssignments: assignments, mySessions: sessions, myPayrolls: payrolls,

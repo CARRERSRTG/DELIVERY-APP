@@ -455,7 +455,7 @@ recruiting project" below) but nothing in production points at them anymore.
   `updateUserRecruitingAccess`) were not touched or merged — the generic part is what gets
   rendered, never what gets written.
 
-## 12. Timetracker module (D-064→D-074 — data, UI, real data, and the desktop repoint all done)
+## 12. Timetracker module (D-064→D-075 — data, UI, real data, desktop client, all done)
 
 A third module joining the container, same two-stage shape as recruiting (D-050→D-052): data
 first, UI later. As of D-064 only the data stage is done — `timetracker.*` exists in this
@@ -602,12 +602,26 @@ client and a Windows Electron desktop client.
   (RLS already allowed employee-owned inserts since D-064; nothing new needed there); and
   auto-stop on OS lock/sleep. See D-074 for the full account, including why skipping this port
   and repointing `loadURL` directly would have quietly gutted the desktop app's reason to exist.
-- **Known gaps, tracked rather than silently dropped:** no offline queue (a failed session write
-  retries 3x, then surfaces an alert instead of buffering for later sync — the original's
-  `lib/offlineQueue.js` isn't ported); no OS/browser notifications (weekly-limit warnings and
-  "tracking started" show as in-app banners/toasts only — the desktop shell's own native floating
-  toast, unrelated to this, still fires independently); no in-app auto-update banner (the shell's
-  `tt:update` IPC channel has no UI consumer yet — updates download and install silently).
+- **The three gaps D-074 tracked here were closed in D-075**, same day, on request ("hazlos
+  todos"): `lib/timetracker/offlineQueue.ts` (new) buffers session patches (localStorage) and
+  screenshots (IndexedDB) on a failed write and flushes on reconnect or every 30s — unlike the
+  original, it takes `updateSession`/`uploadScreenshot` as parameters instead of importing its own
+  Supabase client, so the schema-scoped client and camelCase conversion stay only in the data
+  provider; `notify()` now also fires a real browser `Notification` when permission is granted and
+  the page ISN'T running in the desktop shell (which already draws its own floating toast for the
+  same events — see the comment on `notify()` in `timetracker-data-provider.tsx`), with the two
+  missing trigger points (weekly-limit warning, "tracking started") added back into Track Time;
+  `TtUpdateBanner`/`TtCheckUpdateLink` (new, `components/timetracker/UpdateBanner.tsx`) report
+  `desktop/main.js`'s `tt:update` IPC state in-app, desktop-only.
+- **Investigating one of those gaps surfaced a real, unresolved risk, not a settled fact.**
+  `timetracker-clean/web` — the original standalone Vite app, nominally superseded by this port —
+  turned out to still be live and in active use: its recent commit history is real production bug
+  fixes, not dead code, and it still points at the OLD Supabase project (`qklsxhzmbnglgzufdbmz`),
+  not the one this module's `/timetracker` reads from since D-073. Anyone still using it is writing
+  to a database this app never sees, and vice versa — a silent split that gets worse the longer it
+  runs. Confirmed directly with the person who'd know rather than assumed either way. Not something
+  this repo's code can fix: flagged as an open warning at the top of `timetracker-clean/CLAUDE.md`,
+  `DEPLOY.md`, and `RELEASE.md` instead of writing docs that quietly treated it as decided.
 - **`/timetracker/week` (D-067) — the second screen, a closer 1:1 port than Track Time.** A
   read-only weekly timesheet with no desktop/offline/live-tick concerns, so it translated more
   directly. Added `myPayrolls` to the data provider, same `reloadAll()` + `employee_uid`-filtered
@@ -692,13 +706,15 @@ client and a Windows Electron desktop client.
   out buttons in `TopBar.tsx` switched to fixed `rgba(255,255,255,.1)` overrides instead of theme
   variables, the same inline-override pattern `recruiting/TopBar.tsx` already uses for the same
   reason.
-- **Real employee data migrated from the old project (D-073)**, and the **Electron desktop shell
-  repointed at this hosted route (D-074)**, closing out the module: schema (D-064) → UI (D-066
-  through D-071) → visual fix (D-072) → real data (D-073) → desktop client (D-074). The desktop
-  repoint required porting the desktop-only bridge behavior into this Next.js route first (see the
-  bullet above and D-074 itself) — `main.js` in the separate `timetracker-clean` repo now calls
+- **Real employee data migrated from the old project (D-073)**, the **Electron desktop shell
+  repointed at this hosted route (D-074)**, and its **remaining known gaps closed the same day
+  (D-075)**: schema (D-064) → UI (D-066 through D-071) → visual fix (D-072) → real data (D-073) →
+  desktop client (D-074) → offline/notifications/auto-update (D-075). The desktop repoint required
+  porting the desktop-only bridge behavior into this Next.js route first (see the bullet above and
+  D-074 itself) — `main.js` in the separate `timetracker-clean` repo now calls
   `loadURL('https://deliveries-app-seven.vercel.app/timetracker')` instead of bundling a local Vite
   build, so a deploy here reaches every installed desktop client without a reinstall. Packaging and
   publishing an actual installer update (`electron-builder --win nsis --publish always`, which
   pushes a real GitHub Release that already-installed apps auto-download) is a separate, deliberate
-  step — not done as part of this change.
+  step — not done as part of this change. What's genuinely still open isn't a code gap: whether
+  `timetracker-clean/web`'s remaining users get moved to this route, and when (D-075).

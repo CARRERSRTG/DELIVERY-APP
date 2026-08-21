@@ -11,6 +11,7 @@ import {
   DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopNotifyShotStatus,
   desktopOnPower, desktopOnShot, desktopStart, desktopStop, isDesktop,
 } from "@/lib/timetracker/desktop";
+import { queueSession, queueShot } from "@/lib/timetracker/offlineQueue";
 import type { Assignment, BreakEvent, Session } from "@/lib/timetracker/types";
 
 // ============================================================
@@ -30,17 +31,15 @@ import type { Assignment, BreakEvent, Session } from "@/lib/timetracker/types";
 // contexts — desktop branches are simply absent (no-ops) in a plain browser
 // tab, same page either way.
 //
-// Deliberately NOT ported in this pass (see D-066's decision entry):
-//   - Offline queue (lib/offlineQueue.js) — a dropped connection during the
-//     10s tick write retries 3x then surfaces an alert, instead of buffering
-//     locally for later sync. Real gap, tracked for a follow-up pass.
-//   - OS/browser notifications (weekly-limit warnings, "tracking started").
-//     The in-app banner/toast covers the same information today. (The
-//     desktop shell's own floating toast — main.js's showInfoToast/
-//     showShotToast — still fires independently of this, same as before.)
-//   - Auto-update banner UI (desktop/main.js's tt:update IPC channel) — the
-//     shell downloads/installs updates silently; no in-app "restart to
-//     update" prompt yet.
+// D-074 also closed the other gaps this module comment used to list: a
+// dropped connection now buffers locally (lib/timetracker/offlineQueue.ts,
+// flushed on reconnect) instead of just alerting after 3 failed retries; the
+// desktop shell's own auto-update banner (TtUpdateBanner, wired in
+// layout.tsx) reports electron-updater's state; and notify() (weekly-limit
+// warnings, "tracking started") now fires a real OS notification on web, not
+// just an in-app toast — skipped on desktop, where main.js's own floating
+// toast already covers the same events (see the comment on notify() in
+// timetracker-data-provider.tsx).
 // ============================================================
 
 const METER_BARS = 20;
@@ -114,6 +113,26 @@ export default function TrackTimePage() {
     if (assignmentId && assignments.length && !assignments.find((a) => a.id === assignmentId)) setAssignmentId("");
   }, [assignments, assignmentId]);
 
+  // reset the weekly-limit notification latches when the project changes
+  const limitHitRef = useRef(false);
+  const nearHitRef = useRef(false);
+  useEffect(() => { limitHitRef.current = false; nearHitRef.current = false; }, [assignmentId]);
+
+  // notify when the employee reaches (or nears 90% of) their weekly limit —
+  // the banner already shows this on screen; notify() additionally reaches
+  // them via a real OS notification if they've alt-tabbed away (D-074).
+  useEffect(() => {
+    if (!selected || wLimitSec === Infinity) return;
+    const usedSec = weekSecThisProj + worked;
+    if (usedSec >= wLimitSec && !limitHitRef.current) {
+      limitHitRef.current = true; nearHitRef.current = true;
+      notify(t("notify.limitTitle") + ": " + t("notify.limitBody", { limit: (wLimitSec / 3600).toFixed(2), project: selected.project.name }));
+    } else if (usedSec >= wLimitSec * 0.9 && usedSec < wLimitSec && !nearHitRef.current) {
+      nearHitRef.current = true;
+      notify(t("notify.nearTitle") + ": " + t("notify.nearBody", { used: (usedSec / 3600).toFixed(2), limit: (wLimitSec / 3600).toFixed(2), project: selected.project.name }));
+    }
+  }, [worked, weekSecThisProj, selected, wLimitSec, notify, t]);
+
   useEffect(() => { try { if (assignmentId) localStorage.setItem(LS_A, assignmentId); } catch { /* ignore */ } }, [assignmentId, LS_A]);
   useEffect(() => { try { localStorage.setItem(LS_M, memo); } catch { /* ignore */ } }, [memo, LS_M]);
 
@@ -154,17 +173,19 @@ export default function TrackTimePage() {
         return;
       }
       if (!data?.dataUrl) return;
+      const res = await fetch(data.dataUrl);
+      const blob = await res.blob();
+      const rec = { employeeUid: me.id, sessionId: data.sessionId, blob, date: dateISO(at), activityPercent: data.activityPercent || 0 };
       try {
-        const res = await fetch(data.dataUrl);
-        const blob = await res.blob();
-        await uploadScreenshot({
-          employeeUid: me.id, sessionId: data.sessionId, blob,
-          date: dateISO(at), activityPercent: data.activityPercent || 0,
-        });
+        if (!navigator.onLine) throw new Error("offline");
+        await uploadScreenshot(rec);
         desktopNotifyShotStatus("saved");
       } catch (e) {
-        console.error("screenshot upload failed", e);
-        desktopNotifyShotStatus("error");
+        // Offline or the upload failed — buffer the image locally and sync
+        // later, instead of losing the capture.
+        console.error("screenshot upload failed, queueing", e);
+        const queued = await queueShot(rec);
+        desktopNotifyShotStatus(queued ? "queued" : "error");
       }
     });
   }, [me.id, uploadScreenshot, insertBlankScreenshot]);
@@ -188,15 +209,17 @@ export default function TrackTimePage() {
   function breakEventsPayload() { return breakEventsRef.current.map((e) => ({ kind: e.kind, start: e.start, end: e.end || null })); }
 
   // Persist a session update. Retries a few times on transient failures; if
-  // every retry fails the tracker keeps counting locally (nothing is lost
-  // from the clock's point of view) but the write itself is NOT buffered for
-  // later — see the module comment on the offline-queue gap.
-  async function writeSession(id: string, patch: Partial<Session>, tries = 3): Promise<boolean> {
+  // every retry fails (offline, or a transient server error), the patch is
+  // buffered locally via the offline queue and synced on reconnect — the
+  // tracker keeps counting from local refs regardless, so the buffered patch
+  // always carries the full up-to-date duration once it flushes.
+  async function writeSession(id: string, patch: Partial<Session>, tries = 3): Promise<boolean | "queued"> {
     for (let i = 0; i < tries; i++) {
       try { await updateSession(id, patch); return true; }
       catch { await new Promise((r) => setTimeout(r, 500 * (i + 1))); }
     }
-    return false;
+    queueSession(id, patch);
+    return "queued";
   }
 
   async function start() {
@@ -244,6 +267,9 @@ export default function TrackTimePage() {
       const row = await startSession(payload);
       sessionIdRef.current = row.id;
       setRunning(true);
+      // Confirm the clock started. On desktop the native floating toast
+      // (fired from main.js on tt:start) is the primary cue; this covers web.
+      notify(t("notify.startTitle") + ": " + t("notify.startBody", { project: selected.project?.name || "" }));
       desktopStart({ sessionId: row.id, intervalMin: shotMin });
     } catch (e) {
       const err = e as { message?: string } | null;

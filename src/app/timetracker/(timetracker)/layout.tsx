@@ -5,6 +5,8 @@ import { landingRoute } from "@/lib/constants";
 import { DataProvider } from "@/lib/timetracker-data-provider";
 import { TopBar } from "@/components/timetracker/TopBar";
 import { AppUpdateBanner } from "@/components/AppUpdateBanner";
+import { TtUpdateBanner } from "@/components/timetracker/UpdateBanner";
+import { OfflineIndicator } from "@/components/timetracker/OfflineIndicator";
 import type { Employee } from "@/lib/timetracker/types";
 import "../timetracker.css";
 
@@ -74,9 +76,11 @@ export default async function TimetrackerLayout({ children }: { children: React.
       <DataProvider me={me}>
         <div className="wrap">
           <TopBar deliveriesRole={profile.role} moduleAccess={profile.module_access} />
+          <TtUpdateBanner />
           {children}
         </div>
       </DataProvider>
+      <OfflineIndicator />
     </div>
   );
 }

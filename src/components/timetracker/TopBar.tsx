@@ -7,6 +7,7 @@ import { MANAGER_TABS, TABS } from "@/lib/timetracker/constants";
 import { useData } from "@/lib/timetracker-data-provider";
 import { getLang, setLang, useT } from "@/lib/timetracker/i18n";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
+import { TtCheckUpdateLink } from "@/components/timetracker/UpdateBanner";
 import type { UserRole } from "@/lib/types";
 
 // deliveriesRole/moduleAccess threaded through separately from `me`
@@ -58,6 +59,7 @@ export function TopBar({ deliveriesRole, moduleAccess }: { deliveriesRole: UserR
         >
           {lang === "es" ? "🇬🇧 EN" : "🇪🇸 ES"}
         </button>
+        <TtCheckUpdateLink />
         <form action="/auth/signout" method="post">
           <button className="btn-ghost btn-sm" style={{ background: "rgba(255,255,255,.1)", color: "#fff" }} type="submit">{t("shell.signOut")}</button>
         </form>

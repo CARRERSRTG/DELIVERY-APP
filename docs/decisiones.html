@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-075", title: "Cierre de los gaps conocidos del desktop: auto-update, offline, notificaciones",
+      fecha: "2026-08-20", version: "v1.19.1", quien: "Andrés",
+      cambio: "Los tres gaps que D-074 dejó pendientes: banner de auto-actualización (UpdateBanner.tsx, consume tt:update de main.js), cola offline (offlineQueue.ts — parches de sesión a localStorage, capturas a IndexedDB, sincroniza al reconectar; a diferencia del original recibe updateSession/uploadScreenshot como parámetros en vez de importar un cliente Supabase propio), y notificaciones reales del sistema (notify() ahora dispara Notification() en web, no en desktop — el shell ya tiene sus propios toasts). Se agregaron los dos disparadores que faltaban: \"tracking started\" y aviso de límite semanal.",
+      razon: "\"hazlos todos\", en respuesta a la lista de pendientes que quedó tras D-074",
+      razonTextual: true,
+      consecuencia: "Hallazgo real al investigar: timetracker-clean/web (la app Vite standalone) sigue activa y en uso — su historial reciente son fixes de producción, no código muerto — y sigue apuntando al proyecto de Supabase VIEJO, distinto al que usa /timetracker desde D-073. Dos bases de datos divergiendo en silencio para quien siga en la app vieja. No se resolvió con código — se dejó como advertencia explícita en timetracker-clean/CLAUDE.md/DEPLOY.md/RELEASE.md, riesgo abierto pendiente de que el negocio decida cuándo mover a esas personas. De paso: el repo timetracker en GitHub se movió de CARRERSRTG a codingcodertg — remote local, build.publish.owner y la documentación de release quedaron actualizados. No probado dentro de Electron en una máquina Windows real — tsc/vitest (467)/next build limpios, pero eso no prueba el flujo real dentro del shell."
+    },
+    {
       id: "D-074", title: "El desktop de Electron apunta a la URL en vivo, no a un bundle local",
       fecha: "2026-08-20", version: "v1.19.0", quien: "Andrés",
       cambio: "timetracker-clean/desktop/main.js (repo aparte) ya no carga web/dist vía loadFile — carga https://deliveries-app-seven.vercel.app/timetracker vía loadURL, igual que la APK de repartidores. extraResources se quitó del package.json del desktop; el script dev apunta al dev server de Next.js en vez del de Vite.",
