@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useData } from "@/lib/timetracker-data-provider";
 import { useT } from "@/lib/timetracker/i18n";
 import { fmtClock, weekStartISO } from "@/lib/timetracker/helpers";
+import { rangeOverlapsAny, type OccupiedRange } from "@/lib/timetracker/timeOverlap";
 import type { RequestType } from "@/lib/timetracker/types";
 
 // Ported (D-071) from timetracker-clean's manager/ManagerRequests.jsx — the
@@ -23,9 +24,13 @@ function fromRange(date: string, fromTime: string, toTime: string) {
   const startMs = new Date(date + "T" + ft + ":00").getTime();
   return { durationSeconds, startMs, endMs: startMs + durationSeconds * 1000 };
 }
+// Minutes since local midnight for an epoch ms — same (browser-local) frame
+// fromRange() above already uses, so this stays consistent with it rather
+// than mixing in a second timezone assumption for just this one check.
+function msToMin(ms: number): number { const d = new Date(ms); return d.getHours() * 60 + d.getMinutes(); }
 
 export default function TeamRequestsPage() {
-  const { me, allRequests: requests, allProjects: projects, allAssignments: assignments, insertSession, updateSession, removeSession, claimRequest, resetRequestToPending, logAudit } = useData();
+  const { me, allRequests: requests, allProjects: projects, allAssignments: assignments, insertSession, updateSession, removeSession, claimRequest, resetRequestToPending, logAudit, sessionsSince } = useData();
   const t = useT();
   const rLabel = (type: RequestType | null) => (type ? t("reqtype." + type) : "—");
   const aMap = new Map(assignments.map((a) => [a.id, a]));
@@ -52,6 +57,44 @@ export default function TeamRequestsPage() {
           let d;
           if (p.fromTime && p.toTime) d = fromRange(p.date as string, p.fromTime as string, p.toTime as string);
           else { const dur = Math.round(((p.hours as number) || 0) * 3600); const s = Date.parse(p.date + "T12:00:00Z"); d = { durationSeconds: dur, startMs: s, endMs: s + dur * 1000 }; }
+          // D-086: re-check for a conflict as of RIGHT NOW, not as of when the
+          // employee submitted it — another one of their own entries could
+          // have landed (a session tracked live, or a different request
+          // approved) while this one sat pending. Only meaningful for a
+          // fromTime/toTime request; an hours-only one has no range to check.
+          if (p.fromTime && p.toTime) {
+            const daySessions = await sessionsSince(p.date as string, p.date as string);
+            const occupied: OccupiedRange[] = [
+              ...daySessions
+                .filter((s) => s.employeeUid === r.employeeUid && s.startMs != null)
+                .map((s) => {
+                  const startMin = msToMin(s.startMs!);
+                  let endMin = msToMin(s.endMs ?? s.startMs!);
+                  if (endMin < startMin) endMin = 1440;
+                  return { startMin, endMin };
+                }),
+              ...requests
+                .filter((other) => other.id !== r.id && other.status === "pending" && other.employeeUid === r.employeeUid && (other.type === "add" || other.type === "adjust"))
+                .map((other) => other.payload as Record<string, unknown>)
+                .filter((op) => op.date === p.date && typeof op.fromTime === "string" && typeof op.toTime === "string")
+                .map((op) => {
+                  const startMin = tParse(op.fromTime as string);
+                  let endMin = tParse(op.toTime as string);
+                  if (endMin < startMin) endMin = 1440;
+                  return { startMin, endMin };
+                }),
+            ];
+            let reqEndMin = tParse(p.toTime as string);
+            const reqStartMin = tParse(p.fromTime as string);
+            if (reqEndMin < reqStartMin) reqEndMin = 1440;
+            if (rangeOverlapsAny(reqStartMin, reqEndMin, occupied)) {
+              await resetRequestToPending(r.id).catch(() => {});
+              alert(t("mgr.req.overlapOnAccept", {
+                name: (p.employeeName as string) || "", date: p.date as string, from: p.fromTime as string, to: p.toTime as string,
+              }));
+              return;
+            }
+          }
           await insertSession({
             employeeUid: r.employeeUid,
             employeeName: p.employeeName as string,

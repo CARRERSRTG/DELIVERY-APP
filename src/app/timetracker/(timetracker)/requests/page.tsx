@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useData } from "@/lib/timetracker-data-provider";
 import { APP_SETTINGS, dateISO, fmtClock, weekIsFinished, weekStartISO } from "@/lib/timetracker/helpers";
+import { endOptions, mmhh, rangeOverlapsAny, startOptions, type OccupiedRange } from "@/lib/timetracker/timeOverlap";
 import type { RequestType } from "@/lib/timetracker/types";
 
 // Ported (D-066, pass 3) from timetracker-clean's employee/EmployeeRequests.jsx —
@@ -25,12 +26,6 @@ function rangeHours(from: string, to: string): number {
   let d = b - a; if (d < 0) d += 1440;
   return d / 60;
 }
-function mmhh(min: number): string { return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`; }
-// [start, end] minutes-since-midnight, sorted, for every already-tracked
-// session on `date` — a new "add time" request must not land inside any of
-// these (the whole point is filling in time that was NEVER tracked).
-type Range = { startMin: number; endMin: number };
-
 interface FormState { assignmentId: string; date: string; fromTime: string; toTime: string; sessionId: string; reason: string }
 
 export default function MyRequestsPage() {
@@ -44,34 +39,37 @@ export default function MyRequestsPage() {
   const mySessions = sessions.slice().sort((a, b) => (b.startMs || 0) - (a.startMs || 0)).slice(0, 60);
   const hrs = rangeHours(f.fromTime, f.toTime);
 
-  // Already-tracked blocks on the selected date, for "add time" only — an
-  // add request exists to fill in time that was NEVER on the clock, so it
-  // must not overlap a session that already covers part of that day.
-  const trackedRanges: Range[] = type === "add"
-    ? sessions
-        .filter((s) => s.date === f.date && s.startMs != null)
-        .map((s) => {
-          const startMin = tParse(hhmm(s.startMs))!;
-          const endMs = s.endMs ?? s.startMs!;
-          let endMin = tParse(hhmm(endMs))!;
-          if (endMin < startMin) endMin = 1440; // crossed midnight — clip the visible day at 24:00
-          return { startMin, endMin };
-        })
-        .sort((a, b) => a.startMin - b.startMin)
+  // Occupied = already-tracked sessions (applied) + this employee's own
+  // still-pending add/adjust requests (D-086 — so two pending requests can't
+  // overlap each other either), for the selected date, "add time" only. A
+  // pending "delete" has no fromTime/toTime of its own; the session it
+  // targets is still tracked (and already counted) until the delete is approved.
+  const occupied: OccupiedRange[] = type === "add"
+    ? [
+        ...sessions
+          .filter((s) => s.date === f.date && s.startMs != null)
+          .map((s) => {
+            const startMin = tParse(hhmm(s.startMs))!;
+            const endMs = s.endMs ?? s.startMs!;
+            let endMin = tParse(hhmm(endMs))!;
+            if (endMin < startMin) endMin = 1440; // crossed midnight -- clip the visible day at 24:00
+            return { startMin, endMin };
+          }),
+        ...requests
+          .filter((r) => r.status === "pending" && (r.type === "add" || r.type === "adjust"))
+          .map((r) => r.payload as Record<string, unknown>)
+          .filter((p) => p.date === f.date && typeof p.fromTime === "string" && typeof p.toTime === "string")
+          .map((p) => {
+            const startMin = tParse(p.fromTime as string)!;
+            let endMin = tParse(p.toTime as string)!;
+            if (endMin < startMin) endMin = 1440;
+            return { startMin, endMin };
+          }),
+      ].sort((a, b) => a.startMin - b.startMin)
     : [];
-  const overlapsTracked = (fromMin: number, toMin: number) =>
-    trackedRanges.some((r) => fromMin < r.endMin && toMin > r.startMin);
-  // The open gap the currently-picked "From" time falls in (or the day's
-  // first gap if nothing's picked yet) — used as min/max on the time
-  // inputs. A single min/max range can't express multiple disjoint gaps,
-  // so this covers the common case; overlapsTracked() below is the real
-  // guarantee, checked again on submit regardless of what the picker allowed.
-  const fromMinNow = tParse(f.fromTime) ?? 0;
-  let gapStart = 0, gapEnd = 1440;
-  for (const r of trackedRanges) {
-    if (r.endMin <= fromMinNow) gapStart = Math.max(gapStart, r.endMin);
-    if (r.startMin >= fromMinNow && r.startMin < gapEnd) gapEnd = r.startMin;
-  }
+  const fromMinPicked = tParse(f.fromTime);
+  const startOpts = startOptions(occupied);
+  const endOpts = fromMinPicked != null ? endOptions(fromMinPicked, occupied) : [];
 
   function pickSession(id: string) {
     const s = sessions.find((x) => x.id === id);
@@ -95,10 +93,11 @@ export default function MyRequestsPage() {
         if (!f.assignmentId) { setMsg("Pick a project."); return; }
         if (!f.fromTime || !f.toTime) { setMsg("Enter the start and end time."); return; }
         if (hrs <= 0) { setMsg("End time must be after start time."); return; }
-        // The real guarantee — min/max on the inputs only expresses one gap
-        // at a time, this catches every already-tracked block on the date.
-        if (overlapsTracked(tParse(f.fromTime)!, tParse(f.toTime)!)) {
-          setMsg("That overlaps time you already tracked that day — pick a range that isn't covered yet.");
+        // The real guarantee -- the dropdowns only express one gap at a
+        // time around whatever's currently picked, this re-checks the full
+        // range against every occupied block on the date.
+        if (rangeOverlapsAny(tParse(f.fromTime)!, tParse(f.toTime)!, occupied)) {
+          setMsg("That overlaps time you already tracked (or already requested) that day -- pick a range that isn't covered yet.");
           return;
         }
         const a = aMap.get(f.assignmentId)!;
@@ -147,21 +146,37 @@ export default function MyRequestsPage() {
                   {assignments.map((a) => <option key={a.id} value={a.id}>{a.project.name}</option>)}
                 </select>
               </div>
-              <div><label>Date</label><input type="date" value={f.date} onChange={(e) => upd("date", e.target.value)} /></div>
+              <div>
+                <label>Date</label>
+                <input type="date" value={f.date} onChange={(e) => setF((p) => ({ ...p, date: e.target.value, fromTime: "", toTime: "" }))} />
+              </div>
             </div>
-            {trackedRanges.length > 0 && (
+            {occupied.length > 0 && (
               <div className="hint" style={{ marginTop: 6 }}>
-                Already tracked that day: {trackedRanges.map((r) => `${mmhh(r.startMin)}–${mmhh(r.endMin)}`).join(", ")}
+                Already tracked or requested that day: {occupied.map((r) => `${mmhh(r.startMin)}–${mmhh(r.endMin)}`).join(", ")}
               </div>
             )}
             <div className="grid g2">
               <div>
                 <label>From</label>
-                <input type="time" value={f.fromTime} min={mmhh(gapStart)} max={mmhh(gapEnd)} onChange={(e) => upd("fromTime", e.target.value)} />
+                <select
+                  value={f.fromTime}
+                  onChange={(e) => setF((p) => ({ ...p, fromTime: e.target.value, toTime: "" }))}
+                >
+                  <option value="">Pick…</option>
+                  {startOpts.map((o) => (
+                    <option key={o.min} value={o.label} disabled={o.disabled}>{o.label}{o.disabled ? " (tracked)" : ""}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label>To</label>
-                <input type="time" value={f.toTime} min={mmhh(gapStart)} max={mmhh(gapEnd)} onChange={(e) => upd("toTime", e.target.value)} />
+                <select value={f.toTime} onChange={(e) => upd("toTime", e.target.value)} disabled={!f.fromTime}>
+                  <option value="">Pick…</option>
+                  {endOpts.map((o) => (
+                    <option key={o.min} value={o.label} disabled={o.disabled}>{o.label}{o.disabled ? " (tracked)" : ""}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </>

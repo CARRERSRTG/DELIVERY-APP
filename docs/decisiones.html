@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-086", title: "\"Add time\" con dropdowns estilo Upwork, validado en 4 capas",
+      fecha: "2026-08-21", version: "v1.21.1", quien: "Andrés",
+      cambio: "Reemplaza los input type=time de D-085 por dos select (inicio/fin, pasos de 10 min). Horas ocupadas se muestran deshabilitadas, no ocultas. Al elegir inicio, el dropdown de fin se acota al comienzo del siguiente bloque ocupado — así un rango que cruza un bloque completo por en medio también queda bloqueado, no solo los extremos sueltos.",
+      razon: "Especificación completa por escrito: reglas de bloqueo (por usuario y día, ocupado = fichado + solicitudes pendientes propias, bordes que tocan sí permitidos, comparación estricta), casos de prueba pedidos, y pedido explícito de investigar antes de programar",
+      razonTextual: true,
+      consecuencia: "Cuatro capas de validación: dropdown de inicio, dropdown de fin acotado, revalidación completa al enviar, y revalidación al ACEPTAR (team-requests/page.tsx) — si algo se solapó mientras la solicitud estaba pendiente, no se aplica en silencio, se regresa a pendiente y se avisa al manager con el detalle exacto. Lógica en función pura (lib/timetracker/timeOverlap.ts), 20 pruebas nuevas cubriendo los casos pedidos. No se tocó la inconsistencia de zona horaria preexistente de fromRange() (hora local del navegador de quien acepta, no la de negocio) — la nueva verificación usa la misma convención para no mezclar dos supuestos distintos."
+    },
+    {
       id: "D-085", title: "\"Add time\" en timetracker ya no deja pedir horas que se solapan",
       fecha: "2026-08-21", version: "v1.21.0", quien: "Andrés",
       cambio: "/timetracker/requests, formulario Add time: muestra los bloques ya fichados ese día, los campos From/To llevan min/max acotados al hueco libre, y al enviar se revalida contra TODOS los bloques del día (no solo el hueco visible) — rechaza con mensaje explícito si se solapa.",

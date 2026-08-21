@@ -3618,6 +3618,79 @@ hueco visible— es la garantía real.
 que el caso de "pedir horas que ya están fichadas" no aplica ahí de la
 misma forma. `tsc`/`vitest` (467)/`next build` limpios.
 
+**Reemplazada por D-086** (mismo día): esta versión usaba `<input
+type="time">` nativo con `min`/`max` de un solo hueco continuo — D-086
+la sustituye por dropdowns reales que muestran cada opción ocupada
+deshabilitada, a pedido explícito ("imitando cómo lo hace Upwork").
+
+---
+
+## D-086 · "Add time" con dropdowns estilo Upwork, validado en 4 capas
+**Fecha:** 2026-08-21 · **Versión:** v1.21.1 · **Pedido por:** Andrés,
+con especificación completa por escrito (reglas de bloqueo, casos de
+prueba, y pedido explícito de investigar antes de programar)
+
+**Cambio:** `/timetracker/requests`, formulario "Add time" — reemplaza
+los `<input type="time">` de D-085 por dos `<select>` (inicio/fin,
+pasos de 10 min, 144 opciones/día). Las horas ya ocupadas se muestran
+deshabilitadas, no ocultas. Al elegir la hora de inicio, el dropdown
+de fin se recalcula: solo permite hasta el comienzo del siguiente
+bloque ocupado, no solo deshabilita opciones sueltas — así un rango
+que empieza y termina en horas libres pero que CRUZA un bloque
+completo por en medio (ej. ocupado 10–12, elegir 9 a 13) también
+queda bloqueado, no solo los extremos.
+
+**"Ocupado" = sesiones ya fichadas + las propias solicitudes
+pendientes del mismo empleado ese día** (para que dos requests
+pendientes tampoco se traslapen entre sí) — confirmado con el pedido
+original, que lo pide explícito. Tocar bordes SÍ se permite (una
+entrada que termina a las 12:00 no bloquea que otra empiece a las
+12:00) — toda la lógica usa comparación estricta `<`/`>`, nunca
+`<=`/`>=`.
+
+**Cuatro capas de validación, no una:** (1) el dropdown de inicio
+deshabilita horas ocupadas visualmente; (2) el de fin se acota al
+hueco después de elegir inicio; (3) al ENVIAR la solicitud, se revisa
+el rango completo contra TODO lo ocupado ese día (la garantía real —
+un `min`/`max` de un solo hueco no puede expresar varios huecos
+disjuntos a la vez); (4) al ACEPTAR — `team-requests/page.tsx`'s
+`accept()` — se vuelve a calcular el ocupado del empleado AL MOMENTO
+DE ACEPTAR (no al momento en que se envió la solicitud) y si algo se
+solapó mientras estaba pendiente (otra sesión fichada en vivo, u otra
+solicitud aprobada de la misma persona), NO se aplica en silencio: se
+regresa la solicitud a pendiente y se le avisa al manager con el
+detalle exacto (empleado, fecha, rango que chocó).
+
+**La lógica de traslape vive en una función pura**
+(`src/lib/timetracker/timeOverlap.ts`) sin ninguna dependencia de
+React/Supabase — `rangesOverlap`, `isSlotOccupied`, `startOptions`,
+`endOptions`, `maxEndAfter`, `rangeOverlapsAny`. 20 pruebas nuevas
+(`timeOverlap.test.ts`) cubren exactamente los casos pedidos: dentro
+del rango, bordes que se tocan, rango que cruza un bloque completo,
+día sin entradas, y varias entradas ocupadas el mismo día — incluido
+el caso de una sesión real que no cae en un múltiplo de 10 minutos
+(ej. 10:03–10:47), que igual debe bloquear cada paso de 10 min que
+toca.
+
+**Consecuencia aceptada:** el reencaje al aceptar usa
+`sessionsSince(date, date)` (bajo demanda, ver el comentario del
+proveedor de datos sobre por qué las sesiones de toda la empresa no
+viven en memoria) — un round trip extra por cada "Aceptar" de tipo
+Add con horas, aceptado porque es exactamente el momento en que
+importa estar seguro. Solo aplica a solicitudes con `fromTime`/`toTime`
+— una solicitud vieja en solo-horas (`hours`, sin rango) no tiene
+rango que revisar, se aplica igual que antes. Sigue sin tocarse el
+hallazgo de zona horaria de D-066/D-071 (`fromRange()` interpreta
+`date+fromTime` en la hora LOCAL DEL NAVEGADOR de quien acepta, no en
+la hora de negocio fija) — la nueva verificación de traslape usa la
+misma convención existente (`msToMin` con `getHours()`/`getMinutes()`
+locales) para no mezclar dos supuestos de zona horaria distintos en el
+mismo cálculo.
+
+**Revisar cuando:** se decida resolver la inconsistencia de zona
+horaria de fondo (D-066/D-071) — en ese momento este archivo también
+necesita el mismo ajuste, no solo `fromRange()`.
+
 ---
 
 <!-- PLANTILLA — copia esto para una entrada nueva
