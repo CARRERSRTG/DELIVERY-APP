@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-078", title: "La brecha real de D-073: lo trabajado después del corte de la migración",
+      fecha: "2026-08-21", quien: "Andrés",
+      cambio: "Migradas 5 sesiones y 50 capturas que quedaron fuera de D-073 porque esa migración corrió a media tarde del 2026-08-20 mientras Andrés seguía trabajando en la app vieja (el desktop no se había repuntado hasta D-074, un día después). Corte real: última captura migrada en D-073 fue 2026-08-20 20:44 UTC. Después de eso: una sesión de Andrés a medio terminar (capturada con duración parcial porque seguía corriendo cuando D-073 tomó su snapshot), dos sesiones completas más de Andrés esa noche, y tres sesiones cortas de Nick Huerta. requests/audit/payrolls no tenían nada nuevo.",
+      razon: "\"segui trabajando, busca nuevos datos porque solo me salen screenshots a las 2pm y termine hasta tipo 11pm\"",
+      razonTextual: true,
+      consecuencia: "IDs de fila preservados entre proyectos desde D-073 permitieron comparar por id para saber qué faltaba: UPDATE para la sesión parcial, INSERT...ON CONFLICT DO NOTHING para lo nuevo, mismo ID_MAP y mismo arreglo de ruta de capturas que D-073. Verificado: 236 sesiones (231+5), 2,319 capturas (2,269+50), cero huérfanas. Última captura ahora 2026-08-21 04:36 UTC (~23:36 hora del negocio) — coincide con \"hasta tipo 11pm\". El riesgo de fondo (timetracker-clean/web sigue activa) que D-075 dejó como teórico ahora tiene evidencia directa: si alguien sigue usando la app vieja, esta brecha vuelve a aparecer. No es cambio de código."
+    },
+    {
       id: "D-077", title: "El schema timetracker nunca estuvo expuesto a la API — nada leía datos reales",
       fecha: "2026-08-21", quien: "Andrés",
       cambio: "db_schema en la config de PostgREST del proyecto de Supabase era public,graphql_public,recruiting — timetracker nunca se agregó desde D-064. Corregido vía PATCH /v1/projects/{ref}/postgrest. No es cambio de código ni migración .sql — config de plataforma, sin versión de APP_VERSION.",

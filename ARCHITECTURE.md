@@ -455,7 +455,7 @@ recruiting project" below) but nothing in production points at them anymore.
   `updateUserRecruitingAccess`) were not touched or merged — the generic part is what gets
   rendered, never what gets written.
 
-## 12. Timetracker module (D-064→D-077 — data, UI, real data, desktop client, all done)
+## 12. Timetracker module (D-064→D-078 — data, UI, real data, desktop client, all done)
 
 A third module joining the container, same two-stage shape as recruiting (D-050→D-052): data
 first, UI later. As of D-064 only the data stage is done — `timetracker.*` exists in this
@@ -531,6 +531,17 @@ client and a Windows Electron desktop client.
   (and its schema-exposure check) entirely. Fixed by adding `timetracker` to `db_schema` via the
   same Management API. **If a fourth module is ever added, this exact step has to be remembered by
   hand again** — there is still nowhere in this repo that automates or checks it.
+- **D-073's migration turned out to have a real cutoff gap, confirmed and closed the same day
+  (D-078).** D-073 ran mid-afternoon on 2026-08-20; the desktop wasn't repointed at the live site
+  until D-074, a day later, so people kept tracking time on the OLD standalone app for hours after
+  the snapshot. Found via a direct report ("I worked until 11pm, only see screenshots up to 2pm"),
+  not proactively. Row ids are preserved 1:1 between the old and new projects (D-073's own
+  convention), which made finding exactly what was missing mechanical: compare by `id`, `UPDATE`
+  the one session D-073 captured mid-flight (still-live when the snapshot ran) to its final values,
+  `INSERT ... ON CONFLICT (id) DO NOTHING` everything genuinely new. Confirms D-075's flagged risk
+  isn't theoretical: as long as `timetracker-clean/web` stays live and in use, this exact class of
+  gap can recur, and the fix pattern here (compare-by-id, same `ID_MAP`, idempotent insert) is
+  reusable next time rather than needing to be re-derived.
 - **Storage bucket renamed `timetracker-screenshots`, not `screenshots`.** The original app owned
   that name outright in its own project; here it shares a flat Storage namespace with deliveries'
   own buckets and recruiting's `resumes`, so it gets the same module-prefixed treatment. Path

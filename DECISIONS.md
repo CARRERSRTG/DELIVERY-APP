@@ -3304,6 +3304,65 @@ existir un lugar automatizado donde viva.
 
 ---
 
+## D-078 · La brecha real de D-073: lo trabajado después del corte de la migración
+**Fecha:** 2026-08-21 · **Pedido por:** Andrés (*"segui trabajando, busca
+nuevos datos porque solo me salen screenshots a las 2pm y termine hasta
+tipo 11pm"*)
+
+**Cambio:** migradas 5 sesiones y 50 capturas de pantalla que quedaron
+fuera de D-073 porque esa migración corrió a media tarde del
+2026-08-20 mientras Andrés seguía trabajando en la app vieja (el
+desktop no se había repuntado todavía — eso pasó hasta D-074, un día
+después). Corte real encontrado: última captura migrada en D-073 fue
+`2026-08-20 20:44:34 UTC` (≈15:44 hora del negocio). Después de ese
+punto, en el proyecto viejo (`qklsxhzmbnglgzufdbmz`) quedaron: una
+sesión de Andrés a medio terminar en el momento exacto de la migración
+(capturada con duración parcial, 22,240s en vez de los 32,133s reales
+— la sesión seguía corriendo cuando D-073 tomó su snapshot), dos
+sesiones completas más de Andrés esa misma noche (hasta las 23:36 hora
+del negocio — coincide con lo que reportó), y tres sesiones cortas de
+Nick Huerta. `requests`, `audit`, y `payrolls` no tenían nada nuevo
+después del corte — la brecha era solo `sessions` y `screenshots`.
+
+**Cómo se hizo, sin duplicar nada.** Los IDs de fila se preservaron
+igual en ambos proyectos desde D-073 (mismo `id` de sesión, mismo
+`project_id`/`assignment_id` — solo `employee_uid` cambia porque viene
+de `auth.users`, que es distinto por proyecto), así que comparar por
+`id` bastó para saber qué faltaba: la sesión parcial se corrigió con
+un `UPDATE` a sus valores finales; las 4 sesiones nuevas y las 50
+capturas se insertaron con `employee_uid` remapeado al ID nuevo de
+cada persona (mismo `ID_MAP` de D-073) e `INSERT ... ON CONFLICT (id)
+DO NOTHING` para que el script sea seguro de re-correr. Las capturas
+llevaron el mismo arreglo de ruta que D-073 ya estableció: el prefijo
+de carpeta se reescribe al ID nuevo del empleado antes de subir el
+archivo, porque el RLS de `storage.objects` exige que ese prefijo
+coincida con `auth.uid()` de quien lee.
+
+**Verificado:** conteos después de la migración — 236 sesiones (231 +
+5), 2,319 capturas (2,269 + 50), cero capturas con `session_id`
+huérfano. La última captura ahora es `2026-08-21 04:36:28 UTC`
+(≈23:36 hora del negocio) — coincide con "hasta tipo 11pm". 50/50
+archivos copiados sin fallos en la primera corrida (a diferencia de
+D-073, no hubo problema de límite de tasa — son 50 archivos, no
+~2,000). No es cambio de código — sin versión de `APP_VERSION`.
+
+**Consecuencia aceptada:** el proyecto viejo sigue vivo — esta
+migración, igual que D-073, solo leyó de ahí, nunca escribió. Sigue
+sin resolverse el riesgo de fondo que D-075 dejó anotado:
+`timetracker-clean/web` sigue activa, así que este mismo tipo de
+brecha puede volver a aparecer mientras alguien siga trabajando ahí en
+vez de en el `/timetracker` nuevo — y ahora hay evidencia directa
+(este caso) de que sí pasa, no es solo un riesgo teórico.
+
+**Revisar cuando:** se repita — cada vez que alguien reporte "me falta
+lo de tal día", el patrón de este arreglo (comparar por `id` de sesión
+entre los dos proyectos, ID_MAP fijo, script idempotente) se puede
+reutilizar directo. Sigue siendo un parche manual, no una
+sincronización automática — eso solo tiene sentido resolverlo una vez
+que se decida el destino final de `timetracker-clean/web` (D-075).
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
