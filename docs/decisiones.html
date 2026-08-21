@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-083", title: "Almacén gana el filtro \"Picked Up\" (recogido, aún no entregado)",
+      fecha: "2026-08-21", version: "v1.20.3", quien: "Andrés",
+      cambio: "ROLE_FILTER_STAGES.warehouse gana \"picked_up\" — era el único rol con lista explícita que no lo tenía.",
+      razon: "\"we should add a Dropped Off filter for the ones that got picked up but didn't end up at final destination yet\"",
+      razonTextual: true,
+      consecuencia: "Confirmado con el usuario: no es un estado nuevo, es el stage picked_up que ya existe, solo faltaba exponerlo donde no estaba. Cambio de una línea, sin riesgo."
+    },
+    {
       id: "D-082", title: "Sesión degradada mostraba a cualquiera la vista de vendedor",
       fecha: "2026-08-21", version: "v1.20.2", quien: "Andrés",
       cambio: "(app)/layout.tsx, home/page.tsx, y home/users/layout.tsx fabricaban un perfil falso con role:\"sales\" cuando user existía pero la fila de profiles no cargaba. Corregido: sin perfil, redirige a /login (fuerza re-auth real) en vez de inventar una identidad.",

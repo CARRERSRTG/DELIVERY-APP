@@ -3557,6 +3557,22 @@ dejar de fabricar `sales` como fallback.
 
 ---
 
+## D-083 · Almacén gana el filtro "Picked Up" (recogido, aún no entregado)
+**Fecha:** 2026-08-21 · **Versión:** v1.20.3 · **Pedido por:** Andrés
+(*"we should add a Dropped Off filter for the ones that got picked up
+but didn't end up at final destination yet"*)
+
+**Cambio:** `ROLE_FILTER_STAGES.warehouse` gana `"picked_up"` — era el
+único rol con lista explícita que no lo tenía (sales, manager,
+accounting, driver, y admin/logística por default ya lo tienen).
+Confirmado con el usuario: no es un estado nuevo, es el stage
+`picked_up` que ya existe, solo faltaba exponerlo donde no estaba.
+
+**Consecuencia aceptada:** cambio de una línea, sin riesgo — solo
+agrega un chip de filtro más a la vista de almacén.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

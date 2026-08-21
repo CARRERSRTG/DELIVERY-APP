@@ -2,7 +2,7 @@ import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
 // App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.20.2";
+export const APP_VERSION = "1.20.3";
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true
@@ -46,7 +46,7 @@ export function stageInfo(key: string): StageInfo {
 // The "All" chip is appended after these by the page. Roles not listed here
 // (admin, logistics) get every stage in the canonical STAGES order.
 export const ROLE_FILTER_STAGES: Partial<Record<UserRole, Stage[]>> = {
-  warehouse: ["approved", "ready", "fulfilling", "delivered"],
+  warehouse: ["approved", "ready", "fulfilling", "picked_up", "delivered"],
   sales:     ["pending", "draft", "rejected", "approved", "fulfilling", "ready", "picked_up", "delivered", "canceled"],
   manager:   ["pending", "draft", "rejected", "approved", "fulfilling", "ready", "picked_up", "delivered", "canceled"],
   accounting: ["pending", "draft", "rejected", "approved", "fulfilling", "ready", "picked_up", "delivered", "canceled"],
