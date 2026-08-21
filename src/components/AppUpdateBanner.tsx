@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrefs } from "@/lib/prefs";
-import { APP_VERSION } from "@/lib/constants";
+import { APP_VERSIONS, type AppKey } from "@/lib/app-versions";
 import {
   APK_DOWNLOAD_URL,
   installedApkVersion,
@@ -37,7 +37,10 @@ import {
 /** How often a running page asks whether it has gone stale. */
 const POLL_MS = 5 * 60_000;
 
-export function AppUpdateBanner() {
+// `app` is static per mount (D-087) — each layout only ever wraps its own
+// route tree, so there's exactly one right answer for every call site; this
+// never needs to detect anything at runtime.
+export function AppUpdateBanner({ app }: { app: AppKey }) {
   const { t } = usePrefs();
   // Read after mount: the server has no user agent, and rendering different
   // HTML there than on the client breaks hydration.
@@ -54,21 +57,25 @@ export function AppUpdateBanner() {
       const res = await fetch("/api/version", { cache: "no-store" });
       if (!res.ok) return;
       const info = (await res.json()) as VersionInfo;
-      setServed(info.web);
-      setWebStale(webUpdateAvailable(APP_VERSION, info.web));
-      // The APK number now comes from the server too, so a phone running an
-      // old PAGE still learns that a new shell was published.
-      const installed = installedApkVersion(navigator.userAgent);
-      setApkStale(installed != null && typeof info.apk === "number" && installed < info.apk);
+      const servedForThisApp = info.versions?.[app];
+      setServed(servedForThisApp ?? null);
+      setWebStale(webUpdateAvailable(APP_VERSIONS[app], servedForThisApp));
+      // The APK is the driver shell, which loads deliveries specifically —
+      // not a fourth app of its own (see the comment on /api/version) — so
+      // it's only ever relevant on the deliveries banner.
+      if (app === "deliveries") {
+        const installed = installedApkVersion(navigator.userAgent);
+        setApkStale(installed != null && typeof info.apk === "number" && installed < info.apk);
+      }
     } catch {
       // Offline, or the deploy is mid-flight. Silence is right: a driver in a
       // dead zone must not be told their app is broken.
     }
-  }, []);
+  }, [app]);
 
   useEffect(() => {
     // Works even before the first fetch answers, from the build-time constant.
-    setApkStale(updateAvailable(navigator.userAgent));
+    if (app === "deliveries") setApkStale(updateAvailable(navigator.userAgent));
     void check();
     const id = setInterval(() => void check(), POLL_MS);
     const onBack = () => { if (!document.hidden) void check(); };
@@ -118,8 +125,8 @@ export function AppUpdateBanner() {
       <Bar>
         <span>
           ✨ {t(
-            `Version ${served ?? ""} is ready — you're on ${APP_VERSION}.`,
-            `La versión ${served ?? ""} está lista — estás en la ${APP_VERSION}.`,
+            `Version ${served ?? ""} is ready — you're on ${APP_VERSIONS[app]}.`,
+            `La versión ${served ?? ""} está lista — estás en la ${APP_VERSIONS[app]}.`,
           )}
         </span>
         <button onClick={() => window.location.reload()} style={{ ...pill, border: "none", cursor: "pointer" }}>

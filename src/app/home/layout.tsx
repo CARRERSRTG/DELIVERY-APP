@@ -12,8 +12,16 @@ import { AppUpdateBanner } from "@/components/AppUpdateBanner";
 // AppUpdateBanner is mounted here too (D-063): it was living inside
 // deliveries' own TopBar, so nobody outside (app) — the hub, recruiting —
 // ever heard that a new deploy was ready. It has no dependency on
-// deliveries' DataProvider; /api/version reads the same shared APP_VERSION
-// this whole container app deploys as one unit under.
+// deliveries' DataProvider.
+//
+// app="deliveries" (D-087, judgment call): /home isn't recruiting's or
+// timetracker's own route tree — it's genuinely shared, cross-app
+// infrastructure (the module picker) that happens to live physically
+// outside all three app folders, same as /login. It's owned by and styled
+// like deliveries, and everyone reaching it already has deliveries access
+// (it's the one app nobody needs a grant for), so deliveries' version is
+// the least-wrong single answer for a page that isn't really "an app" of
+// its own to begin with.
 export default async function HomeLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const {
@@ -23,7 +31,7 @@ export default async function HomeLayout({ children }: { children: React.ReactNo
 
   return (
     <>
-      <AppUpdateBanner />
+      <AppUpdateBanner app="deliveries" />
       {children}
     </>
   );

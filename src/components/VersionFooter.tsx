@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { APP_VERSION } from "@/lib/constants";
+import { APP_VERSIONS } from "@/lib/app-versions";
 import { installedApkVersion } from "@/lib/app-update";
 
 /**
@@ -17,6 +17,10 @@ import { installedApkVersion } from "@/lib/app-update";
  * and the second half would be noise.
  *
  * `fixed` pins it to the bottom of the viewport (used on full-screen auth pages).
+ *
+ * Always shows deliveries' own version (D-087) — this component is mounted
+ * pre-login and on the hub, where there's no other app to attribute it to;
+ * see the matching call in home/layout.tsx for the same reasoning.
  */
 export function VersionFooter({ fixed = false }: { fixed?: boolean }) {
   // Read after mount: the server has no user agent, and rendering something
@@ -37,7 +41,7 @@ export function VersionFooter({ fixed = false }: { fixed?: boolean }) {
         ...(fixed ? ({ position: "fixed", bottom: 10, left: 0, right: 0 } as const) : {}),
       }}
     >
-      v{APP_VERSION}{apk != null ? ` · app ${apk}` : ""}
+      v{APP_VERSIONS.deliveries}{apk != null ? ` · app ${apk}` : ""}
     </footer>
   );
 }

@@ -1,8 +1,8 @@
 import type { Stage, UserRole } from "./types";
 import type { Lang } from "./prefs";
 
-// App version shown in the footer on every screen. Keep in sync with package.json.
-export const APP_VERSION = "1.21.1";
+// App version moved to src/lib/app-versions.ts (D-087) — one number per app
+// (deliveries/recruiting/timetracker) instead of a single global constant.
 
 // Feature flag: auto-cancel orders 2+ days late without reprogramming (runs on
 // the board for admin/office/logistics/accounting). OFF for now — flip to true

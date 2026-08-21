@@ -1,3 +1,5 @@
+import type { AppKey } from "@/lib/app-versions";
+
 // ============================================================
 // In-app update check for the driver APK.
 //
@@ -54,8 +56,9 @@ export function updateAvailable(
 // pages loaded after it. A driver's phone that has been open since 6 a.m. is
 // still running that morning's code, and nothing in the browser tells it so.
 
-/** Answer from /api/version. */
-export interface VersionInfo { web: string; apk: number }
+/** Answer from /api/version. `versions` is per-app (D-087) — a client
+ * compares only its own key, never the other two. */
+export interface VersionInfo { versions: Record<AppKey, string>; apk: number }
 
 /**
  * Is the running page older than what the server is serving?

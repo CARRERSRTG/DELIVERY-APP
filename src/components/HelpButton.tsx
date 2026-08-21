@@ -4,7 +4,8 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useData } from "@/lib/data-provider";
 import { usePrefs } from "@/lib/prefs";
-import { APP_VERSION, DEFAULT_HELP_EMAIL, roleLabel } from "@/lib/constants";
+import { DEFAULT_HELP_EMAIL, roleLabel } from "@/lib/constants";
+import { APP_VERSIONS } from "@/lib/app-versions";
 import { telClean } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
@@ -40,7 +41,8 @@ export function HelpButton({ me }: { me: Profile }) {
           page: pathname,
           senderName: me.full_name,
           role: roleLabel(me.role, lang),
-          appVersion: APP_VERSION,
+          // HelpButton only ever mounts inside deliveries' own layout/LocalApp.
+          appVersion: APP_VERSIONS.deliveries,
           lang,
         }),
       });

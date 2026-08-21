@@ -66,7 +66,7 @@ export default async function RecruitingLayout({ children }: { children: React.R
       {/* Deliberately outside DataProvider — the same reason deliveries' own
           TopBar.tsx mounts it unconditionally: a stale-JS check has nothing
           to do with recruiting's data at all (D-063). */}
-      <AppUpdateBanner />
+      <AppUpdateBanner app="recruiting" />
       <DataProvider me={me}>
         <UIProvider>
           <TopBar me={me} deliveriesRole={profile.role} moduleAccess={profile.module_access} />

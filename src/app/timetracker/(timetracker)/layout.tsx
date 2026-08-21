@@ -78,7 +78,7 @@ export default async function TimetrackerLayout({ children }: { children: React.
 
   return (
     <div className="timetracker-module">
-      <AppUpdateBanner />
+      <AppUpdateBanner app="timetracker" />
       <DataProvider me={me}>
         <div className="wrap">
           <TopBar deliveriesRole={profile.role} moduleAccess={profile.module_access} />

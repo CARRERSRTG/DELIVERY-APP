@@ -1,7 +1,8 @@
-import { APP_VERSION } from "@/lib/constants";
+import { APP_VERSIONS } from "@/lib/app-versions";
 
-/** Small version tag shown at the bottom of every screen.
- * `fixed` pins it to the bottom of the viewport (used on full-screen auth pages). */
+/** Small version tag shown at the bottom of every screen — recruiting's own
+ * number (D-087), not deliveries'. `fixed` pins it to the bottom of the
+ * viewport (used on full-screen auth pages). */
 export function VersionFooter({ fixed = false }: { fixed?: boolean }) {
   return (
     <footer
@@ -16,7 +17,7 @@ export function VersionFooter({ fixed = false }: { fixed?: boolean }) {
         ...(fixed ? { position: "fixed", bottom: 10, left: 0, right: 0 } as const : {}),
       }}
     >
-      v{APP_VERSION}
+      v{APP_VERSIONS.recruiting}
     </footer>
   );
 }

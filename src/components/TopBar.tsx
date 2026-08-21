@@ -85,7 +85,7 @@ export function TopBar({ me: propMe }: { me: Profile }) {
   return (
     <>
     <PendingDeadlineWatcher />
-    <AppUpdateBanner />
+    <AppUpdateBanner app="deliveries" />
     <OfflineBanner />
     {teaching && (
       <div style={{ background: "#7c3aed", color: "#fff", textAlign: "center", padding: "6px 12px",

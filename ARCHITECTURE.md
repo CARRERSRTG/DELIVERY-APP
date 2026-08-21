@@ -189,6 +189,28 @@ warehouse (fulfilling/ready/delivered) without a manager approving it first.
 
 ## 10. Change log (most recent first)
 
+- **Versioning and the update banner went from one global number to one per app (D-087).**
+  `src/lib/app-versions.ts` (new) holds `APP_VERSIONS = { deliveries, recruiting, timetracker }`,
+  replacing the single `APP_VERSION` constant that used to live in `constants.ts` — that constant
+  is gone; everything that displayed or compared a version now reads its own app's key from this
+  map instead. `/api/version` returns `{ versions: {...}, apk }`; `apk` (the driver shell's native
+  build number) is NOT a fourth app in that map — it hangs off `deliveries` conceptually, since the
+  Capacitor shell loads deliveries specifically. `AppUpdateBanner` (mounted 4 times: deliveries'
+  `TopBar`, and the `home`/`recruiting`/`timetracker` layouts) now takes a static `app` prop — each
+  layout only ever wraps its own route tree, so there's exactly one right answer per call site, no
+  runtime detection needed. `home`/`login` (genuinely shared, outside all three app folders) use
+  deliveries' version — the judgment call there: deliveries is the one app nobody needs a grant
+  for, and the hub/login are styled as deliveries' own UI, not a fourth app of their own. Bumping
+  stays entirely manual, decided per-commit by whoever's making the change (see `CLAUDE.md`'s
+  updated flow step 3) — deliberately no auto-bump script parsing `git diff` to decide which app(s)
+  changed, since a shared file touched doesn't reliably mean all three were affected, and an
+  auto-bump-all-on-any-shared-touch policy would recreate the "everyone gets notified of everything"
+  problem this change exists to fix. recruiting and timetracker start at `0.1.0`, not `1.0.0`:
+  neither has an independent version history in this repo (D-050 and D-064 are both recorded
+  against the OLD global counter, not a number of their own) — a stray `APP_VERSION = "0.0.47"`
+  found in `src/lib/recruiting/constants.ts` turned out to be dead code (never imported anywhere),
+  a frozen leftover from recruiting's original standalone repo's own `package.json`-synced version
+  at merge time, not a maintained history worth inheriting.
 - **All three `reloadAll()`s now refresh a stale token before reading, not just before writing
   (D-081).** `deliveries`/`recruiting`/`timetracker`'s data providers all had the same latent bug:
   `if (d.data) setDeliveries(...)` treats an empty array as truthy, and an expired access token

@@ -43,8 +43,16 @@ Vercel (`NOTION_TOKEN`) y el asistente lo recibe del usuario cuando hace falta.
 
 1. Implementar
 2. `npx tsc --noEmit` y `npx vitest run`
-3. Subir versión en `package.json` **y** en `APP_VERSION` de
-   `src/lib/constants.ts` — los dos, siempre
+3. Subir versión — **por app, no global** (D-087): en `src/lib/app-versions.ts`,
+   sube SOLO la(s) app(s) que el cambio realmente tocó (`deliveries`,
+   `recruiting`, `timetracker` — mapa `APP_VERSIONS`). Un cambio dentro de la
+   carpeta propia de una app sube solo esa. Un cambio en código compartido
+   (`src/lib/*.ts` fuera de `recruiting/`/`timetracker/`, componentes
+   genéricos, `src/app/api`) es criterio tuyo: si dudas si afecta a las
+   otras, súbelas las tres — un refresh de más es leve, una app que no se
+   enteró de un cambio real se queda con código viejo en silencio.
+   `package.json`'s `"version"` es aparte: la versión del repo/monorepo,
+   súbela también si el cambio amerita marcarlo ahí.
 4. `npx next build` (es más estricto que `dev`)
 5. Commit
 6. `git fetch origin` → `git rebase origin/main` → `git push`

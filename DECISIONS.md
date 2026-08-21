@@ -3695,6 +3695,116 @@ necesita el mismo ajuste, no solo `fromRange()`.
 
 ---
 
+## D-087 · El versionado deja de ser global — una versión por app
+**Fecha:** 2026-08-21 · **Versión:** v1.21.2 (deliveries) · v0.1.0
+(recruiting, timetracker — primera vez) · **Pedido por:** Andrés
+
+**Con especificación completa por escrito.**
+
+**Cambio:** `src/lib/app-versions.ts` (nuevo) reemplaza el `APP_VERSION`
+único que vivía en `src/lib/constants.ts` con un mapa de tres números
+independientes — `{ deliveries, recruiting, timetracker }`.
+`/api/version` ahora devuelve `{ versions: {...}, apk }` en vez de
+`{ web, apk }`. Los 4 montajes de `AppUpdateBanner` (TopBar de
+deliveries, y los layouts de `home`, `recruiting`, `timetracker`) ahora
+reciben una prop `app` fija — cada layout ya envuelve solo su propio
+árbol de rutas, así que no hace falta detectar nada en runtime, cada
+uno simplemente declara cuál es. Cada banner compara SOLO la versión
+de su propia app: tocar únicamente timetracker ya no avisa a
+deliveries ni a recruiting. `package.json`'s `"version"` se queda —
+pasa a ser la versión del repo/monorepo, ya no lo que ningún cliente
+compara.
+
+**Versiones de arranque, investigadas antes de fijarlas, no
+inventadas.** deliveries mantiene su número corriendo (1.21.x) — es la
+app original, sin motivo para reiniciar un contador vivo. Para
+recruiting y timetracker se buscó primero si existía un historial de
+versión propio: `DECISIONS.md` no tiene ninguno — D-050 (recruiting se
+vuelve módulo) y D-064 (merge de timetracker) están registrados contra
+el contador global VIEJO (v1.9.6 y v1.15.0 respectivamente), no un
+número propio de cada módulo. Se encontró algo que a primera vista
+parecía contradecir esto: `src/lib/recruiting/constants.ts` tiene su
+propio `export const APP_VERSION = "0.0.47"` — pero no lo importa
+NADA en todo el proyecto (verificado con grep sobre cada uso). Es un
+residuo congelado del port mecánico del repo original de recruiting
+(que sí tenía su propio `package.json` antes del merge, D-050), nunca
+más tocado desde entonces — no es un historial mantenido, es basura
+inerte. No cuenta como continuidad real. Ambos módulos arrancan en
+`0.1.0`, honesto, no `1.0.0` de adorno.
+
+**`home`/`login` — decisión de criterio, explicada:** ambos son
+infraestructura genuinamente compartida (`src/app/home/`, `/login`),
+fuera de las tres carpetas propias de cada app, igual que `/api`. El
+banner ahí usa la versión de **deliveries**: es la app dueña visual del
+hub/login (mismo estilo, mismo `VersionFooter`), y todo el que llega
+ahí ya tiene acceso a deliveries — es la única app que nadie necesita
+que le concedan. No es una app "de verdad" con contenido propio, así
+que atribuirle la versión de deliveries es la respuesta menos-mal en
+vez de inventar una cuarta categoría.
+
+**`apk` no es una cuarta app.** Es el número de build nativo del shell
+de Capacitor, que carga deliveries específicamente
+(`mobile/capacitor.config.ts`) — cuelga conceptualmente de deliveries,
+no vive dentro de `versions` como un cuarto par clave-valor, porque es
+otro TIPO de versión (build nativo comparado contra el user-agent
+instalado, no un bundle web). Documentado en el comentario de
+`/api/version` para que quien lo lea después no lo confunda con una
+cuarta app. El chequeo de APK en `AppUpdateBanner` ahora solo corre
+cuando `app === "deliveries"`.
+
+**Regla de código compartido: la decide Andrés commit a commit, no un
+script.** `constants.ts`, `TopBar.tsx` genérico, `src/app/api` los
+importan las tres apps, pero una edición casi siempre toca la
+rebanada de una sola — un script no puede distinguir eso con
+certeza, solo criterio humano puede. Regla explícita: cambio dentro de
+la carpeta propia de una app → sube solo esa. Cambio en compartido →
+Andrés juzga si afecta a las otras; DEFAULT cuando dude: subir las
+tres (un refresh de más es leve y visible; una app que no se enteró de
+un cambio real se queda con código viejo, en silencio — la asimetría
+justifica el default). Deliberadamente NO se implementó un auto-bump
+que suba las tres por cualquier archivo compartido tocado — eso
+recrearía el problema que este cambio resuelve (avisos gratis →
+la gente aprende a ignorar el banner).
+
+**Este mismo cambio es shared-code que afecta a las tres, aplicando su
+propia regla:** `api/version/route.ts`, `AppUpdateBanner.tsx`,
+`VersionFooter.tsx` son infraestructura compartida — el mecanismo de
+chequeo que usan recruiting y timetracker cambió de verdad hoy, así
+que sus propias versiones (0.1.0) son su primer número real bajo el
+esquema nuevo, no un bump artificial sobre un 0.1.0 que nunca se
+publicó.
+
+**Propuesta de recordatorio en pre-commit — mostrada, NO instalada.**
+Un hook que solo IMPRIME un aviso si el commit tocó algo fuera de las
+carpetas propias de las tres apps ("Tocaste archivos compartidos:
+[...] — revisa `app-versions.ts`"), nunca bloquea ni decide ni sube
+nada — la decisión sigue siendo 100% de Andrés. Dos formas, con
+trade-offs distintos:
+- Hook crudo en `.git/hooks/pre-commit`: cero dependencias nuevas,
+  pero NO vive en control de versiones — hay que reinstalarlo a mano
+  en cada clon/máquina nueva.
+- Husky: sí queda en el repo (se auto-instala vía `npm install` +
+  script `prepare`), pero agrega una devDependency y un paso de
+  instalación nuevo por algo puramente informativo.
+Sin instalar hasta que Andrés confirme cuál (o ninguna).
+
+**Consecuencia aceptada:** `HelpButton.tsx` y ambos `VersionFooter.tsx`
+(el compartido y el de recruiting) se actualizaron para leer del mapa
+nuevo — consecuencia directa de borrar el `APP_VERSION` global, no
+alcance nuevo: dejarlos importando una constante borrada habría roto
+el build. `CLAUDE.md`'s paso 3 del flujo se reescribió para reflejar
+el esquema nuevo — la instrucción vieja ("sube `APP_VERSION` en
+`constants.ts`, siempre") apuntaba a un símbolo que ya no existe.
+`tsc`/`vitest` (487)/`next build` limpios.
+
+**Revisar cuando:** se decida instalar el pre-commit propuesto (y
+cuál de las dos formas), o si el criterio manual de "compartido → yo
+decido" empieza a fallar en la práctica (versiones que deberían
+haberse subido juntas y no se subieron) — ahí sí valdría la pena
+reconsiderar el auto-bump que se descartó aquí a propósito.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
