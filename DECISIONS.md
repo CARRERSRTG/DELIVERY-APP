@@ -3788,6 +3788,17 @@ trade-offs distintos:
   instalación nuevo por algo puramente informativo.
 Sin instalar hasta que Andrés confirme cuál (o ninguna).
 
+**Actualización, misma sesión: Husky, confirmado por Andrés.**
+Instalado (`husky` v9 como devDependency, `"prepare": "husky"` en
+`package.json`, `npx husky init`). El hook en sí (`.husky/pre-commit`)
+solo llama a `scripts/check-shared-files.mjs` (nuevo) — el mismo
+script que se enseñó, ahora en disco: `git diff --cached --name-only`
+contra las carpetas propias de cada app, imprime la lista si algo
+compartido quedó staged, y siempre sale con código 0. Probado en vivo
+contra el propio commit que instala esto (que sí toca archivos
+compartidos: `.husky/`, `scripts/`, `package.json`) — imprimió el
+aviso correctamente, sin bloquear nada.
+
 **Consecuencia aceptada:** `HelpButton.tsx` y ambos `VersionFooter.tsx`
 (el compartido y el de recruiting) se actualizaron para leer del mapa
 nuevo — consecuencia directa de borrar el `APP_VERSION` global, no
@@ -3797,11 +3808,10 @@ el esquema nuevo — la instrucción vieja ("sube `APP_VERSION` en
 `constants.ts`, siempre") apuntaba a un símbolo que ya no existe.
 `tsc`/`vitest` (487)/`next build` limpios.
 
-**Revisar cuando:** se decida instalar el pre-commit propuesto (y
-cuál de las dos formas), o si el criterio manual de "compartido → yo
-decido" empieza a fallar en la práctica (versiones que deberían
-haberse subido juntas y no se subieron) — ahí sí valdría la pena
-reconsiderar el auto-bump que se descartó aquí a propósito.
+**Revisar cuando:** el criterio manual de "compartido → yo decido"
+empiece a fallar en la práctica (versiones que deberían haberse
+subido juntas y no se subieron) — ahí sí valdría la pena reconsiderar
+el auto-bump que se descartó aquí a propósito.
 
 ---
 

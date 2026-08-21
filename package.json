@@ -1,6 +1,6 @@
 {
   "name": "deliveries-app",
-  "version": "1.21.2",
+  "version": "1.21.3",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepare": "husky"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.70.0",
@@ -26,6 +27,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "husky": "^9.1.7",
     "typescript": "^5",
     "vitest": "^4.1.10"
   }
