@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-074", title: "El desktop de Electron apunta a la URL en vivo, no a un bundle local",
+      fecha: "2026-08-20", version: "v1.19.0", quien: "Andrés",
+      cambio: "timetracker-clean/desktop/main.js (repo aparte) ya no carga web/dist vía loadFile — carga https://deliveries-app-seven.vercel.app/timetracker vía loadURL, igual que la APK de repartidores. extraResources se quitó del package.json del desktop; el script dev apunta al dev server de Next.js en vez del de Vite.",
+      razon: "\"el 3 de ultimo, haz todo lo demas\", siendo el 3 este repunte — decisión de apuntar a la URL en vivo ya tomada al inicio del merge",
+      razonTextual: true,
+      consecuencia: "El puerto a Next.js de Track Time (D-066) había dejado fuera a propósito todo lo que depende de window.ttDesktop — capturas de pantalla, medición de actividad de sistema, smart-idle, auto-stop al bloquear/dormir. Repuntar loadURL sin portar eso primero habría dejado el desktop como un reloj manual. Detectado antes de repuntar y resuelto portando el bridge completo: src/lib/timetracker/desktop.ts (nuevo, isDesktop() como función por el SSR de Next.js), uploadScreenshot/insertBlankScreenshot nuevos en el data provider (RLS ya lo permitía desde D-064), y el tick loop de page.tsx con conteo de sistema + smart-idle + auto-stop, calcado de Tracker.jsx. Sin portar aún: banner de auto-actualización, cola offline (gap ya aceptado en D-066). El instalador no se publicó en este pase — requiere GH_TOKEN y confirmación explícita. tsc/vitest (467)/next build limpios."
+    },
+    {
       id: "D-073", title: "Datos reales de timetracker migrados desde el proyecto viejo",
       fecha: "2026-08-20", quien: "Andrés",
       cambio: "Todo el historial real de timetracker migrado a timetracker.* en el proyecto de deliveries: 4 proyectos, 3 asignaciones, 231 sesiones, 4 pagos ya liquidados ($1,641.23), 7 solicitudes, 50 entradas de auditoría, 1,921 capturas de pantalla reales (814 MB). No es cambio de código, no lleva versión.",

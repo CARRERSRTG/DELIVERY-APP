@@ -4,9 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useData } from "@/lib/timetracker-data-provider";
 import { useT } from "@/lib/timetracker/i18n";
 import {
-  dateISO, effBreaks, effTrackMode, effWorkerType, fmtClock, fmtHrs, fmtTime, money,
+  APP_SETTINGS, dateISO, effBreaks, effTrackMode, effWorkerType, fmtClock, fmtHrs, fmtTime, money,
   projectWeekStart, timeAgo, weekStartISO,
 } from "@/lib/timetracker/helpers";
+import {
+  DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopNotifyShotStatus,
+  desktopOnPower, desktopOnShot, desktopStart, desktopStop, isDesktop,
+} from "@/lib/timetracker/desktop";
 import type { Assignment, BreakEvent, Session } from "@/lib/timetracker/types";
 
 // ============================================================
@@ -16,27 +20,43 @@ import type { Assignment, BreakEvent, Session } from "@/lib/timetracker/types";
 // battle-tested behavior (44 versions of real-world fixes) carries over
 // unchanged rather than being redesigned from scratch.
 //
+// Desktop-only branches (system-wide activity + smart-idle screen-motion via
+// the Electron bridge, native screenshot capture, lock/sleep auto-stop) were
+// deliberately deferred out of the first pass (D-066) — this route used to
+// render only in the web build. D-074 ported them in, once the desktop
+// shell's Electron main.js was repointed at this same hosted route instead
+// of a locally-bundled Vite build: isDesktop() (lib/timetracker/desktop.ts)
+// checks window.ttDesktop at runtime, so the exact same page now runs both
+// contexts — desktop branches are simply absent (no-ops) in a plain browser
+// tab, same page either way.
+//
 // Deliberately NOT ported in this pass (see D-066's decision entry):
-//   - Desktop-only branches (system-wide activity via the Electron bridge,
-//     smart-idle screen-motion detection, native screenshot capture). This
-//     route only ever renders in the web build — there is no Electron
-//     preload here, ever — so IS_DESKTOP is not a runtime check, it's just
-//     absent. The original's web-build behavior (focus-gated keydown/
-//     mousedown listeners; no screenshots — browsers can't do silent screen
-//     capture) is what's here.
 //   - Offline queue (lib/offlineQueue.js) — a dropped connection during the
 //     10s tick write retries 3x then surfaces an alert, instead of buffering
 //     locally for later sync. Real gap, tracked for a follow-up pass.
 //   - OS/browser notifications (weekly-limit warnings, "tracking started").
-//     The in-app banner/toast covers the same information today.
+//     The in-app banner/toast covers the same information today. (The
+//     desktop shell's own floating toast — main.js's showInfoToast/
+//     showShotToast — still fires independently of this, same as before.)
+//   - Auto-update banner UI (desktop/main.js's tt:update IPC channel) — the
+//     shell downloads/installs updates silently; no in-app "restart to
+//     update" prompt yet.
 // ============================================================
 
 const METER_BARS = 20;
 const ACTIVE_WINDOW_SEC = 12; // one input keeps you "active" this many seconds (gentler meter)
+const MOVEMENT_THRESHOLD = 0.005; // >=0.5% of the sampled screen changed = "moving" (sensitive: a meeting/video counts)
 
 export default function TrackTimePage() {
-  const { me, myAssignments: assignments, mySessions: sessions, listLiveSessions, startSession, updateSession, latestScreenshot, screenshotSignedUrl } = useData();
+  const {
+    me, myAssignments: assignments, mySessions: sessions, listLiveSessions, startSession, updateSession,
+    latestScreenshot, screenshotSignedUrl, uploadScreenshot, insertBlankScreenshot, notify,
+  } = useData();
   const t = useT();
+  // Matches SSR (no window) on first render, flips true on mount if the page
+  // is running inside the Electron shell — see the module comment.
+  const [isDesktopClient, setIsDesktopClient] = useState(false);
+  useEffect(() => { setIsDesktopClient(isDesktop()); }, []);
   const trackMode = effTrackMode(me);
   const breaksOn = effBreaks(me);
   const isInOut = trackMode === "inout";
@@ -69,8 +89,13 @@ export default function TrackTimePage() {
   const clicksRef = useRef(0);
   const activeSecondsRef = useRef(0);
   const secHadEventRef = useRef(false);
+  const lastActTotalRef = useRef(0); // last keystrokes+clicks+moves total (desktop delta)
   const idleRef = useRef(0); // kept at 0 in this pass — no idle-limit auto-stop yet
   const activeWindowRef = useRef(0);
+  const [isIdle, setIsIdle] = useState(false);
+  const [ctxApp, setCtxApp] = useState(""); // app recognized via on-screen motion (desktop smart-idle)
+  const ctxRef = useRef<{ app: string; title: string; movement: number } | null>(null);
+  const ctxProbeRef = useRef(0); // countdown to next context probe
 
   const selected = assignments.find((a) => a.id === assignmentId);
   const wsd = selected ? projectWeekStart(selected.project) : undefined;
@@ -111,6 +136,54 @@ export default function TrackTimePage() {
 
   useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
 
+  const shotMin = Number(APP_SETTINGS.screenshotIntervalMin) || DESKTOP_SHOT_MIN;
+  const smartIdle = APP_SETTINGS.smartIdle !== false;
+
+  // Desktop screenshot pipeline: main.js captures the screen and hands us a
+  // dataUrl over IPC; the renderer (here) owns the authenticated Supabase
+  // client, so it does the upload. Registered once — not tied to `running`,
+  // so a shot that arrives right at stop() is never dropped.
+  const runningRef = useRef(false);
+  runningRef.current = running;
+  useEffect(() => {
+    return desktopOnShot(async (data) => {
+      const at = Date.now();
+      if (data?.blank) {
+        try { await insertBlankScreenshot({ employeeUid: me.id, sessionId: data.sessionId, date: dateISO(at) }); }
+        catch (e) { console.error("blank slot insert failed", e); }
+        return;
+      }
+      if (!data?.dataUrl) return;
+      try {
+        const res = await fetch(data.dataUrl);
+        const blob = await res.blob();
+        await uploadScreenshot({
+          employeeUid: me.id, sessionId: data.sessionId, blob,
+          date: dateISO(at), activityPercent: data.activityPercent || 0,
+        });
+        desktopNotifyShotStatus("saved");
+      } catch (e) {
+        console.error("screenshot upload failed", e);
+        desktopNotifyShotStatus("error");
+      }
+    });
+  }, [me.id, uploadScreenshot, insertBlankScreenshot]);
+
+  // Auto-stop on lock/sleep (desktop): if the machine locks or sleeps while
+  // tracking, stop the timer so away-from-keyboard time isn't counted. Live
+  // refs (updated every render, below) avoid both a stale closure and
+  // re-subscribing on every render.
+  const stopRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    return desktopOnPower((reason) => {
+      if (reason !== "suspend" && reason !== "lock-screen") return;
+      if (runningRef.current) {
+        notify("Tracking stopped — your screen locked or the computer went to sleep.");
+        stopRef.current();
+      }
+    });
+  }, [notify]);
+
   function netSeconds(el: number): number { return Math.max(0, el - lunchRef.current - brkRef.current - idleRef.current); }
   function breakEventsPayload() { return breakEventsRef.current.map((e) => ({ kind: e.kind, start: e.start, end: e.end || null })); }
 
@@ -140,7 +213,8 @@ export default function TrackTimePage() {
     } catch { /* if the live-check fails (offline, etc.) fall through and start normally */ }
     lunchRef.current = 0; brkRef.current = 0; onBreakRef.current = null; breakEventsRef.current = [];
     keystrokesRef.current = 0; clicksRef.current = 0; activeSecondsRef.current = 0;
-    secHadEventRef.current = false; idleRef.current = 0; activeWindowRef.current = 0;
+    secHadEventRef.current = false; lastActTotalRef.current = 0; idleRef.current = 0; activeWindowRef.current = 0;
+    ctxRef.current = null; ctxProbeRef.current = 0; setCtxApp(""); setIsIdle(false);
     startMsRef.current = Date.now();
     setWorked(0); setOnBreak(null); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
     setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
@@ -170,6 +244,7 @@ export default function TrackTimePage() {
       const row = await startSession(payload);
       sessionIdRef.current = row.id;
       setRunning(true);
+      desktopStart({ sessionId: row.id, intervalMin: shotMin });
     } catch (e) {
       const err = e as { message?: string } | null;
       alert("Could not start tracking: " + (err?.message || "unknown error"));
@@ -180,14 +255,52 @@ export default function TrackTimePage() {
       if (onBreakRef.current === "lunch") lunchRef.current++;
       else if (onBreakRef.current === "break") brkRef.current++;
 
-      const hadEvent = secHadEventRef.current;
-      secHadEventRef.current = false;
+      // an "active second" = a second with >=1 input event, not on break. On
+      // desktop, read system-wide counters from the bridge; on web, use the
+      // focus-gated flag (a browser tab can't see input elsewhere).
+      let hadEvent: boolean;
+      if (isDesktopClient) {
+        const act = await desktopGetActivity();
+        let moves = 0;
+        if (act) {
+          keystrokesRef.current = act.keystrokes;
+          clicksRef.current = act.clicks;
+          moves = act.moves || 0;
+        }
+        const total = keystrokesRef.current + clicksRef.current + moves;
+        hadEvent = total > lastActTotalRef.current;
+        lastActTotalRef.current = total;
+      } else {
+        hadEvent = secHadEventRef.current;
+        secHadEventRef.current = false;
+      }
       if (hadEvent) activeWindowRef.current = ACTIVE_WINDOW_SEC;
       const windowedActive = activeWindowRef.current > 0;
       if (activeWindowRef.current > 0) activeWindowRef.current -= 1;
 
-      const activeThisSec = windowedActive && !onBreakRef.current;
+      // On-screen motion counts as activity even without keyboard/mouse
+      // input: a meeting, a video, a running Claude session all move the
+      // screen. Probed periodically (capture isn't free) only when there's
+      // no recent input to fill in. Desktop-only — the browser can't see it.
+      let productiveNow = false;
+      let appLabel = "";
+      if (smartIdle && isDesktopClient && !onBreakRef.current && !windowedActive) {
+        ctxProbeRef.current -= 1;
+        if (ctxProbeRef.current <= 0) {
+          ctxProbeRef.current = 4;
+          desktopGetContext().then((c) => { if (c) ctxRef.current = c; }).catch(() => {});
+        }
+        const c = ctxRef.current;
+        if (c && (c.movement || 0) >= MOVEMENT_THRESHOLD) {
+          productiveNow = true; appLabel = c.app || c.title || "";
+        }
+      }
+
+      const activeThisSec = (windowedActive || productiveNow) && !onBreakRef.current;
       if (activeThisSec) activeSecondsRef.current += 1;
+      const idleNow = !activeThisSec && !onBreakRef.current;
+      if (idleNow !== isIdle) setIsIdle(idleNow);
+      if (appLabel !== ctxApp) setCtxApp(appLabel);
 
       const net = netSeconds(el);
       setWorked(net);
@@ -195,7 +308,7 @@ export default function TrackTimePage() {
       setActivePct(net > 0 ? Math.round((activeSecondsRef.current / net) * 100) : 0);
       setMeter((prev) => { const m = prev.slice(1); m.push(activeThisSec); return m; });
 
-      const liveNote = onBreakRef.current ? "break" : (windowedActive ? "active" : "idle");
+      const liveNote = onBreakRef.current ? "break" : productiveNow ? (appLabel || "screen") : idleNow ? "idle" : "active";
 
       if (el > 0 && el % 10 === 0 && sessionIdRef.current) {
         writeSession(sessionIdRef.current, {
@@ -243,12 +356,14 @@ export default function TrackTimePage() {
         if (!ok) alert("Could not save the entry after several tries. Check your connection — your time may not be recorded.");
       }
     } finally {
+      desktopStop();
       sessionIdRef.current = null;
-      setRunning(false); onBreakRef.current = null; setOnBreak(null);
+      setRunning(false); onBreakRef.current = null; setOnBreak(null); setIsIdle(false); setCtxApp("");
       setWorked(0); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
       setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
     }
   }
+  stopRef.current = stop;
 
   function toggleBreak(kind: "lunch" | "break") {
     const now = Date.now();
@@ -275,6 +390,11 @@ export default function TrackTimePage() {
       <div className="card">
         <div className="between">
           <h2 style={{ margin: 0 }}>{t("track.title")}</h2>
+          {running && isDesktopClient && (
+            <span className="chip" style={{ background: "#3a2a12", color: "#ffcf8f" }}>
+              {t("track.screenshotsOn", { n: shotMin })}
+            </span>
+          )}
           <span className="chip">{effWorkerType(me) === "remote" ? t("track.remote") : t("track.inhouse")}</span>
         </div>
 
@@ -313,7 +433,9 @@ export default function TrackTimePage() {
             <div className="timer-big">{fmtClock(worked)}</div>
             <div className="small muted">
               {running
-                ? (onBreak === "lunch" ? t("track.onLunch") : onBreak === "break" ? t("track.onBreak") : isInOut ? t("track.clockedIn") : t("track.running"))
+                ? ctxApp ? t("track.activeApp", { app: ctxApp })
+                  : isIdle ? t("track.idle")
+                  : onBreak === "lunch" ? t("track.onLunch") : onBreak === "break" ? t("track.onBreak") : isInOut ? t("track.clockedIn") : t("track.running")
                 : t("track.stopped")}
               {running && (lunchRef.current > 0 || brkRef.current > 0)
                 ? <> · lunch {fmtClock(breaks.lunch)} · break {fmtClock(breaks.brk)}</> : null}
@@ -325,7 +447,7 @@ export default function TrackTimePage() {
             )}
             {running && !onBreak && (
               <div className="small muted" style={{ marginTop: 6, maxWidth: 320 }}>
-                {t("track.srcInput")}
+                {ctxApp ? t("track.srcScreen", { app: ctxApp }) : isIdle ? t("track.srcIdle") : t("track.srcInput")}
               </div>
             )}
           </div>

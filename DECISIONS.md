@@ -3034,6 +3034,73 @@ cero rutas de captura con el prefijo de ID viejo tras la corrección;
 
 ---
 
+## D-074 · El desktop de Electron apunta a la URL en vivo, no a un bundle local
+**Fecha:** 2026-08-20 · **Versión:** v1.19.0 · **Pedido por:** Andrés
+
+**Cambio:** `timetracker-clean/desktop/main.js` (repo aparte, el shell de
+Electron) ya no carga `web/dist` vía `loadFile` — carga
+`https://deliveries-app-seven.vercel.app/timetracker` vía `loadURL`, el
+mismo patrón que ya usa la APK de repartidores (`server.url` de
+Capacitor). Un deploy de deliveries-app llega a cada cliente de
+escritorio instalado sin reinstalar nada. `electron-builder`'s
+`extraResources` (que copiaba `web/dist`) se quitó del `package.json`
+del desktop; el script `dev` ahora apunta `TT_DEV_URL` al dev server de
+Next.js (`:3000/timetracker`) en vez del de Vite (`:5173`).
+
+**Razón:** pedido explícito y diferido a propósito — *"el 3 de ultimo,
+haz todo lo demas"*, siendo el 3 este repunte. La decisión de apuntar a
+la URL en vivo (en vez de seguir empaquetando localmente) ya se había
+tomado al inicio del merge.
+
+**Lo que casi se rompe: el bridge de escritorio no estaba portado.** El
+puerto a Next.js de Track Time (D-066) había dejado fuera a propósito
+todo lo que depende de `window.ttDesktop` — capturas de pantalla,
+medición de actividad de teclado/mouse a nivel de sistema, detección de
+movimiento en pantalla (smart-idle), auto-stop al bloquear/dormir la
+máquina — porque esa ruta nunca se cargaba dentro de Electron. Repuntar
+`loadURL` sin portar eso primero habría dejado el cliente de escritorio
+como un reloj manual sin ninguna de las funciones que lo distinguen de
+abrir el sitio en una pestaña. Se detectó antes de repuntar (comentario
+explícito en `page.tsx` citando D-066) y se resolvió portando el bridge
+completo antes de tocar `main.js`:
+- `src/lib/timetracker/desktop.ts` (nuevo) — mismo contrato que
+  `timetracker-clean/web/src/lib/desktop.js`, pero `isDesktop()` es una
+  función evaluada en cada llamada, no una constante de módulo: en
+  Next.js este archivo también se evalúa en el servidor durante SSR,
+  donde `window` no existe.
+- `timetracker-data-provider.tsx` ganó `uploadScreenshot` e
+  `insertBlankScreenshot` (antes la sección de screenshots era
+  explícitamente de solo lectura). RLS/storage ya lo permitían desde
+  D-064 (`tt screenshots insert` / `tt shots upload own`) — no hizo
+  falta migración nueva.
+- `page.tsx` (Track Time) ganó: el conteo de actividad por contadores
+  del sistema en vez de listeners con foco, la detección de movimiento
+  en pantalla vía `desktopGetContext`, la suscripción a
+  `desktopOnShot` que sube cada captura, y el auto-stop en
+  `desktopOnPower` (bloqueo/suspensión). Mecánico, calcado del tick
+  loop de `Tracker.jsx` — incluida una particularidad ya existente en
+  el original: `isIdle`/`ctxApp` se comparan dentro del cierre del
+  `setInterval` sin refrescarse por render, igual que el código
+  original; no se "arregló" al portar para no divergir del
+  comportamiento ya probado.
+
+**Consecuencia aceptada:** el banner de auto-actualización
+(`tt:update` de `main.js`) sigue sin consumidor en la UI — el shell
+descarga e instala actualizaciones en silencio, sin avisar "reinicia
+para actualizar". La cola offline (`offlineQueue.js`) tampoco se portó
+(gap ya aceptado en D-066). `timetracker-clean/CLAUDE.md`,
+`DEPLOY.md` y `RELEASE.md` siguen describiendo la arquitectura vieja
+(app standalone con su propio Supabase) — no se reescribieron en este
+pase, solo `desktop/README.md`.
+
+**Revisar cuando:** se decida publicar el instalador (`electron-builder
+--win nsis --publish always`, repo `CARRERSRTG/timetracker`) — ese
+paso sube una release real a GitHub que los clientes ya instalados
+descargan solos; no se ejecutó en este pase, requiere el `GH_TOKEN` del
+usuario y confirmación explícita.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

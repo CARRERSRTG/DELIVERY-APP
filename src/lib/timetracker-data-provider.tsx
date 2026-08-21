@@ -57,7 +57,7 @@ interface DataState {
   startSession: (payload: Partial<Session>) => Promise<Session>;
   updateSession: (id: string, patch: Partial<Session>) => Promise<void>;
 
-  // ---- screenshots (desktop-captured; read-only from the web port) ----
+  // ---- screenshots (desktop-captured) ----
   myScreenshots: Screenshot[];
   latestScreenshot: Screenshot | null;
   screenshotSignedUrl: (path: string, expiresIn?: number) => Promise<string>;
@@ -65,6 +65,12 @@ interface DataState {
    * original's deleteWithFile(): best-effort storage removal, then the
    * metadata row (which is what actually matters to the diary/manager). */
   deleteScreenshot: (id: string, path: string | null) => Promise<void>;
+  /** Uploads the captured image, then inserts its metadata row (D-074, the
+   * desktop bridge port) — mirrors the original's screenshots.upload(). */
+  uploadScreenshot: (rec: { employeeUid: string; sessionId: string | null; blob: Blob; date: string | null; activityPercent: number }) => Promise<Screenshot>;
+  /** Marker row for a segment with zero input — no image, so the diary shows
+   * an empty tile instead of nothing. */
+  insertBlankScreenshot: (rec: { employeeUid: string; sessionId: string | null; date: string | null }) => Promise<Screenshot>;
 
   // ---- account ----
   updateMyAccount: (patch: { fullName: string; city: string; payMethod: string; payDetails: string }) => Promise<void>;
@@ -513,6 +519,25 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     if (error) throw error;
   }, [supabase]);
 
+  const uploadScreenshot = useCallback<DataState["uploadScreenshot"]>(async ({ employeeUid, sessionId, blob, date, activityPercent }) => {
+    const path = `${employeeUid}/${sessionId || "misc"}/${Date.now()}.jpg`;
+    const { error: upErr } = await supabase.storage
+      .from("timetracker-screenshots")
+      .upload(path, blob, { contentType: "image/jpeg" });
+    if (upErr) throw upErr;
+    const row = toSnakeRow({ employeeUid, sessionId: sessionId || null, path, date: date || null, activityPercent: activityPercent || 0 });
+    const { data, error } = await supabase.from("screenshots").insert(row).select().single();
+    if (error) throw error;
+    return rowToCamel<Screenshot>(data as Record<string, unknown>)!;
+  }, [supabase]);
+
+  const insertBlankScreenshot = useCallback<DataState["insertBlankScreenshot"]>(async ({ employeeUid, sessionId, date }) => {
+    const row = toSnakeRow({ employeeUid, sessionId: sessionId || null, path: null, date: date || null, activityPercent: 0, noActivity: true });
+    const { data, error } = await supabase.from("screenshots").insert(row).select().single();
+    if (error) throw error;
+    return rowToCamel<Screenshot>(data as Record<string, unknown>)!;
+  }, [supabase]);
+
   // profiles.full_name lives in `public` (shared identity); employee_settings
   // (city/pay info) lives in `timetracker` — two writes, same split D-066
   // already established for reads. employee_settings may not have a row yet
@@ -544,6 +569,7 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
     toast, notify,
     listLiveSessions, startSession, updateSession,
     myScreenshots: screenshots, latestScreenshot: screenshots[0] ?? null, screenshotSignedUrl, deleteScreenshot,
+    uploadScreenshot, insertBlankScreenshot,
     updateMyAccount, updatePassword, signOutEverywhere,
     allEmployees, allProjects, allAssignments, allRequests, sessionsSince, sessionsByProject,
     auditLog, logAudit, liveSessions,

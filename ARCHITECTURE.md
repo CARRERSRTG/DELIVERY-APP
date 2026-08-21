@@ -455,7 +455,7 @@ recruiting project" below) but nothing in production points at them anymore.
   `updateUserRecruitingAccess`) were not touched or merged — the generic part is what gets
   rendered, never what gets written.
 
-## 12. Timetracker module (D-064 — data unified, UI not yet ported)
+## 12. Timetracker module (D-064→D-074 — data, UI, real data, and the desktop repoint all done)
 
 A third module joining the container, same two-stage shape as recruiting (D-050→D-052): data
 first, UI later. As of D-064 only the data stage is done — `timetracker.*` exists in this
@@ -467,11 +467,11 @@ client and a Windows Electron desktop client.
 - **Genuinely different shape from recruiting, not a repeat of the same playbook.** Recruiting
   was Next.js-to-Next.js — becoming a sibling route group was mechanical. Timetracker is a Vite
   SPA with no `react-router` (tab state, not URL routes) with a THIRD client on top of web:
-  Electron desktop, which today bundles the built Vite output locally (`mainWindow.loadFile(...)`)
-  rather than loading a live URL. Decided: once the UI is ported, desktop repoints to
-  `loadURL(<the hosted /timetracker route>)` — same shape as the driver APK already uses — rather
-  than keeping a second, separately-maintained Vite/React tree alive forever alongside the ported
-  one. Not yet done; this is a decision for Etapa 2, recorded now so it isn't re-litigated then.
+  Electron desktop. As of D-074 it no longer bundles the Vite build locally — `main.js` calls
+  `loadURL(<the hosted /timetracker route>)`, same shape as the driver APK's Capacitor
+  `server.url` — instead of keeping a second, separately-maintained Vite/React tree alive
+  forever alongside the ported one. See D-074 below for what porting the desktop-only bridge
+  behavior into the Next.js route required before this repoint was safe to make.
 - **`public.profiles` gains `timetracker_role` (`admin | employee`, null = none) and
   `'timetracker'` as a third valid `module_access` value** (migration 058) — same shape as
   `recruiting_role`, independent trigger (`guard_timetracker_access_change`,
@@ -590,20 +590,24 @@ client and a Windows Electron desktop client.
   any component tree (sorting, labels), so they can't read a hook — same reason the original had
   this shape. Kept, not redesigned, for the same "don't touch what already works" reasoning as the
   i18n port.
-- **Desktop-only behavior is simply ABSENT here, not `if (IS_DESKTOP)`-gated to always-false.**
-  The original web build already never executes those branches (no Electron preload in a browser
-  tab); porting the Track Time screen for real dropped them outright — system-wide activity
-  metering via the desktop bridge, smart-idle screen-motion detection, and native screenshot
-  capture. What's left is exactly the original's own web-build behavior: focus-gated
-  keydown/mousedown listeners for the activity meter, and no screenshot capture (screenshots
-  shown are desktop-captured, read-only from here — matches this module's own project brief:
-  "Web app... no screenshots, browsers can't do silent screen capture").
-- **Known gaps in this pass, tracked rather than silently dropped:** no offline queue (a failed
-  session write retries 3x, then surfaces an alert instead of buffering for later sync — the
-  original's `lib/offlineQueue.js` isn't ported yet); no OS/browser notifications (weekly-limit
-  warnings and "tracking started" show as in-app banners only). 17 of ~18 screens, the real
-  payroll/screenshot data migration, re-inviting existing timetracker employees, and the desktop
-  Electron repoint (to `loadURL`, per the decision recorded in D-064) are all still ahead.
+- **Desktop-only behavior was ABSENT in this pass (D-066), then ported for real in D-074** once
+  the desktop shell was repointed at this same hosted route instead of a locally-bundled Vite
+  build. `isDesktop()` (`src/lib/timetracker/desktop.ts`) checks `window.ttDesktop` at runtime —
+  present only inside the Electron shell (its preload script), absent in a plain browser tab — so
+  the exact same page/component tree now serves both clients, gated at runtime rather than by two
+  separate builds. What's gated this way: system-wide activity metering (desktop) vs.
+  focus-gated keydown/mousedown listeners (web); smart-idle screen-motion detection (desktop
+  only — a browser tab can't read the rest of the screen); native screenshot capture, uploaded
+  from the renderer via new `uploadScreenshot`/`insertBlankScreenshot` data-provider functions
+  (RLS already allowed employee-owned inserts since D-064; nothing new needed there); and
+  auto-stop on OS lock/sleep. See D-074 for the full account, including why skipping this port
+  and repointing `loadURL` directly would have quietly gutted the desktop app's reason to exist.
+- **Known gaps, tracked rather than silently dropped:** no offline queue (a failed session write
+  retries 3x, then surfaces an alert instead of buffering for later sync — the original's
+  `lib/offlineQueue.js` isn't ported); no OS/browser notifications (weekly-limit warnings and
+  "tracking started" show as in-app banners/toasts only — the desktop shell's own native floating
+  toast, unrelated to this, still fires independently); no in-app auto-update banner (the shell's
+  `tt:update` IPC channel has no UI consumer yet — updates download and install silently).
 - **`/timetracker/week` (D-067) — the second screen, a closer 1:1 port than Track Time.** A
   read-only weekly timesheet with no desktop/offline/live-tick concerns, so it translated more
   directly. Added `myPayrolls` to the data provider, same `reloadAll()` + `employee_uid`-filtered
@@ -688,3 +692,13 @@ client and a Windows Electron desktop client.
   out buttons in `TopBar.tsx` switched to fixed `rgba(255,255,255,.1)` overrides instead of theme
   variables, the same inline-override pattern `recruiting/TopBar.tsx` already uses for the same
   reason.
+- **Real employee data migrated from the old project (D-073)**, and the **Electron desktop shell
+  repointed at this hosted route (D-074)**, closing out the module: schema (D-064) → UI (D-066
+  through D-071) → visual fix (D-072) → real data (D-073) → desktop client (D-074). The desktop
+  repoint required porting the desktop-only bridge behavior into this Next.js route first (see the
+  bullet above and D-074 itself) — `main.js` in the separate `timetracker-clean` repo now calls
+  `loadURL('https://deliveries-app-seven.vercel.app/timetracker')` instead of bundling a local Vite
+  build, so a deploy here reaches every installed desktop client without a reinstall. Packaging and
+  publishing an actual installer update (`electron-builder --win nsis --publish always`, which
+  pushes a real GitHub Release that already-installed apps auto-download) is a separate, deliberate
+  step — not done as part of this change.
