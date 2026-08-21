@@ -3173,6 +3173,64 @@ Supabase, no una migración de una sola vez).
 
 ---
 
+## D-076 · El login siempre mandaba a Deliveries, nunca de vuelta al módulo
+**Fecha:** 2026-08-21 · **Versión:** v1.19.2 · **Pedido por:** Andrés
+
+**Cambio:** entrar sin sesión a `/timetracker` (o `/recruiting`, `/home`,
+`/home/users`) ahora redirige a `/login?next=<esa ruta>`, y el login
+vuelve ahí después de autenticar en vez de mandar siempre a `/` (el
+tablero de Deliveries). Reportado como *"open all 3 apps and it just
+[should be] the time tracker"*: en el desktop de Electron —sin barra de
+direcciones— la única forma de volver a Track Time después de iniciar
+sesión era el selector de módulos (⌂/⇄) de la barra superior, que
+además deja saltar a los otros 2 módulos. También se ocultó ese
+selector por completo dentro del shell de escritorio (`isDesktop()` en
+`ModuleSwitcher.tsx`) — moverse fuera de `/timetracker` detiene en
+silencio la captura de actividad/pantallas (el tick loop solo vive
+montado ahí), así que el cliente de escritorio ya no debe poder
+navegar a ningún otro lado, ni siquiera si algún día vuelve a aterrizar
+mal.
+
+**Un hallazgo aparte, no corregido aquí: `middleware.ts` nunca se
+ejecuta.** Al diagnosticar esto se probó primero arreglar el
+redirect ahí — pero el archivo vive en la raíz del repo
+(`./middleware.ts`) en vez de `src/middleware.ts`, que es donde Next.js
+lo busca cuando el proyecto usa una carpeta `src/` (como este). El
+`next dev` nunca imprime "Compiling /middleware", y una petición de
+prueba nunca reflejó el `next=` que ese archivo debería agregar — la
+guarda real de cada ruta siempre ha sido el `redirect()` propio de cada
+`layout.tsx` server component, no el middleware. La app funciona hoy
+solo porque cada layout ya hace su propio chequeo; el archivo de
+middleware ha sido código muerto probablemente desde que se escribió.
+No se movió en este pase — activar código que nunca corrió antes en
+producción, en medio de un fix urgente, es exactamente el tipo de
+cambio que merece su propia sesión, no ir empaquetado con otra cosa.
+
+**Sobre el otro reporte — "no hay datos": los datos siguen ahí.**
+Verificado directo contra la base: 231 sesiones, 4 proyectos, 3
+asignaciones, 4 nóminas, 2,269 capturas (creciendo desde las 1,921
+migradas en D-073 — uso real desde entonces), repartidas
+correctamente entre Andrés (171 sesiones) y Nick Huerta (60). La
+explicación más probable es la misma causa raíz: si el login nunca
+aterrizaba en `/timetracker`, tampoco se llegaba nunca a ver la
+pantalla donde esos datos se muestran.
+
+**Consecuencia aceptada:** `(app)/layout.tsx` no lleva `next=` — `/` ya
+es su propio destino por defecto, no hacía falta. No se verificó el
+flujo de login completo dentro de Electron con credenciales reales
+(no es algo que deba hacer el asistente); sí se verificó la cadena de
+redirects completa contra un dev server real (`/timetracker`,
+`/recruiting`, `/home` sin sesión → cada uno a su propio `next=`
+correcto). `tsc`/`vitest` (467)/`next build` limpios.
+
+**Revisar cuando:** se decida si vale la pena mover `middleware.ts` a
+`src/middleware.ts` y activarlo de verdad — hoy es puramente
+redundante con las guardas de cada layout, así que no es urgente,
+pero tampoco debería quedar ahí indefinidamente fingiendo que hace
+algo.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

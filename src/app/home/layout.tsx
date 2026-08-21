@@ -19,7 +19,7 @@ export default async function HomeLayout({ children }: { children: React.ReactNo
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/login?next=/home");
 
   return (
     <>

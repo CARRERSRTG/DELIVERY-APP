@@ -29,7 +29,13 @@ export default async function TimetrackerLayout({ children }: { children: React.
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // ?next=/timetracker so login returns here, not the deliveries board — see
+  // login/page.tsx and the D-076 note there. (middleware.ts's own next=
+  // support turned out to be dead code: it lives at the repo root while this
+  // app runs from src/, so Next.js never loads it — every route's real auth
+  // gate has always been each layout's own check like this one, not
+  // middleware. Not fixed here; a pre-existing, unrelated finding.)
+  if (!user) redirect("/login?next=/timetracker");
 
   const { data: profile } = await supabase
     .from("profiles")

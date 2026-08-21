@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-076", title: "El login siempre mandaba a Deliveries, nunca de vuelta al módulo",
+      fecha: "2026-08-21", version: "v1.19.2", quien: "Andrés",
+      cambio: "Entrar sin sesión a /timetracker (o /recruiting, /home, /home/users) ahora redirige a /login?next=<esa ruta>, y el login vuelve ahí después de autenticar en vez de mandar siempre a / (Deliveries). También se ocultó el selector de módulos (⌂/⇄) por completo dentro del shell de escritorio (isDesktop() en ModuleSwitcher.tsx) — moverse fuera de /timetracker detiene en silencio la captura de actividad/pantallas.",
+      razon: "\"open all 3 apps and it just the time tracker because it has to take activity and screenshots\" — en el desktop de Electron, sin barra de direcciones, la única forma de volver a Track Time era el selector de módulos, que además deja saltar a los otros 2 módulos",
+      razonTextual: true,
+      consecuencia: "Hallazgo aparte, no corregido: middleware.ts nunca se ejecuta — vive en la raíz del repo en vez de src/middleware.ts, que es donde Next.js lo busca con una carpeta src/. La guarda real siempre ha sido el redirect() propio de cada layout.tsx, no el middleware; probablemente código muerto desde que se escribió. No se movió en este pase — activar código que nunca corrió antes merece su propia sesión. Sobre el otro reporte (\"no hay datos\"): verificado directo contra la base, los datos siguen ahí (231 sesiones, 2,269 capturas, repartidas correctamente entre Andrés y Nick) — la causa más probable es la misma: si el login nunca aterrizaba en /timetracker, tampoco se llegaba a ver la pantalla donde se muestran. tsc/vitest (467)/next build limpios; cadena de redirects verificada contra un dev server real."
+    },
+    {
       id: "D-075", title: "Cierre de los gaps conocidos del desktop: auto-update, offline, notificaciones",
       fecha: "2026-08-20", version: "v1.19.1", quien: "Andrés",
       cambio: "Los tres gaps que D-074 dejó pendientes: banner de auto-actualización (UpdateBanner.tsx, consume tt:update de main.js), cola offline (offlineQueue.ts — parches de sesión a localStorage, capturas a IndexedDB, sincroniza al reconectar; a diferencia del original recibe updateSession/uploadScreenshot como parámetros en vez de importar un cliente Supabase propio), y notificaciones reales del sistema (notify() ahora dispara Notification() en web, no en desktop — el shell ya tiene sus propios toasts). Se agregaron los dos disparadores que faltaban: \"tracking started\" y aviso de límite semanal.",

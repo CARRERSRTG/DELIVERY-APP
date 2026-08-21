@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePrefs } from "@/lib/prefs";
 import { accessibleModules, HUB_TOOLS, roleHome } from "@/lib/constants";
+import { isDesktop } from "@/lib/timetracker/desktop";
 import type { UserRole } from "@/lib/types";
 
 // ============================================================
@@ -45,6 +46,16 @@ interface ModuleSwitcherProps {
 export function ModuleSwitcher({ current, deliveriesRole, moduleAccess }: ModuleSwitcherProps) {
   const { lang, t } = usePrefs();
   const [open, setOpen] = useState(false);
+  // Hidden entirely inside the timetracker desktop shell (D-076): its
+  // Electron window has no address bar, so this switcher was the ONLY way
+  // to navigate away from Track Time — which silently stops the
+  // screenshot/activity capture tick loop (mounted only on /timetracker) the
+  // moment you do. isDesktop() (window.ttDesktop) has no dependency on any
+  // module's DataProvider, so importing it here doesn't break this
+  // component's "pure presentation" shape — it's a generic "am I running
+  // inside the Electron shell" check, not a timetracker-data read.
+  const [desktopClient, setDesktopClient] = useState(false);
+  useEffect(() => { setDesktopClient(isDesktop()); }, []);
   // The menu hangs from the button's RIGHT edge and grows leftwards — fine
   // when the switcher sits on the topbar's unwrapped first line, near the
   // right edge, but this row wraps onto its own line constantly (it's the
@@ -70,7 +81,7 @@ export function ModuleSwitcher({ current, deliveriesRole, moduleAccess }: Module
   // either control, independent of whatever module_access or hub tools
   // would otherwise apply. Nothing to show at all -> nothing renders (not
   // hidden).
-  if (deliveriesRole === "driver" || !canReachHub) return null;
+  if (deliveriesRole === "driver" || !canReachHub || desktopClient) return null;
 
   const others = modules.filter((m) => m.key !== current);
   const hrefFor = (key: string, fallback: string) => (key === "deliveries" ? roleHome(deliveriesRole) : fallback);

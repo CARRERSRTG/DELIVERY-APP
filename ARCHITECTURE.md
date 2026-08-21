@@ -455,7 +455,7 @@ recruiting project" below) but nothing in production points at them anymore.
   `updateUserRecruitingAccess`) were not touched or merged — the generic part is what gets
   rendered, never what gets written.
 
-## 12. Timetracker module (D-064→D-075 — data, UI, real data, desktop client, all done)
+## 12. Timetracker module (D-064→D-076 — data, UI, real data, desktop client, all done)
 
 A third module joining the container, same two-stage shape as recruiting (D-050→D-052): data
 first, UI later. As of D-064 only the data stage is done — `timetracker.*` exists in this
@@ -718,3 +718,19 @@ client and a Windows Electron desktop client.
   pushes a real GitHub Release that already-installed apps auto-download) is a separate, deliberate
   step — not done as part of this change. What's genuinely still open isn't a code gap: whether
   `timetracker-clean/web`'s remaining users get moved to this route, and when (D-075).
+- **Publishing the v0.0.44 installer surfaced a real bug the same day (D-076): login always landed
+  on `/` (deliveries), never back on `/timetracker`.** Every guarded layout (`(timetracker)`,
+  `(recruiting)`, `home`, `home/users`) redirected unauthenticated hits to a bare `/login`, and
+  `login/page.tsx` always `router.push("/")`'d on success — fine for a browser tab (one extra
+  click from the hub), broken for the Electron shell, which has no address bar: the only way back
+  to Track Time was `ModuleSwitcher`'s hub/switch links, which also let the desktop client wander
+  into deliveries/recruiting and silently stop the screenshot/activity tick loop (mounted only on
+  `/timetracker`). Fixed with a `?next=<path>` round-trip through login, and by hiding
+  `ModuleSwitcher` entirely when `isDesktop()` is true — the desktop shell has no address bar, so
+  once the switcher can't reach another module, nothing in the UI can either. **A separate finding
+  surfaced while diagnosing this, deliberately NOT fixed:** `middleware.ts` lives at the repo root
+  instead of `src/middleware.ts`, which Next.js requires when a `src/` directory is in use — it
+  never actually runs (no "Compiling /middleware" in `next dev`, confirmed empirically against a
+  live dev server), so every route's real auth gate has always been each layout's own `redirect()`
+  check, not middleware. Moving/activating previously-dead middleware code mid-hotfix was judged
+  too consequential to bundle into an urgent fix — flagged, not touched.

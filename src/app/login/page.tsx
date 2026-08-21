@@ -19,16 +19,23 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  // Where to return after signing in — set by middleware.ts when a guarded
+  // route bounced here signed-out (e.g. `/timetracker`). Falls back to `/`,
+  // same as before this existed.
+  const [next, setNext] = useState("/");
 
   // Prefill the last-remembered email so returning users don't retype it.
   useEffect(() => {
     const saved = localStorage.getItem(REMEMBERED_EMAIL_KEY);
     if (saved) setEmail(saved);
     else setRemember(false);
+    const params = new URLSearchParams(window.location.search);
     // Kicked out because the account signed in on another device.
-    if (new URLSearchParams(window.location.search).get("reason") === "session") {
+    if (params.get("reason") === "session") {
       setMsg("You were signed out because this account signed in on another device. Only one device can be signed in at a time.");
     }
+    const n = params.get("next");
+    if (n && n.startsWith("/") && !n.startsWith("/login")) setNext(n);
   }, []);
 
   const forgot = async () => {
@@ -70,7 +77,7 @@ export default function LoginPage() {
         if (remember) localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
         else localStorage.removeItem(REMEMBERED_EMAIL_KEY);
         router.refresh();
-        router.push("/");
+        router.push(next);
       }
     } catch (e) {
       setMsg((e as Error).message);

@@ -23,7 +23,7 @@ export default async function HomeUsersLayout({ children }: { children: React.Re
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/login?next=/home/users");
 
   const { data: profile } = await supabase
     .from("profiles")
