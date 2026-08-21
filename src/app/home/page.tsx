@@ -41,7 +41,11 @@ export default async function HomePage({
     .select("id, full_name, role, module_access")
     .eq("id", user.id)
     .maybeSingle();
-  const me: Profile = profile ?? { id: user.id, full_name: user.email ?? "Me", role: "sales" };
+  // Degraded session, not a new user — see the identical guard in
+  // (app)/layout.tsx. Fabricating role:"sales" here used to route people
+  // into the wrong module picker for their real role.
+  if (!profile) redirect("/login");
+  const me: Profile = profile;
 
   const hasReasonToBeHere =
     accessibleModules(me.module_access).length > 1 || HUB_TOOLS.some((t) => t.visible(me));

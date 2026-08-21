@@ -3526,6 +3526,37 @@ arreglo de causa raíz puntual.
 
 ---
 
+## D-082 · Sesión degradada mostraba a cualquiera la vista de vendedor
+**Fecha:** 2026-08-21 · **Versión:** v1.20.2 · **Pedido por:** Andrés
+(*"driver when login sees sales view"*)
+
+**Cambio:** `(app)/layout.tsx`, `home/page.tsx`, y `home/users/layout.tsx`
+tenían el mismo patrón peligroso: si `user` existía pero la fila de
+`profiles` no cargaba, fabricaban un perfil falso con
+`role: "sales"` en vez de tratarlo como una sesión rota. Un chofer (o
+cualquiera) con una lectura de perfil fallida por RLS degradado —
+misma clase de bug que D-081, esta vez del lado del servidor, con
+cookies en vez de `localStorage` — terminaba viendo el tablero de
+vendedor en vez de su propia pantalla, sin ningún error visible.
+Corregido: sin perfil, se redirige a `/login` (fuerza un re-auth real)
+en vez de inventar una identidad.
+
+**Consecuencia aceptada:** un usuario legítimo pero sin fila en
+`profiles` (caso borde — hoy todo signup crea una) también cae en este
+redirect en vez de ver un "sales" ficticio — correcto: mostrar el rol
+equivocado nunca fue mejor que pedir que vuelva a entrar. No se aplicó
+el mismo `ensureSession()` proactivo de D-081 aquí porque este código
+corre en el servidor con el cliente de cookies (`@/lib/supabase/server`),
+no el de navegador — refrescar ahí es una pieza aparte, no incluida en
+este pase.
+
+**Revisar cuando:** si sigue apareciendo el mismo síntoma después de
+este arreglo, hace falta el equivalente server-side de D-081
+(refrescar la cookie de sesión antes de leer `profiles`), no solo
+dejar de fabricar `sales` como fallback.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

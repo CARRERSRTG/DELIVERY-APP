@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-082", title: "Sesión degradada mostraba a cualquiera la vista de vendedor",
+      fecha: "2026-08-21", version: "v1.20.2", quien: "Andrés",
+      cambio: "(app)/layout.tsx, home/page.tsx, y home/users/layout.tsx fabricaban un perfil falso con role:\"sales\" cuando user existía pero la fila de profiles no cargaba. Corregido: sin perfil, redirige a /login (fuerza re-auth real) en vez de inventar una identidad.",
+      razon: "\"driver when login sees sales view\"",
+      razonTextual: true,
+      consecuencia: "Misma clase de bug que D-081, del lado del servidor con cookies en vez de localStorage. Un chofer con lectura de perfil fallida por RLS degradado terminaba viendo el tablero de vendedor, sin error visible. Un usuario legítimo pero sin fila en profiles (caso borde) también cae en el redirect ahora — correcto, mostrar el rol equivocado nunca fue mejor que pedir re-login. No se aplicó el ensureSession() proactivo de D-081 aquí (cliente de servidor distinto) — queda como posible siguiente paso si el síntoma reaparece."
+    },
+    {
       id: "D-081", title: "Sesión vieja → RLS lo trata como anónimo → \"se borró toda la data\"",
       fecha: "2026-08-21", version: "v1.20.1", quien: "Andrés",
       cambio: "reloadAll() en data-provider.tsx, recruiting-data-provider.tsx, y timetracker-data-provider.tsx (donde ya existía ensureSession() para escrituras pero nunca se llamaba antes de leer) ahora refrescan el token de acceso antes de cada lectura si está vencido o a menos de 60s de vencer.",

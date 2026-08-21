@@ -35,7 +35,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq("id", user.id)
     .maybeSingle();
 
-  const me: Profile = profile ?? { id: user.id, full_name: user.email ?? "Me", role: "sales" };
+  // A valid `user` but no `profile` row is a degraded session (RLS reading
+  // this request as effectively anonymous — same class of bug as D-081,
+  // just server-side/cookie-based instead of client-side), NOT a new user
+  // with nothing to show yet: everyone with an account gets a profiles row
+  // on signup. Silently fabricating role:"sales" here used to show a driver
+  // (or anyone else) the sales board instead of their own view, with no
+  // error anywhere. Bouncing to /login instead forces a real re-auth
+  // instead of guessing an identity.
+  if (!profile) redirect("/login");
+  const me: Profile = profile;
 
   return (
     <ConfirmProvider>

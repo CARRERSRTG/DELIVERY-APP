@@ -31,7 +31,10 @@ export default async function HomeUsersLayout({ children }: { children: React.Re
     .eq("id", user.id)
     .maybeSingle();
 
-  const me: Profile = profile ?? { id: user.id, full_name: user.email ?? "Me", role: "sales" };
+  // Degraded session, not a new user — see the identical guard in
+  // (app)/layout.tsx.
+  if (!profile) redirect("/login?next=/home/users");
+  const me: Profile = profile;
 
   // Reaching this layout is not, by itself, proof of anything — same pattern
   // as recruiting's own guard (D-052). A non-admin who types the URL lands
