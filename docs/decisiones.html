@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-079", title: "D-073 tampoco migró settings — la semana de la empresa quedó mal",
+      fecha: "2026-08-21", quien: "Andrés",
+      cambio: "timetracker.settings (fila id='app') nunca se tocó en D-073. weekStartDay quedó en 6 (sábado, default del código) en vez del real 5 (viernes); faltaban por completo appName, timeZone (America/Tegucigalpa), workApps, locations, idleLimitMin. Corregido con un UPDATE que agrega esos campos exactos del proyecto viejo, sin tocar los que ya coincidían.",
+      razon: "\"el sistema las semanas son de viernes a jueves y estoy viendo que no se paso asi\"",
+      razonTextual: true,
+      consecuencia: "Se encontró investigando por qué Total hours tracked/This week mostraba 50.17h en vez de 56.40h reales (verificadas en base) — sin proyecto elegido en el dropdown, TrackedTotals cae al default de la empresa (comportamiento calcado del original, D-066); bajo sábado-viernes en vez de viernes-jueves, la sesión del viernes 14 de agosto (6.24h) cae en la semana anterior: 56.40-6.24=50.17, exacto. La recomendación inmediata (elegir proyecto) hubiera tapado el síntoma sin arreglar la causa real. El timeZone restaurado (America/Tegucigalpa) es distinto al de deliveries/recruiting (America/Chicago) — se dejó tal cual estaba en el sistema viejo, sin unificar, porque eso es una decisión de negocio aparte. Datos ya escritos no cambian; el efecto es hacia adelante en cómo el cliente agrupa semanas."
+    },
+    {
       id: "D-078", title: "La brecha real de D-073: lo trabajado después del corte de la migración",
       fecha: "2026-08-21", quien: "Andrés",
       cambio: "Migradas 5 sesiones y 50 capturas que quedaron fuera de D-073 porque esa migración corrió a media tarde del 2026-08-20 mientras Andrés seguía trabajando en la app vieja (el desktop no se había repuntado hasta D-074, un día después). Corte real: última captura migrada en D-073 fue 2026-08-20 20:44 UTC. Después de eso: una sesión de Andrés a medio terminar (capturada con duración parcial porque seguía corriendo cuando D-073 tomó su snapshot), dos sesiones completas más de Andrés esa noche, y tres sesiones cortas de Nick Huerta. requests/audit/payrolls no tenían nada nuevo.",

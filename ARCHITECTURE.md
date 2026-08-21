@@ -455,7 +455,7 @@ recruiting project" below) but nothing in production points at them anymore.
   `updateUserRecruitingAccess`) were not touched or merged — the generic part is what gets
   rendered, never what gets written.
 
-## 12. Timetracker module (D-064→D-078 — data, UI, real data, desktop client, all done)
+## 12. Timetracker module (D-064→D-079 — data, UI, real data, desktop client, all done)
 
 A third module joining the container, same two-stage shape as recruiting (D-050→D-052): data
 first, UI later. As of D-064 only the data stage is done — `timetracker.*` exists in this
@@ -542,6 +542,24 @@ client and a Windows Electron desktop client.
   isn't theoretical: as long as `timetracker-clean/web` stays live and in use, this exact class of
   gap can recur, and the fix pattern here (compare-by-id, same `ID_MAP`, idempotent insert) is
   reusable next time rather than needing to be re-derived.
+- **D-073 also silently skipped `timetracker.settings` — company-wide config, not per-employee data
+  — found the same day (D-079).** Of the 8 tables D-073 migrated, `settings` (a single `id='app'`
+  row) wasn't one of them; the row that existed came from whatever the schema migration seeded, not
+  from the old project's real config. Concretely: `weekStartDay` was `6` (Saturday, the code
+  default) instead of the real `5` (Friday), and `appName`/`timeZone`/`workApps`/`locations`/
+  `idleLimitMin` were missing outright — `timeZone` in particular silently fell back to
+  `BROWSER_TZ` (whoever's own machine), not a fixed business timezone, for anyone who opened the
+  app before this was fixed. Found while chasing a seemingly unrelated symptom: Track Time's "This
+  week" total (`TrackedTotals`) showing 50.17h instead of a verified-correct 56.40h. That
+  component's own logic — falling back to the company default week-start-day when no project is
+  selected — is original, ported behavior (D-066), not a bug; the REAL bug was that the "company
+  default" it fell back to was wrong. Fixed with a targeted `UPDATE ... data || '{...}'::jsonb`
+  restoring exactly the old project's real values, leaving already-correct keys
+  (`paymentMethods`/`adjustmentTypes`/etc., which *had* made it over) untouched. The restored
+  `timeZone` (`America/Tegucigalpa`) deliberately does NOT match deliveries/recruiting's
+  `America/Chicago` (see `business_timezone_hydration`) — preserved as-is rather than unified,
+  since picking one business timezone for the whole container is a real decision with payroll-week
+  implications, not something to default silently out of a bug report.
 - **Storage bucket renamed `timetracker-screenshots`, not `screenshots`.** The original app owned
   that name outright in its own project; here it shares a flat Storage namespace with deliveries'
   own buckets and recruiting's `resumes`, so it gets the same module-prefixed treatment. Path

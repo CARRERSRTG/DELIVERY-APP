@@ -3363,6 +3363,61 @@ que se decida el destino final de `timetracker-clean/web` (D-075).
 
 ---
 
+## D-079 · D-073 tampoco migró `settings` — la semana de la empresa quedó mal
+**Fecha:** 2026-08-21 · **Pedido por:** Andrés (*"el sistema las semanas
+son de viernes a jueves y estoy viendo que no se paso asi"*)
+
+**Cambio:** `timetracker.settings` (fila `id='app'`) nunca se tocó en
+D-073 — de las 8 tablas que sí se migraron (proyectos, asignaciones,
+sesiones, pagos, solicitudes, auditoría, capturas), `settings` se
+quedó fuera. La fila nueva tenía casi puros valores por default del
+código: `weekStartDay: 6` (sábado) en vez del real `5` (viernes),
+y le faltaban por completo `appName`, `timeZone`
+("America/Tegucigalpa"), `workApps`, `locations`, `idleLimitMin`.
+Corregido con un `UPDATE ... data || '{...}'::jsonb` que agrega esos
+campos exactos tal como estaban en el proyecto viejo, sin tocar los
+que ya coincidían (`paymentMethods`, `adjustmentTypes`,
+`defaultTrackMode`, etc. — esos sí se habían migrado bien).
+
+**Cómo se encontró — un caso real de "los datos están bien, la
+pantalla calcula mal, y la causa real es una tercera cosa".** Andrés
+reportó que "Total hours tracked / This week" en Track Time mostraba
+50.17h en vez de las 56.40h reales de esa semana. La base tenía las
+56.40h completas (verificado). El cálculo de "esta semana" en
+`TrackedTotals` usa la semana del PROYECTO seleccionado si hay uno
+elegido, y si no, cae al default de la empresa
+(`page.tsx`/`helpers.ts`, comportamiento calcado del original,
+D-066) — sin proyecto elegido en pantalla, usó sábado-viernes en vez
+de viernes-jueves, y bajo ese corte la sesión del viernes 14 de agosto
+(6.24h) cae en la semana anterior: 56.40 − 6.24 = 50.17, exacto. La
+recomendación inmediata (elegir el proyecto en el dropdown) hubiera
+tapado el síntoma sin arreglar la causa — Andrés fue quien identificó
+que el default de la empresa en sí estaba mal, no solo que faltaba
+elegir un proyecto.
+
+**Consecuencia aceptada:** el `timeZone` migrado
+(`America/Tegucigalpa`) es DISTINTO al que usa deliveries/recruiting
+(`America/Chicago`, ver `business_timezone_hydration`) — se restauró
+tal cual estaba en el sistema viejo, sin unificarlo, porque unificar
+zonas horarias es una decisión de negocio con impacto en cómo se
+agrupan las semanas de nómina, no algo para decidir sin preguntar a
+partir de un reporte de bug. Los datos ya escritos (fechas de sesión,
+`week_of`) no cambian con este fix — se calcularon correctamente en su
+momento por la app vieja, que sí tenía el `timeZone` correcto; el
+único efecto es hacia adelante, en cómo el cliente nuevo agrupa
+semanas al vivo. Cualquier sesión de navegador ya abierta debería
+refrescar sola vía Realtime (la tabla `settings` ya está en la
+publicación desde D-064); si no, basta con recargar.
+
+**Revisar cuando:** se decida si `timetracker` debería compartir el
+mismo `timeZone` que el resto del contenedor en vez del suyo propio
+heredado del sistema viejo — hoy conviven dos zonas horarias distintas
+dentro de la misma app, cada una correcta para su propio módulo, pero
+es la clase de inconsistencia que vale la pena resolver a propósito en
+algún momento, no dejarla así por accidente.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
