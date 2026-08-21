@@ -6,6 +6,7 @@ import { useState } from "react";
 import { MANAGER_TABS, TABS } from "@/lib/timetracker/constants";
 import { useData } from "@/lib/timetracker-data-provider";
 import { getLang, setLang, useT } from "@/lib/timetracker/i18n";
+import { usePrefs } from "@/lib/prefs";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { TtCheckUpdateLink } from "@/components/timetracker/UpdateBanner";
 import type { UserRole } from "@/lib/types";
@@ -19,6 +20,12 @@ export function TopBar({ deliveriesRole, moduleAccess }: { deliveriesRole: UserR
   const pathname = usePathname();
   const { me, settings } = useData();
   const t = useT();
+  // Shared with deliveries/recruiting (usePrefs(), not timetracker's own
+  // useT() — theme is a container-wide concern, D-080). Nothing here used
+  // to expose a way to change it; the desktop shell now defaults to dark
+  // (layout.tsx's inline theme script + prefs.tsx's defaultTheme()), but
+  // this toggle lets anyone — web or desktop — switch either way.
+  const { theme, toggleTheme } = usePrefs();
   // useT()'s own subscription already re-renders this component on any
   // setLang() call; this local state just remembers which icon to show.
   const [lang, setLangState] = useState(getLang());
@@ -58,6 +65,14 @@ export function TopBar({ deliveriesRole, moduleAccess }: { deliveriesRole: UserR
           title={t("lang.label")}
         >
           {lang === "es" ? "🇬🇧 EN" : "🇪🇸 ES"}
+        </button>
+        <button
+          className="btn-ghost btn-sm"
+          style={{ background: "rgba(255,255,255,.1)", color: "#fff" }}
+          onClick={toggleTheme}
+          title={theme === "dark" ? t("shell.lightMode") : t("shell.darkMode")}
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
         </button>
         <TtCheckUpdateLink />
         <form action="/auth/signout" method="post">

@@ -455,7 +455,7 @@ recruiting project" below) but nothing in production points at them anymore.
   `updateUserRecruitingAccess`) were not touched or merged — the generic part is what gets
   rendered, never what gets written.
 
-## 12. Timetracker module (D-064→D-079 — data, UI, real data, desktop client, all done)
+## 12. Timetracker module (D-064→D-080 — data, UI, real data, desktop client, all done)
 
 A third module joining the container, same two-stage shape as recruiting (D-050→D-052): data
 first, UI later. As of D-064 only the data stage is done — `timetracker.*` exists in this
@@ -560,6 +560,23 @@ client and a Windows Electron desktop client.
   `America/Chicago` (see `business_timezone_hydration`) — preserved as-is rather than unified,
   since picking one business timezone for the whole container is a real decision with payroll-week
   implications, not something to default silently out of a bug report.
+- **The desktop shell had no way to ever show dark mode — closed the same day (D-080).** Root
+  `layout.tsx`'s pre-paint theme script (shared by the whole container) unconditionally set
+  `data-theme="light"` whenever nothing was saved in `localStorage` yet — never left the attribute
+  absent, which is the one condition under which `.timetracker-module`'s own CSS (D-066) already
+  defaults to a complete dark palette (`--tt-bg:#0f1420`, described in D-072 as "designed for the
+  original's dark-mode default"). A brand-new Electron session has empty `localStorage` by
+  definition, so the desktop client always landed on light — not a missing feature, a default that
+  was silently winning every time. Fixed in two places that both need to agree (the inline script
+  AND `PrefsProvider`'s own initial React state in `prefs.tsx`, which otherwise re-applies light a
+  moment later): both now check `window.ttDesktop` and default to dark there specifically, only
+  when no explicit choice has ever been saved. A ☀️/🌙 toggle was added to timetracker's `TopBar`
+  (`usePrefs().toggleTheme()`, the same shared mechanism deliveries/recruiting use) — nothing in
+  the module exposed changing theme at all before this. Separately, `desktop/main.js` gained
+  `Menu.setApplicationMenu(null)` (Electron's default File/Edit/View/Window/Help menu bar has no
+  use in a single-purpose client) and a matching `backgroundColor: '#0f1420'` on the `BrowserWindow`
+  so the window paints the right color before the page even loads, instead of Electron's own
+  default showing through as a mismatched void around the content.
 - **Storage bucket renamed `timetracker-screenshots`, not `screenshots`.** The original app owned
   that name outright in its own project; here it shares a flat Storage namespace with deliveries'
   own buckets and recruiting's `resumes`, so it gets the same module-prefixed treatment. Path

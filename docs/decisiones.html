@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-080", title: "El desktop siempre caía en modo claro — nunca tuvo forma de estar oscuro",
+      fecha: "2026-08-21", version: "v1.20.0 (deliveries-app) / v0.0.45 (desktop)", quien: "Andrés",
+      cambio: "layout.tsx (raíz) fuerza data-theme en cada carga; sin preferencia guardada siempre caía en light, pisando el modo oscuro que .timetracker-module ya tenía como default (D-066/D-072). Corregido: el script y el estado inicial de PrefsProvider detectan window.ttDesktop y usan oscuro por default solo ahí. Nuevo botón ☀️/🌙 en el TopBar de timetracker (usePrefs().toggleTheme(), antes nada exponía cambiar de tema). desktop/main.js: Menu.setApplicationMenu(null) quita la barra nativa File/Edit/View/Window/Help; backgroundColor:'#0f1420' en el BrowserWindow para que coincida con el tema desde el primer pixel.",
+      razon: "\"quiero que este al mismo tamano del window y quiero que crees un darkmode muy agradable y eficiente\"",
+      razonTextual: true,
+      consecuencia: "El modo oscuro no es nuevo — es la paleta que el módulo siempre tuvo lista (diseñada para el default oscuro del original) y nunca se mostraba por este bug. No se rediseñó ningún color, se expuso y se arregló por qué nunca se aplicaba. No se probó visualmente dentro de Electron en una máquina Windows real (sin forma de ver la ventana renderizada desde aquí) — tsc/vitest (467)/next build limpios, node --check sobre main.js."
+    },
+    {
       id: "D-079", title: "D-073 tampoco migró settings — la semana de la empresa quedó mal",
       fecha: "2026-08-21", quien: "Andrés",
       cambio: "timetracker.settings (fila id='app') nunca se tocó en D-073. weekStartDay quedó en 6 (sábado, default del código) en vez del real 5 (viernes); faltaban por completo appName, timeZone (America/Tegucigalpa), workApps, locations, idleLimitMin. Corregido con un UPDATE que agrega esos campos exactos del proyecto viejo, sin tocar los que ya coincidían.",

@@ -31,9 +31,18 @@ export function usePrefs(): Prefs {
   return ctx;
 }
 
+// The timetracker desktop shell (window.ttDesktop) has no explicit
+// preference the first time it ever runs — default it to dark (D-080),
+// matching layout.tsx's inline pre-paint script. Everyone else still
+// defaults to light, unchanged. Read once, lazily, so this only ever
+// matters for the very first render before localStorage is checked below.
+function defaultTheme(): Theme {
+  return typeof window !== "undefined" && window.ttDesktop?.isDesktop ? "dark" : "light";
+}
+
 export function PrefsProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>("en");
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>(defaultTheme);
 
   // Load saved prefs on mount.
   useEffect(() => {

@@ -2,8 +2,15 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { PrefsProvider } from "@/lib/prefs";
 
-// Runs before paint to apply the saved theme immediately (no flash).
-const themeScript = `try{var p=JSON.parse(localStorage.getItem('rtg_prefs')||'{}');document.documentElement.setAttribute('data-theme',p.theme==='dark'?'dark':'light');if(p.lang){document.documentElement.setAttribute('lang',p.lang);}}catch(e){}`;
+// Runs before paint to apply the saved theme immediately (no flash). The
+// timetracker desktop shell (window.ttDesktop, injected by its Electron
+// preload script — available synchronously here, before any page script)
+// has no way to have ever saved a preference of its own the first time it
+// runs, so it defaulted to light unconditionally like every other fresh
+// browser profile — wrong for a dedicated, always-dark-by-design client
+// (D-080). Defaults to dark there when nothing's been explicitly chosen yet;
+// an explicit choice (light or dark, saved once toggled) always wins.
+const themeScript = `try{var p=JSON.parse(localStorage.getItem('rtg_prefs')||'{}');var isDesktop=!!(window.ttDesktop&&window.ttDesktop.isDesktop);var theme=p.theme==='dark'||p.theme==='light'?p.theme:(isDesktop?'dark':'light');document.documentElement.setAttribute('data-theme',theme);if(p.lang){document.documentElement.setAttribute('lang',p.lang);}}catch(e){}`;
 
 export const metadata: Metadata = {
   title: "RDZ Deliveries | Order & Dispatch",

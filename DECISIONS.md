@@ -3418,6 +3418,54 @@ algún momento, no dejarla así por accidente.
 
 ---
 
+## D-080 · El desktop siempre caía en modo claro — nunca tuvo forma de estar oscuro
+**Fecha:** 2026-08-21 · **Versión:** v1.20.0 (deliveries-app) · v0.0.45
+(desktop) · **Pedido por:** Andrés (*"quiero que este al mismo tamano
+del window y quiero que crees un darkmode muy agradable y eficiente"*)
+
+**Cambio:** tres arreglos, uno de código y dos de UI:
+- **`layout.tsx` (raíz, compartido por toda la app) fuerza `data-theme`
+  en cada carga**, vía un script que corre antes de pintar: si no hay
+  preferencia guardada, siempre caía en `light` — nunca dejaba el
+  atributo ausente, que es lo único bajo lo cual el propio CSS de
+  `.timetracker-module` (D-066) ya tiene un modo oscuro completo como
+  default (`--tt-bg:#0f1420`, paleta calcada del original, "diseñada
+  para el default oscuro del original" — D-072). El desktop, con
+  `localStorage` vacío en su primer arranque, siempre pisaba ese
+  default oscuro con claro. Corregido: el script (y el estado inicial
+  de `PrefsProvider` en `prefs.tsx`, que si no se corrige por separado
+  vuelve a pisarlo un instante después) ahora detectan
+  `window.ttDesktop` y usan oscuro como default SOLO ahí, cuando no
+  hay preferencia explícita guardada — cualquier elección manual
+  previa sigue ganando.
+- **Nuevo botón ☀️/🌙 en el `TopBar` de timetracker** — antes nada en
+  el módulo exponía forma de cambiar de tema; ahora cualquiera (web o
+  desktop) puede alternar con `usePrefs().toggleTheme()`, el mismo
+  mecanismo compartido que deliveries/recruiting ya usan.
+- **`desktop/main.js`:** `Menu.setApplicationMenu(null)` quita la
+  barra de menú nativa de Electron (File/Edit/View/Window/Help) —
+  chrome de navegador sin ningún uso en un cliente de un solo
+  propósito. `backgroundColor:'#0f1420'` en el `BrowserWindow`, para
+  que coincida con el tema oscuro desde el primer pixel pintado (antes
+  de que la página cargue) en vez del blanco/negro por default de
+  Electron, que es lo que se veía como un "vacío" alrededor del
+  contenido en la captura del reporte.
+
+**Consecuencia aceptada:** el modo oscuro no es nuevo — es la paleta
+que el módulo siempre tuvo lista y nunca se mostraba por este bug de
+default. No se rediseñó ningún color; el trabajo fue exponerlo y
+arreglar por qué nunca se aplicaba. No se probó visualmente dentro de
+Electron en una máquina Windows real (no tengo forma de ver la ventana
+renderizada desde aquí) — pasó `tsc`/`vitest` (467)/`next build`
+limpios y `node --check` sobre `main.js`.
+
+**Revisar cuando:** el usuario confirme con una captura si el
+resultado visual es el esperado — el diagnóstico de "vacío alrededor
+del contenido" se hizo por inspección de código, no viéndolo
+renderizado.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
