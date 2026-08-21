@@ -3215,6 +3215,12 @@ explicación más probable es la misma causa raíz: si el login nunca
 aterrizaba en `/timetracker`, tampoco se llegaba nunca a ver la
 pantalla donde esos datos se muestran.
 
+**Corrección (2026-08-21, misma sesión):** esa última hipótesis era
+incompleta. El redirect SÍ estaba roto y SÍ se arregló aquí, pero no
+era la causa de "no hay datos" — con el redirect ya corregido, Track
+Time seguía mostrando "no projects assigned" para un admin con
+asignaciones reales. La causa real, más grave, está en D-077.
+
 **Consecuencia aceptada:** `(app)/layout.tsx` no lleva `next=` — `/` ya
 es su propio destino por defecto, no hacía falta. No se verificó el
 flujo de login completo dentro de Electron con credenciales reales
@@ -3228,6 +3234,73 @@ correcto). `tsc`/`vitest` (467)/`next build` limpios.
 redundante con las guardas de cada layout, así que no es urgente,
 pero tampoco debería quedar ahí indefinidamente fingiendo que hace
 algo.
+
+---
+
+## D-077 · El schema `timetracker` nunca estuvo expuesto a la API — nada leía datos reales
+**Fecha:** 2026-08-21 · **Pedido por:** Andrés (reporte: *"todo projects y
+assignments vacios y soy admin"*)
+
+**Cambio:** el proyecto de Supabase tenía `db_schema` (la lista de
+schemas que PostgREST expone a `supabase-js`) configurado como
+`public,graphql_public,recruiting` — **`timetracker` nunca se agregó**,
+desde que se creó el módulo en D-064. Corregido vía la API de gestión
+de Supabase (`PATCH /v1/projects/{ref}/postgrest`,
+`db_schema: "public,graphql_public,recruiting,timetracker"`). No es un
+cambio de código — no hay migración `.sql` para esto, es config de la
+plataforma, no un objeto de base de datos — así que no lleva versión
+de `APP_VERSION`.
+
+**Por qué esto es grave y por qué nadie lo vio antes.** Toda llamada
+`supabase.from(...)` con `db: { schema: "timetracker" }` (es decir,
+CADA lectura/escritura de `timetracker-data-provider.tsx`, desde
+D-066) fallaba con `PGRST106: Invalid schema: timetracker` — pero la
+capa `supabase-js`/PostgREST no lo trata como error visible en la UI
+para un `select`, simplemente no hay filas, así que cada pantalla
+mostraba su estado vacío normal ("no projects assigned", "0.00 h") en
+vez de un error. `tsc`/`vitest`/`next build` nunca lo iban a atrapar
+— ninguno hace una llamada real contra Supabase en producción. Nadie
+lo notó en D-066 a D-076 porque hasta D-073 no había datos reales que
+esperar ver, y el propio D-073 se verificó con SQL directo (el token
+de gestión, que sí tiene acceso completo a todos los schemas — bypasa
+PostgREST por completo), nunca con una sesión de navegador real contra
+la API pública.
+
+**Cómo se encontró.** El reporte de Andrés — página de Track Time
+vacía para un admin con asignaciones reales, incluso después de
+cerrar sesión y volver a entrar (descartando el patrón de "sesión
+vieja" que resolvió un bug parecido antes) — llevó a probar la
+petición REST exacta que hace el navegador
+(`GET .../rest/v1/projects` con `Accept-Profile: timetracker`) en vez
+de seguir verificando solo con SQL directo. Esa fue la primera vez en
+todo este módulo que se probó una lectura real vía la API pública en
+lugar de la API de gestión.
+
+**El mismo patrón que las GRANTs faltantes de D-064.** Cuando
+`recruiting.*` se creó, alguien agregó `recruiting` a los schemas
+expuestos a mano, fuera de cualquier migración — nunca quedó
+documentado como paso requerido. Para `timetracker`, ese paso a mano
+simplemente nunca se hizo. Ninguna de las 4 migraciones de D-064
+(058-061) podía haberlo cubierto: no es un objeto de Postgres, vive en
+la config de la plataforma de Supabase, fuera del alcance de
+`supabase/migrations/`.
+
+**Consecuencia aceptada:** ninguna a los datos — es un cambio de
+"quién puede leer", no de qué existe. Verificado con la misma petición
+REST exacta antes/después del cambio: `406 PGRST106` → `200 OK`.
+No se verificó con un JWT de usuario real firmado (generar uno
+manualmente con el secreto del proyecto fue bloqueado por el
+clasificador de seguridad del entorno, correctamente — eso es
+indistinguible de forjar una sesión de otra persona); la combinación
+de (a) el error de schema desaparece y (b) RLS ya se había verificado
+por separado con una transacción revertida impersonando a Andrés
+(ver D-073) es suficiente para confiar en el arreglo sin necesitar esa
+prueba adicional.
+
+**Revisar cuando:** se agregue un cuarto módulo — este mismo paso
+("agregar el schema a `db_schema` vía la API de gestión, no una
+migración") hay que recordarlo a mano otra vez, porque sigue sin
+existir un lugar automatizado donde viva.
 
 ---
 

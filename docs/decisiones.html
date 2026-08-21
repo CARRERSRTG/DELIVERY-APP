@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-077", title: "El schema timetracker nunca estuvo expuesto a la API — nada leía datos reales",
+      fecha: "2026-08-21", quien: "Andrés",
+      cambio: "db_schema en la config de PostgREST del proyecto de Supabase era public,graphql_public,recruiting — timetracker nunca se agregó desde D-064. Corregido vía PATCH /v1/projects/{ref}/postgrest. No es cambio de código ni migración .sql — config de plataforma, sin versión de APP_VERSION.",
+      razon: "\"todo projects y assignments vacios y soy admin\" — Track Time vacío para un admin con asignaciones reales, incluso después de re-loguearse",
+      razonTextual: true,
+      consecuencia: "Toda llamada supabase.from(...) con schema timetracker fallaba con PGRST106 desde D-066 — pero un select fallido simplemente no devuelve filas, así que cada pantalla mostraba su estado vacío normal en vez de un error visible. tsc/vitest/next build nunca lo iban a atrapar (ninguno prueba contra Supabase real). Nadie lo notó hasta D-073 porque antes no había datos reales que esperar ver, y D-073 mismo se verificó con SQL directo (bypasa PostgREST). Mismo patrón que las GRANTs faltantes de D-064: un paso manual fuera de las migraciones, hecho para recruiting pero nunca para timetracker. Verificado con la petición REST exacta antes/después: 406 PGRST106 → 200 OK."
+    },
+    {
       id: "D-076", title: "El login siempre mandaba a Deliveries, nunca de vuelta al módulo",
       fecha: "2026-08-21", version: "v1.19.2", quien: "Andrés",
       cambio: "Entrar sin sesión a /timetracker (o /recruiting, /home, /home/users) ahora redirige a /login?next=<esa ruta>, y el login vuelve ahí después de autenticar en vez de mandar siempre a / (Deliveries). También se ocultó el selector de módulos (⌂/⇄) por completo dentro del shell de escritorio (isDesktop() en ModuleSwitcher.tsx) — moverse fuera de /timetracker detiene en silencio la captura de actividad/pantallas.",

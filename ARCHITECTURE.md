@@ -455,7 +455,7 @@ recruiting project" below) but nothing in production points at them anymore.
   `updateUserRecruitingAccess`) were not touched or merged — the generic part is what gets
   rendered, never what gets written.
 
-## 12. Timetracker module (D-064→D-076 — data, UI, real data, desktop client, all done)
+## 12. Timetracker module (D-064→D-077 — data, UI, real data, desktop client, all done)
 
 A third module joining the container, same two-stage shape as recruiting (D-050→D-052): data
 first, UI later. As of D-064 only the data stage is done — `timetracker.*` exists in this
@@ -517,6 +517,20 @@ client and a Windows Electron desktop client.
   anywhere else in this repo; someone applied them by hand once, outside any migration. Not fixed
   retroactively here (out of scope for this change), but worth knowing: `recruiting`'s migration
   files alone do not fully reproduce its own schema from empty.
+- **The exact same "manual step outside any migration" class of gap bit again, worse, in D-077:**
+  `timetracker` was never added to the Supabase project's exposed-schemas API config
+  (`db_schema`, set via `PATCH /v1/projects/{ref}/postgrest` — platform config, not a Postgres
+  object, so no `.sql` migration could have covered it). Every `supabase.from(...)` call scoped to
+  `db: { schema: "timetracker" }` — i.e. everything `timetracker-data-provider.tsx` has ever done —
+  failed with `PGRST106: Invalid schema` from D-066 onward. A failed `select` just returns no rows
+  to `supabase-js`, not a thrown error, so every screen rendered its normal empty state instead of
+  visibly breaking; `tsc`/`vitest`/`next build` never touch production Supabase, so none of them
+  could have caught it either. Unnoticed until D-073 put real data in place worth expecting to see,
+  found only when an actual browser-facing REST call (`Accept-Profile: timetracker`) was tested
+  instead of continuing to verify with the management-API SQL connection that bypasses PostgREST
+  (and its schema-exposure check) entirely. Fixed by adding `timetracker` to `db_schema` via the
+  same Management API. **If a fourth module is ever added, this exact step has to be remembered by
+  hand again** — there is still nowhere in this repo that automates or checks it.
 - **Storage bucket renamed `timetracker-screenshots`, not `screenshots`.** The original app owned
   that name outright in its own project; here it shares a flat Storage namespace with deliveries'
   own buckets and recruiting's `resumes`, so it gets the same module-prefixed treatment. Path
