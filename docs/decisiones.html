@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-085", title: "\"Add time\" en timetracker ya no deja pedir horas que se solapan",
+      fecha: "2026-08-21", version: "v1.21.0", quien: "Andrés",
+      cambio: "/timetracker/requests, formulario Add time: muestra los bloques ya fichados ese día, los campos From/To llevan min/max acotados al hueco libre, y al enviar se revalida contra TODOS los bloques del día (no solo el hueco visible) — rechaza con mensaje explícito si se solapa.",
+      razon: "\"trabajé de 10 a 11 entonces en donde pongo el tiempo solo se puede de 9 a 10 y 10:01 debería salir bloqueado\"",
+      razonTextual: true,
+      consecuencia: "Un input type=time nativo solo expresa un rango continuo — si hay dos bloques fichados con un hueco en medio, min/max no puede bloquear ambos a la vez, así que cubre el caso común y la validación al enviar (que sí revisa cada bloque) es la garantía real. Solo aplica a \"Add time\" — Adjust/Delete parten de una sesión existente elegida de una lista."
+    },
+    {
       id: "D-084", title: "Office/Accounting arrancan una orden nueva en Intertienda",
       fecha: "2026-08-21", version: "v1.20.4", quien: "Andrés",
       cambio: "Al crear orden nueva, el tipo por default sigue siendo Customer para todos, excepto manager (office) y accounting, que ahora arrancan en Intertienda.",

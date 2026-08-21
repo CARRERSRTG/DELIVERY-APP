@@ -3590,6 +3590,36 @@ fallar.
 
 ---
 
+## D-085 · "Add time" en timetracker ya no deja pedir horas que se solapan
+**Fecha:** 2026-08-21 · **Versión:** v1.21.0 · **Pedido por:** Andrés
+(*"trabajé de 10 a 11 entonces en donde pongo el tiempo solo se puede
+de 9 a 10 y 10:01 debería salir bloqueado"*)
+
+**Cambio:** `/timetracker/requests`, formulario "Add time" — ahora
+muestra los bloques ya fichados ese día ("Already tracked that day:
+10:00–11:00") y los campos From/To llevan `min`/`max` acotados al hueco
+libre alrededor de la hora que se está eligiendo. Al enviar, se vuelve
+a validar contra TODOS los bloques del día (no solo el hueco visible
+en ese momento) — si se solapa con cualquier sesión ya fichada, se
+rechaza con un mensaje explícito en vez de dejar pasar horas
+duplicadas.
+
+**Por qué `min`/`max` solo, sin más, no alcanzaba.** Un `<input
+type="time">` nativo solo puede expresar UN rango continuo permitido
+— si alguien fichó 8–9 y 10–11 ese mismo día, no hay forma de que el
+input bloquee ambos huecos ocupados a la vez y deje libres 9–10 y
+11–24 con un solo `min`/`max`. Por eso el `min`/`max` cubre el caso
+común (el hueco alrededor de lo que ya se está escribiendo), y la
+validación al enviar —que sí revisa CADA bloque del día, no solo el
+hueco visible— es la garantía real.
+
+**Consecuencia aceptada:** solo aplica al tipo "Add time" — "Adjust" y
+"Delete" ya parten de una sesión existente elegida de una lista, así
+que el caso de "pedir horas que ya están fichadas" no aplica ahí de la
+misma forma. `tsc`/`vitest` (467)/`next build` limpios.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
