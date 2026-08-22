@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-089", title: "Salir se muda dentro de la burbuja del rol (solo roles que no son admin)",
+      fecha: "2026-08-22", version: "v1.21.4", quien: "Andrés",
+      cambio: "La píldora del rol para todos menos admin pasa de texto estático a un botón que abre un menú desplegable pequeño con Salir. El botón de Sign out separado desaparece para esos roles.",
+      razon: "\"the sign out we said will be a dropdown inside the office manager bubble\"",
+      razonTextual: true,
+      consecuencia: "Admin queda intacto a propósito — su burbuja ya es un select disfrazado para previsualizar otro rol, y mezclar Salir ahí habría juntado dos funciones distintas en un control. Admin conserva su botón de Sign out separado, sin cambios. Reusa el mismo patrón visual del menú \"☰ General\" (col-menu/col-opt, backdrop de cierre, volteo cuando no cabe a la derecha). tsc/vitest (487)/next build limpios."
+    },
+    {
       id: "D-088", title: "D-081 tenía un bug propio: una app abierta se quedaba vacía hasta refrescar",
       fecha: "2026-08-21", version: "v1.21.4 deliveries / v0.1.1 recruiting+timetracker", quien: "Andrés",
       cambio: "ensureSession() en los tres proveedores de datos ahora envuelve TODO su cuerpo en try/catch — antes solo refreshSession() tenía .catch(), pero getSession() no tenía ningún manejo de error.",

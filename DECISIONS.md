@@ -3869,6 +3869,39 @@ podría lanzar ahí también, con el mismo efecto de nunca llegar a
 
 ---
 
+## D-089 · Salir se muda dentro de la burbuja del rol (solo roles que no son admin)
+**Fecha:** 2026-08-22 · **Versión:** v1.21.4 (deliveries) · **Pedido por:** Andrés
+(*"the sign out we said will be a dropdown inside the office manager
+bubble"*)
+
+**Cambio:** para todos los roles menos admin, la píldora del rol
+(antes un `<span>` estático junto al botón "Sign out") ahora es un
+botón que abre un menú desplegable pequeño con la opción de salir. El
+botón de Sign out separado que estaba al lado desaparece para esos
+roles.
+
+**Razón:** ya se había acordado en una conversación anterior de esta
+misma sesión — captura de pantalla del topbar mostrando
+"PH Patricia Hernández [Office Manager] [Sign out]" como tres
+elementos sueltos, con la instrucción de que Salir viviera dentro de
+la burbuja en vez de al lado.
+
+**Admin queda intacto, a propósito.** El propio Andrés lo aclaró
+antes: *"admin que puede switch roles no porque ya tiene el dropdown
+para cambiar roles"*. La burbuja de admin ya es un `<select>`
+disfrazado de píldora para previsualizar otro rol — meterle Salir ahí
+habría mezclado dos funciones distintas en un solo control. Admin
+conserva su botón de Sign out separado, sin cambios.
+
+**Consecuencia aceptada:** un elemento interactivo más en la barra
+superior para los roles no-admin (antes era texto estático). Reusa el
+mismo patrón visual que el menú "☰ General" (mismo `col-menu`/`col-opt`,
+mismo backdrop para cerrar al hacer clic afuera, mismo cálculo de
+volteo cuando no cabe a la derecha) para no introducir un componente
+nuevo. `tsc`/`vitest` (487)/`next build` limpios.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre
