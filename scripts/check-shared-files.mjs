@@ -15,6 +15,7 @@ const APP_OWNED_DIRS = [
   "src/lib/timetracker/",
 ];
 const APP_OWNED_FILES = [
+  "src/lib/data-provider.tsx",
   "src/lib/recruiting-data-provider.tsx",
   "src/lib/timetracker-data-provider.tsx",
 ];
