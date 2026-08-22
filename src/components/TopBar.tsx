@@ -23,6 +23,22 @@ export function TopBar({ me: propMe }: { me: Profile }) {
   const me = ctxMe ?? propMe;
   const role = ROLE_INFO[me.role];
   const [generalOpen, setGeneralOpen] = useState(false);
+  // Non-admin's role badge (D-089): Sign out lives inside it as a dropdown,
+  // same as admin's badge already doubles as the role-switcher — one bubble,
+  // not a bubble plus a separate button next to it. Admin is EXCLUDED on
+  // purpose (confirmed with the user): their badge is already the "view as"
+  // switcher, and mixing Sign out into that dropdown would blur two
+  // different jobs into one control.
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const roleMenuRef = useRef<HTMLDivElement>(null);
+  const [roleMenuFlip, setRoleMenuFlip] = useState(false);
+  useEffect(() => {
+    if (!roleMenuOpen) { setRoleMenuFlip(false); return; }
+    const el = roleMenuRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.left < 8) setRoleMenuFlip(true);
+  }, [roleMenuOpen]);
   // The menu hangs from the button's RIGHT edge and grows leftwards, which
   // runs it off the window whenever the button sits near the left edge — and
   // on a wrapped tab row it always does. Measured once on open and flipped to
@@ -38,7 +54,7 @@ export function TopBar({ me: propMe }: { me: Profile }) {
     if (r.left < 8) setGeneralFlip(true);
   }, [generalOpen]);
   // Navigating away closes the menu (covers back/forward too).
-  useEffect(() => { setGeneralOpen(false); }, [pathname]);
+  useEffect(() => { setGeneralOpen(false); setRoleMenuOpen(false); }, [pathname]);
 
   // Dispatch nudge (#29): how many orders due today/tomorrow still have no
   // driver — shown as a badge on the Map tab for the roles that assign drivers.
@@ -225,16 +241,47 @@ export function TopBar({ me: propMe }: { me: Profile }) {
           </label>
         ) : (
           role && (
-            <span className="sema" style={{ background: role.color, color: "#fff" }}>
-              {roleLabel(me.role, lang)}
-            </span>
+            <div style={{ position: "relative" }}>
+              <button
+                className="sema"
+                style={{ background: role.color, color: "#fff", border: 0, cursor: "pointer" }}
+                onClick={() => setRoleMenuOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={roleMenuOpen}
+              >
+                {roleLabel(me.role, lang)} <span aria-hidden>▾</span>
+              </button>
+              {roleMenuOpen && (
+                <>
+                  <div style={{ position: "fixed", inset: 0, zIndex: 70 }} onClick={() => setRoleMenuOpen(false)} />
+                  <div
+                    ref={roleMenuRef}
+                    className="col-menu"
+                    style={{
+                      zIndex: 71,
+                      minWidth: 140,
+                      ...(roleMenuFlip ? { left: 0, right: "auto" } : { right: 0, left: "auto" }),
+                    }}
+                    role="menu"
+                  >
+                    <form action="/auth/signout" method="post">
+                      <button className="col-opt" type="submit" style={{ width: "100%", textAlign: "left", background: "none", border: 0 }} role="menuitem">
+                        {t("Sign out", "Salir")}
+                      </button>
+                    </form>
+                  </div>
+                </>
+              )}
+            </div>
           )
         )}
-        <form action="/auth/signout" method="post">
-          <button className="tab" type="submit" style={{ background: "rgba(255,255,255,.1)" }}>
-            {t("Sign out", "Salir")}
-          </button>
-        </form>
+        {realRole === "admin" && (
+          <form action="/auth/signout" method="post">
+            <button className="tab" type="submit" style={{ background: "rgba(255,255,255,.1)" }}>
+              {t("Sign out", "Salir")}
+            </button>
+          </form>
+        )}
       </div>
     </div>
     </>
