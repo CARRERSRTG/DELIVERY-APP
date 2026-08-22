@@ -189,6 +189,17 @@ warehouse (fulfilling/ready/delivered) without a manager approving it first.
 
 ## 10. Change log (most recent first)
 
+- **D-081's `ensureSession()` had its own unguarded failure mode, found the same day (D-088).**
+  Only `refreshSession()` inside it was wrapped in `.catch(() => {})`; `getSession()` itself had no
+  error handling. Once D-081 made every `reloadAll()` `await ensureSession()` as its first line, a
+  `getSession()` failure — a fetch aborted mid-navigation, which is exactly what opening the app or
+  switching modules looks like to the browser — threw an unhandled rejection that killed the whole
+  `reloadAll()` before it ever reached `setReady(true)`, leaving the screen stuck empty until an
+  unrelated manual refresh happened to give `getSession()` a clean run. `tsc`/`vitest`/`next build`
+  couldn't have caught it — none of them exercise a real browser navigation with an in-flight
+  request. Fixed by wrapping `ensureSession()`'s entire body in `try/catch` in all three data
+  providers, making it strictly best-effort: a failure now just means `reloadAll()` proceeds with
+  whatever session already exists, the same as before D-081 existed at all.
 - **Versioning and the update banner went from one global number to one per app (D-087).**
   `src/lib/app-versions.ts` (new) holds `APP_VERSIONS = { deliveries, recruiting, timetracker }`,
   replacing the single `APP_VERSION` constant that used to live in `constants.ts` — that constant

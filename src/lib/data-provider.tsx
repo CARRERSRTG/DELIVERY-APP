@@ -396,11 +396,20 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // Refreshing proactively here catches the common case (ordinary expiry)
   // before a fetch ever runs, instead of discovering it after the fact.
   const ensureSession = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (!session || !session.expires_at || session.expires_at - nowSec < 60) {
-      await supabase.auth.refreshSession().catch(() => {});
-    }
+    // Best-effort only — never let a hiccup HERE (a network abort mid-
+    // navigation, a transient error) take down the actual data fetch that
+    // follows. getSession() had no error handling at all before this: one
+    // throw and reloadAll() below (which now awaits this first, D-081)
+    // would reject before ever reaching setReady(true), leaving the screen
+    // stuck empty until a hard refresh gave it a clean, uninterrupted run —
+    // exactly the "always have to refresh to see data" report this fixes.
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (!session || !session.expires_at || session.expires_at - nowSec < 60) {
+        await supabase.auth.refreshSession().catch(() => {});
+      }
+    } catch { /* ignore — reloadAll proceeds with whatever session exists */ }
   }, [supabase]);
 
   const reloadAll = useCallback(async () => {

@@ -329,6 +329,14 @@
       consecuencia: "Regla derivada: nunca usar el reloj local para lógica de “hoy” o “atrasado” que se muestre en pantalla."
     },
     {
+      id: "D-088", title: "D-081 tenía un bug propio: una app abierta se quedaba vacía hasta refrescar",
+      fecha: "2026-08-21", version: "v1.21.4 deliveries / v0.1.1 recruiting+timetracker", quien: "Andrés",
+      cambio: "ensureSession() en los tres proveedores de datos ahora envuelve TODO su cuerpo en try/catch — antes solo refreshSession() tenía .catch(), pero getSession() no tenía ningún manejo de error.",
+      razon: "\"whenever you open the app or switch modules you need to refresh it to be able to see the data\"",
+      razonTextual: true,
+      consecuencia: "D-081 (mismo día, horas antes) hizo que reloadAll() llamara ensureSession() como primera línea. Si getSession() fallaba (un fetch abortado a media navegación — abrir la app o cambiar de módulo es exactamente eso), la excepción sin capturar tumbaba reloadAll() antes de llegar a setReady(true) — pantalla pegada vacía hasta que un refresh manual le diera a getSession() una ejecución limpia. No se atrapó antes porque tsc/vitest/next build no ejercitan una navegación real con peticiones en vuelo. ensureSession() ahora es estrictamente best-effort: si falla, reloadAll() sigue con la sesión que exista, igual que antes de D-081."
+    },
+    {
       id: "D-087", title: "El versionado deja de ser global — una versión por app",
       fecha: "2026-08-21", version: "v1.21.2 deliveries / v0.1.0 recruiting+timetracker", quien: "Andrés",
       cambio: "src/lib/app-versions.ts reemplaza el APP_VERSION único con un mapa {deliveries, recruiting, timetracker}. /api/version devuelve {versions:{...}, apk} en vez de {web, apk}. Los 4 montajes de AppUpdateBanner reciben una prop app fija (cada layout ya envuelve solo su propio árbol de rutas) y comparan solo la versión de su propia app.",

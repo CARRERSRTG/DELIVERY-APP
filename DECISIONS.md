@@ -3815,6 +3815,60 @@ el auto-bump que se descartó aquí a propósito.
 
 ---
 
+## D-088 · D-081 tenía un bug propio: una app abierta se quedaba vacía hasta refrescar
+**Fecha:** 2026-08-21 · **Versión:** v1.21.4 (deliveries) · v0.1.1
+(recruiting, timetracker) · **Pedido por:** Andrés (*"whenever you
+open the app or switch modules you need to refresh it to be able to
+see the data"*)
+
+**Cambio:** `ensureSession()` en los tres proveedores de datos
+(`data-provider.tsx`, `recruiting-data-provider.tsx`,
+`timetracker-data-provider.tsx`) ahora envuelve TODO su cuerpo en
+`try/catch` — antes solo `refreshSession()` tenía `.catch(()=>{})`,
+pero `supabase.auth.getSession()` en la misma función no tenía ningún
+manejo de error.
+
+**El mecanismo exacto — un bug que yo mismo introduje horas antes en
+D-081.** D-081 hizo que `reloadAll()` llamara `await ensureSession()`
+como su PRIMERA línea, para refrescar un token vencido antes de leer.
+Pero si `getSession()` fallaba por cualquier motivo — un fetch
+abortado a media navegación (los navegadores cancelan peticiones en
+vuelo cuando empieza una navegación nueva, y abrir la app o cambiar de
+módulo es exactamente eso), un hipo de red transitorio — esa excepción
+sin capturar tumbaba TODA la promesa de `reloadAll()` antes de llegar
+a `Promise.all([...])` siquiera, y sobre todo, antes de llegar a
+`setReady(true)` al final. La pantalla se quedaba pegada en su estado
+inicial vacío/cargando, sin ningún error visible, hasta que algo
+volviera a disparar `reloadAll()` desde cero — un refresh manual, que
+por casualidad le da a `getSession()` una ejecución limpia sin
+navegación de por medio, y por eso "funciona" al refrescar.
+
+**Por qué no se atrapó antes de subir D-081:** `tsc`/`vitest`/`next
+build` no ejercitan una navegación real del navegador con peticiones
+en vuelo — el error solo aparece en el momento exacto de abrir la app
+o cambiar de módulo, la clase de condición de carrera que ninguna de
+esas tres herramientas puede reproducir.
+
+**Consecuencia aceptada:** el propósito de `ensureSession()` (refrescar
+proactivamente un token por vencer) ahora es estrictamente
+best-effort — si falla por cualquier razón, `reloadAll()` sigue
+adelante con la sesión que ya exista, exactamente el comportamiento de
+ANTES de D-081. En el peor caso (el `getSession()` falla Y la sesión
+de verdad estaba vencida) se vuelve al síntoma original de D-081 —
+pantalla vacía sin error — pero ya no al síntoma NUEVO (pantalla vacía
+SIEMPRE, en cada apertura/cambio de módulo). `tsc`/`vitest`
+(487)/`next build` limpios.
+
+**Revisar cuando:** si "pantalla vacía sin refrescar" vuelve a
+aparecer, el siguiente sospechoso es el mismo patrón sin capturar en
+`Promise.all([...])` de cada `reloadAll()` — hoy asumido seguro porque
+los queries de Supabase normalmente resuelven con `{data, error}` en
+vez de lanzar, pero un fallo de red real (no solo un error de API) sí
+podría lanzar ahí también, con el mismo efecto de nunca llegar a
+`setReady(true)`.
+
+---
+
 <!-- PLANTILLA — copia esto para una entrada nueva
 ## D-0XX · Título corto en presente
 **Fecha:** YYYY-MM-DD · **Versión:** vX.Y.Z · **Pedido por:** nombre

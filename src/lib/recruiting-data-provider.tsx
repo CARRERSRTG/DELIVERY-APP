@@ -135,11 +135,14 @@ export function DataProvider({ children, me }: { children: React.ReactNode; me: 
   // comment in data-provider.tsx's reloadAll (D-081) for why: a stale token
   // doesn't error, it just makes every read look like it returned nothing.
   const ensureSession = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (!session || !session.expires_at || session.expires_at - nowSec < 60) {
-      await supabase.auth.refreshSession().catch(() => {});
-    }
+    // Best-effort only — see the identical comment in data-provider.tsx.
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (!session || !session.expires_at || session.expires_at - nowSec < 60) {
+        await supabase.auth.refreshSession().catch(() => {});
+      }
+    } catch { /* ignore — reloadAll proceeds with whatever session exists */ }
   }, [supabase]);
 
   const reloadAll = useCallback(async () => {
